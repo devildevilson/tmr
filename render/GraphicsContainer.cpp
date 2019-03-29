@@ -301,6 +301,7 @@ void GraphicsContainer::construct(CreateInfo &info) {
   createRender(instance(), dev, count, info.containerSize, info.systemContainer, &render, task);
   
   for (uint32_t i = 0; i < count; ++i) {
+//     std::cout << "command buffer " << task[i]->getCommandBuffer() << "\n";
     task1[i] = task[i];
     task2[i] = task[i];
     task3[i] = task[i];
@@ -313,7 +314,7 @@ void GraphicsContainer::construct(CreateInfo &info) {
 //   }
 //   std::cout << "pointer to pointer " << task << "\n";
   
-  for (uint32_t i = 0; i < window->getFrameCount(); ++i) {
+  for (uint32_t i = 0; i < count; ++i) {
     task[i]->pushWaitSemaphore(window->at(i).imageAvailableSemaphore, window->at(i).flags);
     task[i]->pushSignalSemaphore(window->at(i).finishedRenderingSemaphore);
   }
@@ -345,6 +346,15 @@ void GraphicsContainer::update(const uint64_t &time) {
   // санитизеры молчат, правда иногда все же что-то говорят
   // но не могут сказать точно где у меня проблема
   // что мне делать?
+  
+  // опять вечер и опять теже симптомы =(
+  // хотя соседний скомпилированный файл работает нормально
+  // я так и знал что проблема где то в другом месте
+  // я более чем уверен что проблема где то с указателями
+  // то есть я что то изменяю на соседнем участке из-за чего его начинает ломать
+  
+  // после перезагрузки все встало на свои места
+  // 
 
   {
 //     RegionLog rl("render->update()");

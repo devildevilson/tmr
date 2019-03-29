@@ -27,11 +27,14 @@ public:
   template<typename T, typename... Args>
   T* addStage(Args&&... args) {
     assert(sizeof(T) <= bufferSize && "Bad sizeof(T) or size for stage container");
+    std::cout << "dataSize + sizeof(T) " << dataSize + sizeof(T) << " buffer size " << bufferSize << "\n";
+    assert(dataSize + sizeof(T) <= bufferSize && "Need more buffer size");
     
     if (dataSize + sizeof(T) > bufferSize) createBuffer();
     
-    T* ptr = reinterpret_cast<T*>(buffer + dataSize);
+    T* ptr = reinterpret_cast<T*>(buffer + sizeof(char*) + dataSize);
     new (ptr) T(std::forward<Args>(args)...);
+//     T* ptr = new T(std::forward<Args>(args)...);
     
     const size_t newSize = dataSize + sizeof(T);
     dataSize = newSize;
@@ -51,6 +54,7 @@ public:
   template<typename T>
   void destroyStage(T* stage) {
     stage->~T();
+//     delete stage;
   }
   
   constexpr size_t size() const {
@@ -67,7 +71,8 @@ private:
     char* newBuffer = new char[newBufferSize];
     
     // в датаСайз кладем sizeof(char*) так как это указатель на следующий массив
-    dataSize = sizeof(char*);
+    // теперь пприбавляю sizeof(char*) непосредственно при создании
+    dataSize = 0;
     //bufferSize = newBufferSize;
     
     // в первые sizeof(char*) байт кладем указатель
@@ -75,7 +80,7 @@ private:
     tmp[0] = buffer;
     buffer = newBuffer;
     
-    std::cout << "StageContainer createBuffer " << bufferSize << "\n";
+//     std::cout << "StageContainer createBuffer " << bufferSize << "\n";
   }
 };
 

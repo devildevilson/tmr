@@ -564,6 +564,10 @@ namespace yavf {
   
   VkSubmitInfo TaskInterface::getSubmitInfo() const {
     ASSERT(family < 4);
+//     ASSERT(waitSemaphores.size() == 1);
+//     ASSERT(signalSemaphores.size() == 1);
+    
+//     std::cout << "command buffer " << current << "\n";
     
     return {
       VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -625,13 +629,14 @@ namespace yavf {
   }
   
   void TaskInterface::setWaitSemaphore(const size_t &index, const Semaphore semaphore, const VkPipelineStageFlags &flag) {
+    ASSERT(waitSemaphores.size() > index);
+    
     waitSemaphores[index] = semaphore;
     stageFlags[index] = flag;
-    
-    ASSERT(family < 4);
   }
   
   void TaskInterface::setSignalSemaphore(const size_t &index, const Semaphore semaphore) {
+    ASSERT(signalSemaphores.size() > index);
     signalSemaphores[index] = semaphore;
   }
   

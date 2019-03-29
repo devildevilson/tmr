@@ -215,15 +215,11 @@ IF( NOT CMAKE_BUILD_TYPE )
 ENDIF()
 
 if (CMAKE_BUILD_TYPE MATCHES "Debug")
-  #message("Debug build.")
-  #MESSAGE(FATAL_ERROR "End")
   add_definitions(-D_DEBUG) # пользовательские флаги
   #-fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize=undefined
   # -march=native флажок для автоматического определения процессорных инструкций
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.2 -std=c++11 -Wall -Wextra -g")
 else()
-  #message("Release build.")
-  #MESSAGE(FATAL_ERROR "End")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.2 -std=c++11 -Wall -Wextra -O3 -s")
 endif (CMAKE_BUILD_TYPE MATCHES "Debug")
 
@@ -246,7 +242,10 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/bin/
                     ${CMAKE_CURRENT_SOURCE_DIR}/render/ 
                     ${CMAKE_CURRENT_SOURCE_DIR}/physics/ 
                     ${CMAKE_CURRENT_SOURCE_DIR}/utils/ 
-                    ${CMAKE_CURRENT_SOURCE_DIR}/include/ 
+                    ${CMAKE_CURRENT_SOURCE_DIR}/include/
+                    ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/include/
+                    ${CMAKE_CURRENT_SOURCE_DIR}/include/json/include/
+                    ${CMAKE_CURRENT_SOURCE_DIR}/include/VulkanMemoryAllocator/src/
                     ${GLFW3_INCLUDE_DIRS} 
                     ${STB_INCLUDE_PATH} 
                     ${TINYOBJ_INCLUDE_PATH} 
@@ -256,9 +255,28 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/bin/
 
 link_directories(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}) # директории, где компилятор ищет библиотечки
 
-ADD_LIBRARY(fmt STATIC IMPORTED)
-SET_TARGET_PROPERTIES(fmt PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/libfmt.a)
+find_package(git QUIET)
+if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
+# Update submodules as needed
+  option(GIT_SUBMODULE "Check submodules during build" ON)
+  if(GIT_SUBMODULE)
+    message(STATUS "Submodule update")
+    execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                    RESULT_VARIABLE GIT_SUBMOD_RESULT)
+    if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+      message(FATAL_ERROR "git submodule update --init failed with ${GIT_SUBMOD_RESULT}, please checkout submodules")
+    endif()
+  endif()
+endif()
+
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/include/fmt/CMakeLists.txt")
+  message(FATAL_ERROR "The submodules were not downloaded! GIT_SUBMODULE was turned off or failed. Please update submodules and try again.")
+endif()
+
+# ADD_LIBRARY(fmt STATIC IMPORTED)
+# SET_TARGET_PROPERTIES(fmt PROPERTIES
+#     IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/build/libfmt.a)
     
 # ADD_LIBRARY(imgui STATIC IMPORTED)
 # SET_TARGET_PROPERTIES(imgui PROPERTIES
@@ -288,6 +306,8 @@ set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/utils/CmdMgr.cpp
 #              ${CMAKE_CURRENT_SOURCE_DIR}/utils/State.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/ThreadPool.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/Settings.cpp 
+             ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/src/format.cc
+             ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/src/posix.cc
 #              utils/ResourceManager.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/FileTools.cpp)
 set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/utils/CmdMgr.h 
@@ -304,10 +324,12 @@ set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/utils/CmdMgr.h
 #              ${CMAKE_CURRENT_SOURCE_DIR}/utils/State.h
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/ThreadPool.h
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/Settings.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/include/fmt/format.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/include/fmt/posix.h
 #              utils/ResourceManager.h
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/FileTools.h)
 add_library(utils ${SRC_LIST} ${HDR_LIST}) # именно add_library объявляет цель в cmake (затем это имя мы используем как переменную в других функциях)
-target_link_libraries(utils fmt) # например здесь
+target_link_libraries(utils) # например здесь fmt
 
 # PHYSICS             
 set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsUtils.cpp
@@ -393,7 +415,8 @@ set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/render/Render.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/Makers.h 
              ${CMAKE_CURRENT_SOURCE_DIR}/render/Types.h 
              ${CMAKE_CURRENT_SOURCE_DIR}/render/RAII.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/vk_mem_alloc.h 
+#              ${CMAKE_CURRENT_SOURCE_DIR}/render/vk_mem_alloc.h 
+             ${CMAKE_CURRENT_SOURCE_DIR}/include/VulkanMemoryAllocator/src/vk_mem_alloc.h
 #              render/TextureManager.h
 #              render/stbi_image_header.h
              )

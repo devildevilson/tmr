@@ -57,50 +57,50 @@ InfoComponent::InfoComponent(const Type &type) : objType(type) {}
 InfoComponent::~InfoComponent() {}
 
 void InfoComponent::update(const size_t &time) {
-  (void)time;
-  
-  const auto &idxCont = phys2->getIndexContainer();
-  const Object &obj = Global::physics()->getObjectData(idxCont.objectDataIndex);
-  
-  std::string type;
-  switch(obj.objType.getObjType()) {
-    case BBOX_TYPE:
-      type = "Bounding box";
-      break;
-    case POLYGON_TYPE:
-      type = "Polygon";
-      break;
-    case SPHERE_TYPE:
-      type = "Sphere";
-      break;
-    default:
-      std::cout << "aaaaaaaaaaaaaa" << "\n";
-      throw std::runtime_error("Getting obj type failed");
-  }
-  
-  ImGui::Text("Object index: %zu, object type: %s", getEntity()->getId(), objType.getName().c_str());
-  ImGui::Text("Physics object index: %u", idxCont.objectDataIndex);
-  ImGui::Separator();
-  
-  if (trans != nullptr) {
-    ImGui::Text("Obj center: %.2f, %.2f, %.2f", trans->pos().x, trans->pos().y, trans->pos().z);
-    ImGui::Text("Obj dir   : %.2f, %.2f, %.2f", trans->rot().x, trans->rot().y, trans->rot().z);
-    ImGui::Text("Obj scale : %.2f, %.2f, %.2f", trans->scale().x, trans->scale().y, trans->scale().z);
-  } else {
-//     const glm::vec3 &center = coll->getCenter();
-//     ImGui::Text("Obj center: %.2f, %.2f, %.2f", center.x, center.y, center.z);
-  }
-  
-  if (obj.objType.getObjType() == POLYGON_TYPE) {
-    //Polygon* pl = (Polygon*)coll->getCollidable();
-    ImGui::Text("Plane has %u points", obj.vertexCount); 
-//     ImGui::Text("Plane normal: %.2f, %.2f, %.2f", pl->normal.x, pl->normal.y, pl->normal.z);
-//     ImGui::Text("Plane has %zu neighbors", Global::ai()->getGraph()->vertex(pl->graphIndex).degree());
-  }
-  
-  //if ()
-  //ImGui::Text("Current animation state: %s", graphic->getCurrentState()->getName().c_str());
-  ImGui::Text("Current animation state: default");
+//   (void)time;
+//   
+//   const auto &idxCont = phys2->getIndexContainer();
+//   const Object &obj = Global::physics()->getObjectData(idxCont.objectDataIndex);
+//   
+//   std::string type;
+//   switch(obj.objType.getObjType()) {
+//     case BBOX_TYPE:
+//       type = "Bounding box";
+//       break;
+//     case POLYGON_TYPE:
+//       type = "Polygon";
+//       break;
+//     case SPHERE_TYPE:
+//       type = "Sphere";
+//       break;
+//     default:
+//       std::cout << "aaaaaaaaaaaaaa" << "\n";
+//       throw std::runtime_error("Getting obj type failed");
+//   }
+//   
+//   ImGui::Text("Object index: %zu, object type: %s", getEntity()->getId(), objType.getName().c_str());
+//   ImGui::Text("Physics object index: %u", idxCont.objectDataIndex);
+//   ImGui::Separator();
+//   
+//   if (trans != nullptr) {
+//     ImGui::Text("Obj center: %.2f, %.2f, %.2f", trans->pos().x, trans->pos().y, trans->pos().z);
+//     ImGui::Text("Obj dir   : %.2f, %.2f, %.2f", trans->rot().x, trans->rot().y, trans->rot().z);
+//     ImGui::Text("Obj scale : %.2f, %.2f, %.2f", trans->scale().x, trans->scale().y, trans->scale().z);
+//   } else {
+// //     const glm::vec3 &center = coll->getCenter();
+// //     ImGui::Text("Obj center: %.2f, %.2f, %.2f", center.x, center.y, center.z);
+//   }
+//   
+//   if (obj.objType.getObjType() == POLYGON_TYPE) {
+//     //Polygon* pl = (Polygon*)coll->getCollidable();
+//     ImGui::Text("Plane has %u points", obj.vertexCount); 
+// //     ImGui::Text("Plane normal: %.2f, %.2f, %.2f", pl->normal.x, pl->normal.y, pl->normal.z);
+// //     ImGui::Text("Plane has %zu neighbors", Global::ai()->getGraph()->vertex(pl->graphIndex).degree());
+//   }
+//   
+//   //if ()
+//   //ImGui::Text("Current animation state: %s", graphic->getCurrentState()->getName().c_str());
+//   ImGui::Text("Current animation state: default");
 }
 
 void InfoComponent::init(void* userData) {
@@ -131,19 +131,19 @@ void TransformComponent::setContainer(Container<Transform>* container) {
 }
 
 void TransformComponent::uiDraw() {
-  if (ImGui::CollapsingHeader("Transform")) {
-    Transform &trans = container->at(transformIndex);
-    
-    ImGui::Text("Position :");
-    ImGui::SameLine();
-    ImGui::DragFloat3("pos", reinterpret_cast<float*>(&trans.pos), 0.1f);
-    ImGui::Text("Direction:");
-    ImGui::SameLine();
-    ImGui::DragFloat3("dir", reinterpret_cast<float*>(&trans.rot), 0.1f);
-    ImGui::Text("Scale    :");
-    ImGui::SameLine();
-    ImGui::DragFloat3("scale", reinterpret_cast<float*>(&trans.scale), 0.1f);
-  }
+//   if (ImGui::CollapsingHeader("Transform")) {
+//     Transform &trans = container->at(transformIndex);
+//     
+//     ImGui::Text("Position :");
+//     ImGui::SameLine();
+//     ImGui::DragFloat3("pos", reinterpret_cast<float*>(&trans.pos), 0.1f);
+//     ImGui::Text("Direction:");
+//     ImGui::SameLine();
+//     ImGui::DragFloat3("dir", reinterpret_cast<float*>(&trans.rot), 0.1f);
+//     ImGui::Text("Scale    :");
+//     ImGui::SameLine();
+//     ImGui::DragFloat3("scale", reinterpret_cast<float*>(&trans.scale), 0.1f);
+//   }
 }
 
 glm::mat4 TransformComponent::getTransform(const bool rotation) const {

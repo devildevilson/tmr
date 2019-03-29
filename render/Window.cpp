@@ -185,7 +185,8 @@ void Window::create(const CreateInfo &info) {
   window = info.window;
   
   {
-    const auto data = glfwGetVideoMode(glfwGetWindowMonitor(window));
+    auto m = glfwGetWindowMonitor(window);
+    const auto data = glfwGetVideoMode(m == nullptr ? glfwGetPrimaryMonitor() : m);
     refreshTimeVar = std::min(size_t(REFRESH_RATE_TO_MCS(data->refreshRate+1)), refreshTimeVar);
   }
   

@@ -341,6 +341,7 @@ void initnk(yavf::Device* device, Window* window, nuklear_data &data) {
   data.ctx.clip.copy = clipbardCopy;
   data.ctx.clip.paste = clipbardPaste;
   data.ctx.clip.userdata = nk_handle_ptr(window);
+  Global::data()->currentText = 0;
 }
 
 void deinitnk(nuklear_data &data) {
@@ -650,46 +651,46 @@ void nkOverlay(const SimpleOverlayData &data, nk_context* ctx) {
 
 void simpleOverlay(const SimpleOverlayData &data) {
 //   bool open = true;
-  {
-    ImGui::SetNextWindowPos(ImVec2(10,10));
-    bool t = ImGui::Begin("Example: Fixed Overlay",
-                      nullptr,
-                      ImVec2(0,0),
-                      0.5f,
-                      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
-    if (!t) {
-        ImGui::End();
-        return;
-    }
-    ImGui::Text("Simple overlay\non the top-left side of the screen.");
-    ImGui::Separator();
-
-    const glm::vec4 &pos = glm::vec4(data.pos); //playerTransform->pos;
-    ImGui::Text("Camera pos: (%.2f,%.2f,%.2f,%.2f)", pos.x, 
-                                                      pos.y, 
-                                                      pos.z,
-                                                      pos.w);
-    
-    const glm::vec3 &dir = data.rot;//GameObjectContainer::getObject(0)->getRot();
-    ImGui::Text("Camera dir: (%.2f,%.2f,%.2f)", dir.x, 
-                                                dir.y, 
-                                                dir.z);
-    
-    ImGui::Separator();
-    ImGui::Text("Frame rendered in %lu mcs (%.2f fps)", data.frameComputeTime, 1000000.0f/float(data.frameComputeTime));
-    ImGui::Text("Sleep between frames equals %lu mcs", data.frameSleepTime);
-    ImGui::Text("Final fps is %.2f", data.fps);
-    ImGui::Separator();
-    ImGui::Text("In frustum %zu objects", data.frustumObjCount);
-    //ImGui::Text("Ray collide %zu objects", collideRay.size());
-    ImGui::Text("Ray collide %zu objects", data.rayCollideCount);
-    //ImGui::Text("Player see %zu objects", visibleObjects);
-    ImGui::Text("Player see %zu objects", data.visibleObjCount);
-//       ImGui::Text("Visible geo count: %zu", geometryCount);
-//       ImGui::Text("Visible obj count: %zu", objCount);
-    //if (!collideRay.empty()) ImGui::Text("Ray collide object index %zu", collideRay.back()->index);
-    ImGui::End();
-  }
+//   {
+//     ImGui::SetNextWindowPos(ImVec2(10,10));
+//     bool t = ImGui::Begin("Example: Fixed Overlay",
+//                       nullptr,
+//                       ImVec2(0,0),
+//                       0.5f,
+//                       ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
+//     if (!t) {
+//         ImGui::End();
+//         return;
+//     }
+//     ImGui::Text("Simple overlay\non the top-left side of the screen.");
+//     ImGui::Separator();
+// 
+//     const glm::vec4 &pos = glm::vec4(data.pos); //playerTransform->pos;
+//     ImGui::Text("Camera pos: (%.2f,%.2f,%.2f,%.2f)", pos.x, 
+//                                                       pos.y, 
+//                                                       pos.z,
+//                                                       pos.w);
+//     
+//     const glm::vec3 &dir = data.rot;//GameObjectContainer::getObject(0)->getRot();
+//     ImGui::Text("Camera dir: (%.2f,%.2f,%.2f)", dir.x, 
+//                                                 dir.y, 
+//                                                 dir.z);
+//     
+//     ImGui::Separator();
+//     ImGui::Text("Frame rendered in %lu mcs (%.2f fps)", data.frameComputeTime, 1000000.0f/float(data.frameComputeTime));
+//     ImGui::Text("Sleep between frames equals %lu mcs", data.frameSleepTime);
+//     ImGui::Text("Final fps is %.2f", data.fps);
+//     ImGui::Separator();
+//     ImGui::Text("In frustum %zu objects", data.frustumObjCount);
+//     //ImGui::Text("Ray collide %zu objects", collideRay.size());
+//     ImGui::Text("Ray collide %zu objects", data.rayCollideCount);
+//     //ImGui::Text("Player see %zu objects", visibleObjects);
+//     ImGui::Text("Player see %zu objects", data.visibleObjCount);
+// //       ImGui::Text("Visible geo count: %zu", geometryCount);
+// //       ImGui::Text("Visible obj count: %zu", objCount);
+//     //if (!collideRay.empty()) ImGui::Text("Ray collide object index %zu", collideRay.back()->index);
+//     ImGui::End();
+//   }
 }
 
 // void createInstance(yavf::Instance* inst) {
@@ -1153,57 +1154,57 @@ void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, Physic
 }
 
 void nextGuiFrame() {
-  static double timef = 0.0;
-  ImGuiIO &io = ImGui::GetIO();
-
-  // Setup display size (every frame to accommodate for window resizing)
-  int w, h;
-  int display_w, display_h;
-  glfwGetWindowSize(Global::window()->handle(), &w, &h);
-  glfwGetFramebufferSize(Global::window()->handle(), &display_w, &display_h);
-  io.DisplaySize = ImVec2(float(w), float(h));
-  io.DisplayFramebufferScale = ImVec2(w > 0 ? (float(display_w) / w) : 0, h > 0 ? (float(display_h) / h) : 0);
-
-  // Setup time step
-  double current_time = glfwGetTime();
-  io.DeltaTime = timef > 0.0 ? float(current_time - timef) : float(1.0f/60.0f);
-  timef = current_time;
-
-  if (Global::data()->focusOnInterface) {
-    // Setup inputs
-    // (we already got mouse wheel, keyboard keys & characters from glfw callbacks polled in glfwPollEvents())
-    if (Global::window()->isFocused()) {
-      double mouse_x, mouse_y;
-      glfwGetCursorPos(Global::window()->handle(), &mouse_x, &mouse_y);
-      // Mouse position in screen coordinates (set to -1,-1 if no mouse / on another screen, etc.)
-      io.MousePos = ImVec2(float(mouse_x), float(mouse_y));
-    } else {
-      io.MousePos = ImVec2(-1,-1);
-    }
-
-//     for (int i = 0; i < 3; i++) {
-//       // If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
-//       io.MouseDown[i] = mousePressed[i] || glfwGetMouseButton(window->handle(), i) != 0;
-//       mousePressed[i] = false;
+//   static double timef = 0.0;
+//   ImGuiIO &io = ImGui::GetIO();
+// 
+//   // Setup display size (every frame to accommodate for window resizing)
+//   int w, h;
+//   int display_w, display_h;
+//   glfwGetWindowSize(Global::window()->handle(), &w, &h);
+//   glfwGetFramebufferSize(Global::window()->handle(), &display_w, &display_h);
+//   io.DisplaySize = ImVec2(float(w), float(h));
+//   io.DisplayFramebufferScale = ImVec2(w > 0 ? (float(display_w) / w) : 0, h > 0 ? (float(display_h) / h) : 0);
+// 
+//   // Setup time step
+//   double current_time = glfwGetTime();
+//   io.DeltaTime = timef > 0.0 ? float(current_time - timef) : float(1.0f/60.0f);
+//   timef = current_time;
+// 
+//   if (Global::data()->focusOnInterface) {
+//     // Setup inputs
+//     // (we already got mouse wheel, keyboard keys & characters from glfw callbacks polled in glfwPollEvents())
+//     if (Global::window()->isFocused()) {
+//       double mouse_x, mouse_y;
+//       glfwGetCursorPos(Global::window()->handle(), &mouse_x, &mouse_y);
+//       // Mouse position in screen coordinates (set to -1,-1 if no mouse / on another screen, etc.)
+//       io.MousePos = ImVec2(float(mouse_x), float(mouse_y));
+//     } else {
+//       io.MousePos = ImVec2(-1,-1);
 //     }
-
-    // If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
-    // клик меньше чем за один фрейм? может быть когда фпс мелкий? может пригодится
-    for (uint32_t i = 0; i < 5; ++i) {
-      io.MouseDown[i] = Global::data()->keys[i];
-    }
-
-    io.MouseWheel = Global::data()->mouseWheel;
-    Global::data()->mouseWheel = 0.0f;
-
-    // Hide OS mouse cursor if ImGui is drawing it
-    glfwSetInputMode(Global::window()->handle(), GLFW_CURSOR, io.MouseDrawCursor ? GLFW_CURSOR_HIDDEN : GLFW_CURSOR_NORMAL);
-  } else {
-    glfwSetInputMode(Global::window()->handle(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-  }
-
-  // Start the frame
-  ImGui::NewFrame();
+// 
+// //     for (int i = 0; i < 3; i++) {
+// //       // If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
+// //       io.MouseDown[i] = mousePressed[i] || glfwGetMouseButton(window->handle(), i) != 0;
+// //       mousePressed[i] = false;
+// //     }
+// 
+//     // If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
+//     // клик меньше чем за один фрейм? может быть когда фпс мелкий? может пригодится
+//     for (uint32_t i = 0; i < 5; ++i) {
+//       io.MouseDown[i] = Global::data()->keys[i];
+//     }
+// 
+//     io.MouseWheel = Global::data()->mouseWheel;
+//     Global::data()->mouseWheel = 0.0f;
+// 
+//     // Hide OS mouse cursor if ImGui is drawing it
+//     glfwSetInputMode(Global::window()->handle(), GLFW_CURSOR, io.MouseDrawCursor ? GLFW_CURSOR_HIDDEN : GLFW_CURSOR_NORMAL);
+//   } else {
+//     glfwSetInputMode(Global::window()->handle(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+//   }
+// 
+//   // Start the frame
+//   ImGui::NewFrame();
 }
 
 
@@ -1226,12 +1227,12 @@ void sync(TimeMeter &tm, const size_t &syncTime) {
 }
 
 void guiShutdown(yavf::Device* device) {
-  ImGuiIO& io = ImGui::GetIO();
-
-  yavf::Image* image = (yavf::Image*)io.Fonts->TexID;
-  device->destroy(image);
-
-  ImGui::Shutdown();
+//   ImGuiIO& io = ImGui::GetIO();
+// 
+//   yavf::Image* image = (yavf::Image*)io.Fonts->TexID;
+//   device->destroy(image);
+// 
+//   ImGui::Shutdown();
 }
 
 void createReactions(const ReactionsCreateInfo &info) {
@@ -1381,8 +1382,10 @@ void charCallback(GLFWwindow*, unsigned int c) {
   if (!Global::window()->isFocused()) return;
   if (!Global::data()->focusOnInterface) return;
 
-  ImGuiIO& io = ImGui::GetIO();
-  if (c > 0 && c < 0x10000) io.AddInputCharacter((unsigned short)c);
+  Global::data()->text[Global::data()->currentText] = c;
+  ++Global::data()->currentText;
+//   ImGuiIO& io = ImGui::GetIO();
+//   if (c > 0 && c < 0x10000) io.AddInputCharacter((unsigned short)c);
 }
 
 void mouseButtonCallback(GLFWwindow*, int button, int action, int mods) {
@@ -1399,19 +1402,19 @@ void keyCallback(GLFWwindow*, int key, int scancode, int action, int mods) {
   if (!Global::window()->isFocused()) return;
   (void)scancode;
   
-  ImGuiIO& io = ImGui::GetIO();
+//   ImGuiIO& io = ImGui::GetIO();
   
   Global::data()->keys[key] = !(action == GLFW_RELEASE);
   
-  if (!Global::data()->focusOnInterface) return;
-  
-  io.KeysDown[key] = !(action == GLFW_RELEASE);
-  
-  (void)mods; // Modifiers are not reliable across systems
-  io.KeyCtrl = io.KeysDown[GLFW_KEY_LEFT_CONTROL] || io.KeysDown[GLFW_KEY_RIGHT_CONTROL];
-  io.KeyShift = io.KeysDown[GLFW_KEY_LEFT_SHIFT] || io.KeysDown[GLFW_KEY_RIGHT_SHIFT];
-  io.KeyAlt = io.KeysDown[GLFW_KEY_LEFT_ALT] || io.KeysDown[GLFW_KEY_RIGHT_ALT];
-  io.KeySuper = io.KeysDown[GLFW_KEY_LEFT_SUPER] || io.KeysDown[GLFW_KEY_RIGHT_SUPER];
+//   if (!Global::data()->focusOnInterface) return;
+//   
+//   io.KeysDown[key] = !(action == GLFW_RELEASE);
+//   
+//   (void)mods; // Modifiers are not reliable across systems
+//   io.KeyCtrl = io.KeysDown[GLFW_KEY_LEFT_CONTROL] || io.KeysDown[GLFW_KEY_RIGHT_CONTROL];
+//   io.KeyShift = io.KeysDown[GLFW_KEY_LEFT_SHIFT] || io.KeysDown[GLFW_KEY_RIGHT_SHIFT];
+//   io.KeyAlt = io.KeysDown[GLFW_KEY_LEFT_ALT] || io.KeysDown[GLFW_KEY_RIGHT_ALT];
+//   io.KeySuper = io.KeysDown[GLFW_KEY_LEFT_SUPER] || io.KeysDown[GLFW_KEY_RIGHT_SUPER];
 }
 
 void iconifyCallback(GLFWwindow*, int iconified) {

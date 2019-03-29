@@ -488,7 +488,8 @@ void HardcodedMapLoader::end() {
   // в будущем тут у нас должен быть мой собственный загрузчик
   
   std::string err;
-  const bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, path.c_str(), nullptr, false);
+  std::string warn;
+  const bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path.c_str(), nullptr, false);
 
   if (!err.empty()) { // `err` may contain warning message.
     std::cerr << err << std::endl;

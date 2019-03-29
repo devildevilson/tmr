@@ -3,9 +3,9 @@
 // #include "../sound/SoundSystem.h"
 
 int main(const int argc, const char** argv) {
-  for (int32_t i = 0; i < argc; ++i) {
-    std::cout << argv[i] << "\n";
-  }
+//   for (int32_t i = 0; i < argc; ++i) {
+//     std::cout << argv[i] << "\n";
+//   }
   
   (void)argc;
   (void)argv;
@@ -36,6 +36,8 @@ int main(const int argc, const char** argv) {
     if (path.exists()) {
       // грузим настройки
       settings.load(path.string());
+    } else {
+      throw std::runtime_error("Settings not found");
     }
     
     Global g;
@@ -403,7 +405,7 @@ int main(const int argc, const char** argv) {
     //ai->update(time);
     
     {
-//       RegionLog rl("physics region", true);
+//       RegionLog rl("physics region");
       
       {
         // можно переместить в камеру
@@ -431,19 +433,19 @@ int main(const int argc, const char** argv) {
     }
     
     {
-      const uint32_t rayOutputCount = Global::physics()->getRayTracingSize();
-      const uint32_t frustumOutputCount = Global::physics()->getFrustumTestSize();
-//       const uint32_t rayOutputCount = 0;
-//       const uint32_t frustumOutputCount = 0;
+//       const uint32_t rayOutputCount = Global::physics()->getRayTracingSize();
+//       const uint32_t frustumOutputCount = Global::physics()->getFrustumTestSize();
+      const uint32_t rayOutputCount = 0;
+      const uint32_t frustumOutputCount = 0;
 //       
-//       glm::vec4 pos = glm::vec4(0.0f);
-//       glm::vec4 rot = glm::vec4(0.0f);
+      glm::vec4 pos = glm::vec4(0.0f);
+      glm::vec4 rot = glm::vec4(0.0f);
       
       const SimpleOverlayData overlayData{
-        playerTransform->pos(),
-//         pos,
-        playerTransform->rot(),
-//         rot,
+//         playerTransform->pos(),
+        pos,
+//         playerTransform->rot(),
+        rot,
         tm.getReportTime(),
         tm.getSleepTime(),
         tm.getFPS(),
@@ -459,7 +461,7 @@ int main(const int argc, const char** argv) {
     // и прочее
     
     {
-//       RegionLog rl("graphics region", true);
+//       RegionLog rl("graphics region");
       
       graphicsContainer.update(time);
     

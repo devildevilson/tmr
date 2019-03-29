@@ -1,6 +1,8 @@
 {
-  "width": 1280,
-  "height": 720,
-  "fullscreen": false,
-  "fov": 60.0
+  "graphics": {
+    "width": 1280,
+    "height": 720,
+    "fullscreen": false,
+    "fov": 60.0
+  }
 }

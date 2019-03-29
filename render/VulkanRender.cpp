@@ -222,6 +222,12 @@ void VulkanRender::start() {
   const VkSubmitInfo &info = task[currentIndex]->getSubmitInfo();
   const uint32_t &family = task[currentIndex]->getFamily();
   
+//   std::cout << "wait size()   " << info.waitSemaphoreCount << "\n";
+//   std::cout << "signal size() " << info.signalSemaphoreCount << "\n";
+//   std::cout << "wait data()   " << info.pWaitSemaphores[0] << "\n";
+//   std::cout << "signal data() " << info.pSignalSemaphores[0] << "\n";
+//   std::cout << "command buffer " << info.pCommandBuffers[0] << "\n";
+  
 //   for (uint32_t i = 0; i < 3; ++i) {
 //     std::cout << "task " << i << " family " << task[i]->getFamily() << "\n";
 //   }
@@ -234,6 +240,7 @@ void VulkanRender::wait() {
 //   return;
   
   const VkResult res = vkWaitForFences(device->handle(), 1, &waitFence.fence, VK_TRUE, 1000000000);
+  //const VkResult res = vkWaitForFences(device->handle(), 1, &waitFence.fence, VK_TRUE, 100000);
   if (res != VK_SUCCESS) {
     throw std::runtime_error("hlqhvlgvuvfgowqvuqopquwvuonvev");
   }

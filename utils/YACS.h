@@ -110,7 +110,7 @@ namespace yacs {
       } else {
         if (currentSize + std::max(sizeof(T), sizeof(_Slot)) > blockSize) allocateBlock();
       
-        ptr = reinterpret_cast<T*>(memory+currentSize);
+        ptr = reinterpret_cast<T*>(memory+sizeof(char*)+currentSize);
         currentSize += std::max(sizeof(T), sizeof(_Slot));
       }
       
@@ -162,7 +162,7 @@ namespace yacs {
       char* newBuffer = new char[newBufferSize];
       
       // в датаСайз кладем sizeof(char*) так как это указатель на следующий массив
-      currentSize = sizeof(char*);
+      currentSize = 0;
       
       // в первые sizeof(char*) байт кладем указатель
       char** tmp = reinterpret_cast<char**>(newBuffer);

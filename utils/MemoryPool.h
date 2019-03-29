@@ -21,7 +21,9 @@ public:
     };
 
     MemoryPool() noexcept {}
+    
     MemoryPool(const MemoryPool& memoryPool) noexcept : MemoryPool() {}
+    
     MemoryPool(MemoryPool&& memoryPool) noexcept {
         currentBlock_ = memoryPool.currentBlock_;
         currentSlot_  = memoryPool.currentSlot_;
