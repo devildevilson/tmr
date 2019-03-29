@@ -1,0 +1,557 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "physic.h"
+#include "physicType.glsl"
+
+struct OverlappingData {
+  // x == firstIndex, y == secondIndex, z == collision, w == type?
+  uvec4 pairData;
+  // xyz == mtv, w == dist
+  vec4  vecDist;
+};
+
+struct RotationData {
+  vec4 anchorDir; // w == dist
+  vec4 rotationNormal;
+  // x == currentAngle, y == maxAngle, z == rotSpeed, w == stepTime
+  vec4 additionalData;
+  mat4 matrix;
+};
+
+layout(std140, set = 0, binding = 0) buffer readonly Objects {
+  Object3 objects[];
+};
+
+layout(std140, set = 0, binding = 1) buffer readonly Vertices {
+  vec4 vertices[];
+};
+
+layout(std140, set = 0, binding = 2) buffer PhysicDatas {
+  PhysicData4 physicDatas[];
+};
+
+layout(std140, set = 0, binding = 3) buffer readonly ConstantsBuffer {
+  Constants constants[];
+};
+
+layout(std140, set = 0, binding = 4) buffer GlobalVels {
+  vec4 velocities[];
+};
+
+layout(std140, set = 1, binding = 0) buffer readonly CoordinateSystem {
+  mat4 systems[];
+};
+
+layout(std140, set = 2, binding = 0) buffer readonly Transforms {
+  Transform transforms[];
+};
+
+layout(std140, set = 3, binding = 0) buffer readonly RotationDatas {
+  RotationData rotationDatas[];
+};
+
+layout(std140, set = 4, binding = 0) buffer OverlappingDatas {
+  OverlappingData overlappingDatas[];
+};
+
+layout(std430, set = 5, binding = 0) buffer OverlappingBufferData {
+  // x == indirectX , y == 1, z == 1, w == tempCount
+  //uvec4 overlappingBufferData;
+  uint indirectX;
+  uint indirectY;
+  uint indirectZ;
+  uint overlappingCount;
+  uint temporaryCount;
+  uint powerOfTwo;
+};
+
+shared uint sharedBool;
+shared uint sharedDist;
+shared vec4 sharedMtv;
+
+bool  SAT(const uint objectIndexFirst,  const uint transformIndexFirst,
+          const uint objectindexSecond, const uint transformIndexSecond, inout vec4 mtv, inout uint dist);
+vec4 transform(const vec4 p, const vec4 translation, const mat4 orientation);
+
+// тут мы вычисляем только овелапингДату
+// мы должны убрать отсюда те пары которые больше не пересекаются
+#define workGroupSize 16
+layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+//layout (local_size_x_id = 0) in;
+
+void main() {
+  sharedBool = 1;
+  sharedDist = floatBitsToUint(100000.0f);
+  sharedMtv = vec4(0.0f);
+
+  const uint dataIndex = gl_WorkGroupID.x;
+  const uint threadCount = gl_WorkGroupSize.x;
+
+  // const mat4 orn = systems[0];
+  //
+  // overlappingCount = uint(orn[0].x);
+  // temporaryCount = uint(orn[0].y);
+  // powerOfTwo = uint(orn[0].z);
+
+  if (gl_NumWorkGroups.x == 1 && overlappingDatas[0].pairData.x == 0xFFFFFFFF) return;
+
+  barrier();
+
+  if (overlappingDatas[dataIndex].pairData.w == 0xFFFFFFFF) {
+    if (gl_LocalInvocationIndex == 0) {
+      atomicAdd(temporaryCount, -1);
+      overlappingDatas[dataIndex].pairData.x = 0xFFFFFFFF;
+      overlappingDatas[dataIndex].pairData.y = 0xFFFFFFFF;
+      overlappingDatas[dataIndex].pairData.z = 0;
+      overlappingDatas[dataIndex].pairData.w = 0xFFFFFFFF;
+    }
+
+    atomicMin(overlappingCount, temporaryCount);
+
+    return;
+  }
+
+  // const uint objType1 = objects[overlappingDatas[dataIndex].pairData.x].objectInfo.w;
+  // const uint objType2 = objects[overlappingDatas[dataIndex].pairData.y].objectInfo.w;
+  //
+  // // if (getObjType(objType1) == BBOX && getObjType(objType2) == BBOX) {
+  // //   powerOfTwo = 0xFFFFFFFF;
+  // //   return;
+  // // }
+  //
+  //return;
+
+  barrier();
+
+  const uint objIndex1 = overlappingDatas[dataIndex].pairData.x;
+  const uint objIndex2 = overlappingDatas[dataIndex].pairData.y;
+
+  const uint transformIndex1 = objects[objIndex1].worldInfo.w;
+  const uint transformIndex2 = objects[objIndex2].worldInfo.w;
+
+  bool col;
+  uint dist = floatBitsToUint(100000.0f);
+  //float dist;
+  vec4 mtv;
+  // здесь мы используем распараллеленный SAT
+  SAT(objIndex1, transformIndex1, objIndex2, transformIndex2, mtv, dist);
+
+  barrier();
+  col = bool(sharedBool);
+  if (dist == sharedDist) sharedMtv = mtv;
+  barrier();
+  mtv = sharedMtv;
+  float distFloat = uintBitsToFloat(sharedDist);
+
+  if (!col) {
+    if (gl_LocalInvocationIndex == 0) {
+      atomicAdd(temporaryCount, -1);
+      overlappingDatas[dataIndex].pairData.x = 0xFFFFFFFF;
+      overlappingDatas[dataIndex].pairData.y = 0xFFFFFFFF;
+      overlappingDatas[dataIndex].pairData.z = 0;
+      overlappingDatas[dataIndex].pairData.w = 0xFFFFFFFF;
+    }
+
+    atomicMin(overlappingCount, temporaryCount);
+
+    return;
+  }
+
+  //if (gl_LocalInvocationIndex == 0) {
+    overlappingDatas[dataIndex].vecDist.xyz = mtv.xyz;
+    overlappingDatas[dataIndex].vecDist.w = distFloat;
+  //}
+
+  atomicMin(overlappingCount, temporaryCount);
+}
+
+vec4 getVertex(const vec4 pos, const vec4 ext, const mat4 orn, const uint index) {
+  vec4 p = pos;
+  p = (index & 1) > 0 ? p + orn[0]*ext.x : p - orn[0]*ext.x;
+  p = (index & 2) > 0 ? p + orn[1]*ext.y : p - orn[1]*ext.y;
+  p = (index & 4) > 0 ? p + orn[2]*ext.z : p - orn[2]*ext.z;
+
+  return p;
+}
+
+void project(const vec4 axis, const uint offset, const uint size, const vec4 pos, const mat4 invOrn, inout float minRet, inout float maxRet) {
+  const vec4 localAxis = invOrn * axis; // по идее это должно работать
+  const float offsetF = dot(pos, axis);
+  minRet = maxRet = dot(vertices[offset], localAxis);
+
+  for (uint i = 1; i < size; ++i) {
+    const vec4 vert = vertices[offset + i];
+    const float d = dot(vert, localAxis);
+
+    minRet = min(minRet, d);
+    maxRet = max(maxRet, d);
+  }
+
+  if (minRet > maxRet) {
+    const float tmp = minRet;
+    minRet = maxRet;
+    maxRet = tmp;
+  }
+
+  minRet += offsetF;
+  maxRet += offsetF;
+}
+
+void project(const vec4 axis, const vec4 pos, const vec4 ext, const mat4 orn, inout float minRet, inout float maxRet) {
+  const vec4 localAxis = /*orn **/ axis;
+  //const float offsetF = dot(pos, axis);
+  minRet = maxRet = dot(getVertex(pos, ext, orn, 0), localAxis);
+
+  for (uint i = 1; i < 8; ++i) {
+    const vec4 vert = getVertex(pos, ext, orn, i);
+    const float d = dot(vert, localAxis);
+
+    minRet = min(minRet, d);
+    maxRet = max(maxRet, d);
+  }
+
+  // if (minRet > maxRet) {
+  //   const float tmp = minRet;
+  //   minRet = maxRet;
+  //   maxRet = tmp;
+  // }
+  //
+  // minRet += offsetF;
+  // maxRet += offsetF;
+}
+
+void project(const vec4 axis, const vec4 pos, const float radius, inout float minRet, inout float maxRet) {
+  minRet = maxRet = dot(pos, axis);
+
+  minRet -= radius;
+  maxRet += radius;
+}
+
+bool overlap(const float min1, const float max1, const float min2, const float max2, const vec4 axis, inout vec4 mtv, inout float dist) {
+  const float test1 = min1 - max2;
+  const float test2 = min2 - max1;
+
+  if (test1 > 0.0f || test2 > 0.0f) return false;
+
+  const float d = min(abs(test1), abs(test2));
+  const float half1 = (min1 + max1) / 2.0f;
+  const float half2 = (min2 + max2) / 2.0f;
+  if (dist > d) {
+    mtv = half1 < half2 ? axis : -axis;
+    dist = d;
+  }
+
+  return true; //test1 < 0.0f && test2 < 0.0f;
+}
+
+vec4 getBoxBoxFace(const mat4 orn1, const mat4 orn2, const uint index) {
+  // СЧЕТ НАЧИНАЕТСЯ С НУЛЯ (0!!!) СЛЕДОВАТЕЛЬНО 3-ИЙ ВЕКТОР ИМЕЕТ ИНДЕКС 2
+  // А ЗНАЧИТ ВСЕ ЧТО БОЛЬШЕ 2 (ДВУХ) (А НЕ ТРЕХ) УЖЕ ДРУГАЯ МАТРИЦА
+  return index > 2 ? orn1[index%3] : orn2[index];
+}
+
+bool BoxBoxSAT(const Object3 first,  const uint transFirst,
+               const Object3 second, const uint transSecond, inout vec4 mtv, inout float dist) {
+  // тут по идее нужен еще вариант когда у нас в этих индексах стоит 0xFFFFFFFF
+  // но думаю этот вариант добавлю позже (нужен он вообще? для него скорее всего придется делать более нормальный солвер)
+  const mat4 sys1 = systems[first.additionalData.x];
+  //const mat4 sys1 = systems[0];
+  const mat4 sys2 = systems[second.additionalData.x];
+  //const mat4 sys2 = systems[0];
+
+  float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
+
+  const vec4 firstPos  = transforms[transFirst].pos;
+  const vec4 secondPos = transforms[transSecond].pos;
+
+  const vec4 firstExt  = vertices[first.objectInfo.x];
+  const vec4 secondExt = vertices[second.objectInfo.x];
+
+  bool col = true;
+  const uint passCount = (3+3 + gl_WorkGroupSize.x - 1) / gl_WorkGroupSize.x;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i*gl_WorkGroupSize.x + gl_LocalInvocationIndex;
+    //if (index >= 3+3) continue;
+    const vec4 axis = getBoxBoxFace(sys1, sys2, index);
+
+    project(axis, firstPos,  firstExt,  sys1,  minFirst,  maxFirst);
+    project(axis, secondPos, secondExt, sys2, minSecond, maxSecond);
+
+    col = col && overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist);
+  }
+
+  return col;
+}
+
+vec4 getBoxSphereFace(const mat4 orn, const vec4 pos1, const vec4 pos2, const uint index) {
+  return index > 0 ? orn[index%3] : normalize(pos2 - pos1);
+}
+
+bool BoxSphereSAT(const Object3 first,  const uint transFirst,
+                  const Object3 second, const uint transSecond, inout vec4 mtv, inout float dist) {
+  const mat4 sys = systems[first.additionalData.x];
+  float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
+
+  const vec4 firstPos  = transforms[transFirst].pos;
+  const vec4 secondPos = vec4(transforms[transSecond].pos.xyz, 1.0f);
+
+  const vec4 firstExt  = vertices[first.objectInfo.x];
+  const float radius = transforms[transSecond].pos.w;
+  const vec4 axis = normalize(secondPos - firstPos);
+
+  bool col = true;
+  const uint passCount = (3+1 + gl_WorkGroupSize.x - 1) / gl_WorkGroupSize.x;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i*gl_WorkGroupSize.x + gl_LocalInvocationIndex;
+    const vec4 axis = getBoxSphereFace(sys, firstPos, secondPos, index);
+
+    project(axis, firstPos,  firstExt,  sys,  minFirst,  maxFirst);
+    project(axis, secondPos, radius, minSecond, maxSecond);
+
+    col = col && overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist);
+  }
+
+  return col;
+}
+
+vec4 getBoxPolyFace(const uint face, const uint faceSize, const mat4 polyOrn, const mat4 orn, const uint index) {
+  return index > 2 ? polyOrn * vec4(vertices[face+(index%faceSize)].xyz, 0.0f) : orn[index];
+}
+
+bool BoxPolySAT(const Object3 first,  const uint transFirst,
+                const Object3 second, const uint transSecond, inout vec4 mtv, inout float dist) {
+  float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
+
+  const mat4 sys = systems[first.additionalData.x];
+
+  const vec4 firstPos  = transforms[transFirst].pos;
+  const vec4 secondPos = transSecond != 0xFFFFFFFF ? transforms[transSecond].pos : vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
+  const vec4 firstExt  = vertices[first.objectInfo.x];
+
+  const uint vert     = second.objectInfo.x;
+  const uint vertSize = second.objectInfo.y;
+  const uint face     = vert + vertSize + 1;
+  const uint faceSize = second.objectInfo.z;
+
+  const mat4 orn = second.additionalData.z == 0xFFFFFFFF ?
+                     systems[second.additionalData.x] : rotationDatas[second.additionalData.z].matrix * systems[second.additionalData.x];
+  const mat4 invOrn = inverse(orn);
+
+  vec4 localCenter = vertices[vert + vertSize];
+  localCenter = transform(localCenter, secondPos, orn);
+
+  const vec4 delta = firstPos - localCenter;
+
+  bool col = true;
+  const uint passCount = (faceSize+3 + gl_WorkGroupSize.x - 1) / gl_WorkGroupSize.x;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i*gl_WorkGroupSize.x + gl_LocalInvocationIndex;
+    const vec4 axis = getBoxPolyFace(face, faceSize, orn, sys, index);
+
+    project(axis, firstPos,  firstExt,  sys,  minFirst,  maxFirst);
+    project(axis, vert, vertSize, secondPos, invOrn,  minSecond, maxSecond);
+
+    col = col && overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist);
+  }
+
+  if (dot(-delta, mtv) > 0.0f) mtv = -mtv;
+
+  return col;
+}
+
+bool SphereSphereSAT(const Object3 first,  const uint transFirst,
+                     const Object3 second, const uint transSecond, inout vec4 mtv, inout float dist) {
+  float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
+
+  const vec4 firstPos = vec4(transforms[transFirst].pos.xyz, 1.0f);
+  const float firstRadius = transforms[transFirst].pos.w;
+
+  const vec4 secondPos = vec4(transforms[transSecond].pos.xyz, 1.0f);
+  const float secondRadius = transforms[transSecond].pos.w;
+
+  const vec4 axis = normalize(secondPos - firstPos);
+
+  project(axis, firstPos, firstRadius, minSecond, maxSecond);
+  project(axis, secondPos, secondRadius, minSecond, maxSecond);
+
+  if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+  return true;
+}
+
+vec4 getPolySphereFace(const uint face, const uint faceSize, const mat4 ornFirst, const vec4 pos1, const vec4 pos2, const uint index) {
+  return index > 0 ? ornFirst * vec4(vertices[face+(index%faceSize)].xyz, 0.0f) : normalize(pos2 - pos1);
+}
+
+bool PolySphereSAT(const Object3 first,  const uint transFirst,
+                   const Object3 second, const uint transSecond, inout vec4 mtv, inout float dist) {
+  float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
+
+  const vec4 firstPos = transFirst != 0xFFFFFFFF ? transforms[transFirst].pos : vec4(0.0f, 0.0f, 0.0f, 1.0f);
+  const vec4 secondPos = vec4(transforms[transSecond].pos.xyz, 1.0f);
+
+  const float secondRadius = transforms[transSecond].pos.w;
+
+  const uint vert     = first.objectInfo.x;
+  const uint vertSize = first.objectInfo.y;
+  const uint face     = vert + vertSize + 1;
+  const uint faceSize = first.objectInfo.z;
+
+  const mat4 ornFirst = first.additionalData.z == 0xFFFFFFFF ?
+                          systems[first.additionalData.x] : rotationDatas[first.additionalData.z].matrix * systems[first.additionalData.x];
+  const mat4 invOrn = inverse(ornFirst);
+
+  vec4 localCenter = vertices[vert + vertSize];
+  localCenter = transform(localCenter, firstPos, ornFirst);
+  const vec4 delta = localCenter - secondPos;
+
+  bool col = true;
+  const uint passCount = (faceSize+1 + gl_WorkGroupSize.x - 1) / gl_WorkGroupSize.x;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i*gl_WorkGroupSize.x + gl_LocalInvocationIndex;
+    const vec4 axis = getPolySphereFace(face, faceSize, ornFirst, firstPos, secondPos, index);
+
+    project(axis, vert, vertSize, firstPos, invOrn, minSecond, maxSecond);
+    project(axis, secondPos, secondRadius, minSecond, maxSecond);
+
+    col = col && overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist);
+  }
+
+  if (dot(-delta, mtv) > 0.0f) mtv = -mtv;
+
+  return col;
+}
+
+vec4 getPolyPolyFace(const uint firstFace, const uint firstFaceSize, const mat4 firstOrn,
+                     const uint secondFace, const uint secondFaceSize, const mat4 secondOrn,
+                     const uint index) {
+  return index < firstFaceSize ?
+           firstOrn * vec4(vertices[firstFace+index].xyz, 0.0f) : secondOrn * vec4(vertices[secondFace+(index%secondFaceSize)].xyz, 0.0f);
+}
+
+bool PolyPolySAT(const Object3 first,  const uint transFirst,
+                 const Object3 second, const uint transSecond, inout vec4 mtv, inout float dist) {
+  float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
+
+  const vec4 firstPos  = transFirst  != 0xFFFFFFFF ? transforms[transFirst].pos  : vec4(0.0f, 0.0f, 0.0f, 1.0f);
+  const vec4 secondPos = transSecond != 0xFFFFFFFF ? transforms[transSecond].pos : vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
+  const uint firstVert     = first.objectInfo.x;
+  const uint firstVertSize = first.objectInfo.y;
+  const uint firstFace     = firstVert + firstVertSize + 1;
+  const uint firstFaceSize = first.objectInfo.z;
+
+  const uint secondVert     = second.objectInfo.x;
+  const uint secondVertSize = second.objectInfo.y;
+  const uint secondFace     = secondVert + secondVertSize + 1;
+  const uint secondFaceSize = second.objectInfo.z;
+
+  const mat4 ornFirst = first.additionalData.z == 0xFFFFFFFF ?
+                          systems[first.additionalData.x] : rotationDatas[first.additionalData.z].matrix * systems[first.additionalData.x];
+  const mat4 invOrnFirst = inverse(ornFirst);
+
+  const mat4 ornSecond = second.additionalData.z == 0xFFFFFFFF ?
+                          systems[second.additionalData.x] : rotationDatas[second.additionalData.z].matrix * systems[second.additionalData.x];
+  const mat4 invOrnSecond = inverse(ornSecond);
+
+  vec4 localCenter1 = vertices[firstVert + firstVertSize];
+  localCenter1 = transform(localCenter1, firstPos, ornFirst);
+
+  vec4 localCenter2 = vertices[secondVert + secondVertSize];
+  localCenter2 = transform(localCenter2, firstPos, ornSecond);
+
+  const vec4 delta = localCenter1 - localCenter2;
+
+  // нужно ли нормализовать полученные нормали?
+  // мы аж 2 операции проводим, вряд ли вектора остаются нормализованными после этого
+  // с другой стороны в буллете не проводится нормализация (хотя там не используются данные отсюда напрямую)
+  // я так полагаю мне придется нормализовывать, нужно проверить!!!
+
+  bool col = true;
+  const uint passCount = (firstFaceSize+secondFaceSize + gl_WorkGroupSize.x - 1) / gl_WorkGroupSize.x;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i*gl_WorkGroupSize.x + gl_LocalInvocationIndex;
+    const vec4 axis = getPolyPolyFace(firstFace, firstFaceSize, ornFirst, secondFace, secondFaceSize, ornSecond, index);
+
+    project(axis, firstVert, firstVertSize, firstPos, invOrnFirst, minSecond, maxSecond);
+    project(axis, secondVert, secondVertSize, secondPos, invOrnSecond, minSecond, maxSecond);
+
+    col = col && overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist);
+  }
+
+  if (dot(-delta, mtv) > 0.0f) mtv = -mtv;
+
+  return col;
+}
+
+bool SAT(const uint objectIndexFirst,  const uint transformIndexFirst,
+         const uint objectIndexSecond, const uint transformIndexSecond, inout vec4 mtv, inout uint dist) {
+  const Object3 first = objects[objectIndexFirst];
+  const Object3 second = objects[objectIndexSecond];
+  float distLocal = 100000.0f;
+  vec4 mtvLocal;
+  bool col;
+
+  //col = BoxBoxSAT(first, transformIndexFirst, second, transformIndexSecond, mtvLocal, distLocal);
+
+  switch(getObjType(first.objectInfo.w)) {
+    case BBOX:
+      switch(getObjType(second.objectInfo.w)) {
+        case BBOX:
+          col = BoxBoxSAT(first, transformIndexFirst, second, transformIndexSecond, mtvLocal, distLocal);
+          //powerOfTwo = 1;
+        break;
+        case SPHERE:
+          col = BoxSphereSAT(first, transformIndexFirst, second, transformIndexSecond, mtvLocal, distLocal);
+        break;
+        case POLYGON:
+          col = BoxPolySAT(first, transformIndexFirst, second, transformIndexSecond, mtvLocal, distLocal);
+        break;
+      }
+    break;
+    case SPHERE:
+      switch(getObjType(second.objectInfo.w)) {
+        case BBOX:
+          col = BoxSphereSAT(second, transformIndexSecond, first, transformIndexFirst, mtvLocal, distLocal);
+          mtv = -mtv;
+        break;
+        case SPHERE:
+          col = SphereSphereSAT(first, transformIndexFirst, second, transformIndexSecond, mtvLocal, distLocal);
+        break;
+        case POLYGON:
+          col = PolySphereSAT(second, transformIndexSecond, first, transformIndexFirst, mtvLocal, distLocal);
+          mtv = -mtv;
+        break;
+      }
+    break;
+    case POLYGON:
+      switch(getObjType(second.objectInfo.w)) {
+        case BBOX:
+          col = BoxPolySAT(second, transformIndexSecond, first, transformIndexFirst, mtvLocal, distLocal);
+          mtv = -mtv;
+        break;
+        case SPHERE:
+          col = PolySphereSAT(first, transformIndexFirst, second, transformIndexSecond, mtvLocal, distLocal);
+        break;
+        case POLYGON:
+          col = PolyPolySAT(first, transformIndexFirst, second, transformIndexSecond, mtvLocal, distLocal);
+        break;
+      }
+    break;
+  }
+
+  uint distUint = floatBitsToUint(distLocal);
+  atomicAnd(sharedBool, uint(col));
+  atomicMin(sharedDist, distUint);
+  dist = distUint;
+  mtv = mtvLocal;
+  // dist = distLocal;
+
+  return bool(sharedBool);
+}
+
+vec4 transform(const vec4 p, const vec4 translation, const mat4 orientation) {
+  return orientation * p + translation;
+}

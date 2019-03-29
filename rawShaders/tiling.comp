@@ -1,0 +1,272 @@
+#version 450
+
+// по каким то причинам юниформ буффер вел себя как хотел
+// когда я расположил данные так, он перестал нести херню и начал нормально работать
+layout(set = 0, binding = 0) uniform Camera {
+  mat4 viewproj;
+  mat4 view;
+  vec4 pos; // возможно причина кроется в vec3
+  vec4 dir;
+  uvec2 dim;
+} camera;
+
+layout(set = 1, binding = 0) uniform sampler2D color;
+layout(set = 1, binding = 1) uniform sampler2D normal;
+layout(set = 1, binding = 2) uniform sampler2D depth;
+layout(set = 4, binding = 0, rgba32f) uniform writeonly image2D outImage;
+
+struct LightData {
+  vec4 posR;
+  vec4 colorCutoff;
+};
+
+layout(std140, set = 2, binding = 0) readonly buffer lights {
+  uvec4 lightCount;
+  LightData lightData[];
+};
+
+layout(set = 3, binding = 0) uniform AdditionalData {
+  mat4 projection;
+  mat4 view;
+  mat4 invProjection;
+  mat4 invView;
+  mat4 invViewProj;
+} matrixes;
+
+vec2 packNormal(in vec3 normal) {
+  float p = sqrt(normal.z * 8 + 8);
+  vec2 K = p == 0? vec2(0.5, 0) : vec2(normal.xy / p);
+  return vec2(K + 0.5);
+}
+
+vec3 unpackNormal(in vec2 enc) {
+  vec2 fenc = enc * 4.0 - vec2(2.0);
+  float f = dot(fenc, fenc);
+  float g = sqrt(1-f/4);
+
+  vec3 n;
+  n.xy = fenc*g;
+  n.z = 1-f/2;
+  return n;
+}
+
+// layout (constant_id = 0) const int NUM_SAMPLES = 8;
+//
+// // Manual resolve for MSAA samples
+// vec4 resolve(sampler2DMS tex, ivec2 uv) {
+//   vec4 result = vec4(0.0);
+//   for (int i = 0; i < NUM_SAMPLES; ++i) {
+//     vec4 val = texelFetch(tex, uv, i);
+//     result += val;
+//   }
+//   // Average resolved samples
+//   return result / float(NUM_SAMPLES);
+// }
+
+vec3 getPosition(const ivec2 coord, const float depth) {
+  // float width = float(camera.dim.x);
+  // float height = float(camera.dim.y);
+  // float coordX = float(coord.x);
+  // float coordY = float(coord.y);
+
+  const vec2 windowCoords = vec2(coord) / vec2(camera.dim);
+
+  const vec4 clipSpacePosition = vec4(windowCoords*2.0-vec2(1.0), depth, 1.0);
+  //const vec4 viewSpacePosition = matrixes.invProjection * clipSpacePosition;
+  vec4 viewSpacePosition = matrixes.invViewProj * clipSpacePosition;
+
+  viewSpacePosition /= viewSpacePosition.w;
+
+  //vec4 worldSpacePosition = matrixes.invView * viewSpacePosition;
+
+  return viewSpacePosition.xyz;
+}
+
+vec4 getViewPosition(const ivec2 coord, const float depth) {
+  const vec2 windowCoords = vec2(coord) / vec2(camera.dim);
+
+  const vec4 clipSpacePosition = vec4(windowCoords*2.0-vec2(1.0), depth, 1.0);
+  vec4 viewSpacePosition = matrixes.invProjection * clipSpacePosition;
+
+  viewSpacePosition /= viewSpacePosition.w;
+
+  return viewSpacePosition;
+}
+
+vec3 getPositionFromView(vec4 viewSpacePosition) {
+  const vec4 worldSpacePosition = matrixes.invView * viewSpacePosition;
+
+  return worldSpacePosition.xyz;
+}
+
+//const float cutoff = 0.01;
+
+vec3 calculateLighting(const LightData light, const vec4 pos, const vec4 normal, const bool maxLight, const vec4 albedo) {
+  const float r = light.posR.w;
+  // вектор от точки к свету
+  vec4 L = vec4(light.posR.xyz - pos.xyz, 1.0f);
+  // расстояние от точки к свету
+  const float dist = length(L);
+
+  // ослабление света
+  //float denom = d / r + 1.0;
+  //float atten = 1.0 / (denom * denom);
+  //atten = (atten - light.colorCutoff.w) / (1.0 - light.colorCutoff.w);
+  //float atten = 1.0 / (0 + 8*dist + 8 * dist * dist);
+  //float atten = 1.0 / (pow(d, fallOffExp));
+  //atten = max(atten, 0.0);
+
+  const float atten = 1.0 - dist / r;
+
+  // if (atten <= 0.0) return vec3(0.0, 0.0, 0.0);
+  if (dist > r) return vec3(0.0, 0.0, 0.0);
+
+  L /= dist;
+
+  // от точки к камере
+  const vec4 V = normalize(camera.pos - pos);
+
+  // цвет
+  const vec4 N = maxLight ? L : normal;
+  const float NdotL = max(0.0, dot(N, L));
+  const vec3 diff = light.colorCutoff.xyz * albedo.rgb * NdotL * atten;
+
+  const float Kspec = 0.1f;
+  // блики
+  const vec4 R = reflect(-L, N);
+  const vec4 H = normalize(L + V);
+  //float NdotR = max(0.0, dot(R, V));
+  const float NdotH = max(0.0f, dot(N, H));
+  const vec3 spec = light.colorCutoff.xyz * Kspec * pow(NdotH, 8.0) * atten;
+
+  return diff + spec;
+}
+
+vec3 applyFog(const vec3  rgb,       // original color of the pixel
+              const float d,         // camera to point distance
+              const vec3  rayOri,    // camera position
+              const vec3  rayDir) {  // camera to point vector
+    const vec3 fogColor  = vec3(0.5f, 0.5f, 0.5f);
+
+    // float c = 0.3;
+    // float b = 0.1;
+    // float abc = 0.3;
+    // //d = 1.0 - d;
+    // float fogAmount = c * /*exp(-rayOri.y * b) */ (1.0 - exp(-d * /*rayDir.y */ b))/(abc /* rayDir.y*/);
+    return mix(rgb, fogColor, (1.0 - exp(-d * 0.1)));
+
+    //return fogColor * (1.0 - exp(-d * 0.01));
+}
+
+bool sphereVSaabb(const vec4 pos, const float r, const vec4 boxCenter, const vec4 boxExtent) {
+  const vec4 delta = max(vec4(0.0f, 0.0f, 0.0f, 0.0f), abs(boxCenter - pos) - boxExtent);
+  const float distSq = dot(delta, delta);
+  return distSq <= r * r;
+}
+
+bool intersectLight(const LightData light, const ivec2 tileMax, const ivec2 tileMin, const vec2 screenDim, const vec2 maxmin) {
+  const vec4 pos = matrixes.view * vec4(light.posR.xyz, 1.0);
+  const float radius = (light.posR.w) / pos.w; // / light.colorCutoff.w (решил делать без катофф, так как не понятно какой радиус брать)
+
+  // не правильно расставил мин макс, чутка переделать (теперь вроде правильно)
+  const vec4 viewPosMin = getViewPosition(tileMax, maxmin.y);
+  const vec4 viewPosMax = getViewPosition(tileMin, maxmin.x);
+
+  const vec4 tileCenter =    (viewPosMin + viewPosMax) / 2.0;
+  const vec4 tileExtent = abs(viewPosMin - viewPosMax) / 2.0;
+
+  return sphereVSaabb(pos, radius, tileCenter, tileExtent);
+
+  // оказывается я не правильно расчитывал пересечение
+  // почему? черт знает, придумал этот код сам, но он работал каким-то образом
+}
+
+layout(constant_id = 0) const uint MAX_LIGHTS_PER_WORKGROUP = 1024;
+shared uint offset;
+shared uint lightIdx[MAX_LIGHTS_PER_WORKGROUP];
+//shared vec4 frustumPlanes[6];
+shared uint minDepth;
+shared uint maxDepth;
+
+#define WORKGROUP_SIZE 16
+layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE, local_size_z = 1) in;
+
+void main() {
+  offset = 0;
+  minDepth = 0x7F7FFFFF;
+  maxDepth = 0;
+
+  const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+
+  barrier();
+
+  const float d = texelFetch(depth, pixel, 0).r;
+  const vec4 viewSpace = getViewPosition(pixel, d);
+
+  const uint depthInt = floatBitsToUint(d); //uint(d * uint(0x7F7FFFFF));
+
+  atomicMin(minDepth, depthInt);
+  atomicMax(maxDepth, depthInt);
+
+  barrier();
+
+  const float minDepthZ = uintBitsToFloat(minDepth); //float(minDepth / float(0x7F7FFFFF));
+  const float maxDepthZ = uintBitsToFloat(maxDepth); //float(maxDepth / float(0x7F7FFFFF));
+
+  const ivec2 maxCoords = ivec2(gl_WorkGroupID.xy * camera.dim / gl_NumWorkGroups.xy);
+  const ivec2 minCoords = ivec2((gl_WorkGroupID.xy + uvec2(1, 1)) * camera.dim / gl_NumWorkGroups.xy);
+
+  // раскидываем свет для каждого local invocation
+  const uint threadCount = WORKGROUP_SIZE * WORKGROUP_SIZE;
+  const uint passCount = (lightCount.x + threadCount - 1) / threadCount;
+
+  for (uint i = 0; i < passCount; ++i) {
+    const uint lightIndex = i * threadCount + gl_LocalInvocationIndex;
+
+    const bool validOffset = offset < MAX_LIGHTS_PER_WORKGROUP;
+    const bool validIndex = lightIndex < lightCount.x;
+
+    if (!(validOffset && validIndex)) continue;
+
+    const LightData l = lightData[validIndex ? lightIndex : 0];
+
+    const bool intersect = intersectLight(l, maxCoords, minCoords, vec2(camera.dim), vec2(minDepthZ, maxDepthZ));
+    // пихаем индекс света в массив
+    if (intersect) {
+      const uint idx = atomicAdd(offset, 1);
+      lightIdx[idx] = lightIndex;
+    }
+  }
+
+  barrier();
+
+  const vec4 c = texelFetch(color, pixel, 0);
+  const vec4 pixelColor = vec4(c.x, c.y, c.z, 1.0f);
+
+  const vec2 encNorm = texelFetch(normal, pixel, 0).xy;
+  vec4 n = vec4(unpackNormal(encNorm), 0.0f);
+  n = c.w != 1.0f ? vec4(0.0f, 0.0f, 0.0f, 0.0f) : vec4(getPositionFromView(n), 0.0f);
+
+  const vec4 worldPos = vec4(getPositionFromView(viewSpace), 1.0f);
+
+  #define AMBIENT 0.5f
+
+  vec3 finalColor = vec3(0.0);
+  // вычисляем свет для каждого пикселя
+  //c *= ambient;
+  //c += directionalLight;
+
+  for (uint i = 0; i < offset; ++i) {
+    const LightData l = lightData[lightIdx[i]];
+    finalColor += calculateLighting(l, worldPos, n, c.w != 1.0f, pixelColor);
+  }
+
+  //vec3 fogColor = applyFog(finalColor, distance(camera.pos.xyz, worldPos), camera.pos.xyz, camera.dir.xyz);
+  //finalColor = fogColor;
+
+  //finalColor = finalColor + AMBIENT * c.rgb;
+
+  imageStore(outImage, pixel, vec4(finalColor, 1.0));
+  //imageStore(outImage, pixel, vec4(abs(n), 1.0));
+  // как быть с фогом?
+}

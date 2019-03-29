@@ -1,0 +1,190 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "physic.h"
+
+// struct NodeData {
+//   // x == count, y == offset, z == childIndex, w == vertexOffset (AABB index)
+//   uvec4 data;
+// };
+
+struct Proxy {
+  AABB box;
+  // x == group, y == filter, z == proxyIndex, w == objIndex
+  uvec4 proxyData;
+  // x == nodeIndex, y == containerIndex, z == objType
+  uvec4 octreeData;
+};
+
+layout(std140, set = 0, binding = 0) buffer OctreeData {
+  NodeData nodeData[];
+};
+
+layout(std430, set = 1, binding = 0) buffer OctreeIndicies {
+  uint nodeIdx[];
+};
+
+layout(std140, set = 2, binding = 0) buffer readonly ChangesBuffer {
+  uvec4 count;
+  // x == deleteFromNode, y == indexInNode, z == addToNode, w == objectIndex
+  uvec4 changes[];
+};
+
+layout(std140, set = 3, binding = 0) buffer Proxies {
+  Proxy proxies[];
+};
+
+layout(std430, set = 4, binding = 0) buffer NewOctreeIndicies {
+  uint newNodeIdx[];
+};
+
+layout(std140, set = 5, binding = 0) buffer HelperBuffer {
+  uvec4 helper[];
+};
+
+#define workGroupSize 512
+layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+
+layout(constant_id = 0) const uint octreeDepth = 5;
+//#define octreeDepth 5
+
+void main() {
+  // здесь мы пересобираем массив nodeIdx
+  //const uint nodeIndex = gl_GlobalInvocationID.x; // нам нужен какой то индекс нода (зависящий от текущего потока конечно же)
+  //const uint nodeIndex = gl_LocalInvocationID.x; // нам нужен какой то индекс нода (зависящий от текущего потока конечно же)
+  // выйти если превышаем
+  //if ()
+  uint mul = 1;
+  uint nodesCount = 0;
+  for (uint i = 0; i < octreeDepth; ++i) {
+    nodesCount += mul;
+    mul *= 8;
+  }
+
+  const uint threadCountX = gl_WorkGroupSize.x;//*gl_WorkGroupSize.y*gl_WorkGroupSize.z;
+  //const uint threadCountY = gl_WorkGroupSize.y;
+  const uint passCount = (nodesCount + threadCountX - 1) / threadCountX;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint nodeIndex = i * threadCountX + gl_LocalInvocationIndex;
+    //uint nodeIndex = i * threadCount + gl_LocalInvocationID.x;
+    if (nodeIndex >= nodesCount) continue;
+    //if (nodeIndex >= nodesCount) nodeIndex = 0xFFFFFFFF;
+    // вычисляем новый оффсет
+    uint newOffset = nodeData[nodeIndex].data.y;
+    uint addSize = 0;
+    uint subSize = 0;
+    for (uint i = 0; i < count.x; ++i) {
+      newOffset -= uint(changes[i].x < nodeIndex);
+      newOffset += uint(changes[i].z < nodeIndex);
+      addSize += uint(changes[i].z == nodeIndex);
+      subSize += uint(changes[i].x == nodeIndex);
+      //nodeIdx[nodeData[nodeIndex].data.y + changes[i].y]
+    }
+
+    // helper[gl_LocalInvocationID.x].x = nodeIndex == 0xFFFFFFFF ? 0 : nodeData[nodeIndex].data.y;
+    // helper[gl_LocalInvocationID.x].y = 0;
+    // helper[gl_LocalInvocationID.x].z = 0;
+    // helper[gl_LocalInvocationID.x].w = 0;
+    //
+    // if (nodeIndex != 0xFFFFFFFF) {
+    //   const uint passCount2 = (count.x + threadCountY - 1) / threadCountY;
+    //   for(uint j = 0; j < passCount2; ++j) {
+    //     const uint index = j * threadCount + gl_LocalInvocationID.y;
+    //     if (index >= count.x) continue;
+    //
+    //     atomicAdd(helper[gl_LocalInvocationID.x].x, -uint(changes[i].x < nodeIndex));
+    //     atomicAdd(helper[gl_LocalInvocationID.x].x,  uint(changes[i].z < nodeIndex));
+    //     atomicAdd(helper[gl_LocalInvocationID.x].y, uint(changes[i].z == nodeIndex));
+    //     atomicAdd(helper[gl_LocalInvocationID.x].z, uint(changes[i].x == nodeIndex));
+    //   }
+    // }
+
+    //barrier();
+
+    const uint newSize = nodeData[nodeIndex].data.x + addSize - subSize;
+    const uint countThatStay = nodeData[nodeIndex].data.x - subSize;
+    //const uint newSize = nodeData[nodeIndex].data.x + helper[gl_LocalInvocationID.x].y - helper[gl_LocalInvocationID.x].z;
+    //const uint countThatStay = nodeData[nodeIndex].data.x - helper[gl_LocalInvocationID.x].z;
+
+    // если старый сайз и новый у нас ноль то и делать ничего не нужно
+    if (nodeData[nodeIndex].data.x == 0 && newSize == 0) continue;
+    //const bool nothingToDo = nodeData[nodeIndex].data.x == 0 && newSize == 0;
+
+    // if (nodeIndex != 0xFFFFFFFF) {
+    //   for(uint j = 0; j < passCount2; ++j) {
+    //     const uint index = j * threadCount + gl_LocalInvocationID.y;
+    //     if (index >= count.x) continue;
+    //     if (nodeIndex != changes[i].z) continue;
+    //
+    //     const uint proxyIndex = changes[i].w;
+    //     const uint id = atomicAdd(helper[gl_LocalInvocationID.x].w, 1);
+    //     newNodeIdx[helper[gl_LocalInvocationID.x].x+id] = proxyIndex;
+    //
+    //     // по индексу changes[i].w мы получим прокси, и обновим положение
+    //     proxies[proxyIndex].octreeData.x = nodeIndex;
+    //     proxies[proxyIndex].octreeData.y = currentIndex;
+    //
+    //     // поставим на предыдущее место специальный индекс
+    //     nodeIdx[nodeData[nodeIndex].data.y+changes[i].y] = 0xFFFFFFFF;
+    //   }
+    // }
+    //
+    // barrier();
+    //
+    // if (nodeIndex != 0xFFFFFFFF && !nothingToDo) {
+    //   const uint passCount2 = (nodeData[nodeIndex].data.x + threadCountY - 1) / threadCountY;
+    //   for (uint j = 0; j < passCount2; ++j) {
+    //     const uint index = j * threadCount + gl_LocalInvocationID.y;
+    //     if (index >= nodeData[nodeIndex].data.x) continue;
+    //
+    //     const uint nodeId = nodeIdx[nodeData[nodeIndex].data.y + index];
+    //     if (nodeId == 0xFFFFFFFF) continue;
+    //
+    //     const uint id = atomicAdd(helper[gl_LocalInvocationID.x].w, 1);
+    //     newNodeIdx[helper[gl_LocalInvocationID.x].x+id] = nodeId;
+    //
+    //     proxies[nodeId].octreeData.x = nodeIndex;
+    //     proxies[nodeId].octreeData.y = currentIndex;
+    //   }
+    // }
+
+    uint currentIndex = 0;
+    for (uint i = 0; i < count.x; ++i) {
+      if (nodeIndex == changes[i].z) {
+        newNodeIdx[newOffset+currentIndex] = changes[i].w;
+        ++currentIndex;
+        // по индексу changes[i].w мы получим прокси, и обновим положение
+        proxies[changes[i].w].octreeData.x = nodeIndex;
+        proxies[changes[i].w].octreeData.y = currentIndex;
+
+        nodeIdx[nodeData[nodeIndex].data.y+changes[i].y] = 0xFFFFFFFF;
+      }
+    }
+
+    if (countThatStay != 0) {
+      for (uint j = 0; j < nodeData[nodeIndex].data.x; ++j) {
+        const uint index = nodeIdx[nodeData[nodeIndex].data.y + j];
+        if (index == 0xFFFFFFFF) continue;
+
+        newNodeIdx[newOffset+currentIndex] = index;
+        ++currentIndex;
+
+        proxies[index].octreeData.x = nodeIndex;
+        proxies[index].octreeData.y = currentIndex;
+      }
+    }
+
+    // ТУТ ЕЩЕ МОЖЕТ БЫТЬ НУЖНО СДЕЛАТЬ БОЛЬШЕ ТРЕДОВ (Y треды для внутренних циклов)
+    // получилось грязновато конечно
+    // нам тут потребуется еще один буфер + много барьеров, можно ли уменьшить?
+
+    nodeData[nodeIndex].data.x = newSize;
+    nodeData[nodeIndex].data.y = newOffset;
+  }
+
+
+  // вот както так мы обновляем все индексы в октодереве
+  // нужно помнить что удалить таким образом из октдерева не получится это нужно делать на цпу
+
+}

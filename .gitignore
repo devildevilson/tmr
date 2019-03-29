@@ -1,0 +1,6 @@
+.kde4/*
+*.kdev4
+build/
+include_old/
+*.gch
+*/*.gch

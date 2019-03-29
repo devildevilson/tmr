@@ -1,0 +1,38 @@
+{
+  "sides": [
+    {
+      "name": "n",
+      "index": 0,
+      "flip": "uv"
+    },
+    {
+      "name": "ne",
+      "index": 0,
+      "flip": "u"
+    },
+    {
+      "name": "e",
+      "index": 0,
+    },
+    {
+      "name": "se",
+      "index": 0,
+    },
+    {
+      "name": "s",
+      "index": 0,
+    },
+    {
+      "name": "sw",
+      "index": 0,
+    },
+    {
+      "name": "w",
+      "index": 0,
+    },
+    {
+      "name": "nw",
+      "index": 0,
+    },
+  ]
+}

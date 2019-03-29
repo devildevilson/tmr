@@ -1,0 +1,324 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "physic.h"
+
+struct Input {
+  vec4 right;
+  vec4 up;
+  vec4 front;
+  // x == rightMove, y == upMove, z == frontMove
+  vec4 move;
+};
+
+layout(std140, set = 0, binding = 0) buffer readonly Objects {
+  Object3 objects[];
+};
+
+layout(std140, set = 0, binding = 1) buffer readonly Vertices {
+  vec4 vertices[];
+};
+
+layout(std140, set = 0, binding = 2) buffer PhysicDatas {
+  PhysicData4 physicDatas[];
+};
+
+layout(std140, set = 0, binding = 3) buffer readonly ConstantsBuffer {
+  Constants constants[];
+};
+
+layout(std140, set = 0, binding = 4) buffer GlobalVels {
+  vec4 velocities[];
+};
+
+// layout(std140, set = 0, binding = 0) buffer PhysicDatas {
+//   //vec4 dummy1;
+//   //vec4 dummy2;
+//   //vec4 dummy3;
+//   //PhysicData2 datas[];
+//   PhysicData3 datas[];
+// };
+//
+// layout(std140, set = 0, binding = 1) buffer GlobalVels {
+//   vec4 velocities[];
+// };
+
+layout(std140, set = 1, binding = 0) buffer readonly InputData {
+  Input inputs[];
+};
+
+layout(std140, set = 2, binding = 0) buffer Transforms {
+  Transform transforms[];
+};
+
+layout(std140, set = 3, binding = 0) buffer readonly ExternalDatas {
+  ExternalData externalDatas[];
+};
+
+// // наверное тут будет 4 дескриптора
+// layout(std140, set = 4, binding = 0) buffer readonly StaticPhysicDatas {
+//   StaticPhysicData staticPhysicDatas[];
+// };
+
+layout(std430, set = 4, binding = 0) buffer writeonly Indexies {
+  uint count;
+  uint indexies[];
+};
+
+layout(set = 5, binding = 0) uniform AdditionalData {
+  vec4 gravity;
+  vec4 gravityNorm;
+  // x == length, y == length2
+  vec4 gravityLengths;
+  // x == objCount, y == time
+  uvec4 countsAndTime;
+} globalData;
+
+void computeGroundVelocity(const vec4 accelerationDir,
+                           const vec4 oldVelocity,
+                           const uint dt,
+                           const bool jump,
+                           const vec4 additionalForce,
+                           const float maxSpeed,
+                           const float acceleration,
+                           const float groundFriction,
+                           inout vec4 velocity,
+                           inout float velocityScalar);
+
+void computeAirVelocity(const vec4 accelerationDir,
+                        const vec4 oldVelocity,
+                        const uint dt,
+                        const vec4 additionalForce,
+                        inout vec4 velocity,
+                        inout float velocityScalar);
+
+vec4 projectVectorOnPlane(const vec4 normal, const vec4 origin, const vec4 vector);
+bool feq(const float first, const float second);
+
+layout(constant_id = 0) const float AIR_ACCELERATION_DIR = 0.0f;
+
+// для work group size нужно использовать отдельные штуки local_size_{xyz}_id
+layout (local_size_x_id = 1) in;
+// это нужно все же организовать в юниформ буффер (лучше как константы)
+// скорость перемещения и прыжки оставляют желать лучшего
+// (с другой стороны у меня значения скоростей то другие по сравнению со значеними кармака)
+// нужно еще поиграться с ними
+layout(constant_id = 2) const float STOP_SPEED = 7.0f;
+layout(constant_id = 3) const float AIR_ACCELERATION = 5.0f;
+layout(constant_id = 4) const float DEFAULT_GROUND_FRICTION = 4.0f;
+const float JUMP_ACCELERATION = 200.0f;
+
+void main() {
+  // const uint index = gl_GlobalInvocationID.x;
+  // if (index >= globalData.countsAndTime.x) return;
+  const uint threadCount = gl_WorkGroupSize.x*gl_WorkGroupSize.y*gl_WorkGroupSize.z;
+  const uint size = globalData.countsAndTime.x;
+  const uint passCount = (size + threadCount - 1) / threadCount;
+
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i * threadCount + gl_LocalInvocationIndex;
+    if (index >= size) continue;
+    if (physicDatas[index].extIndices.x == 0xFFFFFFFF) continue;
+
+    const PhysicData4 current = physicDatas[index];
+    const uint transIndex = current.intIndices.y;
+    const Transform trans = transforms[transIndex];
+    const uint externalDataIndex = current.intIndices.x;
+
+    const uint groundPhysicsIndex = current.extIndices.z;
+
+    const Input currentInput = inputs[current.extIndices.y];
+    vec4 frontOnGround = currentInput.move.z == 0.0f ? vec4(0.0f, 0.0f, 0.0f, 0.0f) :
+    projectVectorOnPlane(-globalData.gravityNorm, trans.pos, currentInput.front);
+
+    const float lengthFront = length(frontOnGround);
+    if (lengthFront > EPSILON) frontOnGround /= lengthFront;
+    else frontOnGround = vec4(0.0f, 0.0f, 0.0f, 0.0f);
+
+    const vec4 acceleration = frontOnGround * currentInput.move.z + currentInput.right * currentInput.move.x;// + -globalData.gravityNorm * currentInput.move.y;
+    const float accelLength = length(acceleration);
+
+    vec4 aDir = vec4(0.0f, 0.0f, 0.0f, 0.0f);
+    if (accelLength > EPSILON) aDir = acceleration / accelLength;
+    const vec4 oldVel = vec4(current.velocity.xyz, 0.0f);
+    const vec4 additionalForce = externalDatas[externalDataIndex].additionalForce;
+    const float maxSpeed = externalDatas[externalDataIndex].speedData.x;
+    const float accelerationScalar = externalDatas[externalDataIndex].speedData.y;
+    float scalar = length(oldVel);
+    vec4 vel = oldVel;
+
+    const float groundFriction = groundPhysicsIndex != 0xFFFFFFFF ?
+                                   constants[groundPhysicsIndex].data.x : DEFAULT_GROUND_FRICTION;
+
+    if (bool(physicDatas[index].intIndices.w & 0x1)) computeGroundVelocity(aDir,
+                                                                oldVel,
+                                                                globalData.countsAndTime.y,
+                                                                bool(currentInput.move.y),
+                                                                additionalForce,
+                                                                maxSpeed,
+                                                                accelerationScalar,
+                                                                groundFriction,
+                                                                vel,
+                                                                scalar);
+    else {
+      computeAirVelocity(aDir,
+                         oldVel,
+                         globalData.countsAndTime.y,
+                         additionalForce,
+                         vel,
+                         scalar);
+
+      physicDatas[index].extIndices.z = 0xFFFFFFFF;
+    }
+
+    physicDatas[index].velocity.xyz = vel.xyz;
+    physicDatas[index].velocity.w = scalar;
+
+    physicDatas[index].intIndices.w = bool(physicDatas[index].intIndices.w & 0x1) && currentInput.move.y > 0.0f ? 0 : physicDatas[index].intIndices.w;
+    if (!bool(physicDatas[index].intIndices.w & 0x1)) physicDatas[index].extIndices.z = 0xFFFFFFFF;
+  }
+
+  barrier();
+
+  // это позволит мне учесть движение земли под объектом, причем при любых обстоятельствах
+  // даже возможно удастся передать эффект мгновенного лифта, как делается иногда в думе
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i * threadCount + gl_LocalInvocationIndex;
+    if (index >= size) continue;
+    if (physicDatas[index].extIndices.x == 0xFFFFFFFF) continue;
+
+    vec4 velocity = vec4(physicDatas[index].velocity.xyz, 0.0f);
+
+    // тут мы пытаемся получить все скорости под объектом
+    // скорее всего физдата не нужна статическим объектам вовсе
+    // то есть в этом случае мне пофиг есть ли под объектом что то
+    // важно только то что я стою на неподвижном объекте
+    // точнее это важно только при вычислении скорости
+    uint groundIndex = physicDatas[index].extIndices.z;
+    while (groundIndex != 0xFFFFFFFF) {
+      const uint physDataIndex = floatBitsToUint(constants[groundIndex].data.w);
+
+      if (physDataIndex != 0xFFFFFFFF) {
+        const PhysicData4 data = physicDatas[physDataIndex];
+        velocity += vec4(data.velocity.xyz, 0.0f);
+        groundIndex = data.extIndices.z;
+      } else {
+        groundIndex = 0xFFFFFFFF;
+      }
+    }
+
+    const float globalScalar = length(velocity);
+
+    const uint transIndex = physicDatas[index].intIndices.y;
+
+    physicDatas[index].oldPos = transforms[transIndex].pos;
+    transforms[transIndex].pos = transforms[transIndex].pos + velocity*MCS_TO_SEC(globalData.countsAndTime.y);
+
+    velocities[index] = velocity;
+
+    if (globalScalar > EPSILON) {
+      const uint id = atomicAdd(count, 1);
+      indexies[id] = physicDatas[index].extIndices.x;
+    }
+  }
+}
+
+void computeGroundVelocity(const vec4 accelerationDir,
+                           const vec4 oldVelocity,
+                           const uint dt,
+                           const bool jump,
+                           const vec4 additionalForce,
+                           const float maxSpeed,
+                           const float acceleration,
+                           const float groundFriction,
+                           inout vec4 velocity,
+                           inout float velocityScalar) {
+  const float dt1 = MCS_TO_SEC(dt);
+
+  const vec4 finalAcceleretionDir = accelerationDir * acceleration;
+  const vec4 a = finalAcceleretionDir + additionalForce;
+
+  const float stopspeed = velocityScalar < STOP_SPEED ? STOP_SPEED : velocityScalar;
+  float fr = velocityScalar - stopspeed*groundFriction*dt1;
+  fr = max(fr, 0.0f);
+  fr = velocityScalar == 0.0f ? fr = 0.0f : fr / velocityScalar;
+
+  velocity = oldVelocity*fr + a * dt1;
+
+  float newSpeed = length(velocity);
+  // идиотское вычисление прыжка (дополнительное ускорение на подъемах + с падением fps увеличивается высота)
+  // это оказывается нормальный подход к прыжку
+  // не понимаю почему различе в фпс выдают такое различие в прыжке?
+  //float aJump = lim.jump*JUMP_ACCELERATION*dt1;
+
+  const float jumpKoef = (4.0f / (1.0f / 60.0f));
+  const float jumpAcceleration = jumpKoef * float(jump);
+  const vec4 jumpAccelerationDir = -globalData.gravityNorm * jumpAcceleration;
+
+  if (newSpeed <= EPSILON) {
+    // мы здесь так или иначе должны выйти
+    // но я еще здесь считал прыжок
+
+    //velocity = vec4(0.0f, 0.0f, 0.0f, 0.0f) - globalData.gravity*aJump;
+    //velocityScalar = aJump;
+    velocity = vec4(0.0f, 0.0f, 0.0f, 0.0f) + jumpAccelerationDir*dt1;
+    velocityScalar = jumpAcceleration*dt1;
+    return;
+  }
+
+  const vec4 newVelNorm = velocity / newSpeed;
+
+  newSpeed = min(newSpeed, maxSpeed);
+
+  velocity = newVelNorm * newSpeed + jumpAccelerationDir*dt1; // - globalData.gravity*aJump;
+  // это так не работает
+  //const float maxJump = jumpKoef * dt1;
+  //velocity = vec4(min(maxJump, velocity.x), min(maxJump, velocity.y), min(maxJump, velocity.z), 0.0f);
+  velocityScalar = length(velocity); // нужно будет убрать если я не буду считать прыжок как то по особому
+  //velocityScalar = newSpeed + 2.0f*h*jumpAcceleration*dt1;
+  // нужно почекать как в кваке это сделано еще раз
+}
+
+void computeAirVelocity(const vec4 oldVelocity,
+                        const uint dt,
+                        const vec4 additionalForce,
+                        inout vec4 velocity,
+                        inout float velocityScalar) {
+  float dt1 = MCS_TO_SEC(dt);
+
+  vec4 vn = velocityScalar == 0.0f ? vec4(0.0f, 0.0f, 0.0f, 0.0f) : oldVelocity / velocityScalar;
+
+  const float airFriction = 0.0f;
+  vec4 a = -vn*airFriction + additionalForce + globalData.gravity;
+
+  velocity = oldVelocity + a * dt1;
+  velocityScalar = length(velocity);
+}
+
+void computeAirVelocity(const vec4 accelerationDir,
+                        const vec4 oldVelocity,
+                        const uint dt,
+                        const vec4 additionalForce,
+                        inout vec4 velocity,
+                        inout float velocityScalar) {
+  float dt1 = MCS_TO_SEC(dt);
+
+  vec4 vn = velocityScalar == 0.0f ? vec4(0.0f, 0.0f, 0.0f, 0.0f) : oldVelocity / velocityScalar;
+
+  const float airFriction = 0.0f;
+  vec4 a = -vn*airFriction + additionalForce + globalData.gravity + AIR_ACCELERATION_DIR*accelerationDir*AIR_ACCELERATION;
+
+  velocity = oldVelocity + a * dt1;
+  velocityScalar = length(velocity);
+}
+
+vec4 projectVectorOnPlane(const vec4 normal, const vec4 origin, const vec4 vector) {
+  float dist = dot(vector, normal);
+  vec4 point = origin + vector - normal*dist;
+  return point - origin;
+}
+
+bool feq(const float first, const float second) {
+  return abs(first - second) < EPSILON;
+}

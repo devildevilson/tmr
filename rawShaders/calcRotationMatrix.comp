@@ -1,0 +1,102 @@
+#version 450
+
+struct RotationData {
+  vec4 anchorDir; // w == dist
+  vec4 rotationNormal;
+  // x == currentAngle, y == maxAngle, z == rotSpeed, w == stepTime
+  vec4 additionalData;
+  mat4 matrix;
+};
+
+layout(std140, set = 0, binding = 0) buffer RotationDatas {
+  RotationData rotationDatas[];
+};
+
+layout(std430, set = 1, binding = 0) buffer readonly RotationDatasCount {
+  uint rotationDatasCount;
+};
+
+mat4 translation(const vec3 pos);
+mat4 translation(const vec4 pos);
+mat4 rotation(const float angle, const vec3 axis);
+mat4 rotation(const float angle, const vec4 axis);
+mat4 scale(const vec3 vec);
+mat4 scale(const vec4 vec);
+
+#define workGroupSize 256
+layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+  const uint threadCount = gl_WorkGroupSize.x;
+  const uint calcCount = rotationDatasCount;
+  const uint passCount = (calcCount + threadCount - 1) / threadCount;
+
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= calcCount) continue;
+
+    rotationDatas[index].additionalData.x += rotationDatas[index].additionalData.z;
+    rotationDatas[index].additionalData.x = min(rotationDatas[index].additionalData.x, rotationDatas[index].additionalData.y);
+    rotationDatas[index].additionalData.x = max(rotationDatas[index].additionalData.x, 0.0f);
+
+    rotationDatas[index].matrix = translation(rotationDatas[index].anchorDir.xyz * rotationDatas[index].anchorDir.w) *
+                                  rotation(rotationDatas[index].additionalData.x, rotationDatas[index].rotationNormal) *
+                                  translation(-(rotationDatas[index].anchorDir.xyz * rotationDatas[index].anchorDir.w));
+  }
+}
+
+mat4 translation(const vec3 pos) {
+  return mat4(1.0f,  0.0f,  0.0f,  0.0f,
+              0.0f,  1.0f,  0.0f,  0.0f,
+              0.0f,  0.0f,  1.0f,  0.0f,
+              pos.x, pos.y, pos.z, 1.0f);
+}
+
+mat4 translation(const vec4 pos) {
+  // return mat4(1.0f, 0.0f, 0.0f, pos.x,
+  //             0.0f, 1.0f, 0.0f, pos.y,
+  //             0.0f, 0.0f, 1.0f, pos.z,
+  //             0.0f, 0.0f, 0.0f, 1.0f);
+  return mat4(1.0f,  0.0f,  0.0f,  0.0f,
+              0.0f,  1.0f,  0.0f,  0.0f,
+              0.0f,  0.0f,  1.0f,  0.0f,
+              pos.x, pos.y, pos.z, 1.0f);
+}
+
+mat4 rotation(const float angle, const vec3 axis) {
+  //axis = normalize(axis);
+  float s = sin(angle);
+  float c = cos(angle);
+  float oc = 1.0f - c;
+
+  return mat4(oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,  0.0f,
+              oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,  0.0f,
+              oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c,           0.0f,
+              0.0f,                               0.0f,                               0.0f,                               1.0f);
+}
+
+mat4 rotation(const float angle, const vec4 axis) {
+  //axis = normalize(axis);
+  float s = sin(angle);
+  float c = cos(angle);
+  float oc = 1.0f - c;
+
+  return mat4(oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,  0.0f,
+              oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,  0.0f,
+              oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c,           0.0f,
+              0.0f,                               0.0f,                               0.0f,                               1.0f);
+}
+
+mat4 scale(const vec3 vec) {
+  return mat4(vec.x, 0.0f,  0.0f,  0.0f,
+              0.0f,  vec.y, 0.0f,  0.0f,
+              0.0f,  0.0f,  vec.z, 0.0f,
+              0.0f,  0.0f,  0.0f,  1.0f);
+}
+
+mat4 scale(const vec4 vec) {
+  return mat4(vec.x, 0.0f,  0.0f,  0.0f,
+              0.0f,  vec.y, 0.0f,  0.0f,
+              0.0f,  0.0f,  vec.z, 0.0f,
+              0.0f,  0.0f,  0.0f,  1.0f);
+}

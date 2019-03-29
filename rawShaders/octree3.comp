@@ -1,0 +1,268 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+// #define BBOX 0
+// #define SPHERE 1
+// #define POLYGON 2
+//
+// #define STATIC 0
+// #define DYNAMIC 1
+//
+// #define COMPARE_WITH STATIC
+
+#define ONLY_TRIGGER_ID 0xFFFFFFFF-1
+
+#include "physic.h"
+//#include "functions.glsl"
+#include "physicType.glsl"
+
+struct IndexMemory {
+  // x == lastIndex, y == nodeIndex
+  uvec2 data;
+};
+
+struct Proxy {
+  AABB box;
+  // x == group, y == filter, z == proxyIndex, w == objIndex
+  uvec4 proxyData;
+  // x == nodeIndex, y == containerIndex, z == objType
+  uvec4 octreeData;
+};
+
+// тут нужен буфер aabb вместо вершин
+// в нем мы храним aabb для всех объектов + aabb октодерева
+// также нужен шейдер для того чтобы их обновить
+// этот буфер будет работать ввиде MemoryPool'а
+layout(std140, set = 0, binding = 0) buffer readonly Proxies {
+  Proxy proxies[];
+};
+
+layout(std140, set = 1, binding = 0) buffer readonly OctreeData {
+  NodeData nodeData[];
+};
+
+layout(std430, set = 2, binding = 0) buffer readonly OctreeIndicies {
+  uint nodeIdx[];
+};
+
+layout(std430, set = 3, binding = 0) buffer readonly InData {
+  uint inputCount;
+  uint inputProxies[];
+};
+
+layout(std140, set = 4, binding = 0) buffer OutData {
+  uvec4 count;
+  Pair pairs[];
+};
+
+// никакой shared памяти не хватит если держать стак октодерева глубины 6 и более
+// 5 == >4500  нодов
+// 6 == >16000 нодов
+// в принципе нужно еще попробовать стак для света такой же
+// его понятное дело нужно делать device local
+
+// основная беда в том что в таком виде невозможно сделать
+// параллельность между объектами, так как стак один
+// shared uint memoryOffset;
+// layout(std430, set = 0, binding = 2) buffer Stack {
+//   uint stack[];
+// };
+
+// layout(set = 0, binding = 9) uniform AdditionalData {
+//   vec4 gravity;
+//   vec4 gravityNorm;
+//   // x == length, y == length2
+//   vec4 gravityLengths;
+//   // x == objCount, y == time
+//   uvec4 countsAndTime;
+// } globalData;
+
+layout(constant_id = 0) const uint octreeDepth = 5;
+layout(constant_id = 1) const uint nodeCount = 4681;
+//const uint octreeDepth = 5;
+
+// по идее алгоритм способен работать и с большими значениями
+// нужно будет попробовать
+// тут можно еще поставить local_size_y например 10-12
+// и вычислять polyVSobb или obbVSobb и др
+#define workGroupSize 16
+// тут больше не будет значений больше 1 (так как теперь мы проверяем только AABB)
+#define threadInWorkGroup 1
+//layout(constant_id = 1) const uint workGroupSize = 8;
+layout (local_size_x = workGroupSize, local_size_y = threadInWorkGroup, local_size_z = 1) in;
+
+// может ли быть этого недостаточно?
+// при глубине 6 количество нодов разгоняется аж до 37449,
+// в текущем виде такую глубину подсилам обработать только на cpu
+// с другой стороны если чекать коллизию прямо на месте
+// можно и на gpu попробовать, но не будет ли это слишком для гпу
+// хотя вся эта городьба уже слишком для гпу скорее всего
+
+// здесь все же скорее всего не потребуется такой огромный буфер
+// а сойдет что нибудь вроде 585? (8^0+8^1+8^2+8^3)
+// в общем все зависит от величины конечного объекта и величины карты
+// даже если объект пересечет на первом уровне все 8 нодов
+// то на втором скорее всего уже только 1
+// короче говоря если объекты будут меньше чем самый маленький нод в октодереве
+// можно вполне истользовать меньший буфер
+
+// поэтому наверное остановлюсь на shared буфере меньшего размера
+#define memoryArraySize 512
+//layout(constant_id = 2) const uint memoryArraySize = 1024;
+// shared uint globalObjCount;
+// shared uint memOffset;
+// shared uint stack[memoryArraySize];
+//shared uint outputOffset;
+
+// городьба для того чтобы чекать коллизию не прибегая к огромному буферу
+//shared IndexMemory mem[octreeDepth];
+//shared uint sharedBool[workGroupSize];
+// shared uint testNodeCount;
+//shared uint nodeIndex[8];
+//shared uint nodesCount1;
+
+//bool proccessNode(const Object inputObj, const AABB node);
+bool testAABB(const AABB first, const AABB second);
+//bool proccessNode(const uint nodeIndex, const OBB inputObj, const uint systemIndex);
+//bool testObj(const OBB inputObj, const uint systemIndex, const Object second, inout float dist2);
+float distance2(const vec4 first, const vec4 second);
+
+// это алгоритм нахождения коллизии для объектов AABB
+// тут можно кое-что поменять и тогда этот алгоритм будет успешно отрабатывать и OBB
+// в броадфазе будем обрабатывать кололизию только AABB
+// для этого нам потребуется еще один шейдер где мы перевычислим размеры
+
+void main() {
+  // count.x = 0;
+  // count.y = 0;
+  // count.z = 0;
+  // count.w = 0;
+  //
+  // const uint threadCount = gl_WorkGroupSize.x;
+  // const uint currentNodeIndex = gl_WorkGroupID.x;
+  // const NodeData node = nodeData[currentNodeIndex];
+  // const AABB nodeAABB = proxies[node.data.w].box;
+  //
+  // barrier();
+  //
+  // const uint passCount = (inputCount + threadCount - 1) / threadCount;
+  // for(uint i = 0; i < passCount; ++i) {
+  //   const uint index = i*threadCount + gl_LocalInvocationIndex;
+  //   if (index >= inputCount) continue;
+  //   const uint proxyIndex = inputProxies[index];
+  //   const Proxy proxy = proxies[proxyIndex];
+  //   if (!testAABB(proxy.box, nodeAABB)) continue;
+  //
+  //   for (uint j = 0; j < node.data.x; ++j) {
+  //     const uint objIndex = nodeIdx[node.data.y + j];
+  //     if (objIndex == proxyIndex) continue;
+  //
+  //     // еще несколько проверок
+  //     if (!testAABB(proxies[objIndex].box, proxy.box)) continue;
+  //
+  //     // добавляем пару
+  //   }
+  // }
+
+  // это сверх простой способ посчитать пары
+  // ко всему прочему выглядит так будто будет более менее быстро работать
+  // хотя и обеспечит дополнительных 4681 (глубина 5) проверок для каждого объекта
+  // можно ли это как-то сократить? или как-нибудь дополнительно распараллелить?
+  // можно диспатчить количество нодов * количество объектов на проверку
+  // а здесь использовать каких-нибудь 16 тредов
+
+  // это другой способ
+  // я так полагаю он более предпочтительный
+  count.x = 0;
+  count.y = 0;
+  count.z = 0;
+  count.w = 0;
+
+  const uint threadCount = gl_WorkGroupSize.x;
+  const uint currentNodeIndex = gl_WorkGroupID.y;
+  const NodeData node = nodeData[currentNodeIndex];
+  const AABB nodeAABB = proxies[node.data.w].box;
+  const uint currentIndex = gl_WorkGroupID.x;
+  const uint proxyIndex = inputProxies[currentIndex];
+
+  if (gl_NumWorkGroups.x == 1 && proxyIndex == 0xFFFFFFFF) return;
+
+  const Proxy current = proxies[proxyIndex];
+
+  barrier();
+
+  if (!testAABB(current.box, nodeAABB)) return;
+
+  const uint passCount = (node.data.x + threadCount - 1) / threadCount;
+  for(uint i = 0; i < passCount; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= node.data.x) continue;
+
+    const uint checkProxyIndex = nodeIdx[node.data.y + index];
+    if (checkProxyIndex == proxyIndex) continue;
+
+    const Proxy second = proxies[checkProxyIndex];
+    if ((!isTrigger(second.proxyData.z)) && (!isBlocking(second.proxyData.z))) continue;
+
+    // x - это тип объекта, y - это те объекты с которыми есть коллизия
+    const bool collide = (current.proxyData.x & second.proxyData.y) != 0 &&
+                         (second.proxyData.x & current.proxyData.y) != 0;
+
+    const bool currentObjTrigger = isTrigger(current.proxyData.z) && (!isBlocking(current.proxyData.z));
+    const bool proxyTrigger =      isTrigger(second.proxyData.z)  && (!isBlocking(second.proxyData.z));
+    const bool triggerOnly = currentObjTrigger || proxyTrigger;
+
+    if (!collide || !testAABB(current.box, second.box)) continue;
+
+    // добавляем пару
+    const uint id = atomicAdd(count.x, 1);
+
+    // тут наверное еще нужно расположить минимальный индекс первым, нет не нужно
+    pairs[id].data.x = current.proxyData.w;
+    pairs[id].data.y = second.proxyData.w;
+    const float dist2 = distance2(current.box.center, second.box.center);
+    pairs[id].data.z = floatBitsToUint(dist2);
+    pairs[id].data.w = triggerOnly ? ONLY_TRIGGER_ID : 0;
+    //pairs[id].data.w = triggerOnly ? ONLY_TRIGGER_ID : gl_NumWorkGroups.y-min(current.octreeData.x, p.octreeData.x);
+  }
+
+  // // при этих способах скорее всего придется выделить дальнейший код в отдельный шейдер
+  // barrier();
+  //
+  // uint v = count.x; // compute the next highest power of 2 of 32-bit v
+  // v--;
+  // v |= v >> 1;
+  // v |= v >> 2;
+  // v |= v >> 4;
+  // v |= v >> 8;
+  // v |= v >> 16;
+  // v++;
+  //
+  // barrier();
+  //
+  // count.w = v;
+  //
+  // const uint passCount2 = (v + threadCount - 1) / threadCount;
+  // for (uint i = 0; i < passCount2; ++i) {
+  //   const uint index = i * threadCount + count.x + gl_LocalInvocationIndex;
+  //   if (index >= v) continue;
+  //
+  //   pairs[index].data.x = 0xFFFFFFFF;
+  //   pairs[index].data.y = 0xFFFFFFFF;
+  //   pairs[index].data.z = 0;
+  //   pairs[index].data.w = 0xFFFFFFFF;
+  // }
+}
+
+bool testAABB(const AABB first, const AABB second) {
+  vec4 center = abs(first.center - second.center);
+  vec4 extent =     first.extent + second.extent;
+
+  return extent.x > center.x && extent.y > center.y && extent.z > center.z;
+}
+
+float distance2(const vec4 first, const vec4 second) {
+  const vec4 dir = second - first;
+  return dot(dir, dir);
+}

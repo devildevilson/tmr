@@ -1,0 +1,86 @@
+#version 450
+
+layout(set = 0, binding = 0, rgba32f) uniform readonly image2D inImage;
+layout(set = 1, binding = 0, rgba8) uniform writeonly image2D outImage;
+
+const float gamma = 1.0;
+
+vec3 linearToneMapping(vec3 color) {
+  float exposure = 1.;
+  color = clamp(exposure * color, 0., 1.);
+  color = pow(color, vec3(1. / gamma));
+  return color;
+}
+
+vec3 simpleReinhardToneMapping(vec3 color) {
+  float exposure = 1.5;
+  color *= exposure/(1. + color / exposure);
+  color = pow(color, vec3(1. / gamma));
+  return color;
+}
+
+vec3 lumaBasedReinhardToneMapping(vec3 color) {
+  float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+  float toneMappedLuma = luma / (1. + luma);
+  color *= toneMappedLuma / luma;
+  color = pow(color, vec3(1. / gamma));
+  return color;
+}
+
+vec3 whitePreservingLumaBasedReinhardToneMapping(vec3 color) {
+  float white = 2.;
+  float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+  float toneMappedLuma = luma * (1. + luma / (white*white)) / (1. + luma);
+  color *= toneMappedLuma / luma;
+  color = pow(color, vec3(1. / gamma));
+  return color;
+}
+
+vec3 RomBinDaHouseToneMapping(vec3 color) {
+  color = exp( -1.0 / ( 2.72*color + 0.15 ) );
+  color = pow(color, vec3(1. / gamma));
+  return color;
+}
+
+vec3 filmicToneMapping(vec3 color) {
+  color = max(vec3(0.), color - vec3(0.004));
+  color = (color * (6.2 * color + .5)) / (color * (6.2 * color + 1.7) + 0.06);
+  return color;
+}
+
+vec3 Uncharted2ToneMapping(vec3 color) {
+  float A = 0.15;
+  float B = 0.50;
+  float C = 0.10;
+  float D = 0.20;
+  float E = 0.02;
+  float F = 0.30;
+  float W = 11.2;
+  float exposure = 2.;
+  color *= exposure;
+  color = ((color * (A * color + C * B) + D * E) / (color * (A * color + B) + D * F)) - E / F;
+  float white = ((W * (A * W + C * B) + D * E) / (W * (A * W + B) + D * F)) - E / F;
+  color /= white;
+  color = pow(color, vec3(1. / gamma));
+  return color;
+}
+
+#define WORKGROUP_SIZE 32
+layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE, local_size_z = 1) in;
+
+void main() {
+  ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+
+  vec4 color = imageLoad(inImage, pixel);
+
+  vec3 outColor = color.xyz;
+  //vec3 outColor = linearToneMapping(color.xyz);
+  //vec3 outColor = simpleReinhardToneMapping(color.xyz);
+  //vec3 outColor = lumaBasedReinhardToneMapping(color.xyz);
+  //vec3 outColor = whitePreservingLumaBasedReinhardToneMapping(color.xyz);
+  //vec3 outColor = RomBinDaHouseToneMapping(color.xyz);
+  //vec3 outColor = filmicToneMapping(color.xyz);
+  //vec3 outColor = Uncharted2ToneMapping(color.xyz);
+
+  imageStore(outImage, pixel, vec4(outColor, 1.0));
+}

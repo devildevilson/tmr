@@ -1,0 +1,77 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "physic.h"
+
+struct Helper {
+  vec4 mtv;
+  vec4 additionalData;
+};
+
+layout() buffer Helpers {
+  Helper helpers[];
+};
+
+void main() {
+  const uint threadCount = gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z;
+
+  const uint count;
+  const uint passCount = (count + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= count) continue;
+
+    // здесь мне нужно обойти пары и почекать наличие ступеньки
+    // также посчитать новую скорость (хотя лол как я буду считать скорость, если я не знаю с чем в итоге я столкнусь)
+    // точнее я знаю, но например из-за ступеньки все может поменяться
+    // короче говоря мне видимо придется сначала обработать ступеньку (ну и землю)
+    // а потом еще раз пройтись для того чтобы посчитать скорость
+
+    // так как теперь у меня нет четкого разделения на нормали-ребра (ну точнее если без костылей)
+    // то мне теперь нужно находить среди них нужную нормаль для того чтобы чекать на ступеньку
+    // и тут возникает некоторое удобное свойство, я могу проверить каждый фейс
+    // с гравитацией и решить какой мне удобнее всего использовать как ступеньку
+    // (ну то есть у стен наверное будет всегда находиться нужный, мне просто нужно посчитать число)
+    // (на которое необходимо вычислить подъем и потом сравнить его)
+    // как определить землю? нужно ли вообще определять ее как то по особому?
+    // мне нужно определить есть среди объектов, которые я пересекаю, кандидаты на ступеньку
+    // посчитать для каждого объекта мтв, дист, а также дист для ступеньки
+    // условия ступенька/нет по идее такие же как обычно
+
+    // помешает ли это вычислениям после? скорее всего да
+    // лучше всего совместить все вычисления
+    // мне в принципе и так и сяк придется вычислять ступенька/нет
+    // но по возможности применять эти данные лишь однажды (скорость менять тоже только раз)
+    // 
+
+    float dist = uintBitsToFloat(0x7FFFFFFF);
+    vec4 mtv;
+    const bool col = SAT(some1, some2, mtv, dist);
+    if (col) {
+      float angle;
+
+      if (angle < PI_Q) {
+        // тут надо запомнить индекс плоскости
+        physicDatas[physIndex].constants.x = uint(true);
+        physicDatas[physIndex].constants.z = second.worldInfo.y;
+      } else if (wasOnGround && abs(angle - PI_H) < PI_Q) {
+        // это ступенька
+        // здесь нам надо определить подъем
+        // и применить новые координаты
+        // определяю подъем как в cpp
+        // нужно будет потом подумать о том как все же сделать подъем вертикальным
+        const float distStair = SATOneAxis(first, second, normal);
+        if (distStair < (1.0f - EPSILON)) { // 1.0f уходит в физические константы
+          vec4 pos = phys.oldPos + normal*distStair - mtv*0.01f;
+          physicDatas[physIndex].oldPos = pos;
+
+          // запоминаем индекс плоскости
+          physicDatas[physIndex].constants.x = uint(true);
+          physicDatas[physIndex].constants.z = second.worldInfo.y;
+        }
+        stair = true;
+      }
+    }
+  }
+}

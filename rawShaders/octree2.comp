@@ -1,0 +1,640 @@
+// struct AABB {
+//   vec4 center;
+//   vec4 extent;
+// };
+//
+// struct OBB {
+//   AABB volume;
+//   mat4 orientation;
+// };
+//
+// struct NodeData {
+//   // x == count, y == offset, z == childIndex, w == vertexOffset
+//   uvec4 data;
+// };
+//
+// struct PhysicData {
+//   vec4 acceleration;
+//   vec4 velocity;
+//   vec4 oldPos;
+//   vec4 newPos;
+//   vec4 dir;
+//   vec4 additionalForce;
+//   // x == maxSpeed, y == groundFriction, z == airFriction, w == velocityScalar (айр фриктион наверное не понадобится)
+//   vec4 additionalData;
+//   // x == isOnGround, y == inputIndex (потом поди еще что добавиться)
+//   uvec4 constants;
+// };
+//
+// struct Object {
+//   // x == entityId, y == objectId, z == objectType, w == physicDataIndex
+//   uvec4 worldInfo;
+//   // x == vertexOffset, y == vertexSize, z == coordinateSystemIndex, w == staticOrDynamic
+//   uvec4 objectInfo;
+//   // x == staticCollisionCount, y == dynamicCollisionCount, z == wasOnGround
+//   uvec4 additionalData;
+//   // x == nodeIndex, y == containerIndex
+//   uvec4 nodePos;
+// };
+//
+// struct Pair {
+//   uvec4 data;
+// };
+
+void main() {
+  //outputOffset = 0;
+  // memOffset = 1;
+  // memory[0] = 0;
+  // uint lastOffset = 0;
+  // uint lastMemory = 0;
+  //
+  // uint nodesCount = 1;
+  // uint lastCount = 0;
+  // uint powerEight = 1;
+  //const uint threadCount = gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z;
+
+  //const OBB box = {{vertices[current.objectInfo.x], vertices[current.objectInfo.x + 1]}, systems[current.objectInfo.z]};
+  // пока не понятно что делать если объект не OBB
+  // хотя с другой стороны это прост приведет к огромным копнам switch case
+  // как это у меня было раньше в С++
+  // думаю что наверное позже напишу ченить в этом направлении
+  // если вообще дело дойдет
+
+  // дело дошло и я планирую хранить все объекты внутри дерева с помощью AABB
+  // это означает несколько большее количество итоговых пар
+  // но зато отсутствие еботы в этом коде с SAT
+
+  //mem[0].data = uvec2(0, 0);
+  //uint currentDepth = 0;
+  //uint parentIndex = 0;
+
+  barrier();
+
+  while (mem[0].data.x < 8) {
+    if (mem[currentDepth].data.x > 7) {
+      --currentDepth;
+      continue;
+    }
+
+    const uint objCount = nodeData[parentIndex].data.x;
+    const uint passCount = (objCount + threadCount - 1) / threadCount;
+    for (uint i = 0; i < passCount; ++i) {
+      const uint index = threadCount*i + gl_LocalInvocationID.x;
+      if (index >= objCount) continue;
+      const uint objectIndex = nodeIdx[nodeData[parentIndex].data.y + index];
+      const Object obj = objects[objectIndex];
+      const AABB second = boxes[obj.additionalData.w];
+
+      if (testAABB(first, second)) {
+        uint id = atomicAdd(count.x, 1);
+
+        pairs[id].data.x = current.worldInfo.y;
+        pairs[id].data.y = objectIndex;
+        const float dist2 = distance2(first.center, second.center);
+        pairs[id].data.z = floatBitsToUint(dist2);
+        pairs[id].data.w = 0;
+      }
+    }
+
+    // барьер тут все же необходим так как я не могу гарантировать одновременное выполнения последующего кода
+    barrier();
+
+    const uint childIndex = nodeData[mem[currentDepth].data.y].data.z;
+    if (childIndex == 0xFFFFFFFF) --currentDepth;
+
+    // мы будем 64 раза делать примерно одно и тоже
+    // но зато без громадного стака
+    // можно ли как то это исправить?
+    // можно исправить держа стак в отдельном буфере (а не в shared памяти)
+    // в этом случае проблема возникает в том что vulkan не может глобально оптимизировать шейдер
+    // оптимизация глобальных воркгрупп
+    uint lastIndex = mem[currentDepth].data.x;
+    while (lastIndex < 8) {
+      const uint index = childIndex + lastIndex;
+      ++lastIndex;
+       // присваиваем мы в глобальную переменную
+       // но работать должно все стабильно
+       // так как для всех потоков мы получаем одинаковый результат
+      mem[currentDepth].data.x = lastIndex;
+      const AABB nodeAABB = {vertices[nodeData[index].data.w], vertices[nodeData[index].data.w+1]};
+      const bool col = testAABB(first, nodeAABB);
+      //proccessNode(index, box, current.objectInfo.z);
+      if (col) {
+        parentIndex = index;
+        ++currentDepth; // это локальная переменная
+        mem[currentDepth].data.x = 0;
+        mem[currentDepth].data.y = index;
+        break;
+      }
+    }
+  }
+
+  barrier();
+
+  for (uint i = 0; i < memOffset; ++i) {
+    NodeData node = nodeData[stack[i]];
+
+    const uint passCount = (node.data.x + threadCount - 1) / threadCount;
+    for (uint j = 0; j < passCount; ++j) {
+      const uint inv = j * threadCount + gl_LocalInvocationIndex;
+      const uint index = node.data.y + inv;
+      if (inv > node.data.x) continue;
+
+      const uint worldIndex = nodeIdx[index];
+      const AABB second;
+      // здесь должна быть функция для проверки пересечения
+      if (testObj(worldIndex, current)) {
+        // добавляем в буффер индекс
+        uint id = atomicAdd(outputOffset, 1);
+        pairs[id].data.x = gl_WorkGroupID.x; // да и тут нужен realId
+        pairs[id].data.y = worldIndex; // или нужно добавить realId? по идее они не должны отличаться (хотя что с фигурами?)
+        pairs[id].data.z = floatBitsToUint(1000.0f); // посчитать нужно дистанцию
+      }
+    }
+  }
+
+  // while (mem[0].data.x < 8) {
+  //   // как то так нам нужно уходить от поторной проверки
+  //   if (mem[currentDepth].data.x > 7) {
+  //     --currentDepth;
+  //     continue;
+  //   }
+  //
+  //   // threadCount должен быть равен gl_WorkGroupSize.x
+  //   //const uint passCount = (objCount + threadCount - 1) / threadCount;
+  //   const uint objCount = nodeData[parentIndex].data.x;
+  //   const uint passCount = (objCount + threadCount - 1) / threadCount;
+  //   for (uint i = 0; i < passCount; ++i) {
+  //     // здесь мы начинаем проверку
+  //     const uint index = threadCount*i + gl_LocalInvocationID.x;
+  //
+  //     // это у нас сделано чтобы получить индекс нода и объекта в нем
+  //     // uint objSum = 0, prevObjSum = objSum, j = 0;
+  //     // while (index >= objSum) {
+  //     //   prevObjSum = objSum;
+  //     //   objSum += nodeData[nodeIndex[j]].data.y;
+  //     //   ++j;
+  //     // }
+  //     // --j;
+  //     // const uint objIndex = index - prevObjSum;
+  //
+  //     const uint objectIndex = nodeIdx[nodeData[parentIndex].data.y + index];
+  //     //const uint objectIndex = nodeIdx[nodeData[nodeIndex[j]].data.x + objIndex];
+  //     Object second;
+  //     if (index < objCount && objects[objectIndex].objectInfo.w == COMPARE_WITH) second = objects[objectIndex];
+  //     else {
+  //       second.objectInfo.z = 0xFFFFFFFF;
+  //       //second.objectInfo.w = COMPARE_WITH;
+  //     }
+  //
+  //     float dist2;
+  //     testObj(box, current.objectInfo.z, second, dist2);
+  //     barrier();
+  //
+  //     bool col = bool(sharedBool[gl_LocalInvocationID.x]);
+  //     if (col) {
+  //       if (gl_LocalInvocationID.y == 0) { // нам нужно сделать все это дело только один раз
+  //         //uint id = atomicAdd(outputOffset, 1);
+  //         uint id = atomicAdd(count.x, 1);
+  //         pairs[id].data.x = current.worldInfo.y;
+  //         pairs[id].data.y = objectIndex;
+  //         pairs[id].data.z = floatBitsToUint(dist2);
+  //         pairs[id].data.w = 0;
+  //
+  //         #if COMPARE_WITH == STATIC
+  //         atomicAdd(objects[current.worldInfo.y].additionalData.x, 1);
+  //         #else
+  //         atomicAdd(objects[current.worldInfo.y].additionalData.y, 1);
+  //         #endif
+  //       }
+  //     }
+  //   }
+  //
+  //   // что тут? тут нужно как то выходить для этого я уменьшаю текущую глубину
+  //   // но я решил что я самый умный и поэтому сразу проверил все сверху
+  //   // и теперь я в тупике
+  //   // мне нужно запомнить все ноды которые я проверил
+  //   // то есть в итоге я прихожу к тому от чего хотел отказаться (от огромного буфера memory)
+  //   // что мне делать?
+  //   // переделал обратно
+  //   // теперь это похоже на вариант из cpp кода
+  //   // конечно работу этого дела нужно еще проверять
+  //   // mem[currentDepth].data.x > 7 ||
+  //   if (nodeData[mem[currentDepth].data.y].data.z == 0xFFFFFFFF) --currentDepth;
+  //
+  //   uint lastIndex = mem[currentDepth].data.x;
+  //   sharedBool[gl_LocalInvocationID.x] = 1;
+  //   barrier();
+  //   // барьер должен быть здесь
+  //
+  //   // const uint passCount2 = (8 + threadCount - 1) / threadCount;
+  //   // for (uint i = 0; i < passCount2; ++i) {
+  //   //   if (gl_LocalInvocationIndex > 8) continue;
+  //   //   const uint id = atomicAdd(mem[currentDepth].data.x, 1);
+  //   //   const uint index = nodeData[mem[currentDepth].data.y].data.z + id;
+  //   //
+  //   //   // нужно понять че тут, точнее нужен ли намвообще parentIndex у каждого нода
+  //   //   AABB nodeAABB;
+  //   //   if (proccessNode(current, nodeAABB)) {
+  //   //     const uint id = atomicAdd(nodesCount1, 1);
+  //   //     nodeIndex[id] = index;
+  //   //
+  //   //   }
+  //   // }
+  //   //
+  //   // ++currentDepth;
+  //
+  //   while (lastIndex < 8) {
+  //     const uint index = nodeData[mem[currentDepth].data.y].data.z + lastIndex;
+  //     ++lastIndex;
+  //     mem[currentDepth].data.x = lastIndex;
+  //     //AABB nodeAABB = {vertices[nodeData[index].data.w], vertices[nodeData[index].data.w+1]};
+  //     //proccessNode(current, nodeAABB);
+  //     proccessNode(index, box, current.objectInfo.z);
+  //     barrier();
+  //
+  //     bool col = bool(sharedBool[gl_LocalInvocationID.x]);
+  //     if (col) {
+  //       parentIndex = index;
+  //       ++currentDepth;
+  //       mem[currentDepth].data.x = 0;
+  //       mem[currentDepth].data.y = index;
+  //       break;
+  //     }
+  //   }
+  //
+  //   // и тут тоже барьер
+  //   // здесь наверное ненужно
+  //   // можно ли управлять потоками без барьера или придется как то извращаться?
+  //   sharedBool[gl_LocalInvocationID.x] = 1;
+  //   barrier();
+  // }
+
+  // for(uint i = 0; i < octreeDepth; ++i) {
+  //   // можно чекнуть пересечение здесь
+  //   // если чекать здесь то поидее можно избежать массива memory
+  //   // но на самом деле не здесь а под proccessNode
+  //
+  //   // uint powerEight = uint(pow(8, i));
+  //   // nodesCount += powerEight;
+  //   const uint currentOffset = memOffset;
+  //
+  //   //const uint32_t size = nodeIdx.size() - offset;
+  //   const uint checkCount = (memOffset - lastMemory) * 8;
+  //
+  //   const uint passCount = (checkCount + threadCount - 1) / threadCount;
+  //   for (uint j = 0; j < passCount; ++j) {
+  //     const uint index = j * threadCount + gl_LocalInvocationIndex; // стандарный способ получить текущий поток
+  //     if (index >= checkCount) continue; // если индекс больше количесва проверок, то выходим
+  //
+  //     const uint parentIndex = memory[index / 8 + lastMemory]; // делим на 8 чтоб получить индекс который мы сейчас будем обрабатывать
+  //     const uint childIndex = nodeData[parentIndex].data.z + index % 8; //nodesCount + (parentIndex - lastCount)*8
+  //     // общее число нодов (предыдущее) + (приводим к к форме [0;8^i)) текущий индекс нода на уровне + индекс потока
+  //     // это по идее должно работать с любым количеством потоков
+  //
+  //     // AABB node = nodes[childIndex];
+  //     // if (proccessNode(node, current)) {
+  //     //   uint id = atomicAdd(memOffset, 1);
+  //     //   memory[id] = childIndex;
+  //     // }
+  //   }
+  //
+  //   powerEight *= 8;
+  //   lastCount = nodesCount;
+  //   nodesCount += powerEight;
+  //   lastMemory = currentOffset;
+  //   barrier();
+  // }
+  //
+  // barrier();
+  //
+  // for (uint i = 0; i < memOffset; ++i) {
+  //   NodeData node = nodeData[memory[i]];
+  //
+  //   uint passCount = (node.data.x + threadCount - 1) / threadCount;
+  //   for (uint j = 0; j < passCount; ++j) {
+  //     uint inv = j * threadCount + gl_LocalInvocationIndex;
+  //     uint index = node.data.y + inv;
+  //     if (inv > node.data.x) continue;
+  //
+  //     uint worldIndex = nodeIdx[index];
+  //     // здесь должна быть функция для проверки пересечения
+  //     if (testObj(worldIndex, current)) {
+  //       // добавляем в буффер индекс
+  //       uint id = atomicAdd(outputOffset, 1);
+  //       pairs[id].data.x = gl_WorkGroupID.x; // да и тут нужен realId
+  //       pairs[id].data.y = worldIndex; // или нужно добавить realId? по идее они не должны отличаться (хотя что с фигурами?)
+  //       pairs[id].data.z = floatBitsToUint(1000.0f); // посчитать нужно дистанцию
+  //     }
+  //   }
+  // }
+
+  // вот так примерно выглядит основной алгоритм обхода октодерева
+  // какие тут трудности?
+  // ну во-первых на гпу нет указателей,
+  // так что придется массив с индексами объектов как-то особо изощренно упаковывать
+  // здесь неполучится чекать луч, для него придется делать отдельный шейдер
+  // для луча необходимо чекать геометрию до нодов (хотя разве не придется все чекать все равно? в этом случае можно откинуть часть нодов)
+  // по идее у меня в итоге будет два (+-) типа объектов:
+  // плоскости и ящики (боксы)
+  // боксы правда должны быть двух типов (aabb и obb)
+  // с другой стороны половина боксов будет зависеть от системы координат, а другая нет
+  // как здесь можно избежать разделения? можно тащить для каждого бокса систему координат
+  // например в отдельном массиве
+  // как вычислить пересечение для фигур? пока понятие не имею, нужно хотя бы одну фигуру запилить наконец
+  // какие выходные значения? набор индексов
+  // сколько их может быть максимально? это зависит от величины объекта
+  // их может быть очень много, что делать? можно несколько раз диспатчить (в принципе сейчас у меня так примерно физика работает)
+  // а ответы быстренько копировать в другие массивы уже в памяти компа
+}
+
+// bool overlap(const float min1, const float max1, const float min2, const float max2);
+void project(const vec4 axis, const uint offset, const uint count, inout float minNum, inout float maxNum);
+// void project(const vec4 axis, const AABB box, inout float minNum, inout float maxNum);
+// void project(const vec4 axis, const OBB box, inout float minNum, inout float maxNum);
+//bool testPolygonAABB(const uint index, const AABB obj);
+// vec4 getVertex(const OBB box, const uint index);
+// vec4 getVertex(const AABB box, const uint index);
+vec4 getOBBvsOBBAxis(const OBB first, const OBB second, const uint threadId);
+// float distance2(const vec4 first, const vec4 second);
+// float length2(const vec4 first);
+
+vec4 getAxisOBBvsPoly(const OBB first, const Object second, const uint index) {
+  const uint polyVertCount = second.objectInfo.y;
+  const uint polyAxisCount = polyVertCount - 1;
+  const uint polyPointCount = polyVertCount - 2;
+  const uint polyNormalIndex = polyVertCount - 2;
+  const uint axisIndex = index % (3 + polyAxisCount);
+
+  if (axisIndex < 3) return first.orientation[index];
+  if (axisIndex == 3 + polyNormalIndex) return vertices[second.objectInfo.x + polyNormalIndex];
+
+  const uint count = polyPointCount;
+  const uint vertIndex1 = axisIndex - 3;
+  const uint vertIndex2 = (vertIndex1 + 1) % count;
+
+  const vec4 normal = vertices[second.objectInfo.x + polyNormalIndex];
+  const vec4 vert1 = vertices[second.objectInfo.x + vertIndex1];
+  const vec4 vert2 = vertices[second.objectInfo.x + vertIndex2];
+  const vec4 edge = vert2 - vert1;
+  //return vec4(cross(vert1.xyz, vert2.xyz), 0.0f);
+  return vec4(cross(edge.xyz, normal.xyz), 0.0f);
+}
+
+bool testOBBvsPoly(const OBB first, const Object second) {
+  const uint count = 3 + second.objectInfo.y - 1;
+  const uint passCount = (count + gl_WorkGroupSize.y - 1) / gl_WorkGroupSize.y;
+  bool overlapVar = true;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i * gl_WorkGroupSize.y + gl_LocalInvocationID.y;
+    if (index >= count) continue;
+
+    vec4 axis = getAxisOBBvsPoly(first, second, index);
+
+    float min1 = 0.0f, max1 = 0.0f, min2 = 0.0f, max2 = 0.0f;
+
+    project(axis, first, min1, max1);
+    project(axis, second.objectInfo.x, second.objectInfo.y-2, min2, max2);
+
+    overlapVar = overlapVar && overlap(min1, max1, min2, max2);
+  }
+
+  return overlapVar;
+}
+
+vec4 getAxisOBB(const OBB first, const OBB second) {
+  const uint index = gl_LocalInvocationID.y % 6;
+
+  vec4 axis = index < 3 ? first.orientation[index] : second.orientation[index];
+
+  return axis;
+
+  // if (index < 3) return first.orientation[index];
+  // else return second.orientation[index];
+}
+
+bool testOBB2(const OBB first, const OBB second) {
+  vec4 axis = getAxisOBB(first, second);
+
+  float min1 = 0.0f, max1 = 0.0f, min2 = 0.0f, max2 = 0.0f;
+
+  project(axis, first, min1, max1);
+  project(axis, second, min2, max2);
+
+  return overlap(min1, max1, min2, max2);
+}
+
+bool testOBB(const OBB first, const OBB second) {
+  const vec4 axis[6] = {first.orientation[0],
+                        first.orientation[1],
+                        first.orientation[2],
+                        second.orientation[0],
+                        second.orientation[1],
+                        second.orientation[2]};
+
+  float min1 = 0.0f, max1 = 0.0f, min2 = 0.0f, max2 = 0.0f;
+
+  for (uint i = 0; i < 6; ++i) {
+    project(axis[i], first, min1, max1);
+    project(axis[i], second, min2, max2);
+
+    if (!overlap(min1, max1, min2, max2)) return false;
+  }
+
+  return true;
+}
+
+bool proccessNode(const uint nodeIndex, const OBB inputObj, const uint systemIndex) {
+  bool test = true;
+
+  if (systemIndex == 0) {
+    const NodeData node = nodeData[nodeIndex];
+    const AABB box1 = inputObj.volume;
+    const AABB box2 = {vertices[node.data.w], vertices[node.data.w + 1]}; // w у нас указатель на бокс центр
+
+    test = testAABB(box1, box2);
+  } else {
+    const NodeData node = nodeData[nodeIndex];
+    const OBB box = {{vertices[node.data.w], vertices[node.data.w + 1]}, systems[0]};
+
+    test = testOBB2(inputObj, box);
+  }
+
+  atomicAnd(sharedBool[gl_LocalInvocationID.x], uint(test));
+  //barrier();
+  return bool(sharedBool[gl_LocalInvocationID.x]);
+}
+
+// vec4 closestPoint(const OBB box, const vec4 p) {
+//   vec4 result = box.volume.center;
+//   vec4 dir = p - result;
+//
+//   for (int i = 0; i < 3; ++i) {
+//     float dist = dot(dir, box.orientation[i]);
+//
+//     dist = min(dist,  box.volume.extent[i]);
+//     dist = max(dist, -box.volume.extent[i]);
+//
+//     result = result + (box.orientation[i] * dist);
+//   }
+//
+//   return result;
+// }
+
+bool testOBBvsSphere(const OBB first, const vec4 second) {
+  vec4 closest = closestPoint(first, vec4(second.xyz, 1.0f));
+  float distSq = length2(closest);
+  return distSq < second.w * second.w;
+}
+
+bool testObj(const OBB inputObj, const uint systemIndex, const Object second, inout float dist2) {
+  // получаем конкретную ось (нормаль по которой проводим проверку)
+  // проецируем (project)
+  // проверяем (overlap, здесь наверное нужно возвращать всегда true, если количество нормалей < gl_LocalInvocationID.y)
+
+  bool test = true;
+
+  switch(second.worldInfo.z) {
+    case BBOX:
+      if (systemIndex == second.objectInfo.z) {
+        const AABB box1 = inputObj.volume;
+        const AABB box2 = {vertices[second.objectInfo.x], vertices[second.objectInfo.x+1]};
+
+        test = testAABB(box1, box2);
+        dist2 = distance2(box1.center, box2.center);
+      } else {
+        const OBB box2 = {{vertices[second.objectInfo.x], vertices[second.objectInfo.x+1]}, systems[second.objectInfo.z]};
+
+        test = testOBB2(inputObj, box2);
+        dist2 = distance2(inputObj.volume.center, box2.volume.center);
+      }
+    break;
+    case SPHERE:
+      const vec4 sphere = vertices[second.objectInfo.x];
+      test = testOBBvsSphere(inputObj, sphere);
+      dist2 = distance2(inputObj.volume.center, vec4(sphere.xyz, 1.0f));
+    break;
+    case POLYGON:
+      test = testOBBvsPoly(inputObj, second);
+      dist2 = distance2(inputObj.volume.center, vertices[second.objectInfo.x + second.objectInfo.y - 1]);
+    break;
+    default:
+      test = false;
+  }
+
+  atomicAnd(sharedBool[gl_LocalInvocationID.x], uint(test));
+  // и вот тут нужен барьер
+  //memoryBarrierShared(); // достаточно ли будет этого барьера?
+  // по всей видимости нет
+  //barrier();
+
+  return bool(sharedBool[gl_LocalInvocationID.x]);
+}
+
+// bool testPolygonAABB(uint index, AABB obj) {
+//   const vec4 boxAxes[3] = {vec4(1.0, 0.0, 0.0, 0.0), vec4(0.0, 1.0, 0.0, 0.0), vec4(0.0, 0.0, 1.0, 0.0)};
+//   bool testing = true;
+//   // index > чем количество aabb
+//   uint polyIndex = index - globalData.countsData.y;
+//   PolygonData data = polygons[polyIndex];
+//
+//   float min1 = 0.0, max1 = 0.0, min2 = 0.0, max2 = 0.0;
+//   project(data.normal, obj, min1, max1);
+//   min2 = min2 = dot(data.normal, data.center);
+//
+//   testing = testing && overlap(min1, max1, min2, max2);
+//
+//   for (uint i = 0; i < 3; ++i) {
+//     vec4 boxPoint[2] = {obj.center + boxAxes[i] * obj.extent[i], obj.center - boxAxes[i] * obj.extent[i]};
+//
+//     project(boxPoint[i], obj, min1, max1);
+//     project(boxPoint[i], data.data.y, data.data.x, min2, max2);
+//
+//     testing = testing && overlap(min1, max1, min2, max2);
+//   }
+//
+//   for (uint i = 0; i < data.data.x; ++i) {
+//     uint j = (i+1) % data.data.x;
+//
+//     Vertex vert1 = vertices[data.data.y + i];
+//     Vertex vert2 = vertices[data.data.y + j];
+//
+//     vec3 axis = cross(vert2.pos - vert1.pos, data.normal.xyz);
+//
+//     project(vec4(axis, 0.0), obj, min1, max1);
+//     project(vec4(axis, 0.0), data.data.y, data.data.x, min2, max2);
+//
+//     testing = testing && overlap(min1, max1, min2, max2);
+//   }
+//
+//   return testing;
+// }
+
+// void project(const vec4 axis, const AABB box, inout float minNum, inout float maxNum) {
+//   minNum = maxNum = dot(axis, getVertex(box, 0));
+//
+//   for (uint i = 1; i < 8; ++i) {
+//     float p = dot(axis, getVertex(box, i));
+//
+//     minNum = min(minNum, p);
+//     maxNum = max(maxNum, p);
+//   }
+// }
+//
+// void project(const vec4 axis, const OBB box, inout float minNum, inout float maxNum) {
+//   minNum = maxNum = dot(axis, getVertex(box, 0));
+//
+//   for (uint i = 1; i < 8; ++i) {
+//     float p = dot(axis, getVertex(box, i));
+//
+//     minNum = min(minNum, p);
+//     maxNum = max(maxNum, p);
+//   }
+// }
+
+// vec4 getVertex(const AABB box, const uint index) {
+//   vec4 p = vec4(0.0, 0.0, 0.0, 1.0);
+//   p.x = (index & 1) > 0 ? box.center.x + box.extent.x : box.center.x - box.extent.x;
+//   p.y = (index & 2) > 0 ? box.center.y + box.extent.y : box.center.y - box.extent.y;
+//   p.z = (index & 4) > 0 ? box.center.z + box.extent.z : box.center.z - box.extent.z;
+//
+//   return p;
+// }
+//
+// vec4 getVertex(const OBB box, const uint index) {
+//   vec4 p = box.volume.center;
+//   p = (index & 1) > 0 ? p + box.orientation[0]*box.volume.extent.x : p - box.orientation[0]*box.volume.extent.x;
+//   p = (index & 2) > 0 ? p + box.orientation[0]*box.volume.extent.y : p - box.orientation[0]*box.volume.extent.y;
+//   p = (index & 4) > 0 ? p + box.orientation[0]*box.volume.extent.z : p - box.orientation[0]*box.volume.extent.z;
+//
+//   return p;
+// }
+
+void project(const vec4 axis, const uint offset, const uint count, inout float minNum, inout float maxNum) {
+  vec4 vert = vertices[offset];
+  minNum = maxNum = dot(axis, vert);
+
+  for (uint i = 1; i < count; ++i) {
+    vert = vertices[offset + i];
+    float p = dot(axis, vert);
+
+    minNum = min(minNum, p);
+    maxNum = max(maxNum, p);
+  }
+}
+
+// bool overlap(const float min1, const float max1, const float min2, const float max2) {
+//   const float test1 = min1 - max2;
+//   const float test2 = min2 - max1;
+//
+//   return test1 < 0.0f && test2 < 0.0f;
+// }
+
+// float distance2(const vec4 first, const vec4 second) {
+//   const vec4 dir = second - first;
+//   return dot(dir, dir);
+// }
+//
+// float length2(const vec4 first) {
+//   return dot(first, first);
+// }

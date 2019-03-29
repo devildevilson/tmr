@@ -1,0 +1,772 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "physic.h"
+#include "physicType.glsl"
+
+#define MCS_TO_SEC(dt) float(dt) / 1000000.0f
+
+layout(std140, set = 0, binding = 0) buffer Objects {
+  Object3 objects[];
+};
+
+layout(std140, set = 0, binding = 1) buffer readonly Vertices {
+  vec4 vertices[];
+};
+
+layout(std140, set = 0, binding = 2) buffer PhysicDatas {
+  PhysicData4 physicDatas[];
+};
+
+layout(std140, set = 0, binding = 3) buffer readonly ConstantsBuffer {
+  Constants constants[];
+};
+
+layout(std140, set = 0, binding = 4) buffer GlobalVels {
+  vec4 velocities[];
+};
+
+layout(std140, set = 1, binding = 0) buffer CoordinateSystem {
+  mat4 systems[];
+};
+
+layout(std140, set = 2, binding = 0) buffer Transforms {
+  Transform transforms[];
+};
+
+layout(std140, set = 3, binding = 0) buffer readonly OutData {
+  // x == pairCount, y == usefullPairs, z == onlyTriggerPairsOffset, w == onlyTriggerPairsCount
+  uvec4 pairsCount;
+  Pair pairs[];
+};
+
+layout(std140, set = 4, binding = 0) buffer readonly IslandDatas {
+  uvec4 islandCount; // x == islandCount
+  IslandData islands[];
+};
+
+layout(std430, set = 5, binding = 0) buffer ObjectIndicies {
+  uint objIndeciesCount;
+  uint objIndicies[];
+};
+
+layout(set = 6, binding = 0) uniform AdditionalData {
+  vec4 gravity;
+  vec4 gravityNorm;
+  // x == length, y == length2
+  vec4 gravityLengths;
+  // x == objCount, y == time
+  uvec4 countsAndTime;
+} globalData;
+
+const uint iterationCount = 10; // это должно быть настраиваемым
+const float koef = 1.0f / float(iterationCount);
+
+const float treshold = 0.004f; // это должно быть настраиваемым
+
+float length2(const vec4 vec);
+float getAngle(const vec4 first, const vec4 second);
+void  clipVelocity(const vec4 clipNormal, const float bounce, inout vec4 vel);
+vec4  getNormalCloseToGravity(const mat4 orn, const vec4 gravityNorm);
+vec4  getNormalCloseToGravity(const uint offset, const uint facesCount, const vec4 gravityNorm);
+bool  SAT(const uint objectIndexFirst,  const uint transformIndexFirst,
+          const uint objectindexSecond, const uint transformIndexSecond, inout vec4 mtv, inout float dist);
+float SATOneAxis(const uint objectIndexFirst,  const uint transformIndexFirst,
+                 const uint objectindexSecond, const uint transformIndexSecond, const vec4 axis);
+
+// #define workGroupSize 64
+// layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+layout (local_size_x_id = 0) in;
+
+layout (constant_id = 1) const float DEFAULT_BOUNCE = 2.0f;
+
+void main() {
+  const uint objCount = objIndeciesCount;
+  const uint islandsCount = islandCount.x;
+  const uint threadCount = gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z;
+
+  for (uint i = 0; i < iterationCount; ++i) {
+    // все же сначало мы наверное пересчитаем позицию
+    const uint passCountObj = (objCount + threadCount - 1) / threadCount;
+    for (uint j = 0; j < passCountObj; ++j) {
+      const uint objIndex = j*threadCount + gl_LocalInvocationIndex;
+      if (objIndex >= objCount) continue;
+
+      const uint staticPhysDataIndex = objects[objIndicies[objIndex]].worldInfo.z;
+      const uint physDataIndex = staticPhysicDatas[staticPhysDataIndex].data.w;
+
+      if (physDataIndex == 0xFFFFFFFF) continue;
+
+      const uint transformIndex = datas[physDataIndex].additionalData.x;
+      const float dt = MCS_TO_SEC(globalData.countsAndTime.y);
+
+      // у нас могут быть с полом проблемы!!!
+      if (i == 0) {
+        datas[physDataIndex].additionalData.w = datas[physDataIndex].additionalData.z;
+        transforms[transformIndex].pos = datas[physDataIndex].oldPos;
+      }
+
+      // здесь мы перевычисляем позиции объектов
+      // нам нужна общая скорость (тип скорость объекта + скорость земли)
+      // по всей видимости тут нужен будет еще один буфер, где мы будем хранить скорость вычисленную еще в первом шаге
+      // скорости менять от столкновений нам придется видимо две
+      // куда поз сохранить? сразу в трансформы? или лучше в какой дополнительный буфер?
+      transforms[transformIndex].pos += koef * velocities[physDataIndex] * dt;
+    }
+
+    barrier();
+
+    // скорее всего этот код не подходит для вычисления батчей (почему?)
+    // потому что распараллеливать тогда нужно внутри батчей
+    // можно и для батчей тоже придумать вариант (ничего не мешает обходить батчи и выходить если индекс >= размер батча)
+    // но нужен максимальный размер батча (это скорее всего не проблема =))
+
+    // СЕЙЧАС У МЕНЯ КОД ДЛЯ БАТЧЕЙ
+    for (uint j = 0; j < islandsCount; ++j) {
+      const uint passCount = (islands[j].data.z + threadCount - 1) / threadCount;
+      for (uint k = 0; k < passCount; ++k) {
+        const uint pairIndex = islands[j].data.y + k*threadCount + gl_LocalInvocationIndex;
+        if (pairIndex >= islands[j].data.y+islands[j].data.z) continue;
+
+    // const uint passCount = (islandsCount + threadCount - 1) / threadCount;
+    // for (uint j = 0; j < passCount; ++j) {
+    //   const uint islandIndex = j*threadCount + gl_LocalInvocationIndex; // индекс острова
+    //   if (islandIndex >= islandsCount) continue;
+    //
+    //   const uint islandSize = islands[islandIndex].data.z;
+    //   for (uint k = 0; k < islandSize; ++k) {
+    //     const uint pairIndex = islands[islandIndex].data.y + k;
+        const Pair p = pairs[pairIndex];
+
+        const uint objIndex1 = p.data.x;
+        const uint objIndex2 = p.data.y;
+
+        const uint staticPhysDataIndex1 = objects[objIndex1].worldInfo.z;
+        const uint staticPhysDataIndex2 = objects[objIndex2].worldInfo.z;
+
+        const uint physDataIndex1 = staticPhysicDatas[staticPhysDataIndex1].data.w;
+        const uint physDataIndex2 = staticPhysicDatas[staticPhysDataIndex2].data.w;
+
+        const uint transformIndex1 = objects[objIndex1].worldInfo.w; //floatBitsToUint(datas[physDataIndex1].constants.z);
+        const uint transformIndex2 = objects[objIndex2].worldInfo.w; //floatBitsToUint(datas[physDataIndex2].constants.z);
+
+        const bool wasOnGround1 = physDataIndex1 == 0xFFFFFFFF ? false : bool(datas[physDataIndex1].additionalData.w);
+        const bool wasOnGround2 = physDataIndex2 == 0xFFFFFFFF ? false : bool(datas[physDataIndex2].additionalData.w);
+
+        // сат мы должны считать без необходимости
+        // вычислять положение всех точек
+        // это как то сделано в буллете
+
+        // сат можно по идее почитать отдельно для того чтобы распараллелить внутри функции
+        float dist = 100000.0f;
+        vec4 mtv;
+        const bool col = SAT(objIndex1, transformIndex1, objIndex2, transformIndex2, mtv, dist);
+        if (!col || dist < treshold) continue;
+
+        // мы посчитали сат, нам еще нужно найти самую лучшу нормаль объекта
+        // какой-то из объектов пары 250% что динамический, и вполне может "взобраться" на другой
+        // если они оба динамические и оба могут взобраться друг на друга (быть такого не должно)
+        // то наверн взбирается тот у кого скорость больше (?)
+
+        const float mtvAngle = getAngle(mtv, -globalData.gravityNorm);
+
+        // у нас тут PI_Q потому что я решил что начиная с 45* объекты должны скатываться
+        // имеет ли смысл дать возможность выбирать этот угол? пока наверное нет
+        if (mtvAngle < PI_Q) {
+          // это пол
+
+          // мы его должны запомнить и пометить что объект на полу сейчас
+          // по идее мы должны запомить индекс физдаты, но я хочу попробовать сократить количество данных
+          // нужных каждому объекту, поэтому лучше всего конечно использовать индекс
+          // Object'а, но мне нужно будет видимо кое-что переделать в предыдущих шагах
+
+          // запоминать мы будем в физдате? или лучше в обжектах?
+          // в обжекте тогда нужно дополнительные переменные вводить
+          // но это куда лучше чем тащить физдату + трансформу + инпут для каждого объекта
+          // как все же делать лифт? (по идее платформа + статик + скорость это и есть лифт)
+
+          // если мы попали сюда то значит А стоит на B
+          if (physDataIndex1 != 0xFFFFFFFF) {
+            objects[objIndex1].additionalData.w = objIndex2;
+            datas[physDataIndex1].indexies.z = staticPhysDataIndex2;
+            datas[physDataIndex1].constants.x = uint(true);
+          }
+        } else if (abs(mtvAngle - PI) < PI_Q) {
+          // здесь учтем вариант когда B стоит на A
+          if (physDataIndex2 != 0xFFFFFFFF) {
+            objects[objIndex2].additionalData.w = objIndex1;
+            datas[physDataIndex2].indexies.z = staticPhysDataIndex1;
+            datas[physDataIndex2].constants.x = uint(true);
+          }
+        } else if ((wasOnGround1 || wasOnGround2) && abs(mtvAngle - PI_H) < PI_Q) {
+          // это стена которая может стать ступенькой
+
+          vec4 normal1 = globalData.gravityNorm;// = getNormalCloseToGravity(A);
+          vec4 normal2 = globalData.gravityNorm;// = getNormalCloseToGravity(B);
+
+          const uint objType1 = getObjType(objects[objIndex1].objectInfo.w);
+          if (objType1 == BBOX) {
+            const uint systemIndex = objects[objIndex1].additionalData.y;
+            normal1 = getNormalCloseToGravity(systems[systemIndex], globalData.gravityNorm);
+          } else if (objType1 == POLYGON) {
+            const uint facesOffset = objects[objIndex1].objectInfo.x + objects[objIndex1].objectInfo.y;
+            const uint facesSize = objects[objIndex1].objectInfo.z;
+            normal1 = getNormalCloseToGravity(facesOffset, facesSize, globalData.gravityNorm);
+          }
+
+          const uint objType2 = getObjType(objects[objIndex2].objectInfo.w);
+          if (objType2 == BBOX) {
+            const uint systemIndex = objects[objIndex2].additionalData.y;
+            normal2 = getNormalCloseToGravity(systems[systemIndex], globalData.gravityNorm);
+          } else if (objType2 == POLYGON) {
+            const uint facesOffset = objects[objIndex2].objectInfo.x + objects[objIndex2].objectInfo.y;
+            const uint facesSize = objects[objIndex2].objectInfo.z;
+            normal2 = getNormalCloseToGravity(facesOffset, facesSize, globalData.gravityNorm);
+          }
+
+          // тут нам нужно решить какой из объектов может взобраться на другой
+          // ну то есть ... что сделать? сравнить stairDist'ы?
+          // тут со знаками может быть какая то хрень!!!!
+          const float normalAngle1 = getAngle(normal1, -globalData.gravityNorm);
+          const float normalAngle2 = getAngle(normal2, -globalData.gravityNorm);
+
+          float stairDist1 = 100000.0f;
+          if (normalAngle2 < PI_Q && wasOnGround1) stairDist1 = SATOneAxis(objIndex1, transformIndex1, objIndex2, transformIndex2, normal2);
+          float stairDist2 = 100000.0f;
+          if (normalAngle1 < PI_Q && wasOnGround2) stairDist2 = SATOneAxis(objIndex2, transformIndex2, objIndex1, transformIndex1, normal1);
+
+          const bool firstObjStair  = stairDist1 < (physDataIndex1 == 0xFFFFFFFF ? 0.0f : datas[physDataIndex1].constants.z - EPSILON);
+          const bool secondObjStair = stairDist2 < (physDataIndex2 == 0xFFFFFFFF ? 0.0f : datas[physDataIndex2].constants.z - EPSILON);
+
+          const uint index = !firstObjStair ?
+            (!secondObjStair ?
+              (datas[physDataIndex2].additionalData.w < datas[physDataIndex1].additionalData.w ?
+                objIndex1 : objIndex2)
+              : objIndex2)
+            : objIndex1;
+
+          const bool objStair1 = objIndex1 == index;
+          const bool objStair2 = objIndex2 == index;
+
+          // что-то из этого должно быть правдой в итоге
+          transforms[transformIndex1].pos = objStair1 ?
+            transforms[transformIndex1].pos + normal2*stairDist1 - mtv*0.01f : transforms[transformIndex1].pos;
+          transforms[transformIndex2].pos = objStair2 ?
+            transforms[transformIndex2].pos + normal1*stairDist2 + mtv*0.01f : transforms[transformIndex2].pos;
+
+          if (objStair1) {
+            objects[objIndex1].additionalData.w = objIndex2;
+            datas[physDataIndex1].indexies.z = staticPhysDataIndex2; //physDataIndex2 == 0xFFFFFFFF ? staticPhysDataIndex2 | (~0x7FFFFFFF) : physDataIndex2;
+            datas[physDataIndex1].additionalData.z = uint(true);
+          }
+
+          if (objStair2) {
+            objects[objIndex2].additionalData.w = objIndex1;
+            datas[physDataIndex2].indexies.z = staticPhysDataIndex1; //physDataIndex1 == 0xFFFFFFFF ? staticPhysDataIndex1 | (~0x7FFFFFFF) : physDataIndex1;
+            datas[physDataIndex2].additionalData.z = uint(true);
+          }
+
+          if (objStair1 || objStair2) continue; // тут выходим если есть ступенька!
+          // если ступенька есть + мы точно знаем к кому мы ее применим
+          // применяем ступеньку и идем дальше
+        }
+
+        // иначе это стена
+
+        // для того чтобы верно отодвинуть объекты друг от друга
+        // нужно определить какой из них двигается + в какую сторону
+        const vec4 pos1 = transformIndex1 == 0xFFFFFFFF ? vec4(0.0f, 0.0f, 0.0f, 1.0f) : vec4(transforms[transformIndex1].pos.xyz, 1.0f);
+        const vec4 pos2 = transformIndex2 == 0xFFFFFFFF ? vec4(0.0f, 0.0f, 0.0f, 1.0f) : vec4(transforms[transformIndex2].pos.xyz, 1.0f);
+        const bool move1 = dot(pos2 - pos1,
+                               physDataIndex1 == 0xFFFFFFFF ?
+                               vec4(0.0f, 0.0f, 0.0f, 0.0f) : velocities[physDataIndex1]) > 0.0f;
+        const bool move2 = dot(pos1 - pos2,
+                               physDataIndex2 == 0xFFFFFFFF ?
+                               vec4(0.0f, 0.0f, 0.0f, 0.0f) : velocities[physDataIndex2]) > 0.0f;
+
+        uint divider = 0;
+        divider += uint(move1) + uint(move2);
+        if (divider == 0) continue;
+
+        const float move = dist / float(divider);
+
+        if (transformIndex1 != 0xFFFFFFFF) transforms[transformIndex1].pos += mtv * move * float(move1);
+        if (transformIndex2 != 0xFFFFFFFF) transforms[transformIndex2].pos -= mtv * move * float(move2);
+
+        // правильно ли это?
+        // упругость нужно посчитать для каждого одинаковую (это по идее минимальное значение)
+        // еще было бы неплохо как-нибудь посчитать урон от падения, как это сделать?
+        // урон от падения явно зависит от скорости, если нормаль скорости сонаправлена с гравитацией
+        // причем скорее всего дот должен быть больше определенного К
+        // тогда как расчитать количество урона? + нужно еще подумать об уроне об стены при сильном разгоне на льду
+        // самый простой способ - это расчитать здесь и запомнить какие-нибудь смежные данные
+        // а потом в cpp понять что с этим делать, так как фаза расчета урона по идее должна быть после физики
+        // судя по тому как у меня будет все это работать
+        // какие данные мне пригодятся? скорее всего:
+        // глобальная скорость, сила и направление столкновения, индексы объектов само собой
+        // у меня скорее всего будет возможность развить большую контролируемую скорость,
+        // следовательно нужно как то пометить когда объект скользит
+        // могут ли монстры скользить?
+
+        const float bounce = min(uintBitsToFloat(staticPhysicDatas[staticPhysDataIndex1].data.y),
+                                 uintBitsToFloat(staticPhysicDatas[staticPhysDataIndex2].data.y));
+        if (move1) {
+          // по идее если physDataIndex1 == 0xFFFFFFFF то программа сюда не должна зайти
+          vec4 vel1 = datas[physDataIndex1].velocity;
+          vec4 vel1Global = velocities[physDataIndex1];
+
+          clipVelocity( mtv, bounce, vel1);
+          clipVelocity( mtv, bounce, vel1Global);
+
+          datas[physDataIndex1].velocity = vel1;
+          velocities[physDataIndex1] = vel1Global;
+        }
+
+        if (move2) {
+          vec4 vel2 = datas[physDataIndex2].velocity;
+          vec4 vel2Global = velocities[physDataIndex2];
+
+          clipVelocity(-mtv, bounce, vel2);
+          clipVelocity(-mtv, bounce, vel2Global);
+
+          datas[physDataIndex2].velocity = vel2;
+          velocities[physDataIndex2] = vel2Global;
+        }
+
+        // как то так это выглядит в итоге
+      }
+
+      barrier(); // это ТОЛЬКО для батчей!
+    }
+
+    barrier();
+  }
+}
+
+float length2(const vec4 vec) {
+  return dot(vec, vec);
+}
+
+float getAngle(const vec4 first, const vec4 second) {
+  const float dotV = dot(first, second);
+  const float lenSq1 = length2(first);
+  const float lenSq2 = length2(second);
+
+  return acos(dotV / sqrt(lenSq1 * lenSq2));
+}
+
+void clipVelocity(const vec4 clipNormal, const float bounce, inout vec4 vel) {
+  const float backoff = dot(vel, clipNormal) * bounce;
+
+  vel = vel - clipNormal * backoff;
+}
+
+vec4 getNormalCloseToGravity(const mat4 orn, const vec4 gravityNorm) {
+  float maxVal = dot(orn[0], gravityNorm);
+  uint index = 0;
+
+  for (uint i = 1; i < 6; ++i) {
+    if (i < 3) {
+      const float tmp = dot(orn[i], gravityNorm);
+      maxVal = max(maxVal, tmp);
+      index = maxVal == tmp ? i : index;
+    } else {
+      const float tmp = dot(-orn[i%3], gravityNorm);
+      maxVal = max(maxVal, tmp);
+      index = maxVal == tmp ? i : index;
+    }
+  }
+
+  return index < 3 ? orn[index] : -orn[index%3];
+}
+
+vec4 getNormalCloseToGravity(const uint offset, const uint facesCount, const vec4 gravityNorm) {
+  float maxVal = dot(vec4(vertices[offset].xyz, 0.0f), gravityNorm);
+  uint index = offset;
+
+  for (uint i = 1; i < facesCount; ++i) {
+    const float tmp = dot(vec4(vertices[offset+i].xyz, 0.0f), gravityNorm);
+    maxVal = max(maxVal, tmp);
+    index = maxVal == tmp ? offset+i : index;
+  }
+
+  return vec4(vertices[index].xyz, 0.0f);
+}
+
+vec4 getVertex(const vec4 pos, const vec4 ext, const mat4 orn, const uint index) {
+  vec4 p = pos;
+  p = (index & 1) > 0 ? p + orn[0]*ext.x : p - orn[0]*ext.x;
+  p = (index & 2) > 0 ? p + orn[1]*ext.y : p - orn[1]*ext.y;
+  p = (index & 4) > 0 ? p + orn[2]*ext.z : p - orn[2]*ext.z;
+
+  return p;
+}
+
+void project(const vec4 axis, const uint offset, const uint size, const vec4 pos, const mat4 orn, inout float minRet, inout float maxRet) {
+  const vec4 localAxis = orn * axis; // по идее это должно работать
+  const float offsetF = dot(pos, axis);
+  minRet = maxRet = dot(vertices[offset], localAxis);
+
+  for (uint i = 1; i < size; ++i) {
+    const vec4 vert = vertices[offset + i];
+    const float d = dot(vert, localAxis);
+
+    minRet = min(minRet, d);
+    maxRet = max(maxRet, d);
+  }
+
+  if (minRet > maxRet) {
+    const float tmp = minRet;
+    minRet = maxRet;
+    maxRet = tmp;
+  }
+
+  minRet += offsetF;
+  maxRet += offsetF;
+}
+
+void project(const vec4 axis, const vec4 pos, const vec4 ext, const mat4 orn, inout float minRet, inout float maxRet) {
+  const vec4 localAxis = /*orn **/ axis;
+  //const float offsetF = dot(pos, axis);
+  minRet = maxRet = dot(getVertex(pos, ext, orn, 0), localAxis);
+
+  for (uint i = 1; i < 8; ++i) {
+    const vec4 vert = getVertex(pos, ext, orn, i);
+    const float d = dot(vert, localAxis);
+
+    minRet = min(minRet, d);
+    maxRet = max(maxRet, d);
+  }
+
+  // if (minRet > maxRet) {
+  //   const float tmp = minRet;
+  //   minRet = maxRet;
+  //   maxRet = tmp;
+  // }
+  //
+  // minRet += offsetF;
+  // maxRet += offsetF;
+}
+
+void project(const vec4 axis, const vec4 pos, const float radius, inout float minRet, inout float maxRet) {
+  minRet = maxRet = dot(pos, axis);
+
+  minRet -= radius;
+  maxRet += radius;
+}
+
+bool overlap(const float min1, const float max1, const float min2, const float max2, const vec4 axis, inout vec4 mtv, inout float dist) {
+  const float test1 = min1 - max2;
+  const float test2 = min2 - max1;
+
+  // нужен ли тут treshold? или оставить нули? по идее здесь treshold не несет никакого смысла
+  if (test1 > 0.0f && test2 > 0.0f) return false;
+
+  const float d = min(abs(test1), abs(test2));
+  const float half1 = (min1 + max1) / 2.0f;
+  const float half2 = (min2 + max2) / 2.0f;
+  if (dist < d) {
+    mtv = half1 < half2 ? axis : -axis;
+    dist = d;
+  }
+
+  return true; //test1 < 0.0f && test2 < 0.0f;
+}
+
+bool BoxBoxSAT(const Object3 first,  const uint transFirst,
+               const Object3 second, const uint transSecond, inout vec4 mtv, inout float dist) {
+  // тут по идее нужен еще вариант когда у нас в этих индексах стоит 0xFFFFFFFF
+  // но думаю этот вариант добавлю позже (нужен он вообще? для него скорее всего придется делать более нормальный солвер)
+  const mat4 sys = systems[first.additionalData.y];
+  float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
+
+  const vec4 firstPos  = transforms[transFirst].pos;
+  const vec4 secondPos = transforms[transSecond].pos;
+
+  const vec4 firstExt  = vertices[first.objectInfo.x];
+  const vec4 secondExt = vertices[second.objectInfo.x];
+  //bool col = true;
+
+  for (uint i = 0; i < 3; ++i) {
+    project(sys[i], firstPos,  firstExt,  sys,  minFirst,  maxFirst);
+    project(sys[i], secondPos, secondExt, systems[second.additionalData.y], minSecond, maxSecond);
+
+    //col = col && overlap(minFirst, maxFirst, minSecond, maxSecond, sys[i], mtv, dist);
+    if (!overlap(minFirst, maxFirst, minSecond, maxSecond, sys[i], mtv, dist)) return false;
+  }
+
+  if (first.additionalData.y != second.additionalData.y) {
+    const mat4 sys = systems[second.additionalData.y];
+
+    for (uint i = 0; i < 3; ++i) {
+      project(sys[i], firstPos,  firstExt,  systems[first.additionalData.y],  minFirst,  maxFirst);
+      project(sys[i], secondPos, secondExt, sys, minSecond, maxSecond);
+
+      //col = col && overlap(minFirst, maxFirst, minSecond, maxSecond, sys[i], mtv, dist);
+      if (!overlap(minFirst, maxFirst, minSecond, maxSecond, sys[i], mtv, dist)) return false;
+    }
+  }
+
+  return true;
+}
+
+bool BoxSphereSAT(const Object3 first,  const uint transFirst,
+                  const Object3 second, const uint transSecond, inout vec4 mtv, inout float dist) {
+  const mat4 sys = systems[first.additionalData.y];
+  float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
+
+  const vec4 firstPos  = transforms[transFirst].pos;
+  const vec4 secondPos = vec4(transforms[transSecond].pos.xyz, 1.0f);
+
+  const vec4 firstExt  = vertices[first.objectInfo.x];
+  const float radius = transforms[transSecond].pos.w;
+  const vec4 axis = normalize(secondPos - firstPos);
+
+  for (uint i = 0; i < 3; ++i) {
+    project(sys[i], firstPos,  firstExt,  sys,  minFirst,  maxFirst);
+    project(sys[i], secondPos, radius, minSecond, maxSecond);
+
+    //col = col && overlap(minFirst, maxFirst, minSecond, maxSecond, sys[i], mtv, dist);
+    if (!overlap(minFirst, maxFirst, minSecond, maxSecond, sys[i], mtv, dist)) return false;
+  }
+
+  project(axis, firstPos,  firstExt,  sys,  minFirst,  maxFirst);
+  project(axis, secondPos, radius, minSecond, maxSecond);
+
+  //col = col && overlap(minFirst, maxFirst, minSecond, maxSecond, sys[i], mtv, dist);
+  if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+
+  return true;
+}
+
+bool BoxPolySAT(const Object3 first,  const uint transFirst,
+                const Object3 second, const uint transSecond, inout vec4 mtv, inout float dist) {
+  float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
+
+  const mat4 sys = systems[first.additionalData.y];
+
+  const vec4 firstPos  = transforms[transFirst].pos;
+  const vec4 secondPos = transSecond != 0xFFFFFFFF ? transforms[transSecond].pos : vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
+  const vec4 firstExt  = vertices[first.objectInfo.x];
+
+  const uint vert     = second.objectInfo.x;
+  const uint vertSize = second.objectInfo.y;
+  const uint face     = vert + vertSize;
+  const uint faceSize = second.objectInfo.z;
+
+  for (uint i = 0; i < 3; ++i) {
+    project(sys[i], firstPos,  firstExt,  sys,  minFirst,  maxFirst);
+    project(sys[i], vert, vertSize, secondPos, systems[second.additionalData.y],  minSecond, maxSecond);
+
+    //col = col && overlap(minFirst, maxFirst, minSecond, maxSecond, sys[i], mtv, dist);
+    if (!overlap(minFirst, maxFirst, minSecond, maxSecond, sys[i], mtv, dist)) return false;
+  }
+
+  for (uint i = face; i < face+faceSize; ++i) {
+    const vec4 axis = vec4(vertices[i].xyz, 0.0f);
+    project(axis, firstPos,  firstExt,  sys,  minFirst,  maxFirst);
+    project(axis, vert, vertSize, secondPos, systems[second.additionalData.y],  minSecond, maxSecond);
+
+    //col = col && overlap(minFirst, maxFirst, minSecond, maxSecond, sys[i], mtv, dist);
+    if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+  }
+
+  return true;
+}
+
+bool SphereSphereSAT(const Object3 first,  const uint transFirst,
+                     const Object3 second, const uint transSecond, inout vec4 mtv, inout float dist) {
+  float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
+
+  const vec4 firstPos = vec4(transforms[transFirst].pos.xyz, 1.0f);
+  const float firstRadius = transforms[transFirst].pos.w;
+
+  const vec4 secondPos = vec4(transforms[transSecond].pos.xyz, 1.0f);
+  const float secondRadius = transforms[transSecond].pos.w;
+
+  const vec4 axis = normalize(secondPos - firstPos);
+
+  project(axis, firstPos, firstRadius, minSecond, maxSecond);
+  project(axis, secondPos, secondRadius, minSecond, maxSecond);
+
+  if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+  return true;
+}
+
+bool PolySphereSAT(const Object3 first,  const uint transFirst,
+                   const Object3 second, const uint transSecond, inout vec4 mtv, inout float dist) {
+  float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
+
+  const vec4 firstPos = transFirst != 0xFFFFFFFF ? transforms[transFirst].pos : vec4(0.0f, 0.0f, 0.0f, 1.0f);
+  const vec4 secondPos = vec4(transforms[transSecond].pos.xyz, 1.0f);
+
+  const float secondRadius = transforms[transSecond].pos.w;
+
+  const uint vert     = first.objectInfo.x;
+  const uint vertSize = first.objectInfo.y;
+  const uint face     = vert + vertSize;
+  const uint faceSize = first.objectInfo.z;
+
+  const vec4 axis = normalize(secondPos - firstPos);
+
+  project(axis, vert, vertSize, firstPos, systems[first.additionalData.y], minSecond, maxSecond);
+  project(axis, secondPos, secondRadius, minSecond, maxSecond);
+
+  if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+
+  for (uint i = face; i < face+faceSize; ++i) {
+    const vec4 axis = vec4(vertices[i].xyz, 0.0f);
+    project(axis, vert, vertSize, firstPos, systems[first.additionalData.y], minSecond, maxSecond);
+    project(axis, secondPos, secondRadius, minSecond, maxSecond);
+
+    if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+  }
+
+  return true;
+}
+
+bool PolyPolySAT(const Object3 first,  const uint transFirst,
+                 const Object3 second, const uint transSecond, inout vec4 mtv, inout float dist) {
+  float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
+
+  const vec4 firstPos  = transFirst  != 0xFFFFFFFF ? transforms[transFirst].pos  : vec4(0.0f, 0.0f, 0.0f, 1.0f);
+  const vec4 secondPos = transSecond != 0xFFFFFFFF ? transforms[transSecond].pos : vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
+  const uint firstVert     = first.objectInfo.x;
+  const uint firstVertSize = first.objectInfo.y;
+  const uint firstFace     = firstVert + firstVertSize;
+  const uint firstFaceSize = first.objectInfo.z;
+
+  const uint secondVert     = second.objectInfo.x;
+  const uint secondVertSize = second.objectInfo.y;
+  const uint secondFace     = secondVert + secondVertSize;
+  const uint secondFaceSize = second.objectInfo.z;
+
+  for (uint i = firstFace; i < firstFace+firstFaceSize; ++i) {
+    const vec4 axis = vec4(vertices[i].xyz, 0.0f);
+    project(axis, firstVert, firstVertSize, firstPos, systems[first.additionalData.y], minSecond, maxSecond);
+    project(axis, secondVert, secondVertSize, secondPos, systems[second.additionalData.y], minSecond, maxSecond);
+
+    if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+  }
+
+  for (uint i = secondFace; i < secondFace+secondFaceSize; ++i) {
+    const vec4 axis = vec4(vertices[i].xyz, 0.0f);
+    project(axis, firstVert, firstVertSize, firstPos, systems[first.additionalData.y], minSecond, maxSecond);
+    project(axis, secondVert, secondVertSize, secondPos, systems[second.additionalData.y], minSecond, maxSecond);
+
+    if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+  }
+  return true;
+}
+
+bool SAT(const uint objectIndexFirst,  const uint transformIndexFirst,
+         const uint objectindexSecond, const uint transformIndexSecond, inout vec4 mtv, inout float dist) {
+  const Object3 first = objects[objectIndexFirst];
+  const Object3 second = objects[objectindexSecond];
+  bool col;
+
+  switch(getObjType(first.objectInfo.w)) {
+    case BBOX:
+      switch(getObjType(second.objectInfo.w)) {
+        case BBOX:
+          return BoxBoxSAT(first, transformIndexFirst, second, transformIndexSecond, mtv, dist);
+        break;
+        case SPHERE:
+          return BoxSphereSAT(first, transformIndexFirst, second, transformIndexSecond, mtv, dist);
+        break;
+        case POLYGON:
+          return BoxPolySAT(first, transformIndexFirst, second, transformIndexSecond, mtv, dist);
+        break;
+      }
+    break;
+    case SPHERE:
+      switch(getObjType(second.objectInfo.w)) {
+        case BBOX:
+          col = BoxSphereSAT(second, transformIndexSecond, first, transformIndexFirst, mtv, dist);
+          mtv = -mtv;
+          return col;
+        break;
+        case SPHERE:
+          return SphereSphereSAT(first, transformIndexFirst, second, transformIndexSecond, mtv, dist);
+        break;
+        case POLYGON:
+          col = PolySphereSAT(second, transformIndexSecond, first, transformIndexFirst, mtv, dist);
+          mtv = -mtv;
+          return col;
+        break;
+      }
+    break;
+    case POLYGON:
+      switch(getObjType(second.objectInfo.w)) {
+        case BBOX:
+          col = BoxPolySAT(second, transformIndexSecond, first, transformIndexFirst, mtv, dist);
+          mtv = -mtv;
+          return col;
+        break;
+        case SPHERE:
+          return PolySphereSAT(first, transformIndexFirst, second, transformIndexSecond, mtv, dist);
+        break;
+        case POLYGON:
+          return PolyPolySAT(first, transformIndexFirst, second, transformIndexSecond, mtv, dist);
+        break;
+      }
+    break;
+  }
+
+  return false;
+}
+
+float SATOneAxis(const uint objectIndexFirst,  const uint transformIndexFirst,
+                 const uint objectindexSecond, const uint transformIndexSecond, const vec4 axis) {
+  float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
+  const Object3 first = objects[objectIndexFirst];
+  const Object3 second = objects[objectindexSecond];
+  vec4 pos;
+  float radius;
+  uint face;
+  uint faceSize;
+
+  switch(getObjType(first.objectInfo.w)) {
+    case BBOX:
+      project(axis, transforms[transformIndexFirst].pos, vertices[first.objectInfo.x], systems[first.additionalData.y], minFirst, maxFirst);
+    break;
+    case SPHERE:
+      pos = vec4(transforms[transformIndexFirst].pos.xyz, 1.0f);
+      radius = transforms[transformIndexFirst].pos.w;
+      project(axis, pos, radius, minFirst, maxFirst);
+    break;
+    case POLYGON:
+      pos = transformIndexFirst == 0xFFFFFFFF ? vec4(0.0f, 0.0f, 0.0f, 1.0f) : transforms[transformIndexFirst].pos;
+      face     = first.objectInfo.x + first.objectInfo.y;
+      faceSize = first.objectInfo.z;
+      project(axis, face, faceSize, pos, systems[first.additionalData.y], minFirst, maxFirst);
+    break;
+  }
+
+  switch(getObjType(second.objectInfo.w)) {
+    case BBOX:
+      project(axis, transforms[transformIndexSecond].pos, vertices[second.objectInfo.x], systems[second.additionalData.y], minFirst, maxFirst);
+    break;
+    case SPHERE:
+      pos = vec4(transforms[transformIndexSecond].pos.xyz, 1.0f);
+      radius = transforms[transformIndexSecond].pos.w;
+      project(axis, pos, radius, minFirst, maxFirst);
+    break;
+    case POLYGON:
+      pos = transformIndexFirst == 0xFFFFFFFF ? vec4(0.0f, 0.0f, 0.0f, 1.0f) : transforms[transformIndexSecond].pos;
+      face     = second.objectInfo.x + second.objectInfo.y;
+      faceSize = second.objectInfo.z;
+      project(axis, face, faceSize, pos, systems[second.additionalData.y], minFirst, maxFirst);
+    break;
+  }
+
+  const float test1 = minFirst - maxSecond;
+  const float test2 = minSecond - maxFirst;
+
+  if (test1 > 0.0f || test2 > 0.0f) return 10000.0f;
+
+  return min(abs(test1), abs(test2));
+}

@@ -1,0 +1,225 @@
+#version 450
+
+struct Pair {
+  // x == first, y == second, z == dist2, w == islandId
+  uvec4 data;
+};
+
+struct OverlappingData {
+  // x == firstIndex, y == secondIndex, z == collision, w == type?
+  uvec4 pairData;
+  // xyz == vector (mtv or point), w == dist
+  vec4  vecDist;
+};
+
+layout(std140, set = 0, binding = 0) buffer readonly Pairs {
+  // x == pairCount, y == usefullPairs, z == onlyTriggerPairsOffset, w == onlyTriggerPairsCount
+  uvec4 count;
+  Pair pairs[];
+};
+
+layout(std140, set = 1, binding = 0) buffer OverlappingDatas {
+  OverlappingData overlappingDatas[];
+};
+
+layout(std430, set = 2, binding = 0) buffer OverlappingBufferData {
+  // x == indirectX , y == 1, z == 1, w == tempCount
+  //uvec4 overlappingBufferData;
+  uint indirectX;
+  uint indirectY;
+  uint indirectZ;
+  uint overlappingCount;
+  uint temporaryCount;
+  uint powerOfTwo;
+};
+
+uint binarySearch(const uint firstIndex);
+uint getToStart(const uint foundedIndex, const uint firstIndex);
+
+#define workGroupSize 256
+layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+//layout (local_size_x_id = 0) in;
+
+// вроде как это должно работать достаточно быстро
+// с учетом того что буфер будет всегда отсортирован на входе
+// может возникнуть проблема с overlappingBufferData, так как это индирект буфер
+// хотя с другой стороны он читает только первых 3 uint'а, w можно потом скопировать
+void main() {
+  const uint pairsCount = count.y + count.z;
+  const uint threadCount = gl_WorkGroupSize.x;
+
+  indirectX = 1;
+  indirectY = 1;
+  indirectZ = 1;
+  //temporaryCount = 5;
+  //powerOfTwo = 5;
+
+  //overlappingDatas[0].pairData.x = 0xFFFFFFFF;
+  //overlappingDatas[1].pairData.x = 124124;
+  //overlappingDatas[0].pairData.w = 0xFFFFFFFF;
+
+  barrier();
+
+  // powerOfTwo = pairsCount;
+  //
+  // if (gl_LocalInvocationIndex == 0) {
+  //   uint foundedIndex2 = 0xFFFFFFFF;
+  //   foundedIndex2 = binarySearch(pairs[0].data.y);
+  //
+  //   const uint id = atomicAdd(temporaryCount, 1);
+  //   overlappingDatas[id].pairData.x = foundedIndex2 == 0xFFFFFFFF ? pairs[0].data.x : pairs[0].data.y;
+  //   overlappingDatas[id].pairData.y = foundedIndex2 == 0xFFFFFFFF ? pairs[0].data.y : pairs[0].data.x;
+  //   overlappingDatas[id].pairData.z = 0;
+  //   // что должно быть здесь? эту переменную мы используем чтоб быстро проверить пару на следующем шаге
+  //   overlappingDatas[id].pairData.w = 0;
+  // }
+  //
+  // //return;
+  //
+  // barrier();
+
+  // const uint passCount = (temporaryCount + threadCount - 1) / threadCount;
+  // for (uint i = 0; i < passCount; ++i) {
+  //   const uint index = i*threadCount + gl_LocalInvocationIndex;
+  //   if (index >= temporaryCount) continue;
+  //
+  //   overlappingDatas[index].pairData.w = 0xFFFFFFFF;
+  // }
+  //
+  // barrier();
+
+  const uint passCount2 = (pairsCount + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount2; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= pairsCount) continue;
+
+    const Pair pair = pairs[index];
+    if (pair.data.w == 0xFFFFFFFF) continue;
+
+    bool found = false;
+    const uint foundedIndex = binarySearch(pair.data.x);
+    if (foundedIndex != 0xFFFFFFFF) {
+      // мы вполне можем позволить себе сделать здесь цикл, так как объектов 250% будет около 3-ех (это скорее всего даже максимум)
+      uint startIndex = getToStart(foundedIndex, pair.data.x);
+      uint pairFirstIndex = pair.data.x;
+
+      while (pairFirstIndex == pair.data.x) {
+        // может ли интересующий меня индекс быть вторым? может (тип нельзя гарантировать порядок в динамических парах)
+        if (pair.data.x == overlappingDatas[startIndex].pairData.x && pair.data.y == overlappingDatas[startIndex].pairData.y) {
+          // здесь по идее нужно выйти
+          found = true;
+          break;
+        }
+
+        ++startIndex;
+        pairFirstIndex = overlappingDatas[startIndex].pairData.x;
+      }
+
+      if (found) {
+        //overlappingDatas[startIndex].pairData.w = 0;
+        continue;
+      }
+    }
+
+    uint foundedIndex2 = 0xFFFFFFFF;
+    if (!found) foundedIndex2 = binarySearch(pair.data.y);
+
+    if (foundedIndex2 != 0xFFFFFFFF) {
+      // мы вполне можем позволить себе сделать здесь цикл, так как объектов 250% будет около 3-ех (это скорее всего даже максимум)
+      uint startIndex = getToStart(foundedIndex2, pair.data.y);
+      uint pairFirstIndex = pair.data.y;
+
+      while (pairFirstIndex == pair.data.y) {
+        // может ли интересующий меня индекс быть вторым? может (тип нельзя гарантировать порядок в динамических парах)
+        if (pair.data.y == overlappingDatas[startIndex].pairData.x && pair.data.x == overlappingDatas[startIndex].pairData.y) {
+          // здесь по идее нужно выйти
+          found = true;
+          break;
+        }
+
+        ++startIndex;
+        pairFirstIndex = overlappingDatas[startIndex].pairData.y;
+      }
+
+      if (found) {
+        //overlappingDatas[startIndex].pairData.w = 0;
+        continue;
+      }
+    }
+
+    // добавляем пару
+    const uint id = atomicAdd(temporaryCount, 1);
+    overlappingDatas[id].pairData.x = foundedIndex2 == 0xFFFFFFFF ? pair.data.x : pair.data.y;
+    overlappingDatas[id].pairData.y = foundedIndex2 == 0xFFFFFFFF ? pair.data.y : pair.data.x;
+    overlappingDatas[id].pairData.z = 0;
+    // что должно быть здесь? эту переменную мы используем чтоб быстро проверить пару на следующем шаге
+    overlappingDatas[id].pairData.w = 0;
+  }
+
+  barrier();
+
+  //powerOfTwo = 0xFFFFFFFF;
+
+  //return;
+
+  indirectX = temporaryCount;
+  indirectY = 1;
+  indirectZ = 1;
+  overlappingCount = temporaryCount;
+
+  uint v = temporaryCount; // compute the next highest power of 2 of 32-bit v
+  v--;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  v++;
+
+  barrier();
+
+  powerOfTwo = v;
+
+  const uint count = v - temporaryCount;
+  const uint passCount3 = (count + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount3; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= count) continue;
+
+    overlappingDatas[index + temporaryCount].pairData.x = 0xFFFFFFFF;
+    overlappingDatas[index + temporaryCount].pairData.y = 0xFFFFFFFF;
+    overlappingDatas[index + temporaryCount].pairData.z = 0;
+    overlappingDatas[index + temporaryCount].pairData.w = 0xFFFFFFFF;
+  }
+
+  // после этого у нас идет вычисление САТ
+  // там мы узнаем что более точную информацию о пересечении
+  // затем мы этот массив должны отсортировать
+}
+
+uint binarySearch(const uint firstIndex) {
+  int low = 0;
+  //uint high = overlappingBufferData.x-1;
+  int high = int(overlappingCount)-1;
+
+  while (low <= high) {
+    const uint mid = (low + high) / 2;
+
+    const int lowest = int(firstIndex < overlappingDatas[mid].pairData.x);
+    const int highest = int(firstIndex > overlappingDatas[mid].pairData.x);
+
+    high -= lowest;
+    low += highest;
+
+    if (lowest + highest == 0) return mid;
+  }
+
+  return 0xFFFFFFFF;
+}
+
+uint getToStart(const uint foundedIndex, const uint firstIndex) {
+  uint retIndex = foundedIndex;
+  while (retIndex > 0 && overlappingDatas[retIndex-1].pairData.x == firstIndex) --retIndex;
+
+  return retIndex;
+}

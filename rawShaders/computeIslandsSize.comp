@@ -1,0 +1,156 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "physic.h"
+
+struct IndirectCommand {
+  uint x;
+  uint y;
+  uint z;
+};
+
+layout(std140, set = 0, binding = 0) buffer readonly OutData {
+  uvec4 pairsCount;
+  Pair pairs[];
+};
+
+layout(std140, set = 1, binding = 0) buffer IslandDatas {
+  uvec4 octreeDepth; // x == octreeDepth
+  uvec4 octreeLevels[10];
+  uvec4 islandCount; // x == islandCount
+  IslandData islands[];
+};
+
+layout(std430, set = 2, binding = 0) buffer IndirectCommandBuffer {
+  IndirectCommand commandIsland;
+  IndirectCommand commandPair;
+};
+
+// layout(std140, set = 3, binding = 0) buffer OctreeLevels {
+//   uvec4 octreeLevels[10];
+// };
+
+// тут по всей видимости сложно распараллелить (наверное вообще невозможно)
+// #define workGroupSize 128
+// layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+layout (local_size_x_id = 0) in;
+layout (constant_id = 1) const uint constOctreeDepth = 5;
+
+void main() {
+  commandIsland.x = 0;
+  commandIsland.y = 1;
+  commandIsland.z = 1;
+
+  islandCount.x = 0;
+  islandCount.y = 124141;
+  const uint threadCount = gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z;
+  const uint valPairCount = pairsCount.y;
+  const uint passCount = (valPairCount + threadCount - 1) / threadCount;
+
+  barrier();
+
+  uint islandCountLocal = uint(pairsCount.y > 0);
+  uint pairIslandIndex = pairs[0].data.w;
+  for (uint i = 0; i < valPairCount; ++i) {
+    if (pairs[i].data.w == pairIslandIndex) continue;
+
+    ++islandCountLocal;
+    pairIslandIndex = pairs[i].data.w;
+  }
+
+  islandCount.x = islandCountLocal;
+
+  barrier();
+
+  const uint passCount2 = (islandCountLocal + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount2; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= islandCountLocal) continue;
+
+    islands[index].data.x = 0xFFFFFFFF;
+    islands[index].data.y = 0xFFFFFFFF;
+    islands[index].data.z = 0;
+  }
+
+  barrier();
+
+  uint indexIsland = 0;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i * threadCount + gl_LocalInvocationIndex;
+    if (index >= valPairCount) continue;
+
+    uint pairIslandIndex = pairs[0].data.w;
+    for (uint j = 0; j < index; ++j) {
+      if (pairs[j].data.w == pairIslandIndex) continue;
+
+      ++indexIsland;
+      pairIslandIndex = pairs[j].data.w;
+    }
+
+    atomicAdd(islands[indexIsland].data.z, 1);
+    //islands[indexIsland].data.x = pairs[index].data.w;
+    atomicMin(islands[indexIsland].data.x, pairs[index].data.w);
+    atomicMin(islands[indexIsland].data.y, index);
+
+    // const uint islandSize = indexIsland+1;
+    // atomicMax(islandCount.x, islandSize);
+  }
+
+  barrier();
+
+  commandIsland.x = islandCount.x;
+  if (valPairCount == 0) {
+    commandIsland.x = 1;
+    islands[0].data.x = 0xFFFFFFFF;
+    islands[0].data.y = 0xFFFFFFFF;
+    islands[0].data.z = 0xFFFFFFFF;
+  }
+
+  commandPair.x = pairsCount.y;
+  commandPair.y = 1;
+  commandPair.z = 1;
+
+  octreeDepth.x = constOctreeDepth;
+  if (constOctreeDepth == 0) return;
+
+  barrier();
+
+  const uint passCount3 = (constOctreeDepth + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount3; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= constOctreeDepth) continue;
+
+    octreeLevels[i].y = 0xFFFFFFFF;
+    octreeLevels[i].z = 0;
+  }
+
+  barrier();
+
+  //const uint passCount2 = (islandCountLocal + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount2; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= islandCountLocal) continue;
+
+    for (uint j = 0; j < octreeDepth.x; ++j) {
+      if (islands[i].data.x < octreeLevels[j].x) {
+        ++octreeLevels[j].z;
+        break;
+      }
+    }
+  }
+
+  barrier();
+
+  uint newOffset = 0;
+  for (uint i = 0; i < passCount3; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= constOctreeDepth) continue;
+
+    for (uint j = 0; j < i; ++j) {
+      newOffset += octreeLevels[j].z;
+    }
+
+    octreeLevels[index].y = newOffset;
+  }
+}

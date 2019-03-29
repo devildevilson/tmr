@@ -1,0 +1,42 @@
+#version 450
+
+struct OverlappingData {
+  // x == firstIndex, y == secondIndex, z == collision, w == type?
+  uvec4 pairData;
+  // xyz == mtv, w == dist
+  vec4  mtvDist;
+};
+
+// тут мы применяем все то что мы вычислили в предыдущем шейдере
+// как то так он выгдлядит
+
+void main() {
+  const uint threadCount = gl_WorkGroupSize.x;
+  const uint islandsCount;
+
+  barrier();
+
+  const uint passCount = (islandsCount + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= islandsCount) continue;
+
+    for (uint j = 0; j < pairInIslandCount; ++j) {
+      if (!col || qwdqdwdqddqdddwqfqwf) continue;
+
+      if (angle < PI_Q) {
+        // код
+      } else if (dqwdwdqwd) {
+        // код
+
+        continue;
+      }
+
+      pos += mtv*dist;
+      // ...
+
+      clip(vel);
+      // ...
+    }
+  }
+}

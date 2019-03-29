@@ -1,0 +1,21 @@
+[submodule "include/fmt"]
+	path = include/fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "include/apathy"]
+	path = include/apathy
+	url = https://github.com/dlecocq/apathy.git
+[submodule "include/json"]
+	path = include/json
+	url = https://github.com/nlohmann/json.git
+[submodule "include/nuklear"]
+	path = include/nuklear
+	url = https://github.com/vurtun/nuklear.git
+[submodule "include/stb"]
+	path = include/stb
+	url = https://github.com/nothings/stb.git
+[submodule "include/tinyobjloader"]
+	path = include/tinyobjloader
+	url = https://github.com/syoyo/tinyobjloader.git
+[submodule "include/TinyBehavior"]
+	path = include/TinyBehavior
+	url = https://github.com/andrewlemeshev/TinyBehavior.git

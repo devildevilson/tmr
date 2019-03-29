@@ -1,0 +1,251 @@
+#version 450
+
+#define ONLY_TRIGGER_ID 0xFFFFFFFF-1
+
+struct IslandData {
+  // x == islandId, y == offset, z == size
+  uvec4 data;
+};
+
+struct Pair {
+  // x == first, y == second, z == dist2, w == islandId
+  uvec4 data;
+};
+
+layout(std140, set = 0, binding = 0) buffer OutData {
+  // x == pairCount, y == usefullPairs, z == onlyTriggerPairsOffset, w == onlyTriggerPairsCount
+  uvec4 pairsCount;
+  Pair pairs[];
+};
+
+shared uint islandId;
+shared uint changesCount;
+
+layout(constant_id = 0) const uint iterationCount = 50;
+
+// layout(std140, set = 0, binding = 0) buffer IslandDatas {
+//   // x == islandCount
+//   uvec4 islandCount;
+//   IslandData islands[];
+// };
+
+// количество тредов Не может быть больше 1536 (GTX 1070)
+// это примерно 39*39
+// #define workGroupSize 128
+// layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+layout (local_size_x_id = 1) in;
+
+void main() {
+  // как должно выглядеть составление островов объектов?
+  // выбираем произвольный объект
+  // ему присваеваем какой то индекс острова
+  // обходим пары с индексом объекта, присваеваем второму индекс острова
+  // добавляем второй объект в стек
+  // начинаем обходить объекты в стеке по тому же принципу пока все объекты не исчерпаются
+
+  // uint countPairs;
+  // for (uint i = 0; i < countPairs; ++i) {
+  //   memory[0] = i;
+  // }
+
+  islandId = 0;
+  pairsCount.y = 0;
+  pairsCount.z = 0;
+  //pairsCount.w = 0;
+  //islandCount.x = 0;
+  changesCount = 0xFFFFFFFF;
+  const uint threadCount = gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z;
+  const uint threadCountX = gl_WorkGroupSize.x;
+  const uint threadCountY = gl_WorkGroupSize.y;
+  barrier();
+
+  const uint count = pairsCount.x;
+  const uint passCount = (count + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i * threadCount + gl_LocalInvocationIndex;
+    if (index >= count) continue;
+    if (pairs[index].data.w >= ONLY_TRIGGER_ID) continue;
+
+    const uint id = atomicAdd(islandId, 1);
+    // присваеваем индекс острова
+    pairs[index].data.w = id;
+  }
+
+  barrier();
+
+  // тут нам нужно еще проверить совпадение пар
+  // чтобы не выкидывать объекты в той же паре проверяем индексы
+  // если нашли совпадение то ставим специальный индекс острова
+
+  // индексы расставляются на основе соседей, если есть сосед с таким же индексом объекта
+  // то присваеваем минимальный индекс. У нас может быть вполне ситуация когда мы справимся
+  // со всем этим гораздо быстрее 50 итераций, и с другой стороны для полной проверки
+  // может потребоваться больше итераций. По идее тут можно использовать while
+  // и считать количество изменений индекса, если на итераций изменений не произошло
+  // то они не произойдут и на следующих
+  // for (uint i = 0; i < iterationCount; ++i) {
+  //   for (uint j = 0; j < passCount; ++j) {
+  //     const uint index = i * threadCount + gl_LocalInvocationIndex;
+  //
+  //     const uint firstIndex = index < count ? pairs[index].data.x : 0xFFFFFFFF;
+  //     uint minIslandIndex = pairs[index].data.w; // тут индекс на предыдущем шаге
+  //     for (uint k = 0; k < count; ++k) {
+  //       if (firstIndex != pairs[k].data.x) continue;
+  //
+  //       const uint currentIndex = pairs[k].data.w;
+  //       minIslandIndex = min(minIslandIndex, currentIndex);
+  //     }
+  //
+  //     barrier();
+  //
+  //     // присваеваем здесь новый индекс острова
+  //     // наверное особых проблем не должно быть если я не учту как то
+  //     // порядок объектов
+  //     if (index < count) pairs[index].data.w = minIslandIndex;
+  //   }
+  // }
+
+  // uint iteration = 0;
+  // while (changesCount > 0 && iteration < iterationCount) {
+  //   changesCount = 0;
+  //
+  //   const uint passCountX = (count + threadCountX - 1) / threadCountX;
+  //   for (uint i = 0; i < passCountX; ++i) {
+  //     const uint indexX = i * threadCountX + gl_LocalInvocationID.x;
+  //     if (indexX >= count) continue;
+  //
+  //     const Pair first = pairs[indexX];
+  //     if (first.data.w >= ONLY_TRIGGER_ID) continue;
+  //
+  //     const uint passCountY = (count + threadCountY - 1) / threadCountY;
+  //     for (uint j = 0; j < passCountY; ++j) {
+  //       const uint indexY = j * threadCountY + gl_LocalInvocationID.y;
+  //       if (indexY >= count) continue;
+  //
+  //       if (indexX == indexY) continue;
+  //
+  //       const Pair second = pairs[indexY];
+  //       if (second.data.w >= ONLY_TRIGGER_ID) continue;
+  //
+  //       const bool samePair = first.data.x == second.data.x && first.data.y == second.data.y ||
+  //                             first.data.x == second.data.y && first.data.y == second.data.x;
+  //
+  //       if (samePair && indexX > indexY) {
+  //         atomicAdd(changesCount, 1);
+  //
+  //         const uint index = max(indexX, indexY);
+  //         pairs[index].data.w = 0xFFFFFFFF;
+  //         continue;
+  //       }
+  //
+  //       atomicMin(pairs[indexX].data.w, pairs[indexY].data.w);
+  //       if (pairs[indexX].data.w != pairs[indexY].data.w) atomicAdd(changesCount, 1);
+  //     }
+  //   }
+  //
+  //   barrier();
+  //   ++iteration;
+  // }
+
+  // честно говоря у меня не получилось сделать вычисление островов быстрым
+  // при 90 пар он тратит примерно 2.5 ms
+  // можно ли ускорить? может какую-то инфу собирать на других стадиях?
+  // еще вариант использовать батчи вместо островов
+  uint iteration = 0;
+  while (changesCount > 0 && iteration < iterationCount) {
+    changesCount = 0;
+
+    for (uint j = 0; j < passCount; ++j) {
+      const uint index = j * threadCount + gl_LocalInvocationIndex;
+
+      const uint firstIndex = index < count ? pairs[index].data.x : 0xFFFFFFFF;
+      const uint secondIndex = pairs[index].data.y;
+      uint minIslandIndex = pairs[index].data.w; // тут индекс на предыдущем шаге
+      if (minIslandIndex < ONLY_TRIGGER_ID && firstIndex != 0xFFFFFFFF && secondIndex != 0xFFFFFFFF) {
+        for (uint k = 0; k < count; ++k) {
+          if (index == k) continue;
+          //if (firstIndex != pairs[k].data.x) continue;
+
+          // судя по всему я решил всегда использовать минимальный индекс первым в парах (а может и нет)
+          // нет, скорее всего нет
+          // что мне использовать чтобы пометить что это повторяющаяся пара?
+          // по идее достаточно в итоге иметь самое максимальное число для того, чтобы потом эта пара отсортировалась
+          const bool samePair = (firstIndex == pairs[k].data.x && secondIndex == pairs[k].data.y) ||
+                                (firstIndex == pairs[k].data.y && secondIndex == pairs[k].data.x);
+          if (samePair && index > k) {
+            minIslandIndex = 0xFFFFFFFF;
+            atomicAdd(changesCount, 1);
+            break;
+          }
+
+          const uint currentIndex = pairs[k].data.w;
+          minIslandIndex = min(minIslandIndex, currentIndex);
+          if (minIslandIndex != currentIndex) atomicAdd(changesCount, 1);
+        }
+      }
+
+      barrier();
+
+      // присваеваем здесь новый индекс острова
+      // наверное особых проблем не должно быть если я не учту как то
+      // порядок объектов
+      if (index < count) pairs[index].data.w = minIslandIndex;
+    }
+
+    barrier();
+    ++iteration;
+  }
+
+  islandId = 0;
+  barrier();
+  // здесь же можно по идее посчитать сколько всего у нас полезных пар получается
+  // и сколько всего островов
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i * threadCount + gl_LocalInvocationIndex;
+    if (index >= count) continue;
+
+    if (pairs[index].data.w == 0xFFFFFFFF) continue;
+
+    if (pairs[index].data.w == ONLY_TRIGGER_ID) {
+      atomicAdd(pairsCount.z, 1);
+      continue;
+    }
+
+    atomicAdd(pairsCount.y, 1);
+
+    // здесь проблема, заключается в том что у нас w может быть не по порядку (точнее скорее всего)
+    // поэтому тут так это не заработает
+    //atomicAdd(islands[pairs[index].data.w].data.z, 1);
+    //atomicMax(islandId, pairs[index].data.w);
+  }
+
+  // barrier();
+  // islandCount.x = islandId;
+  //
+  // // считаем оффсет
+  // const uint passCount2 = (islandId + threadCount - 1) / threadCount;
+  // for (uint i = 0; i < passCount2; ++i) {
+  //   const uint index = i * threadCount + gl_LocalInvocationIndex;
+  //   if (index >= islandId) continue;
+  //
+  //   islands[index].data.x = index;
+  //   islands[index].data.y = 0;
+  //
+  //   for (uint j = 0; j < index; ++j) {
+  //     islands[index].data.y += islands[j].data.z;
+  //   }
+  // }
+
+  // после этого у нас должна быть сортировка, которая
+  // 1) отделяет одни острова от других (один проход radix сортировки + подсчет количества в островах)
+  // 2) сортирует внутри острова так, чтобы легкие (те что пересекают как можно меньше объектов) объекты
+  // были в начале, а конце проверялись тяжелые
+  // где то после этого нам нужно посчитать количество островов и доп данные типа размера и оффсера (еще один шейдер)
+  // и наконец затем мы расчитываем SAT и проч
+
+  // после длительных размышлений я выяснил что мне не обязательно делать "легкие" и "тяжелые" объекты
+  // необходимо в солвере лишь проделать несколько итераций, эти итерации делят перемещение объекта на части
+  // в этом случае неплохо было бы интегрировать как нибудь поточнее
+
+  // сортировать внутри острова нужно по дальности
+}

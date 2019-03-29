@@ -1,0 +1,70 @@
+#version 450
+
+#define ONLY_TRIGGER_ID 0xFFFFFFFF-1
+
+struct Pair {
+  // x == first, y == second, z == dist2, w == islandId
+  uvec4 data;
+};
+
+layout(std140, set = 0, binding = 0) buffer OutData {
+  // x == pairCount, y == usefullPairs, z == onlyTriggerPairsOffset, w == onlyTriggerPairsCount
+  uvec4 pairsCount;
+  Pair pairs[];
+};
+
+// #define workGroupSize 128
+// layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+layout (local_size_x_id = 0) in;
+
+void main() {
+  pairsCount.y = 0;
+  pairsCount.z = 0;
+  const uint threadCount = gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z;
+  barrier();
+
+  const uint passCount = (pairsCount.x + threadCount - 1) / threadCount;
+  for (uint j = 0; j < passCount; ++j) {
+    const uint pairIndex = j*threadCount + gl_LocalInvocationIndex;
+    if (pairIndex >= pairsCount.x) continue;
+
+    const Pair pair = pairs[pairIndex];
+
+    if (pair.data.x == 0xFFFFFFFF || pair.data.y == 0xFFFFFFFF) continue;
+
+    uint batchIndex = 0;
+    for (uint i = 0; i < pairIndex; ++i) {
+      //if (pairIndex == i) break;
+
+      const bool samePair = (pair.data.x == pairs[i].data.x && pair.data.y == pairs[i].data.y) ||
+                            (pair.data.x == pairs[i].data.y && pair.data.y == pairs[i].data.x);
+
+      if (samePair) { // && pairIndex > i
+        batchIndex = 0xFFFFFFFF;
+        break;
+      }
+
+      const bool var = pair.data.x == pairs[i].data.x || pair.data.x == pairs[i].data.y || pair.data.y == pairs[i].data.y;
+      batchIndex += uint(var);
+    }
+
+    pairs[pairIndex].data.w = batchIndex;
+    // ну и все походу
+    // затем делаем сортировку, и заодно ставим назад те пары которые повторяются
+  }
+
+  barrier();
+
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= pairsCount.x) continue;
+    if (pairs[index].data.w == 0xFFFFFFFF) continue;
+
+    if (pairs[index].data.w == ONLY_TRIGGER_ID) {
+      atomicAdd(pairsCount.z, 1);
+      continue;
+    }
+
+    atomicAdd(pairsCount.y, 1);
+  }
+}

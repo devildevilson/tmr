@@ -1,0 +1,283 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#define OUTSIDE 0
+#define INSIDE 1
+#define INTERSECT 2
+
+#include "physic.h"
+#include "physicType.glsl"
+
+struct Frustum {
+  vec4 planes[6];
+};
+
+struct Proxy {
+  AABB box;
+  // x == group, y == filter, z == proxyIndex, w == objIndex
+  uvec4 proxyData;
+  // x == nodeIndex, y == containerIndex, z == objType
+  uvec4 octreeData;
+};
+
+layout(std140, set = 0, binding = 0) buffer readonly Proxies {
+  Proxy proxies[];
+};
+
+layout(std140, set = 1, binding = 0) buffer readonly OctreeData {
+  NodeData nodeData[];
+};
+
+layout(std430, set = 2, binding = 0) buffer readonly OctreeIndicies {
+  uint nodeIdx[];
+};
+
+layout(std140, set = 3, binding = 0) buffer readonly Frustums {
+  Frustum frustums[];
+};
+
+layout(std140, set = 4, binding = 0) buffer readonly FrustumPoses {
+  vec4 frustumPoses[];
+};
+
+layout(std140, set = 5, binding = 0) buffer OutData {
+  uvec4 count;
+  Pair pairs[];
+};
+
+layout(constant_id = 0) const uint maxOctreeDepth = 5;
+layout(constant_id = 1) const uint currentOctreeDepthLevel = 3;
+layout(constant_id = 2) const uint nodesCountPreviousDepth = 9;
+
+const uint currentMaxDepth = maxOctreeDepth - currentOctreeDepthLevel;
+
+layout(constant_id = 3) const uint thisStepNodeCount = 64+1;
+shared uint globalObjCount;
+shared uint memOffset;
+shared uint stack[thisStepNodeCount];
+
+#define workGroupSize 64
+layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+
+uint testFrustumAABB(const Frustum frustum, const AABB box);
+float distance2(const vec4 first, const vec4 second);
+void addEveryObj(const uint mainNodeIndex, const uint depth, const uint frustumIndex, const vec4 frustumPos);
+void addEveryObjIterative(const uint mainNodeIndex, const uint depth, const uint frustumIndex, const vec4 frustumPos);
+
+void main() {
+  globalObjCount = 0;
+  const uint nodeIndex = nodesCountPreviousDepth + gl_WorkGroupID.x;
+  const uint frustumIndex = gl_WorkGroupID.y;
+  const uint threadCount = gl_WorkGroupSize.x;
+
+  // тут наверн выйти еще нужно когда у нас нет нормальных фрустумов
+  // хотя на удивление нормально работало все когда я указывал 0 в качестве количества
+  if (gl_NumWorkGroups.x == 1 && floatBitsToUint(frustums[0].planes[0].x) == 0xFFFFFFFF) return;
+
+  const Frustum frustum = frustums[frustumIndex];
+  const vec4 frustumPos = frustumPoses[frustumIndex];
+
+  memOffset = 1;
+  stack[0] = nodeIndex;
+
+  globalObjCount = nodeData[nodeIndex].data.x;
+
+  uint lastMemory = 0;
+  barrier();
+
+  // проверка на полное вхождение нода и ранний выход
+  const NodeData node = nodeData[nodeIndex];
+  const AABB nodeBox = proxies[node.data.w].box;
+
+  const uint testRes = testFrustumAABB(frustum, nodeBox);
+  if (testRes == OUTSIDE) return;
+
+  if (testRes == INSIDE) {
+    // тут мы можем параллельно обойти всех детей
+    addEveryObj(nodeIndex, currentMaxDepth, frustumIndex, frustumPos);
+
+    return;
+  }
+
+  barrier();
+
+  // со стаком это выглядит примерно так
+  // еще пока не уверен как это работает
+  for (uint i = 0; i < currentMaxDepth; ++i) {
+    const uint currentOffset = memOffset;
+    const uint checkCount = (memOffset - lastMemory) * 8;
+
+    const uint passCount = (checkCount + threadCount - 1) / threadCount;
+    for (uint j = 0; j < passCount; ++j) {
+      const uint index = j * threadCount + gl_LocalInvocationIndex; // стандарный способ получить текущий поток
+      if (index >= checkCount) continue; // если индекс больше количества проверок, то выходим
+
+      const uint parentIndex = stack[index / 8 + lastMemory]; // делим на 8 чтоб получить индекс который мы сейчас будем обрабатывать
+      const uint childIndex = nodeData[parentIndex].data.z + index % 8; //nodesCount + (parentIndex - lastCount)*8
+      // общее число нодов (предыдущее) + (приводим к к форме [0;8^i)) текущий индекс нода на уровне + индекс потока
+      // это по идее должно работать с любым количеством потоков
+
+      const NodeData node = nodeData[childIndex];
+      const AABB nodeBox = proxies[node.data.w].box;// = nodes[childIndex];
+
+      const uint testRes = testFrustumAABB(frustum, nodeBox);
+
+      if (testRes == INSIDE) {
+        // то мы обходим все объекты нода и его потомка и добавляем их
+        // просто итеративно (НЕ многопоточно я имею ввиду)
+        addEveryObjIterative(childIndex, currentMaxDepth-i, frustumIndex, frustumPos);
+      }
+
+      if (testRes == INTERSECT) {
+        const uint id = atomicAdd(memOffset, 1);
+        stack[id] = childIndex;
+
+        const uint nodeObjCount = node.data.x;
+        atomicAdd(globalObjCount, nodeObjCount);
+
+        // atomicAdd(testNodeCount, 1);
+      }
+    }
+
+    //powerEight *= 8;
+    //lastCount = nodesCount;
+    //nodesCount += powerEight;
+    lastMemory = currentOffset;
+    barrier();
+  }
+
+  barrier();
+
+  uint stackIndex = 0;
+  uint objCount = nodeData[stack[stackIndex]].data.x;
+  const uint passCount2 = (globalObjCount + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount2; ++i) {
+    const uint threadIndex = i*threadCount + gl_LocalInvocationIndex;
+    if (threadIndex >= globalObjCount) continue;
+
+    uint nodeIndex = stack[stackIndex];
+    NodeData node = nodeData[nodeIndex];
+    //uint objCount = node.data.x;
+    while (objCount < threadIndex) {
+      ++nodeIndex;
+      //if (stackIndex >= memoryOffset) break; // по идее это не должно произойти
+      nodeIndex = stack[stackIndex];
+      node = nodeData[nodeIndex];
+      objCount += node.data.x;
+    }
+
+    // на это обратить пристальное внимание
+    // (так же обратить внимание на эту -1)
+    // (threadIndex всегда <= objCount, а это значит 0 мы здесь не получим, а выйти за пределы - запросто)
+    const uint index = node.data.y + (objCount - threadIndex - 1);
+    const uint proxyIndex = nodeIdx[index];
+
+    const Proxy proxy = proxies[proxyIndex];
+    if (!isVisible(proxy.proxyData.z)) continue;
+
+    const uint res = testFrustumAABB(frustum, proxy.box);
+
+    if (res > OUTSIDE) {
+      const uint id = atomicAdd(count.x, 1);
+      pairs[id].data.x = frustumIndex;
+      pairs[id].data.y = proxy.proxyData.w;
+      const float dist = distance2(frustumPos, proxy.box.center);
+      pairs[id].data.z = floatBitsToUint(dist);
+      pairs[id].data.w = frustumIndex;
+    }
+  }
+}
+
+uint testFrustumAABB(const Frustum frustum, const AABB box) {
+  uint result = INSIDE; // Assume that the aabb will be inside the frustum
+  for(uint i = 0; i < 6; ++i) {
+    const vec4 frustumPlane = frustum.planes[i];
+
+    const float d = dot(box.center, vec4(frustumPlane.xyz, 0.0f));
+
+    const float r = dot(box.extent, abs(vec4(frustumPlane.xyz, 0.0f)));
+
+    const float d_p_r = d + r;
+    const float d_m_r = d - r;
+
+    if (d_p_r < -frustumPlane.w) {
+      result = OUTSIDE;
+      break;
+    } else if (d_m_r < -frustumPlane.w) result = INTERSECT;
+  }
+
+  return result;
+}
+
+float distance2(const vec4 first, const vec4 second) {
+  const vec4 dir = second - first;
+  return dot(dir, dir);
+}
+
+void addEveryObj(const uint mainNodeIndex, const uint depth, const uint frustumIndex, const vec4 frustumPos) {
+  const uint threadCount = gl_WorkGroupSize.x;
+  uint nodeCount = 1;
+  for (uint i = 0; i < depth; ++i) {
+    NodeData data;
+    const uint passCount = (nodeCount + threadCount - 1) / threadCount;
+    for (uint j = 0; j < passCount; ++j) {
+      const uint index = j*threadCount + gl_LocalInvocationIndex;
+      if (index >= nodeCount) continue;
+
+      uint childIndex = index % 8;
+      NodeData data = nodeData[mainNodeIndex];
+      for (uint k = 0; k < i; ++k) {
+        childIndex = (index >> k*3) % 8;
+        data = nodeData[data.data.z + childIndex];
+      }
+
+      for (uint k = 0; k < data.data.x; ++k) {
+        const uint proxyIndex = nodeIdx[data.data.y + k];
+        const Proxy proxy = proxies[proxyIndex];
+
+        if (!isVisible(proxy.proxyData.z)) continue;
+
+        const uint id = atomicAdd(count.x, 1);
+        pairs[id].data.x = frustumIndex;
+        pairs[id].data.y = proxy.proxyData.w;
+        const float dist = distance2(frustumPos, proxy.box.center);
+        pairs[id].data.z = floatBitsToUint(dist);
+        pairs[id].data.w = frustumIndex;
+      }
+    }
+
+    nodeCount *= 8;
+  }
+}
+
+void addEveryObjIterative(const uint mainNodeIndex, const uint depth, const uint frustumIndex, const vec4 frustumPos) {
+  uint nodeCount = 1;
+
+  for (uint i = 0; i < depth; ++i) {
+    for (uint j = 0; j < nodeCount; ++j) {
+      uint childIndex = j % 8;
+      NodeData data = nodeData[mainNodeIndex]; //nodes[node.data.w + childIndex];
+      for (uint k = 0; k < i; ++k) {
+        childIndex = (j >> k*3) % 8;
+        data = nodeData[data.data.z + childIndex];
+      }
+
+      for (uint k = 0; k < data.data.x; ++k) {
+        const uint proxyIndex = nodeIdx[data.data.y + k];
+        const Proxy proxy = proxies[proxyIndex];
+
+        if (!isVisible(proxy.proxyData.z)) continue;
+
+        const uint id = atomicAdd(count.x, 1);
+        pairs[id].data.x = frustumIndex;
+        pairs[id].data.y = proxy.proxyData.w;
+        const float dist = distance2(frustumPos, proxy.box.center);
+        pairs[id].data.z = floatBitsToUint(dist);
+        pairs[id].data.w = frustumIndex;
+      }
+    }
+
+    nodeCount *= 8;
+  }
+}

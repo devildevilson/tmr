@@ -1,0 +1,112 @@
+#version 450
+
+#define ONLY_TRIGGER_ID 0xFFFFFFFF-1
+
+struct IslandData {
+  // x == islandId, y == offset, z == size
+  uvec4 data;
+};
+
+struct Pair {
+  // x == first, y == second, z == dist2, w == islandId
+  uvec4 data;
+};
+
+layout(std140, set = 0, binding = 0) buffer OutData {
+  // x == pairCount, y == usefullPairs, z == onlyTriggerPairsOffset, w == onlyTriggerPairsCount
+  uvec4 pairsCount;
+  Pair pairs[];
+};
+
+layout(push_constant) uniform uPushConstant {
+  uint currentIteration;
+  uint iterationCount;
+} pc;
+
+shared uint islandId;
+shared uint changesCount;
+
+// layout(std140, set = 0, binding = 0) buffer IslandDatas {
+//   // x == islandCount
+//   uvec4 islandCount;
+//   IslandData islands[];
+// };
+
+// количество тредов Не может быть больше 1536 (GTX 1070)
+// #define workGroupSize 16
+// layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+layout (local_size_x_id = 0) in;
+
+void main() {
+  // тут попытка использовать диспатч ворк группы
+  // не уверен будет ли это вообще работать и будет ли быстрее
+  // так же попытаюсь сделать то же самое с солвером
+
+  // получается какая то хрень вообще
+
+  islandId = 0xFFFFFFFF;
+  //pairsCount.y = 0;
+  //pairsCount.z = 0;
+  //pairsCount.w = 0;
+  //islandCount.x = 0;
+  changesCount = 0xFFFFFFFF;
+  const uint threadCount = gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z;
+  const uint threadCountX = gl_WorkGroupSize.x;
+  const uint threadCountY = gl_WorkGroupSize.y;
+  const uint pairIndex = gl_WorkGroupID.x;
+
+  if (gl_NumWorkGroups.x == 1 && pairs[0].data.x == 0xFFFFFFFF) return;
+  barrier();
+
+  if (pairs[pairIndex].data.w == 0xFFFFFFFF) return;
+
+  if (pairs[pairIndex].data.w == ONLY_TRIGGER_ID) {
+    if (pc.currentIteration == 0) atomicAdd(pairsCount.z, 1);
+    return;
+  }
+
+  if (pc.currentIteration == 0) {
+    pairsCount.y = 0;
+    pairsCount.z = 0;
+    pairs[pairIndex].data.w = pairIndex;
+  }
+
+  barrier();
+
+  const uint firstIndex = pairs[pairIndex].data.x;
+  const uint secondIndex = pairs[pairIndex].data.y;
+
+  const uint passCount = (gl_NumWorkGroups.x + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= gl_NumWorkGroups.x) continue;
+    if (index == pairIndex) continue;
+
+    if (firstIndex != pairs[index].data.x && secondIndex != pairs[index].data.y && secondIndex != pairs[index].data.x) continue;
+
+    const bool samePair = firstIndex == pairs[index].data.x && secondIndex == pairs[index].data.y ||
+                          firstIndex == pairs[index].data.y && secondIndex == pairs[index].data.x;
+    if (samePair && pairIndex > index) {
+      pairs[pairIndex].data.w = 0xFFFFFFFF;
+      //atomicAdd(changesCount, 1);
+      break;
+    }
+
+    atomicMin(islandId, pairs[index].data.w);
+  }
+
+  barrier();
+
+  if (pairs[pairIndex].data.w != 0xFFFFFFFF) pairs[pairIndex].data.w = islandId;
+
+  // ЭТО НЕ ПРАВИЛЬНО
+  // отдельно пересчитать на последней итерации? скорее всего самый адекватный способ
+  // if (pc.currentIteration == 0 && gl_LocalInvocationIndex == 0 && pairs[pairIndex].data.w != 0xFFFFFFFF) {
+  //   pairs[pairIndex].data.w = islandId;
+  //   atomicAdd(pairsCount.y, 1);
+  // }
+
+  if (pc.currentIteration == pc.iterationCount-1) {
+    if (pairs[pairIndex].data.w < ONLY_TRIGGER_ID) atomicAdd(pairsCount.y, 1);
+  }
+}

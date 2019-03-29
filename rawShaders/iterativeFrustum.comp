@@ -1,0 +1,143 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#define OUTSIDE 0
+#define INSIDE 1
+#define INTERSECT 2
+
+#include "physic.h"
+#include "physicType.glsl"
+
+struct Frustum {
+  vec4 planes[6];
+};
+
+struct Proxy {
+  AABB box;
+  // x == group, y == filter, z == proxyIndex, w == objIndex
+  uvec4 proxyData;
+  // x == nodeIndex, y == containerIndex, z == objType
+  uvec4 octreeData;
+};
+
+layout(std140, set = 0, binding = 0) buffer readonly Proxies {
+  Proxy proxies[];
+};
+
+layout(std140, set = 1, binding = 0) buffer readonly OctreeData {
+  NodeData nodeData[];
+};
+
+layout(std430, set = 2, binding = 0) buffer readonly OctreeIndicies {
+  uint nodeIdx[];
+};
+
+layout(std140, set = 3, binding = 0) buffer readonly Frustums {
+  Frustum frustums[];
+};
+
+layout(std140, set = 4, binding = 0) buffer readonly FrustumPoses {
+  vec4 frustumPoses[];
+};
+
+layout(std140, set = 5, binding = 0) buffer OutData {
+  uvec4 count;
+  Pair pairs[];
+};
+
+layout(constant_id = 0) const uint nodeCount = 9;
+
+shared uint objCount;
+
+#define workGroupSize 256
+layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+
+uint testFrustumAABB(const Frustum frustum, const AABB box);
+float distance2(const vec4 first, const vec4 second);
+
+void main() {
+  objCount = 0;
+  const uint frustumIndex = gl_WorkGroupID.x;
+  const uint threadCount = gl_WorkGroupSize.x;
+
+  if (gl_NumWorkGroups.x == 1 && floatBitsToUint(frustums[0].planes[0].x) == 0xFFFFFFFF) return;
+
+  const Frustum frustum = frustums[frustumIndex];
+  const vec4 frustumPos = frustumPoses[frustumIndex];
+
+  barrier();
+
+  const uint passCount = (nodeCount + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= nodeCount) continue;
+
+    atomicAdd(objCount, nodeData[index].data.x);
+  }
+
+  barrier();
+
+  uint nodeIndex = 0;
+  uint objCountLocal = nodeData[nodeIndex].data.x;
+  const uint passCount2 = (objCount + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint threadIndex = i*threadCount + gl_LocalInvocationIndex;
+    if (threadIndex >= objCount) continue;
+
+    NodeData node = nodeData[nodeIndex];
+    //uint objCount = node.data.x;
+    while (objCountLocal < threadIndex) {
+      ++nodeIndex;
+      //if (stackIndex >= memoryOffset) break; // по идее это не должно произойти
+      node = nodeData[nodeIndex];
+      objCountLocal += node.data.x;
+    }
+
+    // на это обратить пристальное внимание
+    // (так же обратить внимание на эту -1)
+    // (threadIndex всегда <= objCount, а это значит 0 мы здесь не получим, а выйти за пределы - запросто)
+    const uint index = node.data.y + (objCountLocal - threadIndex - 1);
+    const uint proxyIndex = nodeIdx[index];
+
+    const Proxy proxy = proxies[proxyIndex];
+    if (!isVisible(proxy.proxyData.z)) continue;
+
+    const uint res = testFrustumAABB(frustum, proxy.box);
+
+    if (res > OUTSIDE) {
+      const uint id = atomicAdd(count.x, 1);
+      pairs[id].data.x = frustumIndex;
+      pairs[id].data.y = proxy.proxyData.w;
+      const float dist = distance2(frustumPos, proxy.box.center);
+      pairs[id].data.z = floatBitsToUint(dist);
+      pairs[id].data.w = frustumIndex;
+    }
+  }
+}
+
+uint testFrustumAABB(const Frustum frustum, const AABB box) {
+  uint result = INSIDE; // Assume that the aabb will be inside the frustum
+  for(uint i = 0; i < 6; ++i) {
+    const vec4 frustumPlane = frustum.planes[i];
+
+    const float d = dot(box.center, vec4(frustumPlane.xyz, 0.0f));
+
+    const float r = dot(box.extent, abs(vec4(frustumPlane.xyz, 0.0f)));
+
+    const float d_p_r = d + r;
+    const float d_m_r = d - r;
+
+    if (d_p_r < -frustumPlane.w) {
+      result = OUTSIDE;
+      break;
+    } else if (d_m_r < -frustumPlane.w) result = INTERSECT;
+  }
+
+  return result;
+}
+
+float distance2(const vec4 first, const vec4 second) {
+  const vec4 dir = second - first;
+  return dot(dir, dir);
+}

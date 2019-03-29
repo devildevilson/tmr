@@ -1,0 +1,31 @@
+#version 450
+
+struct InstaceData {
+  mat4 model;
+  uint imageIndex;
+  uint imageLayer;
+  uint samplerIndex;
+};
+
+struct VkDrawIndirectCommand {
+  uvec4 indirectCommand;
+  // uint vertexCount;
+  // uint instanceCount;
+  // uint firstVertex;
+  // uint firstInstance;
+};
+
+layout(std430, binding = 0) buffer OcclusionData {
+  // x == geoCount, y == objects count
+  uvec4 counts;
+  uint tests[];
+};
+
+layout(std140, binding = 0) buffer DrawIndirectCommand {
+  //uvec4 count;
+  VkDrawIndirectCommand collisionIdx;
+};
+
+layout(std430, binding = 0) readonly buffer Instance {
+  InstaceData datas[];
+};

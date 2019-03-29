@@ -1,0 +1,341 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "physic.h"
+#include "physicType.glsl"
+
+struct OverlappingData {
+  // x == firstIndex, y == secondIndex, z == collision, w == type?
+  uvec4 pairData;
+  // xyz == mtv, w == dist
+  vec4  vecDist;
+};
+
+struct RayData {
+  vec4 pos;
+  vec4 dir;
+};
+
+struct RotationData {
+  vec4 anchorDir; // w == dist
+  vec4 rotationNormal;
+  // x == currentAngle, y == maxAngle, z == rotSpeed, w == stepTime
+  vec4 additionalData;
+  mat4 matrix;
+};
+
+layout(std140, set = 0, binding = 0) buffer readonly Objects {
+  Object3 objects[];
+};
+
+layout(std140, set = 0, binding = 1) buffer readonly Vertices {
+  vec4 vertices[];
+};
+
+layout(std140, set = 0, binding = 2) buffer PhysicDatas {
+  PhysicData4 physicDatas[];
+};
+
+layout(std140, set = 0, binding = 3) buffer readonly ConstantsBuffer {
+  Constants constants[];
+};
+
+layout(std140, set = 0, binding = 4) buffer GlobalVels {
+  vec4 velocities[];
+};
+
+layout(std140, set = 1, binding = 0) buffer readonly CoordinateSystem {
+  mat4 systems[];
+};
+
+layout(std140, set = 2, binding = 0) buffer readonly Transforms {
+  Transform transforms[];
+};
+
+layout(std140, set = 3, binding = 0) buffer readonly RotationDatas {
+  RotationData rotationDatas[];
+};
+
+layout(std140, set = 4, binding = 0) buffer readonly Rays {
+  RayData rays[];
+};
+
+layout(std140, set = 5, binding = 0) buffer OutData {
+  // x == pairCount, y == usefullPairs, z == onlyTriggerPairsOffset, w == onlyTriggerPairsCount
+  uvec4 pairsCount;
+  Pair pairs[];
+};
+
+layout(std140, set = 6, binding = 0) buffer OverlappingDatas {
+  OverlappingData overlappingDatas[];
+};
+
+layout(std430, set = 7, binding = 0) buffer OverlappingBufferData {
+  // x == indirectX , y == 1, z == 1, w == tempCount
+  uint indirectX;
+  uint indirectY;
+  uint indirectZ;
+  uint count;
+  uint temporaryCount;
+  uint powerOfTwo;
+};
+
+float distance2(const vec4 first, const vec4 second);
+bool  intersect(const uint rayIndex, const uint objIndex, const uint transformIndex, inout vec4 point);
+
+#define workGroupSize 256
+layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+  const uint threadCount = gl_WorkGroupSize.x;
+  indirectX = 1;
+  indirectY = 1;
+  indirectZ = 1;
+  temporaryCount = 0;
+  powerOfTwo = 0;
+
+  barrier();
+
+  if (overlappingDatas[0].pairData.x == 0xFFFFFFFF) {
+    return;
+  }
+
+  barrier();
+
+  const uint passCount = (pairsCount.x + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= pairsCount.x) continue;
+
+    const Pair pair = pairs[index];
+
+    const uint rayIndex = pair.data.x;
+    const uint objIndex = pair.data.y;
+
+    const uint transformIndex = objects[objIndex].worldInfo.w;
+
+    vec4 point = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    const bool col = intersect(rayIndex, objIndex, transformIndex, point);
+
+    if (col) {
+      const uint id = atomicAdd(temporaryCount, 1);
+      overlappingDatas[id].pairData.x = rayIndex;
+      overlappingDatas[id].pairData.y = objIndex;
+      overlappingDatas[id].pairData.z = uint(col);
+      overlappingDatas[id].pairData.w = 0; // ?
+
+      overlappingDatas[id].vecDist.xyz = point.xyz;
+      overlappingDatas[id].vecDist.w = distance2(rays[rayIndex].pos, point);
+    }
+  }
+
+  barrier();
+
+  // здесь бы посчитать еще ближайшую степень 2
+  // в чем проблема? да в общем то ни в чем
+  uint v = temporaryCount; // compute the next highest power of 2 of 32-bit v
+  v--;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  v++;
+
+  barrier();
+
+  powerOfTwo = v;
+
+  const uint count = v - temporaryCount;
+  const uint passCount2 = (count + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount2; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= count) continue;
+
+    overlappingDatas[index+temporaryCount].pairData.x = 0xFFFFFFFF;
+    overlappingDatas[index+temporaryCount].pairData.y = 0xFFFFFFFF;
+    overlappingDatas[index+temporaryCount].pairData.z = 0;
+    overlappingDatas[index+temporaryCount].pairData.w = 0;
+  }
+}
+
+float length2(const vec4 vec) {
+  return dot(vec, vec);
+}
+
+float distance2(const vec4 first, const vec4 second) {
+  const vec4 dir = second - first;
+  return dot(dir, dir);
+}
+
+// код взят: https://github.com/gszauer/GamePhysicsCookbook/blob/master/Code/Geometry3D.cpp
+bool testRayBox(const RayData ray, const AABB box, const mat4 orn, inout vec4 point) {
+  const vec4 dir = box.center - ray.pos;
+
+  vec4 f = vec4(
+    dot(orn[0], ray.dir),
+    dot(orn[1], ray.dir),
+    dot(orn[2], ray.dir),
+    0.0f);
+
+  const vec4 e = vec4(
+    dot(orn[0], dir),
+    dot(orn[1], dir),
+    dot(orn[2], dir),
+    0.0f);
+
+  float t[6];
+  for (uint i = 0; i < 3; ++i) {
+    if (abs(f[i]) < EPSILON) {
+      if (-e[i] - box.extent[i] > 0.0f || -e[i] + box.extent[i] < 0.0f) return false;
+      f[i] = EPSILON;
+    }
+
+    t[i*2+0] = (e[i] + box.extent[i]) / f[i];
+    t[i*2+1] = (e[i] - box.extent[i]) / f[i];
+  }
+
+  float minf = max(max(min(t[0], t[1]), min(t[2], t[3])), min(t[4], t[5]));
+  float maxf = min(min(max(t[0], t[1]), max(t[2], t[3])), max(t[4], t[5]));
+
+  if (maxf < 0.0f) return false;
+  if (minf > maxf) return false;
+
+  float res = minf < 0.0f ? maxf : minf;
+
+  point = ray.pos + ray.dir * res;
+  return true;
+}
+
+bool testRaySphere(const RayData ray, const vec4 sphereCenter, const float radius, inout vec4 point) {
+  const vec4 dir = sphereCenter - ray.pos;
+
+  const float eSq = length2(dir);
+  const float a = dot(dir, ray.dir);
+  const float b = radius*radius - (eSq - a*a);
+
+  if (b < 0.0f) return false;
+
+  const float f = sqrt(abs(b));
+
+  const float t = eSq < radius*radius ? a + f : a - f;
+
+  point = ray.pos + ray.dir*t;
+  return true;
+}
+
+bool testRayTri(const RayData ray, const vec4 vert1, const vec4 vert2, const vec4 vert3, inout vec4 point) {
+  const vec4 v0v1 = vert2 - vert1;
+  const vec4 v0v2 = vert3 - vert1;
+  const vec4 pvec = vec4(cross(vec3(ray.dir.xyz), vec3(v0v2.xyz)), 0.0f);
+  const float invDet = 1.0f/dot(v0v1, pvec); // скорее всего этот det не совпадает с тем что я вычисляю от нормали и направления
+
+  const vec4 tvec = ray.pos - vert1;
+  const float u = dot(tvec, pvec) * invDet;
+  if (u < 0.0f || u > 1.0f) return false;
+
+  const vec4 qvec = vec4(cross(vec3(tvec.xyz), vec3(v0v1.xyz)), 0.0f);
+  const float v = dot(ray.dir, qvec) * invDet;
+  if (v < 0.0f || u + v > 1.0f) return false;
+
+  const float t = dot(v0v2, qvec) * invDet;
+
+  if (t < 0.0f) return false;
+
+  point = ray.pos + ray.dir * t;
+
+  return true;
+}
+
+// тут у меня начинаются проблемы, так как я решил запилить вместо обычного полигона
+// меш, да еще так что из него не понятно как расположены треугольники (мне это было не нужно)
+// что делать? в принципе обычные полигоны
+// (то есть плоские объекты с произвольным количеством точек) обрабатываются нормально
+// с другой стороны у меня есть фейсы (то есть просто нормали,
+// поидее этого должно быть достаточно для того чтобы чекнуть пересечение,
+// хотя и точку можно получить наверное), нет, просто фейсов с точками недостаточно
+// нужно понять где находится плоскость
+// вообще плоскости + 1 точка, должно быть достаточно чтоб узнать пересечение (для мешей)
+// для полигона плоскость и одна точка - недостаточно, но там понятно что к чему
+// кажется я нашел как можно сделать: http://adrianboeing.blogspot.com/2010/02/intersection-of-convex-hull-with-line.html
+bool testRayPoly(const RayData ray, const uint vertOffset, const uint vertSize, const uint faceSize, const vec4 pos, const mat4 orn, inout vec4 point) {
+  //const mat4 transform = mat4(1.0, 0.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 0.0, 1.0, 0.0,  pos.x, pos.y, pos.z, 1.0);
+  const vec4 dir = vec4(pos.xyz, 0.0f);
+
+  if (vertSize == faceSize) { // по идее это полигон
+    const float det = dot(vec4(vertices[vertOffset+vertSize+1].xyz, 0.0f), ray.dir);
+    if (abs(det) < EPSILON) return false;
+
+    // const vec4 refP = transform * orn * vertices[vertOffset];
+    const vec4 refP = orn * (dir + vertices[vertOffset]);
+    for (uint i = vertOffset+1; i < vertOffset+vertSize-1; ++i) {
+      // трансформа тут неправильно накладывается походу
+      const vec4 vert2 = orn * (dir + vertices[i]);
+      const vec4 vert3 = orn * (dir + vertices[i+1]);
+      if (testRayTri(ray, refP, vert2, vert3, point)) return true;
+    }
+
+    return false;
+  }
+
+  float tE = 0.0f;
+  float tL = 0.0f;
+  for (uint i = vertOffset+vertSize+1; i < vertOffset+vertSize+faceSize; ++i) {
+    const vec4 normal = orn * vec4(vertices[i].xyz, 0.0f);
+    // тут нужно получить вершину, СКОРЕЕ ВСЕГО любую которая лежит на плоскости
+    // судя по всему достаточно одной вершины которая лежит на плоскости
+    const vec4 vertex = vertices[vertOffset+floatBitsToUint(vertices[i].w)];
+    // трансформа тут неправильно накладывается походу
+    const vec4 oneNormalVertex = orn * (dir + vertex);
+    const float N = -dot(ray.pos - oneNormalVertex, normal);
+    const float D = dot(ray.dir, normal);
+
+    // параллельна ли данная нормаль направлению луча?
+    if (abs(D) < EPSILON) {
+      if (N < 0.0f) return false; // луч не может пересечь объект
+      else continue; // луч параллелен одной из плоскостей, но еще может пересечь объект
+    }
+
+    const float t = N / D;
+    // луч входит в объект минуя эту плоскость
+    if (D < 0.0f) {
+      tE = max(tE, t);
+      if (tE > tL) return false; // входим дальше чем выходим, объект не может быть пересечен
+    }
+    // луч выходит из объекта минуя эту плоскость
+    else if (D > 0.0f) {
+      tL = max(tL, t);
+      if (tL < tE) return false; // выходит раньше чем входит, объект не может быть пересечен
+    }
+  }
+
+  point = ray.pos + ray.dir*tE;
+  return true;
+
+  // как быть с полигонами? тип если vertSize+1 == faceSize то это полигон?
+  // может ли тут где нибудь быть мина?
+}
+
+bool intersect(const uint rayIndex, const uint objIndex, const uint transformIndex, inout vec4 point) {
+  const RayData ray = rays[rayIndex];
+  const Object3 object = objects[objIndex];
+  const vec4 pos = transformIndex != 0xFFFFFFFF ? transforms[transformIndex].pos : vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
+  switch(getObjType(object.objectInfo.w)) {
+    case BBOX:
+      const AABB box = {pos, vertices[object.objectInfo.x]};
+      return testRayBox(ray, box, systems[object.additionalData.x], point);
+    break;
+    case SPHERE:
+      return testRaySphere(ray, vec4(pos.xyz, 1.0f), pos.w, point);
+    break;
+    case POLYGON:
+      const mat4 orn = object.additionalData.z == 0xFFFFFFFF ?
+                         systems[object.additionalData.x] : rotationDatas[object.additionalData.z].matrix * systems[object.additionalData.x];
+      return testRayPoly(ray, object.objectInfo.x, object.objectInfo.y, object.objectInfo.z, pos, orn, point);
+    break;
+  }
+
+  return false;
+}

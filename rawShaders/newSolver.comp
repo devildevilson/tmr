@@ -1,0 +1,221 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "physic.h"
+#include "physicType.glsl"
+
+struct OverlappingData {
+  uvec4 pairData; // w == mtvAngle
+  vec4 mtvDist;
+
+  vec4 normals[2];
+  vec4 satAngleStair;
+  uvec4 stairsMoves;
+};
+
+layout(std140, set = 0, binding = 0) buffer Objects {
+  Object3 objects[];
+};
+
+layout(std140, set = 0, binding = 1) buffer readonly Vertices {
+  vec4 vertices[];
+};
+
+layout(std140, set = 0, binding = 2) buffer PhysicDatas {
+  PhysicData4 physicDatas[];
+};
+
+layout(std140, set = 0, binding = 3) buffer readonly ConstantsBuffer {
+  Constants constants[];
+};
+
+layout(std140, set = 0, binding = 4) buffer GlobalVels {
+  vec4 velocities[];
+};
+
+layout(std140, set = 1, binding = 0) buffer CoordinateSystem {
+  mat4 systems[];
+};
+
+layout(std140, set = 2, binding = 0) buffer Transforms {
+  Transform transforms[];
+};
+
+// layout(std140, set = 3, binding = 0) buffer readonly OutData {
+//   // x == pairCount, y == usefullPairs, z == onlyTriggerPairsOffset, w == onlyTriggerPairsCount
+//   uvec4 pairsCount;
+//   Pair pairs[];
+// };
+
+layout(std140, set = 3, binding = 0) buffer readonly IslandDatas {
+  uvec4 islandCount; // x == islandCount
+  IslandData islands[];
+};
+
+layout(std140, set = 4, binding = 0) buffer OverlappingDatas {
+  OverlappingData overlappingDatas[];
+};
+
+layout(set = 5, binding = 0) uniform AdditionalData {
+  vec4 gravity;
+  vec4 gravityNorm;
+  // x == length, y == length2
+  vec4 gravityLengths;
+  // x == objCount, y == time
+  uvec4 countsAndTime;
+} globalData;
+
+void clipVelocity(const vec4 clipNormal, const float bounce, inout vec4 vel);
+
+#define workGroupSize 64
+layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+  // здесь мы уже отталкиваемся от островов
+  const uint threadCount = gl_WorkGroupSize.x;
+
+  const uint passCount = (islandCount.x + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint islandIndex = i*threadCount + gl_LocalInvocationIndex;
+    if (islandIndex >= islandCount.x) continue;
+
+    for (uint j = 0; j < islands[islandIndex].data.z; ++j) {
+      const uint pairIndex = islands[islandIndex].data.y + j;
+      const OverlappingData data = overlappingDatas[pairIndex];
+
+      if (!bool(data.pairData.z)) continue;
+
+      const uint objIndex1 = data.pairData.x;
+      const uint objIndex2 = data.pairData.y;
+
+      const uint staticPhysDataIndex1 = objects[objIndex1].worldInfo.z;
+      const uint staticPhysDataIndex2 = objects[objIndex2].worldInfo.z;
+
+      const uint physDataIndex1 = floatBitsToUint(constants[staticPhysDataIndex1].data.w);
+      const uint physDataIndex2 = floatBitsToUint(constants[staticPhysDataIndex2].data.w);
+
+      const uint transformIndex1 = objects[objIndex1].worldInfo.w; //floatBitsToUint(datas[physDataIndex1].constants.z);
+      const uint transformIndex2 = objects[objIndex2].worldInfo.w; //floatBitsToUint(datas[physDataIndex2].constants.z);
+
+      // const bool wasOnGround1 = physDataIndex1 == 0xFFFFFFFF ? false : bool(datas[physDataIndex1].additionalData.w);
+      // const bool wasOnGround2 = physDataIndex2 == 0xFFFFFFFF ? false : bool(datas[physDataIndex2].additionalData.w);
+
+      const bool wasOnGround1 = physDataIndex1 == 0xFFFFFFFF ? false : bool(physicDatas[physDataIndex1].intIndices.w & 0x2);
+      const bool wasOnGround2 = physDataIndex2 == 0xFFFFFFFF ? false : bool(physicDatas[physDataIndex2].intIndices.w & 0x2);
+
+      if (uintBitsToFloat(data.pairData.w) < PI_Q) {
+        // это пол
+
+        // мы его должны запомнить и пометить что объект на полу сейчас
+        // по идее мы должны запомить индекс физдаты, но я хочу попробовать сократить количество данных
+        // нужных каждому объекту, поэтому лучше всего конечно использовать индекс
+        // Object'а, но мне нужно будет видимо кое-что переделать в предыдущих шагах
+
+        // запоминать мы будем в физдате? или лучше в обжектах?
+        // в обжекте тогда нужно дополнительные переменные вводить
+        // но это куда лучше чем тащить физдату + трансформу + инпут для каждого объекта
+        // как все же делать лифт? (по идее платформа + статик + скорость это и есть лифт)
+
+        // если мы попали сюда то значит А стоит на B
+        //if (physDataIndex1 != 0xFFFFFFFF) {
+          objects[objIndex1].additionalData.w = objIndex2;
+          physicDatas[physDataIndex1].extIndices.z = staticPhysDataIndex2; //physDataIndex2;
+          physicDatas[physDataIndex1].intIndices.w |= 0x1; // = uint(true);
+        //}
+      } else if (abs(uintBitsToFloat(data.pairData.w) - PI) < PI_Q) {
+        // здесь учтем вариант когда B стоит на A
+        //if (physDataIndex2 != 0xFFFFFFFF) {
+          objects[objIndex2].additionalData.w = objIndex1;
+          physicDatas[physDataIndex2].extIndices.z = staticPhysDataIndex1; //physDataIndex1;
+          physicDatas[physDataIndex2].intIndices.w |= 0x1; //uint(true);
+        //}
+      } else if ((wasOnGround1 || wasOnGround2) && abs(uintBitsToFloat(data.pairData.w) - PI_H) < PI_Q) {
+        // возможно мы попали в вариант со ступенькой
+        // const uint index = !bool(data.stairsMoves.x) ?
+        //   (!bool(data.stairsMoves.y) ?
+        //     (physicDatas[physDataIndex2].velocity.w < physicDatas[physDataIndex1].velocity.w ?
+        //       objIndex1 : objIndex2)
+        //     : objIndex2)
+        //   : objIndex1;
+        //
+        // const bool objStair1 = (objIndex1 == index) && wasOnGround1;
+        // const bool objStair2 = (objIndex2 == index) && wasOnGround2;
+        //
+        // // что-то из этого должно быть правдой в итоге
+        // // аккуратно с индексами нормалей и стаиров
+        // // transforms[transformIndex1].pos = objStair1 ?
+        // //   transforms[transformIndex1].pos + data.normals[1]*data.satAngleStair.z - vec4(data.mtvDist.xyz, 0.0f)*0.01f :
+        // //   transforms[transformIndex1].pos;
+        // //
+        // // transforms[transformIndex2].pos = objStair2 ?
+        // //   transforms[transformIndex2].pos + data.normals[0]*data.satAngleStair.w + vec4(data.mtvDist.xyz, 0.0f)*0.01f :
+        // //   transforms[transformIndex2].pos;
+        //
+        // if (objStair1) {
+        //   transforms[transformIndex1].pos += data.normals[1]*data.satAngleStair.z - vec4(data.mtvDist.xyz, 0.0f)*0.01f;
+        //   objects[objIndex1].additionalData.w = objIndex2;
+        //   physicDatas[physDataIndex1].extIndices.z = staticPhysDataIndex2; //physDataIndex2;
+        //   physicDatas[physDataIndex1].intIndices.w |= 0x1; //uint(true);
+        // }
+        //
+        // if (objStair2) {
+        //   transforms[transformIndex2].pos += data.normals[0]*data.satAngleStair.w + vec4(data.mtvDist.xyz, 0.0f)*0.01f;
+        //   objects[objIndex2].additionalData.w = objIndex1;
+        //   physicDatas[physDataIndex2].extIndices.z = staticPhysDataIndex1; //physDataIndex1;
+        //   physicDatas[physDataIndex2].intIndices.w |= 0x1; //uint(true);
+        // }
+        //
+        // if (objStair1 || objStair2) continue; // тут выходим если есть ступенька!
+      }
+
+      uint divider = 0;
+      divider += data.stairsMoves.z + data.stairsMoves.w;
+      if (divider == 0) continue;
+
+      //overlappingDatas[pairIndex].stairsMoves.x = 14919575;
+      // не работает солвер вообще
+      // нужно наверное дебажить его в cpp коде
+      // здесь я хз че делать
+
+      const float move = data.mtvDist.w / float(divider);
+
+      //transforms[transformIndex1].pos += vec4(data.mtvDist.xyz, 0.0f) * move * float(data.stairsMoves.z);
+      //transforms[transformIndex2].pos -= vec4(data.mtvDist.xyz, 0.0f) * move * float(data.stairsMoves.w);
+
+      //const float bounce = min(datas[physDataIndex1].constants.x, datas[physDataIndex2].constants.x);
+      const float bounce = min(constants[staticPhysDataIndex1].data.y, constants[staticPhysDataIndex2].data.y);
+      if (bool(data.stairsMoves.z)) {
+        transforms[transformIndex1].pos += vec4(data.mtvDist.xyz, 0.0f) * move;
+
+        vec4 vel1 = vec4(physicDatas[physDataIndex1].velocity.xyz, 0.0f);
+        vec4 vel1Global = velocities[physDataIndex1];
+
+        clipVelocity( vec4(data.mtvDist.xyz, 0.0f), bounce, vel1);
+        clipVelocity( vec4(data.mtvDist.xyz, 0.0f), bounce, vel1Global);
+
+        physicDatas[physDataIndex1].velocity.xyz = vel1.xyz;
+        velocities[physDataIndex1] = vel1Global;
+      }
+
+      if (bool(data.stairsMoves.w)) {
+        transforms[transformIndex2].pos -= vec4(data.mtvDist.xyz, 0.0f) * move;
+
+        vec4 vel2 = vec4(physicDatas[physDataIndex2].velocity.xyz, 0.0f);
+        vec4 vel2Global = velocities[physDataIndex2];
+
+        clipVelocity(-vec4(data.mtvDist.xyz, 0.0f), bounce, vel2);
+        clipVelocity(-vec4(data.mtvDist.xyz, 0.0f), bounce, vel2Global);
+
+        physicDatas[physDataIndex2].velocity.xyz = vel2.xyz;
+        velocities[physDataIndex2] = vel2Global;
+      }
+    }
+  }
+}
+
+void clipVelocity(const vec4 clipNormal, const float bounce, inout vec4 vel) {
+  const float backoff = dot(vel, clipNormal) * bounce;
+
+  vel = vel - clipNormal * backoff;
+}

@@ -1,0 +1,65 @@
+#version 450
+
+struct Pair {
+  // x == first, y == second, z == dist2, w == islandId
+  uvec4 data;
+};
+
+struct IndirectCommand {
+  uint x;
+  uint y;
+  uint z;
+};
+
+layout(std140, set = 0, binding = 0) buffer OutData {
+  uvec4 count;
+  Pair pairs[];
+};
+
+layout(std430, set = 1, binding = 0) buffer IndirectCommandBuffer {
+  IndirectCommand command;
+};
+
+layout (local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+  const uint threadCount = gl_WorkGroupSize.x;
+  barrier();
+
+  uint v = count.x; // compute the next highest power of 2 of 32-bit v
+  v--;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  v++;
+
+  barrier();
+
+  count.w = v;
+
+  const uint passCount2 = (v + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount2; ++i) {
+    const uint index = i * threadCount + count.x + gl_LocalInvocationIndex;
+    if (index >= v) continue;
+
+    pairs[index].data.x = 0xFFFFFFFF;
+    pairs[index].data.y = 0xFFFFFFFF;
+    pairs[index].data.z = 0;
+    pairs[index].data.w = 0xFFFFFFFF;
+  }
+
+  command.x = count.x;
+  command.y = 1;
+  command.z = 1;
+
+  if (count.x == 0) {
+    pairs[0].data.x = 0xFFFFFFFF;
+    pairs[0].data.y = 0xFFFFFFFF;
+    pairs[0].data.z = 0;
+    pairs[0].data.w = 0xFFFFFFFF;
+
+    command.x = 1;
+  }
+}

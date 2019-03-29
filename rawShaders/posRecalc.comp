@@ -1,0 +1,91 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "physic.h"
+
+#define MCS_TO_SEC(dt) float(dt) / 1000000.0f
+
+layout(std140, set = 0, binding = 0) buffer readonly Objects {
+  Object3 objects[];
+};
+
+layout(std140, set = 0, binding = 1) buffer readonly Vertices {
+  vec4 vertices[];
+};
+
+layout(std140, set = 0, binding = 2) buffer PhysicDatas {
+  PhysicData4 physicDatas[];
+};
+
+layout(std140, set = 0, binding = 3) buffer readonly ConstantsBuffer {
+  Constants constants[];
+};
+
+layout(std140, set = 0, binding = 4) buffer GlobalVels {
+  vec4 velocities[];
+};
+
+// layout(std140, set = 1, binding = 0) buffer CoordinateSystem {
+//   mat4 systems[];
+// };
+
+layout(std140, set = 1, binding = 0) buffer Transforms {
+  Transform transforms[];
+};
+
+layout(std430, set = 2, binding = 0) buffer ObjectIndicies {
+  uint objIndeciesCount;
+  uint objIndicies[];
+};
+
+layout(set = 3, binding = 0) uniform AdditionalData {
+  vec4 gravity;
+  vec4 gravityNorm;
+  // x == length, y == length2
+  vec4 gravityLengths;
+  // x == objCount, y == time
+  uvec4 countsAndTime;
+} globalData;
+
+layout(push_constant) uniform uPushConstant {
+  uint currentIteration;
+  uint iterationCount;
+} pc;
+
+#define workGroupSize 256
+layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+  const float koef = 1.0f / float(pc.iterationCount);
+  const uint threadCount = gl_WorkGroupSize.x*gl_WorkGroupSize.y*gl_WorkGroupSize.z;
+  const uint objCount = objIndeciesCount;
+
+  // все же сначало мы наверное пересчитаем позицию
+  const uint passCountObj = (objCount + threadCount - 1) / threadCount;
+  for (uint j = 0; j < passCountObj; ++j) {
+    const uint objIndex = j*threadCount + gl_LocalInvocationIndex;
+    if (objIndex >= objCount) continue;
+
+    const uint staticPhysDataIndex = objects[objIndicies[objIndex]].worldInfo.z;
+    const uint physDataIndex = floatBitsToUint(constants[staticPhysDataIndex].data.w);
+
+    if (physDataIndex == 0xFFFFFFFF) continue;
+
+    const uint transformIndex = physicDatas[physDataIndex].intIndices.y;
+    const float dt = MCS_TO_SEC(globalData.countsAndTime.y);
+
+    if (pc.currentIteration == 0) {
+      physicDatas[physDataIndex].intIndices.w = physicDatas[physDataIndex].intIndices.w | ((physicDatas[physDataIndex].intIndices.w & 0x1) << 1);
+      physicDatas[physDataIndex].intIndices.w &= 0x2;
+      transforms[transformIndex].pos = physicDatas[physDataIndex].oldPos;
+    }
+
+    // здесь мы перевычисляем позиции объектов
+    // нам нужна общая скорость (тип скорость объекта + скорость земли)
+    // по всей видимости тут нужен будет еще один буфер, где мы будем хранить скорость вычисленную еще в первом шаге
+    // скорости менять от столкновений нам придется видимо две
+    // куда поз сохранить? сразу в трансформы? или лучше в какой дополнительный буфер?
+    transforms[transformIndex].pos += koef * velocities[physDataIndex] * dt;
+  }
+}

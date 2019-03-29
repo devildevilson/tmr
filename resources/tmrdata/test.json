@@ -1,0 +1,13 @@
+{
+  "path": "textures/123.png",
+  "name": "monster_atlas",
+  "uv": {
+    "count": 35,
+    "rows": 5,
+    "columns": 7,
+    "size": {
+      "width": 128,
+      "height": 128
+    }
+  }
+}

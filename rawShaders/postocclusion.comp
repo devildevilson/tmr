@@ -1,0 +1,81 @@
+#version 450
+
+struct VkDrawIndexedIndirectCommand {
+  uint indexCount;
+  uint instanceCount;
+  uint firstIndex;
+  int  vertexOffset;
+  uint firstInstance;
+};
+
+struct VkDrawIndirectCommand {
+  uvec4 indirectCommand;
+  // uint vertexCount;
+  // uint instanceCount;
+  // uint firstVertex;
+  // uint firstInstance;
+};
+
+struct Vertex {
+  vec3 pos;
+  vec4 normal;
+  vec2 uv;
+};
+
+layout(std430, binding = 0) buffer readonly OcclusionData {
+  // x == geoCount, y == objects count
+  uvec4 counts;
+  uint tests[];
+};
+
+layout(std430, binding = 0) buffer readonly GeoData {
+  // x == offset, y == elemCount
+  uvec2 geoData;
+};
+
+layout(std430, binding = 0) buffer readonly Vertices {
+  Vertex vertices[];
+};
+
+layout(std430, binding = 0) buffer OutGeo {
+  VkDrawIndexedIndirectCommand outGeoCommands;
+};
+
+layout(std430, binding = 0) buffer OutGeoIdx {
+  uint indicies[];
+};
+
+layout(std140, binding = 0) buffer OutMonster {
+  VkDrawIndirectCommand outMonsterCommands;
+};
+
+#define WORKGROUP_SIZE 32
+layout (local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+  uint threadCount = WORKGROUP_SIZE;
+
+  outMonsterCommands.indirectCommand.x = 4;
+  outMonsterCommands.indirectCommand.y = 0; // изменяемо
+  outMonsterCommands.indirectCommand.z = 0;
+  outMonsterCommands.indirectCommand.w = 0;
+
+  outGeoCommands.indexCount = 0; // изменяемо
+  outGeoCommands.instanceCount = 1;
+  outGeoCommands.firstIndex = 0;
+  outGeoCommands.vertexOffset = 0;
+  outGeoCommands.firstInstance = 0;
+
+  barrier();
+
+  // uint passCount = (counts.x + threadCount - 1) / threadCount;
+  // for (uint i = 0; i < passCount; ++i) {
+  //   uint index = i * threadCount + gl_LocalInvocationIndex;
+  //   if (index > counts.x) continue;
+  //
+  //   if (tests[index] > 0) {
+  //     uint id = atomicAdd(outCount, 1);
+  //     outCommands[id] = commands[index];
+  //   }
+  // }
+}

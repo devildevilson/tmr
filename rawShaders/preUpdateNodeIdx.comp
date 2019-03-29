@@ -1,0 +1,35 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "physic.h"
+
+layout(std140, set = 0, binding = 0) buffer OctreeData {
+  NodeData nodeData[];
+};
+
+shared uint newOffset;
+
+// #define workGroupSize 64
+// layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+layout (local_size_x_id = 0) in;
+
+void main() {
+  const uint nodeIndex = gl_WorkGroupID.x;
+  const uint threadCountX = gl_WorkGroupSize.x;
+  newOffset = 0;
+
+  barrier();
+
+  const uint passCountOffset = (nodeIndex + threadCountX - 1) / threadCountX;
+  for (uint i = 0; i < passCountOffset; ++i) {
+    const uint index = i*threadCountX + gl_LocalInvocationIndex;
+    if (index >= nodeIndex) continue;
+
+    atomicAdd(newOffset, nodeData[index].data.x);
+  }
+
+  barrier();
+
+  nodeData[nodeIndex].data.y = newOffset;
+}

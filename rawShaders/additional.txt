@@ -1,0 +1,72 @@
+bool frustumLightTest(LightData light) {
+  vec4 pos = matrixes.view * vec4(light.posSqrR.xyz, 1.0);
+  float radius = (light.posSqrR.w / cutoff) / pos.w;
+
+  bool inFrustum = true;
+  for (uint i = 0; i < 4; ++i) {
+    float dist = dot(frustumPlanes[i], vec4(pos.xyz, 1.0));
+    inFrustum = inFrustum && (-radius <= dist);
+  }
+
+  return inFrustum;
+}
+
+vec2 tileScale = vec2(camera.dim.x, camera.dim.y) / vec2(2.0 * gl_WorkGroupSize.xy);
+vec2 tileBias = tileScale - vec2(gl_WorkGroupID.xy);
+
+vec4 col1 = vec4(-matrixes.projection[0][0] * tileScale.x,  matrixes.projection[0][1], tileBias.x, matrixes.projection[0][3]);
+vec4 col2 = vec4( matrixes.projection[1][0], -matrixes.projection[1][1] * tileScale.y, tileBias.y, matrixes.projection[1][3]);
+vec4 col4 = vec4( matrixes.projection[3][0],  matrixes.projection[3][1], -1.0, matrixes.projection[3][3]);
+
+frustumPlanes[0] = col4 + col1; // (-X)
+frustumPlanes[1] = col4 - col1; // (+X)
+frustumPlanes[2] = col4 - col2; // (-Y)
+frustumPlanes[3] = col4 + col2; // (+Y)
+frustumPlanes[4] = vec4(0.0, 0.0,  1.0, -minDepthZ);
+frustumPlanes[5] = vec4(0.0, 0.0, -1.0,  maxDepthZ);
+
+for (uint i = 0; i < 4; ++i) {
+  frustumPlanes[i] /= length(frustumPlanes[i].xyz);
+}
+
+bool sphereVSaabb(vec3 pos, float r, vec3 boxMax, vec3 boxMin) {
+  vec3 closest = closestPoint(pos, boxMax, boxMin);
+  float d = distance2(closest, pos);
+  return d <= r * r;
+}
+
+bool sphereVSaabb2(vec2 pos, float r, vec2 boxCenter, vec2 boxExtent) {
+  vec2 delta = max(vec2(0.0), abs(boxCenter - pos) - boxExtent);
+  float distSq = dot(delta, delta);
+  return distSq <= r * r;
+}
+
+
+bool overlap(float min1, float max1, float min2, float max2) {
+  float test1 = min1 - max2;
+  float test2 = min2 - max1;
+
+  return test1 < 0.0 && test2 < 0.0;
+}
+
+vec2 closestPoint(vec2 point, vec2 boxMax, vec2 boxMin) {
+  return max(boxMin, min(boxMax, point));
+}
+
+vec3 closestPoint(vec3 point, vec3 boxMax, vec3 boxMin) {
+  return max(boxMin, min(boxMax, point));
+}
+
+float distance2(vec2 A, vec2 B) {
+  vec2 vec = B - A;
+  return dot(vec, vec);
+}
+
+float distance2(vec3 A, vec3 B) {
+  vec3 vec = B - A;
+  return dot(vec, vec);
+}
+
+float length2(vec3 vec) {
+  return dot(vec, vec);
+}

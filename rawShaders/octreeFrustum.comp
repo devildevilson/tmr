@@ -1,0 +1,245 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#define OUTSIDE 0
+#define INSIDE 1
+#define INTERSECT 2
+
+#include "physic.h"
+#include "physicType.glsl"
+
+struct Frustum {
+  vec4 planes[6];
+};
+
+struct Proxy {
+  AABB box;
+  // x == group, y == filter, z == proxyIndex, w == objIndex
+  uvec4 proxyData;
+  // x == nodeIndex, y == containerIndex, z == objType
+  uvec4 octreeData;
+};
+
+layout(std140, set = 0, binding = 0) buffer readonly Proxies {
+  Proxy proxies[];
+};
+
+layout(std140, set = 1, binding = 0) buffer readonly OctreeData {
+  NodeData nodeData[];
+};
+
+layout(std430, set = 2, binding = 0) buffer readonly OctreeIndicies {
+  uint nodeIdx[];
+};
+
+layout(std140, set = 3, binding = 0) buffer readonly Frustums {
+  Frustum frustums[];
+};
+
+layout(std140, set = 4, binding = 0) buffer readonly FrustumPoses {
+  vec4 frustumPoses[];
+};
+
+layout(std140, set = 5, binding = 0) buffer OutData {
+  uvec4 count;
+  Pair pairs[];
+};
+
+layout(constant_id = 0) const uint octreeDepth = 5;
+layout(constant_id = 1) const uint currentOctreeDepthIndex = 2;
+layout(constant_id = 2) const uint nodesCountPreviousDepth = 9;
+const uint memSize = octreeDepth-(currentOctreeDepthIndex+1);
+shared uvec2 mem[memSize];
+
+#define workGroupSize 16
+layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+
+uint testFrustumAABB(const Frustum frustum, const AABB box);
+void addEveryObj(const uint mainNodeIndex, const uint depth, const uint frustumIndex, const vec4 frustumPos);
+void checkObjectsInNode(const uint nodeIndex, const uint frustumIndex, const Frustum frustum, const vec4 frustumPos);
+float distance2(const vec4 first, const vec4 second);
+
+void main() {
+  // тут мы считаем индекс нода на текущем уровне
+  // это по идее не просто сложение (?)
+  // это ПРОСТО сложение!
+
+  const uint nodeIndex = nodesCountPreviousDepth + gl_WorkGroupID.x;
+  const uint frustumIndex = gl_WorkGroupID.y;
+
+  const NodeData node = nodeData[nodeIndex];
+  const AABB nodeAABB = proxies[node.data.w].box;
+  const Frustum frustum = frustums[frustumIndex];
+  const vec4 frustumPos = frustumPoses[frustumIndex];
+
+  mem[0].x = 0;
+  mem[0].y = nodeIndex;
+  for (uint i = 1; i < memSize; ++i) {
+    mem[0] = uvec2(0, 0);
+  }
+
+  barrier();
+
+  // тут я считаю пересечение фрустума и нода, послечего все развивается по 3-ем сценариям
+  // 0 - я выхожу
+  // пересечение (2) - я нормально считаю каждого ребенка
+  // полностью входит - я просто добавляю всех в буфер
+  // возможно имеет смысл проверить так не 3 уровень, а 4
+  // а все ноды до этого проверить просто итеративно, посмотрим
+  uint ret = testFrustumAABB(frustum, nodeAABB);
+  if (ret == OUTSIDE) return;
+
+  if (ret == INSIDE) {
+    // просто добавляем ВСЕ объекты ВСЕХ детей
+    const uint depth = octreeDepth-(currentOctreeDepthIndex+1);
+    addEveryObj(nodeIndex, depth, frustumIndex, frustumPos);
+
+    return;
+  }
+
+  // дальше идет случай пересечения, когда мы нормально проверяем всех детей и их объекты на пересечение
+  barrier();
+
+  // здесь пройти основной нод
+  checkObjectsInNode(nodeIndex, frustumIndex, frustum, frustumPos);
+
+  //return;
+
+  barrier();
+
+  if (node.data.w == 0xFFFFFFFF) return;
+
+  uint counter = 0;
+  uint currentDepth = 0;
+  while (mem[0].x < 8 /*&& counter < 64*/) {
+    ++counter;
+
+    const uint childIndex = nodeData[mem[currentDepth].y].data.z;
+    if (childIndex == 0xFFFFFFFF) --currentDepth;
+
+    uint lastIndex = mem[currentDepth].x;
+    while (lastIndex < 8) {
+      const uint index = childIndex + lastIndex;
+      ++lastIndex;
+       // присваиваем мы в глобальную переменную
+       // но работать должно все стабильно
+       // так как для всех потоков мы получаем одинаковый результат
+      mem[currentDepth].x = lastIndex;
+      const AABB nodeAABB = proxies[nodeData[index].data.w].box;
+      ret = testFrustumAABB(frustum, nodeAABB);
+      //proccessNode(index, box, current.objectInfo.z);
+      if (ret > 0) {
+        ++currentDepth; // это локальная переменная
+        mem[currentDepth].x = 0;
+        mem[currentDepth].y = index;
+        break;
+      }
+    }
+
+    if (mem[currentDepth].x > 7) {
+      --currentDepth;
+
+      barrier();
+      continue;
+    }
+
+    // const uint currentNodeIndex = mem[currentDepth].y;
+    // if (ret == INSIDE) {
+    //   const uint depth = octreeDepth-(currentOctreeDepthIndex+currentDepth+1);
+    //   addEveryObj(currentNodeIndex, depth, frustumIndex, frustumPos);
+    //
+    //   barrier();
+    //   continue;
+    // }
+    //
+    // checkObjectsInNode(currentNodeIndex, frustumIndex, frustum, frustumPos);
+
+    // барьер тут все же необходим так как я не могу гарантировать одновременное выполнения последующего кода
+    barrier();
+  }
+}
+
+uint testFrustumAABB(const Frustum frustum, const AABB box) {
+  uint result = INSIDE; // Assume that the aabb will be inside the frustum
+  for(uint i = 0; i < 6; ++i) {
+    const vec4 frustumPlane = frustum.planes[i];
+
+    const float d = dot(box.center, vec4(frustumPlane.xyz, 0.0f));
+
+    const float r = dot(box.extent, abs(vec4(frustumPlane.xyz, 0.0f)));
+
+    const float d_p_r = d + r;
+    const float d_m_r = d - r;
+
+    if (d_p_r < -frustumPlane.w) {
+      result = OUTSIDE;
+      break;
+    } else if (d_m_r < -frustumPlane.w) result = INTERSECT;
+  }
+
+  return result;
+}
+
+void addEveryObj(const uint mainNodeIndex, const uint depth, const uint frustumIndex, const vec4 frustumPos) {
+  const uint threadCount = gl_WorkGroupSize.x;
+  uint nodeCount = 1;
+  for (uint i = 0; i < depth; ++i) {
+    NodeData data;
+    const uint passCount = (nodeCount + threadCount - 1) / threadCount;
+    for (uint j = 0; j < passCount; ++j) {
+      const uint index = j*threadCount + gl_LocalInvocationIndex;
+      if (index >= nodeCount) continue;
+
+      uint childIndex = index % 8;
+      NodeData data = nodeData[mainNodeIndex]; //nodes[node.data.w + childIndex];
+      for (uint k = 0; k < i; ++k) {
+        childIndex = (index >> k*3) % 8;
+        data = nodeData[data.data.w + childIndex];
+      }
+
+      for (uint k = 0; k < data.data.x; ++k) {
+        const uint proxyIndex = nodeIdx[data.data.y + k];
+        const Proxy proxy = proxies[proxyIndex];
+
+        const uint id = atomicAdd(count.x, 1);
+        pairs[id].data.x = frustumIndex;
+        pairs[id].data.y = proxy.proxyData.w;
+        const float dist = distance2(frustumPos, proxy.box.center);
+        pairs[id].data.z = floatBitsToUint(dist);
+        pairs[id].data.w = frustumIndex;
+      }
+    }
+
+    nodeCount *= 8;
+  }
+}
+
+void checkObjectsInNode(const uint nodeIndex, const uint frustumIndex, const Frustum frustum, const vec4 frustumPos) {
+  const uint threadCount = gl_WorkGroupSize.x;
+  const uint objCount = nodeData[nodeIndex].data.x;
+  const uint passCount = (objCount + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = threadCount*i + gl_LocalInvocationIndex.x;
+    if (index >= objCount) continue;
+
+    const uint proxyIndex = nodeIdx[nodeData[nodeIndex].data.y + index];
+    const Proxy proxy = proxies[proxyIndex];
+    const AABB box = proxy.box;
+
+    if (testFrustumAABB(frustum, box) > 0) {
+      uint id = atomicAdd(count.x, 1);
+
+      pairs[id].data.x = frustumIndex;
+      pairs[id].data.y = proxy.proxyData.w;
+      const float dist2 = distance2(frustumPos, box.center);
+      pairs[id].data.z = floatBitsToUint(dist2);
+      pairs[id].data.w = frustumIndex;
+    }
+  }
+}
+
+float distance2(const vec4 first, const vec4 second) {
+  const vec4 dir = second - first;
+  return dot(dir, dir);
+}

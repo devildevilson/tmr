@@ -1,0 +1,15 @@
+{
+  "name": "animation1",
+  "time": 300000,
+  "frames": [
+    "frame1.json",
+    "frame2.json",
+    "frame3.json",
+    "frame4.json"
+  ],
+  "scrolling_dir": {
+    "u": 0.032,
+    "v": 0.46
+  },
+  "scrolling_time": 300000
+}

@@ -1,0 +1,326 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+// #define BBOX 0
+// #define SPHERE 1
+// #define POLYGON 2
+//
+// #define STATIC 0
+// #define DYNAMIC 1
+//
+// #define COMPARE_WITH STATIC
+
+#define ONLY_TRIGGER_ID 0xFFFFFFFF-1
+
+#include "physic.h"
+//#include "functions.glsl"
+#include "physicType.glsl"
+
+struct IndexMemory {
+  // x == lastIndex, y == nodeIndex
+  uvec2 data;
+};
+
+struct Proxy {
+  AABB box;
+  // x == group, y == filter, z == proxyIndex, w == objIndex
+  uvec4 proxyData;
+  // x == nodeIndex, y == containerIndex, z == objType
+  uvec4 octreeData;
+};
+
+struct IndirectCommand {
+  uint x;
+  uint y;
+  uint z;
+};
+
+struct RayData {
+  vec4 pos;
+  vec4 dir;
+};
+
+// тут нужен буфер aabb вместо вершин
+// в нем мы храним aabb для всех объектов + aabb октодерева
+// также нужен шейдер для того чтобы их обновить
+// этот буфер будет работать ввиде MemoryPool'а
+layout(std140, set = 0, binding = 0) buffer readonly Proxies {
+  Proxy proxies[];
+};
+
+layout(std140, set = 1, binding = 0) buffer readonly OctreeData {
+  NodeData nodeData[];
+};
+
+layout(std430, set = 2, binding = 0) buffer readonly OctreeIndicies {
+  uint nodeIdx[];
+};
+
+layout(std140, set = 3, binding = 0) buffer readonly Rays {
+  RayData rays[];
+};
+
+layout(std140, set = 4, binding = 0) buffer OutData {
+  uvec4 count;
+  Pair pairs[];
+};
+
+// никакой shared памяти не хватит если держать стак октодерева глубины 6 и более
+// 5 == >4500  нодов
+// 6 == >16000 нодов
+// в принципе нужно еще попробовать стак для света такой же
+// его понятное дело нужно делать device local
+
+layout(constant_id = 0) const uint octreeDepth = 5;
+layout(constant_id = 1) const uint nodeCount = 4681;
+//const uint octreeDepth = 5;
+
+// по идее алгоритм способен работать и с большими значениями
+// нужно будет попробовать
+// тут можно еще поставить local_size_y например 10-12
+// и вычислять polyVSobb или obbVSobb и др
+#define workGroupSize 64
+layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+//layout (local_size_x_id = 2) in;
+
+// может ли быть этого недостаточно?
+// при глубине 6 количество нодов разгоняется аж до 37449,
+// в текущем виде такую глубину подсилам обработать только на cpu
+// с другой стороны если чекать коллизию прямо на месте
+// можно и на gpu попробовать, но не будет ли это слишком для гпу
+// хотя вся эта городьба уже слишком для гпу скорее всего
+
+// здесь все же скорее всего не потребуется такой огромный буфер
+// а сойдет что нибудь вроде 585? (8^0+8^1+8^2+8^3)
+// в общем все зависит от величины конечного объекта и величины карты
+// даже если объект пересечет на первом уровне все 8 нодов
+// то на втором скорее всего уже только 1
+// короче говоря если объекты будут меньше чем самый маленький нод в октодереве
+// можно вполне истользовать меньший буфер
+
+// поэтому наверное остановлюсь на shared буфере меньшего размера
+//#define memoryArraySize 512
+layout(constant_id = 3) const uint memoryArraySize = 512;
+shared uint globalObjCount;
+shared uint memOffset;
+shared uint stack[memoryArraySize];
+//shared uint outputOffset;
+
+// городьба для того чтобы чекать коллизию не прибегая к огромному буферу
+//shared IndexMemory mem[octreeDepth];
+//shared uint sharedBool[workGroupSize];
+// shared uint testNodeCount;
+//shared uint nodeIndex[8];
+//shared uint nodesCount1;
+
+//bool proccessNode(const Object inputObj, const AABB node);
+//bool testAABB(const AABB first, const AABB second);
+bool intersection(const AABB box, const RayData ray);
+//bool proccessNode(const uint nodeIndex, const OBB inputObj, const uint systemIndex);
+//bool testObj(const OBB inputObj, const uint systemIndex, const Object second, inout float dist2);
+float distance2(const vec4 first, const vec4 second);
+
+// это алгоритм нахождения коллизии для объектов AABB
+// тут можно кое-что поменять и тогда этот алгоритм будет успешно отрабатывать и OBB
+// в броадфазе будем обрабатывать кололизию только AABB
+// для этого нам потребуется еще один шейдер где мы перевычислим размеры
+
+void main() {
+  count.x = 0;
+  count.y = 0;
+  count.z = 0;
+  count.w = 0;
+  //count.w = gl_NumWorkGroups.x;
+  //atomicMax(count.w, gl_WorkGroupID.x);
+
+  memOffset = 1;
+  stack[0] = 0;
+
+  globalObjCount = nodeData[0].data.x;
+  // testNodeCount = 1;
+
+  const uint threadCount = gl_WorkGroupSize.x;
+  const uint currentIndex = gl_WorkGroupID.x;
+  //const uint currentProxyIndex = inputProxies[currentIndex];
+
+  if (gl_NumWorkGroups.x == 1 && floatBitsToUint(rays[0].pos.x) == 0xFFFFFFFF) return;
+
+  const RayData current = rays[currentIndex];
+  // const Object current = objects[inputObjs[currentIndex]];
+  // const AABB first = boxes[current.additionalData.w];
+
+  uint lastMemory = 0;
+  barrier();
+
+  // со стаком это выглядит примерно так
+  // еще пока не уверен как это работает
+  for (uint i = 1; i < octreeDepth; ++i) {
+    const uint currentOffset = memOffset;
+    const uint checkCount = (memOffset - lastMemory) * 8;
+
+    const uint passCount = (checkCount + threadCount - 1) / threadCount;
+    for (uint j = 0; j < passCount; ++j) {
+      const uint index = j * threadCount + gl_LocalInvocationIndex; // стандарный способ получить текущий поток
+      if (index >= checkCount) continue; // если индекс больше количества проверок, то выходим
+
+      const uint parentIndex = stack[index / 8 + lastMemory]; // делим на 8 чтоб получить индекс который мы сейчас будем обрабатывать
+      const uint childIndex = nodeData[parentIndex].data.z + index % 8; //nodesCount + (parentIndex - lastCount)*8
+      // общее число нодов (предыдущее) + (приводим к к форме [0;8^i)) текущий индекс нода на уровне + индекс потока
+      // это по идее должно работать с любым количеством потоков
+
+      const NodeData node = nodeData[childIndex];
+      const AABB nodeBox = proxies[node.data.w].box;// = nodes[childIndex];
+      if (intersection(nodeBox, current)) {
+        const uint id = atomicAdd(memOffset, 1);
+        stack[id] = childIndex;
+
+        const uint nodeObjCount = node.data.x;
+        atomicAdd(globalObjCount, nodeObjCount);
+
+        // atomicAdd(testNodeCount, 1);
+      }
+    }
+
+    //powerEight *= 8;
+    //lastCount = nodesCount;
+    //nodesCount += powerEight;
+    lastMemory = currentOffset;
+    barrier();
+  }
+
+  barrier();
+
+  //count.y = memOffset;
+  //atomicMax(count.y, memOffset);
+  //atomicMax(count.z, globalObjCount);
+
+  // это можно переписать к еще более параллельному виду
+  // только нужно ввести переменную с количеством объектов всего
+  uint stackIndex = 0;
+  uint objCount = nodeData[stack[stackIndex]].data.x;
+  // выносим каунт за цикл чтобы не пересчитывать его каждый раз
+  const uint passCount = (globalObjCount + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint threadIndex = i * threadCount + gl_LocalInvocationIndex;
+    if (threadIndex >= globalObjCount) continue;
+
+    uint nodeIndex = stack[stackIndex];
+    NodeData node = nodeData[nodeIndex];
+    //uint objCount = node.data.x;
+    while (objCount < threadIndex) {
+      ++stackIndex;
+      //if (stackIndex >= memoryOffset) break; // по идее это не должно произойти
+      nodeIndex = stack[stackIndex];
+      node = nodeData[nodeIndex];
+      objCount += node.data.x;
+    }
+
+    // на это обратить пристальное внимание
+    // (так же обратить внимание на эту -1)
+    // (threadIndex всегда <= objCount, а это значит 0 мы здесь не получим, а выйти за пределы - запросто)
+    const uint index = node.data.y + (objCount - threadIndex - 1);
+    //atomicMax(count.y, index);
+    const uint proxyIndex = nodeIdx[index];
+
+    const Proxy p = proxies[proxyIndex];
+
+    if (!canBlockRays(p.proxyData.z)) continue;
+
+    //if ((!isTrigger(p.proxyData.z)) && (!isBlocking(p.proxyData.z))) continue;
+
+    //const AABB second = boxes[objects[objectIndex].additionalData.w];
+    const AABB second = p.box;
+
+    if (intersection(second, current)) {
+      const uint id = atomicAdd(count.x, 1);
+
+      // тут наверное еще нужно расположить минимальный индекс первым
+      pairs[id].data.x = currentIndex;
+      pairs[id].data.y = p.proxyData.w;
+      // pairs[id].data.x = currentProxyIndex;
+      //pairs[id].data.y = proxyIndex;
+      const float dist2 = distance2(current.pos, second.center);
+      pairs[id].data.z = floatBitsToUint(dist2);
+      pairs[id].data.w = currentIndex;
+      //pairs[id].data.w = triggerOnly ? ONLY_TRIGGER_ID : nodeCount-min(current.octreeData.x, p.octreeData.x);
+
+      // здесь мы можем определить острова на основе местоположения в октодереве
+      // минимальный индекс нода как остров? (большая часть вычислений будет сосредоточена на верхних уровнях октодерева (в смысле на 1-2-3))
+      // максимальный? ()
+      // по идее максимальный индекс - это тот индекс который нужно использовать в случае мультитрединга
+      // возможно это будет самым идеальным вариантом
+      // что тогда делать с определением уникальных пар? у меня пока что получается O(n^2) (может чуть меньше, но все же)
+      // что будет происходить с производительностью когда пар будет 8к? или больше
+      // вообще такое количество пар не должно получаться вовсе (для количества объектов < 8к)
+      // так как во-первых объекты будут сильно разрежены, во вторых максимально будут пересекать скорее всего только 1-4 объектов
+      // чаще 1-2 объекта
+
+      // как определить триггер? один из объектов должен быть триггером
+      // некоторые объекты могут быть и триггерами и блокирующими
+      // наличие триггера я наверное буду определять вне шейдеров
+      // здесь мне надо как то пометить вещи которые не блокируют объекты
+      // у меня в принципе еще осталось место в переменной типа
+      // выглядеть это будет так, от младшего бита к старшему:
+      // динамический ли объект (1 бит), тип объекта (3 бита?), блокирующий объект (1 бит), объект-триггер (1 бит)
+      // всего пока использовано 6 бит
+      // что делать если не указан ни пятый ни шестой биты? игнорировать? в каком случае мне может это пригодиться? ЭТО СВЕТ!!!
+      // какие то специальные объекты? + ко всему мне возможно пригодится специальный бит видимости для фрустум проверок
+      // + так же возможно бит блокирования лучей (для рейтрейсинга)
+      // теперь использую всего 8 бит
+    }
+  }
+
+  barrier();
+
+  uint v = count.x; // compute the next highest power of 2 of 32-bit v
+  v--;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  v++;
+
+  barrier();
+
+  // возможно пары с лучами сортировать не придется
+  count.w = v;
+
+  const uint passCount2 = (v + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount2; ++i) {
+    const uint index = i * threadCount + count.x + gl_LocalInvocationIndex;
+    if (index >= v) continue;
+
+    pairs[index].data.x = 0xFFFFFFFF;
+    pairs[index].data.y = 0xFFFFFFFF;
+    pairs[index].data.z = 0;
+    pairs[index].data.w = 0xFFFFFFFF;
+  }
+}
+
+bool intersection(const AABB box, const RayData ray) {
+  const vec4 boxMin = box.center - box.extent;
+  const vec4 boxMax = box.center + box.extent;
+
+  float t1 = (boxMin[0] - ray.dir[0])/ray.dir[0];
+  float t2 = (boxMax[0] - ray.dir[0])/ray.dir[0];
+
+  float tmin = min(t1, t2);
+  float tmax = max(t1, t2);
+
+  for (int i = 1; i < 3; ++i) {
+    t1 = (boxMin[i] - ray.dir[i])/ray.dir[i];
+    t2 = (boxMax[i] - ray.dir[i])/ray.dir[i];
+
+    tmin = max(tmin, min(t1, t2));
+    tmax = min(tmax, max(t1, t2));
+  }
+
+  return tmax > max(tmin, 0.0f);
+}
+
+float distance2(const vec4 first, const vec4 second) {
+  const vec4 dir = second - first;
+  return dot(dir, dir);
+}

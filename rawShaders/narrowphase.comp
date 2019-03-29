@@ -1,0 +1,521 @@
+#version 450
+
+#define BBOX 0
+#define SPHERE 1
+#define POLYGON 2
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "physic.h"
+#include "functions.glsl"
+
+// #define EPSILON 0.000001f
+// #define PI   3.1415926535897932384626433832795
+// #define PI_2 6.28318530717958647693
+// #define PI_H 1.57079632679489661923
+// #define PI_Q 0.78539816339744830962
+//
+// struct AABB {
+//   vec4 center;
+//   vec4 extent;
+// };
+//
+// struct OBB {
+//   AABB volume;
+//   mat4 orientation;
+// };
+//
+// struct PhysicData {
+//   vec4 acceleration;
+//   vec4 velocity;
+//   vec4 oldPos;
+//   vec4 newPos;
+//   vec4 dir;
+//   vec4 additionalForce;
+//   // x == maxSpeed, y == groundFriction, z == airFriction, w == velocityScalar (айр фриктион наверное не понадобится)
+//   vec4 additionalData;
+//   // x == isOnGround, y == inputIndex, z == groundIndex, w == blockingIndex
+//   uvec4 constants;
+// };
+//
+// struct Object {
+//   // x == entityId, y == objectId, z == objectType, w == physicDataIndex
+//   uvec4 worldInfo;
+//   // x == vertexOffset, y == vertexSize, z == coordinateSystemIndex, w == staticOrDynamic
+//   uvec4 objectInfo;
+//   // x == staticCollisionCount, y == dynamicCollisionCount, z == wasOnGround
+//   uvec4 additionalData;
+//   // x == nodeIndex, y == containerIndex
+//   uvec4 nodePos;
+// };
+//
+// struct Data {
+//   vec4 mtv;
+//   float dist;
+// };
+//
+// struct Pair {
+//   // x == first, y == second, z == dist2, w == islandId
+//   uvec4 data;
+// };
+//
+// struct IslandData {
+//   // x == islandId, y == offset, z == size
+//   uvec4 data;
+// };
+
+layout(std140, set = 0, binding = 0) buffer Vertices {
+  vec4 vertices[];
+};
+
+layout(std140, set = 0, binding = 0) buffer PhysicDatas {
+  PhysicData physicDatas[];
+};
+
+layout(std140, set = 0, binding = 0) buffer Objects {
+  Object objects[];
+};
+
+layout(std140, set = 0, binding = 0) buffer readonly CoordinateSystem {
+  mat4 systems[];
+};
+
+layout(std140, set = 0, binding = 0) buffer readonly Pairs {
+  uvec4 pairsCount;
+  Pair pairs[];
+};
+
+// layout(std140, set = 0, binding = 0) buffer readonly IslandDatas {
+//   uvec4 islandCount; // x == islandCount
+//   IslandData islands[];
+// };
+
+layout(set = 0, binding = 9) uniform AdditionalData {
+  vec4 gravity;
+  vec4 gravityNorm;
+  // x == length, y == length2
+  vec4 gravityLengths;
+  // x == objCount, y == time
+  uvec4 countsAndTime;
+} globalData;
+
+#define workGroupSize 64
+#define threadInWorkGroup 10
+//layout(constant_id = 1) const uint workGroupSize = 8;
+layout (local_size_x = workGroupSize, local_size_y = threadInWorkGroup, local_size_z = 1) in;
+
+shared vec4 sharedMtv[workGroupSize];
+shared uint sharedDist[workGroupSize];
+shared uint sharedBool[workGroupSize];
+shared uint maxIslandSize;
+
+bool SAT(const Object first, const Object second, inout vec4 mtv, inout uint dist);
+float SATOneAxis(const Object first, const Object second, const vec4 axis);
+float angleVecGrav(const vec4 vec);
+void clipVelocity(const vec4 clipNormal, const float overbounce, inout vec4 vel);
+
+void main() {
+  // тут нужно узнать максимальный размер острова
+  // и тут мы уже распараллеливаем внутри острова
+  const uint pairsSize = pairsCount.x;
+  maxIslandSize = 0;
+  barrier();
+
+  // const uint allThread = gl_WorkGroupSize.x*gl_WorkGroupSize.y*gl_WorkGroupSize.z;
+  // const uint passSize = (islandCount + allThread - 1) / allThread;
+  // for (uint i = 0; i < passSize; ++i) {
+  //   const uint index = i *allThread + gl_LocalInvocationIndex;
+  //   if (index >= islandCount) continue;
+  //   atomicMax(maxIslandSize, islands[index].data.z);
+  // }
+  // barrier();
+
+  const uint threadCount = gl_WorkGroupSize.x;
+  const uint passCount = (pairsSize + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i * threadCount + gl_LocalInvocationID.x;
+    bool fakePair = index >= pairsSize;
+
+    bool col;
+    const uint pairIndex = fakePair ? 0 : index;
+    const Pair p = pairs[pairIndex];
+
+    const Object first = objects[fakePair ? 0 : p.data.x];
+    const Object second = objects[fakePair ? 0 : p.data.y];
+
+    vec4 mtv;
+    uint dist;
+    // sat нам может вернуть все в shared переменные
+    // нам нужно только правильно применить один раз барьер
+    // причем в таком месте в который должны попасть все потоки
+    // часть потоков здесь будет работать в холостую
+    if (!fakePair) SAT(first, second, mtv, dist); // переделать (вроде переделал)
+
+    // слишком много барьеров или нет?
+    barrier();
+    col = bool(sharedBool[gl_LocalInvocationID.x]);
+    if (dist == sharedDist[gl_LocalInvocationID.x]) sharedMtv[gl_LocalInvocationID.x] = mtv;
+    barrier();
+    mtv = sharedMtv[gl_LocalInvocationID.x];
+    float distFloat = uintBitsToFloat(sharedDist[gl_LocalInvocationID.x]);
+
+    if (!fakePair && col) {
+      if (gl_LocalInvocationID.y == 0) {
+        // только один раз
+        const uint objectIndex = p.data.x;
+        const uint physIndex = objects[p.data.x].worldInfo.w;
+        const PhysicData phys = physicDatas[physIndex];
+        // нормал только для плоскостей
+        const vec4 normal = second.worldInfo.z == POLYGON ? vertices[second.objectInfo.x + second.objectInfo.y - 2] : globalData.gravityNorm;
+        // wasOnGround = isOnGround
+        // мы должны это сделать перед непосредственно проверкой!!!
+        //objects[p.data.x].additionalData.z = phys.constants.x;
+        const bool wasOnGround = bool(objects[p.data.x].additionalData.z);
+        bool stair = false;
+
+        //float planeAngle; // здесь наверное специально вычислять угол не потребуется
+        const float angle = angleVecGrav(-mtv);
+        if (angle < PI_Q) {
+          // тут надо запомнить индекс плоскости
+          physicDatas[physIndex].constants.x = uint(true);
+          physicDatas[physIndex].constants.z = second.worldInfo.y;
+        } else if (wasOnGround && abs(angle - PI_H) < PI_Q) {
+          // это ступенька
+          // здесь нам надо определить подъем
+          // и применить новые координаты
+          // определяю подъем как в cpp
+          // нужно будет потом подумать о том как все же сделать подъем вертикальным
+          const float distStair = SATOneAxis(first, second, normal);
+          if (distStair < (1.0f - EPSILON)) { // 1.0f уходит в физические константы
+            vec4 pos = phys.oldPos + normal*distStair - mtv*0.01f;
+            physicDatas[physIndex].oldPos = pos;
+
+            // запоминаем индекс плоскости
+            physicDatas[physIndex].constants.x = uint(true);
+            physicDatas[physIndex].constants.z = second.worldInfo.y;
+          }
+          stair = true;
+        }
+
+        if (!stair && dist > EPSILON) {
+          // применяем позицию
+          // здесь не нужен наверн отдельные oldPos и newPos
+          vec4 pos = phys.oldPos + mtv*distFloat;
+          physicDatas[physIndex].oldPos = pos;
+          // 1.0f этот наверное уйдет в какие нибудь физические константы объекта как мера упругости объекта
+          // или в физические константы плоскости
+          clipVelocity(mtv, 1.0f, physicDatas[physIndex].velocity);
+        }
+
+        // и все для одной пары
+      }
+    }
+
+    sharedDist[gl_LocalInvocationID.x] = 0xFFFFFFFF;
+    sharedBool[gl_LocalInvocationID.x] = 1;
+    barrier();
+  }
+
+  // ну и все
+  // сейчас у меня получилось вперемешку код для статиков и динамиков
+  //
+}
+
+void project(const vec4 axis, const uint offset, const uint size, inout float minRet, inout float maxRet);
+// void project(const vec4 axis, const OBB box, inout float minRet, inout float maxRet);
+// void project(const vec4 axis, const vec4 sphere, inout float minRet, inout float maxRet);
+
+float SATOneAxis(const Object first, const Object second, const vec4 axis) {
+  float min1 = 0.0f, max1 = 0.0f, min2 = 0.0f, max2 = 0.0f;
+
+  switch(first.worldInfo.z) {
+    case BBOX:
+      const OBB box = {{vertices[first.objectInfo.x], vertices[first.objectInfo.y]}, systems[first.objectInfo.z]};
+      project(axis, box, min1, max1);
+    break;
+    case SPHERE:
+      const vec4 sphere = vertices[first.objectInfo.x];
+      project(axis, sphere, min1, max1);
+    break;
+    case POLYGON:
+      project(axis, first.objectInfo.x, first.objectInfo.y, min1, max1);
+    break;
+    default:
+      return 10000.0f;
+  }
+
+  switch(second.worldInfo.z) {
+    case BBOX:
+      const OBB box = {{vertices[second.objectInfo.x], vertices[second.objectInfo.y]}, systems[second.objectInfo.z]};
+      project(axis, box, min2, max2);
+    break;
+    case SPHERE:
+      const vec4 sphere = vertices[second.objectInfo.x];
+      project(axis, sphere, min2, max2);
+    break;
+    case POLYGON:
+      project(axis, second.objectInfo.x, second.objectInfo.y, min2, max2);
+    break;
+    default:
+      return 10000.0f;
+  }
+
+  const float test1 = min1 - max2;
+  const float test2 = min2 - max1;
+
+  if (test1 > 0.0f || test2 > 0.0f) return 10000.0f;
+
+  return min(abs(test1), abs(test2));
+}
+
+bool OBBSAT(const OBB first, const OBB second, inout vec4 mtv, inout float dist);
+bool OBBSphereSAT(const OBB first, const vec4 second, inout vec4 mtv, inout float dist);
+bool OBBPolySAT(const OBB first, const Object second, inout vec4 mtv, inout float dist);
+
+bool SAT(const Object first, const Object second, inout vec4 mtv, inout uint dist) {
+  bool test = true;
+  vec4 mtvLocal;
+  float distLocal;
+  const OBB box1 = {{vertices[first.objectInfo.x], vertices[first.objectInfo.x+1]}, systems[first.objectInfo.z]};
+
+  switch(second.worldInfo.z) {
+    case BBOX:
+      const OBB box2 = {{vertices[second.objectInfo.x], vertices[second.objectInfo.x+1]}, systems[second.objectInfo.z]};
+
+      test = OBBSAT(box1, box2, mtvLocal, distLocal);
+    break;
+    case SPHERE:
+      const vec4 sphere = vertices[second.objectInfo.x];
+      test = OBBSphereSAT(box1, sphere, mtvLocal, distLocal);
+    break;
+    case POLYGON:
+      test = OBBPolySAT(box1, second, mtvLocal, distLocal);
+    break;
+    default:
+      test = false;
+  }
+
+  uint distUint = floatBitsToUint(distLocal);
+  atomicAnd(sharedBool[gl_LocalInvocationID.x], uint(test));
+  atomicMin(sharedDist[gl_LocalInvocationID.x], distUint);
+  // barrier();
+  // if (distUint == sharedDist[gl_LocalInvocationID.x]) sharedMtv[gl_LocalInvocationID.x] = mtvLocal;
+  // barrier();
+  // dist = uintBitsToFloat(sharedDist[gl_LocalInvocationID.x]);
+  // mtv = sharedMtv[gl_LocalInvocationID.x];
+  dist = distUint;
+  mtv = mtvLocal;
+
+  return bool(sharedBool[gl_LocalInvocationID.x]);
+}
+
+// vec4 getBoxPoint(const AABB box, const uint i);
+// vec4 getVertex(const OBB box, const uint index);
+void project(const vec4 axis, const uint offset, const uint size, inout float minRet, inout float maxRet) {
+  minRet = maxRet = dot(vertices[offset], axis);
+
+  for (uint i = 1; i < size; ++i) {
+    const vec4 vert = vertices[offset + i];
+    const float d = dot(vert, axis);
+
+    minRet = min(minRet, d);
+    maxRet = max(maxRet, d);
+  }
+}
+
+// void project(const vec4 axis, const OBB box, inout float minRet, inout float maxRet) {
+//   minRet = maxRet = dot(getVertex(box, 0), axis);
+//
+//   for (uint i = 1; i < 8; ++i) {
+//     const float d = dot(getVertex(box, i), axis);
+//
+//     minRet = min(minRet, d);
+//     maxRet = max(maxRet, d);
+//   }
+// }
+//
+// void project(const vec4 axis, const vec4 sphere, inout float minRet, inout float maxRet) {
+//   minRet = maxRet = dot(vec4(sphere.xyz, 1.0f), axis);
+//   minRet -= sphere.w;
+//   maxRet += sphere.w;
+// }
+//
+// void project(const vec4 axis, const AABB box, inout float minRet, inout float maxRet) {
+//   minRet = maxRet = dot(getBoxPoint(box, 0), axis);
+//
+//   for (uint i = 1; i < 8; ++i) {
+//     const float p = dot(getBoxPoint(box, i), axis);
+//
+//     minRet = min(minRet, p);
+//     maxRet = max(maxRet, p);
+//   }
+// }
+
+// что делать с коллинеарными гранями?
+uint getOBBSupportPoints(const OBB box, const vec4 vector, inout vec4 support[2]) {
+  uint count = 0;
+  float mind = dot(vector, getVertex(box, 0));
+  for (uint i = 1; i < 8; ++i) {
+    const float d = dot(vector, getVertex(box, i));
+    mind = min(mind, d);
+  }
+
+  for (uint i = 0; i < 8; ++i) {
+    const vec4 vertex = getVertex(box, i);
+    const float d = dot(vector, vertex);
+
+    if (d < (mind + EPSILON)) {
+      support[count] = vertex;
+      ++count;
+      if (count > 1) return count;
+    }
+  }
+
+  return count;
+}
+
+// vec4 getVertex(const OBB box, const uint index) {
+//   vec4 p = box.volume.center;
+//   p = (index & 1) > 0 ? p + box.orientation[0]*box.volume.extent.x : p - box.orientation[0]*box.volume.extent.x;
+//   p = (index & 2) > 0 ? p + box.orientation[0]*box.volume.extent.y : p - box.orientation[0]*box.volume.extent.y;
+//   p = (index & 4) > 0 ? p + box.orientation[0]*box.volume.extent.z : p - box.orientation[0]*box.volume.extent.z;
+//   p.w = 1.0f;
+//
+//   return p;
+// }
+//
+// vec4 getBoxPoint(const AABB box, const uint i) {
+//   vec4 p;
+//
+//   p.x = (i & 1) > 0 ? box.center.x + box.extent.x : box.center.x - box.extent.x;
+//   p.y = (i & 2) > 0 ? box.center.y + box.extent.y : box.center.y - box.extent.y;
+//   p.z = (i & 4) > 0 ? box.center.z + box.extent.z : box.center.z - box.extent.z;
+//   p.w = 1.0f;
+//
+//   return p;
+// }
+
+// vec4 getClosestPointToEdge(const vec4 A, const vec4 B, const vec4 point) {
+//   vec4 AB = B - A;
+//   vec4 AP = point - A;
+//   float ab_ab = dot(AB, AB);
+//   float ab_ap = dot(AB, AP);
+//   float t = ab_ap / ab_ab;
+//   t = clamp(t, 0.0f, 1.0f);
+//
+//   return A + t * AB;
+// }
+//
+// bool overlap(const float min1, const float max1, const float min2, const float max2, const vec4 axis, inout float dist, inout vec4 mtv) {
+//   const float test1 = min1 - max2;
+//   const float test2 = min2 - max1;
+//
+//   const float d = min(abs(test1), abs(test2));
+//   const float half1 = (min1 + max1) / 2.0f;
+//   const float half2 = (min2 + max2) / 2.0f;
+//   mtv = half1 < half2 ? axis : -axis;
+//   dist = d;
+//
+//   return test1 < 0.0f && test2 < 0.0f;
+// }
+
+vec4 getAxisOBB(const OBB first, const OBB second);
+vec4 getAxisOBBSphere(const OBB first, const vec4 second);
+vec4 getAxisOBBPoly(const OBB first, const Object second, const uint index);
+
+bool OBBSAT(const OBB first, const OBB second, inout vec4 mtv, inout float dist) {
+  const vec4 axis = getAxisOBB(first, second);
+
+  float min1 = 0.0f, max1 = 0.0f, min2 = 0.0f, max2 = 0.0f;
+
+  project(axis, first, min1, max1);
+  project(axis, second, min2, max2);
+
+  return overlap(min1, max1, min2, max2, axis, dist, mtv);
+}
+
+bool OBBSphereSAT(const OBB first, const vec4 second, inout vec4 mtv, inout float dist) {
+  const vec4 axis = getAxisOBBSphere(first, second); // normalize(vec4(second.xyz - first.volume.center.xyz, 0.0f));
+
+  float min1 = 0.0f, max1 = 0.0f, min2 = 0.0f, max2 = 0.0f;
+
+  project(axis, first, min1, max1);
+  project(axis, second, min2, max2);
+
+  return overlap(min1, max1, min2, max2, axis, dist, mtv);
+}
+
+bool OBBPolySAT(const OBB first, const Object second, inout vec4 mtv, inout float dist) {
+  const uint count = 3 + second.objectInfo.y - 1;
+  const uint passCount = (count + gl_WorkGroupSize.y - 1) / gl_WorkGroupSize.y;
+  bool ret = true;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i * gl_WorkGroupSize.y + gl_LocalInvocationID.y;
+    if (index >= count) continue;
+
+    const vec4 axis = getAxisOBBPoly(first, second, index);
+
+    float min1 = 0.0f, max1 = 0.0f, min2 = 0.0f, max2 = 0.0f;
+
+    project(axis, first, min1, max1);
+    project(axis, second.objectInfo.x, second.objectInfo.y, min2, max2);
+
+    ret = ret && overlap(min1, max1, min2, max2, axis, dist, mtv);
+  }
+
+  return ret;
+}
+
+vec4 getAxisOBB(const OBB first, const OBB second) {
+  const uint index = gl_LocalInvocationID.y % 6;
+
+  vec4 axis = index < 3 ? first.orientation[index] : second.orientation[index];
+
+  return axis;
+}
+
+vec4 getAxisOBBSphere(const OBB first, const vec4 second) {
+  const uint index = gl_LocalInvocationID.y % 4;
+  const vec4 dir = vec4(second.xyz - first.volume.center.xyz, 0.0f);
+
+  vec4 axis = index < 3 ? first.orientation[index] : normalize(dir);
+
+  return axis;
+}
+
+vec4 getAxisOBBPoly(const OBB first, const Object second, const uint index) {
+  const uint polyVertCount = second.objectInfo.y;
+  const uint polyAxisCount = polyVertCount - 1;
+  const uint polyPointCount = polyVertCount - 2;
+  const uint polyNormalIndex = polyVertCount - 2;
+  const uint axisIndex = index % (3 + polyAxisCount);
+
+  if (axisIndex < 3) return first.orientation[index];
+  if (axisIndex == 3 + polyNormalIndex) return vertices[second.objectInfo.x + polyNormalIndex];
+
+  const uint count = polyPointCount;
+  const uint vertIndex1 = axisIndex - 3;
+  const uint vertIndex2 = (vertIndex1 + 1) % count;
+
+  const vec4 normal = vertices[second.objectInfo.x + polyNormalIndex];
+  const vec4 vert1 = vertices[second.objectInfo.x + vertIndex1];
+  const vec4 vert2 = vertices[second.objectInfo.x + vertIndex2];
+  const vec4 edge = vert2 - vert1;
+  //return vec4(cross(vert1.xyz, vert2.xyz), 0.0f);
+  return normalize(vec4(cross(edge.xyz, normal.xyz), 0.0f));
+}
+
+// float length2(const vec4 vec) {
+//   return dot(vec, vec);
+// }
+
+float angleVecGrav(const vec4 vec) {
+  const float d = dot(vec, globalData.gravity);
+  const float legthSq = length2(vec);
+  return acos(d / sqrt(legthSq * globalData.gravityLengths.y));
+}
+
+// void clipVelocity(const vec4 clipNormal, const float overbounce, inout vec4 vel) {
+//   float backoff = dot(vel, clipNormal) * overbounce;
+//   vel = vel - clipNormal * backoff;
+// }

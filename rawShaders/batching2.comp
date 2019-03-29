@@ -1,0 +1,68 @@
+#version 450
+
+#define ONLY_TRIGGER_ID 0xFFFFFFFF-1
+
+struct Pair {
+  // x == first, y == second, z == dist2, w == islandId
+  uvec4 data;
+};
+
+layout(std140, set = 0, binding = 0) buffer OutData {
+  // x == pairCount, y == usefullPairs, z == onlyTriggerPairsOffset, w == onlyTriggerPairsCount
+  uvec4 pairsCount;
+  Pair pairs[];
+};
+
+shared uint batchIndex;
+shared uint batchIndex1;
+
+// #define workGroupSize 16
+// layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+layout (local_size_x_id = 0) in;
+
+void main() {
+  batchIndex = 0;
+  batchIndex1 = 0;
+  pairsCount.y = 0;
+  pairsCount.z = 0;
+  const uint threadCount = gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z;
+
+  if (gl_NumWorkGroups.x == 1 && pairs[0].data.x == 0xFFFFFFFF) return;
+
+  const uint pairIndex = gl_WorkGroupID.x;
+  const Pair pair = pairs[pairIndex];
+  barrier();
+
+  if (pair.data.w == 0xFFFFFFFF) return;
+  if (pair.data.w == ONLY_TRIGGER_ID) {
+    if (gl_LocalInvocationIndex == 0) atomicAdd(pairsCount.z, 1);
+    return;
+  }
+
+  barrier();
+
+  const uint passCount = (pairIndex + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i*threadCount + gl_LocalInvocationIndex;
+    if (index >= pairIndex) continue;
+
+    const bool samePair = (pair.data.x == pairs[index].data.x && pair.data.y == pairs[index].data.y) ||
+                          (pair.data.x == pairs[index].data.y && pair.data.y == pairs[index].data.x);
+
+    if (samePair) {
+      batchIndex1 = 0xFFFFFFFF;
+      break;
+    }
+
+    const bool var = pair.data.x == pairs[index].data.x || pair.data.x == pairs[index].data.y || pair.data.y == pairs[index].data.y;
+    atomicAdd(batchIndex, uint(var));
+  }
+
+  barrier();
+  pairs[pairIndex].data.w = batchIndex1;
+  barrier();
+  atomicMax(pairs[pairIndex].data.w, batchIndex);
+  barrier();
+
+  if (gl_LocalInvocationIndex == 0 && pairs[pairIndex].data.w < ONLY_TRIGGER_ID) atomicAdd(pairsCount.y, 1);
+}

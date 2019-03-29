@@ -1,0 +1,242 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "physic.h"
+//#include "functions.glsl"
+#include "physicType.glsl"
+
+//#define DYNAMIC 0x1
+
+struct Proxy {
+  AABB box;
+  // x == group, y == filter, z == objType, w == objIndex
+  uvec4 proxyData;
+  // x == nodeIndex, y == containerIndex, z == objType
+  uvec4 octreeData;
+};
+
+struct VkDispatchIndirectCommand {
+  uint x;
+  uint y;
+  uint z;
+};
+
+layout(std140, set = 0, binding = 0) buffer readonly OctreeData {
+  NodeData nodeData[];
+};
+
+layout(std140, set = 1, binding = 0) buffer Changes {
+  uvec4 count;
+  // x == deleteFromNode, y == indexInNode, z == addToNode, w == objectIndex
+  uvec4 changes[];
+};
+
+layout(std140, set = 2, binding = 0) buffer readonly Proxies {
+  Proxy proxies[];
+};
+
+layout(std430, set = 3, binding = 0) buffer readonly InData {
+  uint inCount;
+  uint inputProxies[];
+};
+
+layout(std430, set = 4, binding = 0) buffer OutData {
+  uint outCount;
+  uint outProxies[];
+};
+
+layout(std430, set = 5, binding = 0) buffer IndirectCommand {
+  VkDispatchIndirectCommand command;
+};
+
+bool AABBinAABB(const AABB first, const AABB second);
+//bool PolyinAABB();
+//bool ObjinNode(const Object obj, const uint nodeIndex);
+
+// #define workGroupSize 128
+// layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+layout (local_size_x_id = 0) in;
+
+void main() {
+  command.x = 0;
+  command.y = 1;
+  command.z = 1;
+
+  outCount = 0;
+  count.x = count.y;
+  count.y = 0;
+  barrier();
+
+  // пересобираем октодерево
+  // мы никак не работаем с теми объектами которые уже в октодереве
+  // их просто нужно нормально перенести в другой буфер
+  // здесь получится только изменить количество объектов в ноде
+  // но не сами индексы, придется видимо делать дополнительные буферы
+  // все изменения количества и прочего перенес в следующий шейдер
+  // здесь онли заполняется массив изменений
+
+  // в этом (и в следующем) шейдере можно так же обрабатывать новосозданные объекты
+  // основная проблема заключается в том что на в следующих стадиях не все новосозданные объекты потребуются
+  // но они уже добавлены в индексный буфер, и следовательно будут обработаны дальше
+  // это можно решить если знать тип объекта (ну и добавив дополнительный буфер с индексами уже окончательный)
+
+  // тут тип надо еще выйти если индекс больше количества объектов
+  // глобал то я могу и сам указать ...
+  //if (globalData.countsAndTime.x <= gl_GlobalInvocationID.x) return;
+  const uint threadCount = gl_WorkGroupSize.x*gl_WorkGroupSize.y*gl_WorkGroupSize.z;
+  const uint passCount = (inCount + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i * threadCount + gl_LocalInvocationIndex;
+    if (index >= inCount) continue;
+    //const uint objIndex = inputObjs[gl_GlobalInvocationID.x];
+    const uint proxyIndex = inputProxies[index];
+    const Proxy data = proxies[proxyIndex];
+
+    // и тип здесь нужно заново раскидывать объекты по октодереву
+    //uint currentIndex = data.octreeData.y == 0xFFFFFFFF ? 0xFFFFFFFF : 0;
+    uint currentIndex = 0;
+
+    //if (currentIndex != 0xFFFFFFFF) {
+      bool end = true;
+      while (end) {
+        bool isOneChild = false;
+
+        if (nodeData[currentIndex].data.z == 0xFFFFFFFF) break;
+
+        for (uint i = 0; i < 8; ++i) {
+          const uint index = nodeData[currentIndex].data.z + i;
+          const AABB nodeBox = proxies[nodeData[index].data.w].box;
+          //const bool inChild = ObjinNode(data, index); // тут нужно чекать находится ли объект в octree node
+          const bool inChild = AABBinAABB(data.box, nodeBox);
+          isOneChild = isOneChild || inChild;
+
+          if (isOneChild) {
+            currentIndex = index;
+            break;
+          }
+        }
+
+        //if (!isOneChild) end = false;
+        end = end && isOneChild;
+      }
+    //}
+
+    if (currentIndex != data.octreeData.x) {
+      const uint index = atomicAdd(count.x, 1);
+      changes[index].x = data.octreeData.x;   // то где мы были раньше
+      changes[index].y = data.octreeData.y;   // индекс (пригодился)
+      changes[index].z = currentIndex;        // то куда мы попадаем
+      //changes[index].w = data.proxyData.w; // глобальный индекс объекта
+      changes[index].w = proxyIndex;          // индекс прокси
+      //proxies[proxyIndex].octreeData.x = currentIndex;
+    }
+
+    // const uint a = data.proxyData.z & DYNAMIC;
+    // if (a == DYNAMIC) {
+    //   const uint id = atomicAdd(outCount, 1);
+    //   outProxies[id] = proxyIndex;//data.proxyData.z;
+    //
+    //   atomicAdd(command.x, 1);
+    // }
+
+    if (isDynamic(data.proxyData.z)) {
+      const uint id = atomicAdd(outCount, 1);
+      outProxies[id] = proxyIndex;//data.proxyData.z;
+
+      atomicAdd(command.x, 1);
+    }
+  }
+
+  barrier();
+
+  if (command.x == 0) {
+    command.x = 1;
+    outCount = 1;
+    outProxies[0] = 0xFFFFFFFF;
+  }
+}
+
+bool AABBinAABB(const AABB first, const AABB second) {
+  if (first.extent.x >= second.extent.x || first.extent.y >= second.extent.y || first.extent.z >= second.extent.z) return false;
+
+  const vec4 one = abs(first.center - second.center);
+  const vec4 two = abs(first.extent - second.extent);
+
+  return two.x > one.x && two.y > one.y && two.z > one.z;
+
+  // if ((second.extent.x >= first.extent.x) ||
+  //    (second.extent.y >= first.extent.y) ||
+  //    (second.extent.z >= first.extent.z)) return false;
+  // if (abs(second.center.x - first.center.x) > abs(second.extent.x - first.extent.x)) return false;
+  // if (abs(second.center.y - first.center.y) > abs(second.extent.y - first.extent.y)) return false;
+  // if (abs(second.center.z - first.center.z) > abs(second.extent.z - first.extent.z)) return false;
+  //
+  // return true;
+}
+
+// bool OBBinNode(const OBB box, const OBB node);
+// bool OBBinNode2(const OBB box, const OBB node);
+//
+// // здесь бы еще проверить полигоны
+// bool ObjinNode(const Object obj, const uint nodeIndex) {
+//   const NodeData data = nodeData[nodeIndex];
+//   const OBB node = {{vertices[data.data.w], vertices[data.data.w+1]}, systems[0]};
+//   const OBB box = {{vertices[obj.objectInfo.x], vertices[obj.objectInfo.x+1]}, systems[obj.objectInfo.z]};
+//
+//   bool test = OBBinNode(box, node);
+//
+//   // atomicAnd(sharedBool[gl_LocalInvocationID.x], uint(test));
+//   // barrier();
+//
+//   // return bool(sharedBool[gl_LocalInvocationID.x]);
+//   return test;
+// }
+//
+// // vec4 getOBBPoint(const OBB box, const uint index) {
+// //   vec4 p = box.volume.center;
+// //
+// //   p = (index & 1) > 0 ? p + box.orientation[0]*box.volume.extent.x : p - box.orientation[0]*box.volume.extent.x;
+// //   p = (index & 2) > 0 ? p + box.orientation[1]*box.volume.extent.y : p - box.orientation[1]*box.volume.extent.y;
+// //   p = (index & 4) > 0 ? p + box.orientation[2]*box.volume.extent.z : p - box.orientation[2]*box.volume.extent.z;
+// //
+// //   return p;
+// // }
+//
+// bool OBBcontainPoint(const OBB box, const vec4 point) {
+//   vec4 dir = point - box.volume.center;
+//
+//   for (int i = 0; i < 3; ++i) {
+//     float dist = dot(dir, box.orientation[i]);
+//
+//     if (dist >  box.volume.extent[i]) return false;
+//     if (dist < -box.volume.extent[i]) return false;
+//   }
+//
+//   return true;
+// }
+//
+// bool OBBinNode2(const OBB box, const OBB node) {
+//   const uint passCount = (8 + workGroupSize - 1) / workGroupSize;
+//
+//   bool contain = true;
+//   for (uint i = 0; i < passCount; ++i) {
+//     const uint index = i*workGroupSize + gl_LocalInvocationID.x; // использовать локальный или глобальный?
+//     if (index >= 8) continue;
+//
+//     const vec4 point = getOBBPoint(box, index);
+//     contain = contain && OBBcontainPoint(node, point);
+//   }
+//
+//   return contain;
+// }
+//
+// bool OBBinNode(const OBB box, const OBB node) {
+//   bool contain = true;
+//   for (uint i = 0; i < 8; ++i) {
+//     const vec4 point = getOBBPoint(box, i);
+//     contain = contain && OBBcontainPoint(node, point);
+//   }
+//
+//   return contain;
+// }

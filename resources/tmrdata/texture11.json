@@ -1,0 +1,11 @@
+{
+  "path": "textures/ne.png",
+  "name": "ne",
+  "count": 4,
+  "rows": 1,
+  "columns": 4,
+  "size": {
+    "width": 64,
+    "height": 64
+  }
+}

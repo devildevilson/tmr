@@ -1,0 +1,259 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "physic.h"
+#include "physicType.glsl"
+
+#define DYNAMIC 0x1
+
+// #define BBOX 0
+// #define SPHERE 1
+// #define POLYGON 2
+
+struct Proxy {
+  AABB box;
+  uvec4 proxyData;
+  uvec4 octreeData;
+};
+
+struct RotationData {
+  vec4 anchorDir; // w == dist
+  vec4 rotationNormal;
+  // x == currentAngle, y == maxAngle, z == rotSpeed, w == stepTime
+  vec4 additionalData;
+  mat4 matrix;
+};
+
+layout(std140, set = 0, binding = 0) buffer readonly Objects {
+  Object3 objects[];
+};
+
+layout(std140, set = 0, binding = 1) buffer readonly Vertices {
+  vec4 vertices[];
+};
+
+layout(std140, set = 0, binding = 2) buffer readonly PhysicDatas {
+  PhysicData4 physicDatas[];
+};
+
+layout(std140, set = 0, binding = 3) buffer readonly ConstantsBuffer {
+  Constants constants[];
+};
+
+layout(std140, set = 0, binding = 4) buffer readonly GlobalVels {
+  vec4 velocities[];
+};
+
+layout(std140, set = 1, binding = 0) buffer readonly CoordinateSystem {
+  mat4 systems[];
+};
+
+layout(std140, set = 2, binding = 0) buffer readonly Transforms {
+  Transform transforms[];
+};
+
+layout(std140, set = 3, binding = 0) buffer readonly RotationDatas {
+  RotationData rotationDatas[];
+};
+
+layout(std430, set = 4, binding = 0) buffer readonly InData {
+  uint count;
+  uint inputObjs[];
+};
+
+layout(std140, set = 5, binding = 0) buffer Boxes {
+  Proxy proxies[];
+};
+
+layout(std430, set = 6, binding = 0) buffer OutIdx {
+  uint outCount;
+  uint outProxies[];
+};
+
+// #define workGroupSize 128
+// layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+layout (local_size_x_id = 0) in;
+
+AABB recalcAABB(const vec4 pos, const vec4 ext, const mat4 orn);
+AABB recalcAABB(const vec4 pos, const uint vertexOffset, const uint vertexSize, const mat4 orn);
+mat4 translation(const vec3 pos);
+mat4 translation(const vec4 pos);
+mat4 rotation(const float angle, const vec3 axis);
+mat4 rotation(const float angle, const vec4 axis);
+mat4 scale(const vec3 vec);
+mat4 scale(const vec4 vec);
+
+void main() {
+  outCount = 0;
+  const uint objCount = count;
+  const uint threadCount = gl_WorkGroupSize.x;
+
+  barrier();
+
+  //outCount = objCount;
+
+  const uint passCount = (objCount + threadCount - 1) / threadCount;
+  for (uint i = 0; i < passCount; ++i) {
+    const uint index = i * threadCount + gl_LocalInvocationIndex;
+    if (index >= objCount) continue;
+
+    const uint objIndex = inputObjs[index];
+    const Object3 obj = objects[objIndex];
+    const uint proxyIndex = obj.worldInfo.y;
+
+    if (getObjType(obj.objectInfo.w) == BBOX) {
+      const vec4 pos = transforms[obj.worldInfo.w].pos;
+      const vec4 ext = vertices[obj.objectInfo.x];
+      const mat4 orn = systems[obj.additionalData.x];
+
+      proxies[proxyIndex].box = recalcAABB(pos, ext, orn);
+    } else if (getObjType(obj.objectInfo.w) == SPHERE) {
+      const vec4 sphere = transforms[obj.worldInfo.w].pos;
+
+      const AABB box = {vec4(sphere.xyz, 1.0f), vec4(sphere.w, sphere.w, sphere.w, 0.0f)};
+      proxies[proxyIndex].box = box;
+    } else {
+      // тут нужна еще позиция объекта все же
+      // позицию можно ставить на место барицентра (он все равно нинужен)
+      //const vec4 pos = vertices[obj.objectInfo.x + obj.objectInfo.y + 1]; // по идее это барицентр
+      const vec4 pos = obj.worldInfo.w != 0xFFFFFFFF ? transforms[obj.worldInfo.w].pos : vec4(0.0f, 0.0f, 0.0f, 1.0f);
+      mat4 orn = systems[obj.additionalData.x];
+      // тут нужно добавить вычисление нового орна, судя по https://gamedev.stackexchange.com/questions/19297/how-can-i-rotate-about-an-arbitrary-point-in-3d-instead-of-the-origin?rq=1
+      // возможно в одной матрице уместить вычисление ротации от якоря
+      // тут только все равно добавляется несколько неизвествестных
+      // например, как указывать точку якоря? относительно базовой модели, верно?
+      // тогда можно ли эту точку переместить с помощью орна по умолчанию?
+      // выглядит это примерно так
+      if (obj.additionalData.z != 0xFFFFFFFF) {
+        const RotationData data = rotationDatas[obj.additionalData.z];
+        // это пересчитывать по идее не нужно, достаточно только один раз
+        //const vec4 anchorDirProj = normalize(orn * vec4(data.anchorDir.xyz, 0.0f));
+        // const mat4 anchorMatrix = translate(data.anchorDir.xyz * data.anchorDir.w) *
+        //                           rotationMatrix(data.additionalData.x, data.rotationNormal) *
+        //                           translate(-(data.anchorDir.xyz * data.anchorDir.w));
+
+        // const mat4 anchorMatrix = translate(anchorPos) *
+        //                           rotationMatrix(data.additionalData.x, data.rotationNormal) *
+        //                           translate(-(anchorPos));
+
+        const mat4 anchorMatrix = data.matrix;
+
+        orn = anchorMatrix * orn;
+      }
+
+      // куда засунуть индекс?
+
+      proxies[proxyIndex].box = recalcAABB(pos, obj.objectInfo.x, obj.objectInfo.y, orn);
+    }
+
+    //const uint a = obj.worldInfo.z & DYNAMIC;
+    //if (a == DYNAMIC) {
+      const uint id = atomicAdd(outCount, 1);
+      outProxies[id] = proxyIndex;
+    //}
+  }
+}
+
+vec4 getVertex(const vec4 pos, const vec4 ext, const mat4 orn, const uint index) {
+  vec4 p = pos;
+  p = (index & 1) > 0 ? p + orn[0]*ext.x : p - orn[0]*ext.x;
+  p = (index & 2) > 0 ? p + orn[1]*ext.y : p - orn[1]*ext.y;
+  p = (index & 4) > 0 ? p + orn[2]*ext.z : p - orn[2]*ext.z;
+  p.w = 1.0f;
+
+  return p;
+}
+
+AABB recalcAABB(const vec4 pos, const vec4 ext, const mat4 orn) {
+  vec4 mx = getVertex(pos, ext, orn, 0), mn = getVertex(pos, ext, orn, 0);
+
+  for (uint i = 1; i < 8; ++i) {
+    mx = max(mx, getVertex(pos, ext, orn, i));
+    mn = min(mn, getVertex(pos, ext, orn, i));
+  }
+
+  const vec4 boxPos =    (mn + mx) / 2.0f;
+  const vec4 boxExt = abs(mn - mx) / 2.0f;
+
+  //return AABB(vec4(boxPos.xyz, 1.0f), boxExt);
+  AABB box;
+  box.center = boxPos;
+  box.extent = boxExt;
+  return box;
+}
+
+AABB recalcAABB(const vec4 pos, const uint vertexOffset, const uint vertexSize, const mat4 orn) {
+  const vec4 dir = vec4(pos.xyz, 0.0f);
+  vec4 mx = orn * (dir + vertices[vertexOffset]), mn = orn * (dir + vertices[vertexOffset]);
+
+  for (uint i = 1; i < vertexSize; ++i) {
+    mx = max(mx, orn * (dir + vertices[vertexOffset + i]));
+    mn = min(mn, orn * (dir + vertices[vertexOffset + i]));
+  }
+
+  const vec4 boxPos =    (mn + mx) / 2.0f;
+  const vec4 boxExt = abs(mn - mx) / 2.0f;
+
+  //return AABB(vec4(boxPos.xyz, 1.0f), boxExt);
+  AABB box;
+  box.center = boxPos;
+  box.extent = boxExt;
+  return box;
+}
+
+mat4 translation(const vec3 pos) {
+  return mat4(1.0f,  0.0f,  0.0f,  0.0f,
+              0.0f,  1.0f,  0.0f,  0.0f,
+              0.0f,  0.0f,  1.0f,  0.0f,
+              pos.x, pos.y, pos.z, 1.0f);
+}
+
+mat4 translation(const vec4 pos) {
+  // return mat4(1.0f, 0.0f, 0.0f, pos.x,
+  //             0.0f, 1.0f, 0.0f, pos.y,
+  //             0.0f, 0.0f, 1.0f, pos.z,
+  //             0.0f, 0.0f, 0.0f, 1.0f);
+  return mat4(1.0f,  0.0f,  0.0f,  0.0f,
+              0.0f,  1.0f,  0.0f,  0.0f,
+              0.0f,  0.0f,  1.0f,  0.0f,
+              pos.x, pos.y, pos.z, 1.0f);
+}
+
+mat4 rotation(const float angle, const vec3 axis) {
+  //axis = normalize(axis);
+  float s = sin(angle);
+  float c = cos(angle);
+  float oc = 1.0f - c;
+
+  return mat4(oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,  0.0f,
+              oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,  0.0f,
+              oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c,           0.0f,
+              0.0f,                               0.0f,                               0.0f,                               1.0f);
+}
+
+mat4 rotation(const float angle, const vec4 axis) {
+  //axis = normalize(axis);
+  float s = sin(angle);
+  float c = cos(angle);
+  float oc = 1.0f - c;
+
+  return mat4(oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,  0.0f,
+              oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,  0.0f,
+              oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c,           0.0f,
+              0.0f,                               0.0f,                               0.0f,                               1.0f);
+}
+
+mat4 scale(const vec3 vec) {
+  return mat4(vec.x, 0.0f,  0.0f,  0.0f,
+              0.0f,  vec.y, 0.0f,  0.0f,
+              0.0f,  0.0f,  vec.z, 0.0f,
+              0.0f,  0.0f,  0.0f,  1.0f);
+}
+
+mat4 scale(const vec4 vec) {
+  return mat4(vec.x, 0.0f,  0.0f,  0.0f,
+              0.0f,  vec.y, 0.0f,  0.0f,
+              0.0f,  0.0f,  vec.z, 0.0f,
+              0.0f,  0.0f,  0.0f,  1.0f);
+}
