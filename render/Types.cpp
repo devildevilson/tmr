@@ -790,7 +790,7 @@ namespace yavf {
   }
   
   BufferView::BufferView() : 
-    RAIIType1(raii::FUNC_NAME_ENUM(vkCreateBufferView)), 
+    RAIIType1(), 
     formatVar(VK_FORMAT_UNDEFINED), 
     offsetVar(0), 
     sizeVar(SIZE_MAX), 
@@ -801,7 +801,7 @@ namespace yavf {
     nextPtr(nullptr) {}
     
   BufferView::BufferView(Device* device, const VkBufferViewCreateInfo &info, Buffer* buffer) : 
-    RAIIType1(device->handle(), info, "vkCreateBufferView", raii::FUNC_NAME_ENUM(vkCreateBufferView)),
+    RAIIType1(device->handle(), info, "vkCreateBufferView"),
     formatVar(info.format), 
     offsetVar(info.offset), 
     sizeVar(info.range), 
@@ -889,10 +889,10 @@ namespace yavf {
     }
   }
   
-  Buffer::Buffer() : RAIIType4(raii::FUNC_NAME_ENUM(vmaCreateBuffer)), device(nullptr), pointer(nullptr), viewSize(0), bufferView(nullptr), set(nullptr), setIndex(0) {}
+  Buffer::Buffer() : RAIIType4(), device(nullptr), pointer(nullptr), viewSize(0), bufferView(nullptr), set(nullptr), setIndex(0) {}
   
   Buffer::Buffer(Device* device, const VkBufferCreateInfo &info, const VmaMemoryUsage &memUsage) : 
-    RAIIType4(device->bufferAllocator(), raii::FUNC_NAME_ENUM(vmaCreateBuffer)), 
+    RAIIType4(device->bufferAllocator()), 
     memUsage(memUsage), 
     device(device), 
     pointer(nullptr), 
@@ -1079,7 +1079,7 @@ namespace yavf {
   }
   
   ImageView::ImageView() : 
-    RAIIType1(raii::FUNC_NAME_ENUM(vkCreateImageView)), 
+    RAIIType1(), 
     typeVar(VK_IMAGE_VIEW_TYPE_MAX_ENUM),
     formatVar(VK_FORMAT_UNDEFINED),
     componentsVar(YAVF_DEFAULT_SWIZZLE),
@@ -1091,7 +1091,7 @@ namespace yavf {
     nextPtr(nullptr) {}
     
   ImageView::ImageView(Device* device, const VkImageViewCreateInfo &info, Image* relatedImage) : 
-    RAIIType1(device->handle(), info, "vkCreateImageView", raii::FUNC_NAME_ENUM(vkCreateImageView)), 
+    RAIIType1(device->handle(), info, "vkCreateImageView"),
     typeVar(info.viewType),
     formatVar(info.format),
     componentsVar(info.components),
@@ -1187,7 +1187,7 @@ namespace yavf {
   }
   
   Image::Image() : 
-    RAIIType4(raii::FUNC_NAME_ENUM(vmaCreateImage)),
+    RAIIType4(),
     memUsage(VMA_MEMORY_USAGE_UNKNOWN),
     dev(nullptr),
     pointer(nullptr),
@@ -1195,7 +1195,7 @@ namespace yavf {
     imageView(nullptr) {}
     
   Image::Image(Device* device, const VkImageCreateInfo &info, const VmaMemoryUsage &memUsage) : 
-    RAIIType4(device->imageAllocator(), raii::FUNC_NAME_ENUM(vmaCreateImage)),
+    RAIIType4(device->imageAllocator()),
     memUsage(memUsage),
     dev(device),
     pointer(nullptr),
@@ -1217,7 +1217,7 @@ namespace yavf {
   }
     
   Image::Image(Device* device, VkImage image, const VkExtent2D &size) : 
-    RAIIType4(raii::FUNC_NAME_ENUM(vmaCreateImage)),
+    RAIIType4(),
     memUsage(VMA_MEMORY_USAGE_UNKNOWN),
     dev(device),
     pointer(nullptr),

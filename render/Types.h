@@ -267,7 +267,7 @@ namespace yavf {
   
   class Buffer;
   
-  class BufferView : public raii::RAIIType1<VkBufferView, VkBufferViewCreateInfo, PFN_vkCreateBufferView, PFN_vkDestroyBufferView> {
+  class BufferView : public raii::RAIIType1<VkBufferView, VkBufferViewCreateInfo, raii::vkCreateBufferView, raii::vkDestroyBufferView> {
     friend Device; // без этого скорее всего не обойтись
   public:
     BufferView();
@@ -326,7 +326,7 @@ namespace yavf {
 //     Internal::BufferViewBase* ptr;
 //   };
   
-  class Buffer : public raii::RAIIType4<VkBuffer, VkBufferCreateInfo, raii::vmaCreateBufferType, raii::vmaDestroyBufferType> {
+  class Buffer : public raii::RAIIType4<VkBuffer, VkBufferCreateInfo, raii::vmaCreateBuffer, raii::vmaDestroyBuffer> {
     friend Device;
   public:
     Buffer();
@@ -387,7 +387,7 @@ namespace yavf {
 //     Internal::BufferBase* bufferPtr;
 //   };
   
-  class ImageView : public raii::RAIIType1<VkImageView, VkImageViewCreateInfo, PFN_vkCreateImageView, PFN_vkDestroyImageView> {
+  class ImageView : public raii::RAIIType1<VkImageView, VkImageViewCreateInfo, raii::vkCreateImageView, raii::vkDestroyImageView> {
     friend Device;
   public:
     ImageView();
@@ -467,7 +467,7 @@ namespace yavf {
 //     Internal::ImageBase* imagePtr;
 //   };
   
-  class Image : public raii::RAIIType4<VkImage, VkImageCreateInfo, raii::vmaCreateImageType, raii::vmaDestroyImageType> {
+  class Image : public raii::RAIIType4<VkImage, VkImageCreateInfo, raii::vmaCreateImage, raii::vmaDestroyImage> {
     friend Device;
   public:
     Image();
