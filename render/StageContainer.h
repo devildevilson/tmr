@@ -27,7 +27,7 @@ public:
   template<typename T, typename... Args>
   T* addStage(Args&&... args) {
     assert(sizeof(T) <= bufferSize && "Bad sizeof(T) or size for stage container");
-    std::cout << "dataSize + sizeof(T) " << dataSize + sizeof(T) << " buffer size " << bufferSize << "\n";
+//     std::cout << "dataSize + sizeof(T) " << dataSize + sizeof(T) << " buffer size " << bufferSize << "\n";
     assert(dataSize + sizeof(T) <= bufferSize && "Need more buffer size");
     
     if (dataSize + sizeof(T) > bufferSize) createBuffer();

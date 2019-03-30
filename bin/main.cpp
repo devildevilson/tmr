@@ -433,19 +433,19 @@ int main(const int argc, const char** argv) {
     }
     
     {
-//       const uint32_t rayOutputCount = Global::physics()->getRayTracingSize();
-//       const uint32_t frustumOutputCount = Global::physics()->getFrustumTestSize();
-      const uint32_t rayOutputCount = 0;
-      const uint32_t frustumOutputCount = 0;
+      const uint32_t rayOutputCount = Global::physics()->getRayTracingSize();
+      const uint32_t frustumOutputCount = Global::physics()->getFrustumTestSize();
+//       const uint32_t rayOutputCount = 0;
+//       const uint32_t frustumOutputCount = 0;
 //       
-      glm::vec4 pos = glm::vec4(0.0f);
-      glm::vec4 rot = glm::vec4(0.0f);
+//       glm::vec4 pos = glm::vec4(0.0f);
+//       glm::vec4 rot = glm::vec4(0.0f);
       
       const SimpleOverlayData overlayData{
-//         playerTransform->pos(),
-        pos,
-//         playerTransform->rot(),
-        rot,
+        playerTransform->pos(),
+//         pos,
+        playerTransform->rot(),
+//         rot,
         tm.getReportTime(),
         tm.getSleepTime(),
         tm.getFPS(),
