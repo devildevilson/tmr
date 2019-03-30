@@ -960,7 +960,7 @@ void CPUOctreeBroadphase::calculateFrustumTests() {
       for (uint32_t i = 0; i < globalObjCount; ++i) {
         const uint32_t threadIndex = i;
 
-        uint nodeIndex = stack[stackIndex];
+        uint32_t nodeIndex = stack[stackIndex];
         CPUOctreeNode node = nodes[nodeIndex];
         //uint objCount = node.data.x;
         while (objCount < threadIndex) {
@@ -974,16 +974,16 @@ void CPUOctreeBroadphase::calculateFrustumTests() {
         // на это обратить пристальное внимание
         // (так же обратить внимание на эту -1)
         // (threadIndex всегда <= objCount, а это значит 0 мы здесь не получим, а выйти за пределы - запросто)
-        const uint index = node.offset + (objCount - threadIndex - 1);
-        const uint proxyIndex = indices2[index];
+        const uint32_t index = node.offset + (objCount - threadIndex - 1);
+        const uint32_t proxyIndex = indices2[index];
 
         const CPUOctreeProxy &proxy = proxies[proxyIndex];
         if (!proxy.getType().isVisible()) continue;
 
-        const uint res = testFrustumAABB(frustum, proxy.getAABB());
+        const uint32_t res = testFrustumAABB(frustum, proxy.getAABB());
 
         if (res > OUTSIDE) {
-          const uint id = frustumTestsResult->at(0).firstIndex;
+          const uint32_t id = frustumTestsResult->at(0).firstIndex;
           ++frustumTestsResult->at(0).firstIndex;
 
           frustumTestsResult->at(id+1).firstIndex = frustumIndex;

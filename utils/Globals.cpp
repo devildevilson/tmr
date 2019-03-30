@@ -1,22 +1,24 @@
 #include "Globals.h"
-//#include <Game.h>
+
+#include <cstdint>
+#include <climits>
 
 const uint32_t mask = 0x1;
 
 // индекс - это номер клавиши!
-bool Keys::get(const uint32_t &index) const {
-  const uint32_t dataIndex = index / UINT32_WIDTH;
-  const uint32_t bitIndex = index % UINT32_WIDTH;
-  
-  return bool(boolData[dataIndex] & (mask << bitIndex));
-}
+//bool Keys::get(const uint32_t &index) const {
+//  const uint32_t dataIndex = index / UINT32_WIDTH;
+//  const uint32_t bitIndex = index % UINT32_WIDTH;
+//  
+//  return bool(boolData[dataIndex] & (mask << bitIndex));
+//}
 
-void Keys::set(const uint32_t &index, bool data) {
-  const uint32_t dataIndex = index / UINT32_WIDTH;
-  const uint32_t bitIndex = index % UINT32_WIDTH;
-  
-  boolData[dataIndex] = data ? boolData[dataIndex] | (mask << bitIndex) : boolData[dataIndex] & (~(mask << bitIndex));
-}
+//void Keys::set(const uint32_t &index, bool data) {
+//  const uint32_t dataIndex = index / UINT32_WIDTH;
+//  const uint32_t bitIndex = index % UINT32_WIDTH;
+//  
+//  boolData[dataIndex] = data ? boolData[dataIndex] | (mask << bitIndex) : boolData[dataIndex] & (~(mask << bitIndex));
+//}
 
 // Console* Global::globalConsole = nullptr;
 // CmdMgr* Global::globalCommandMgr = nullptr;

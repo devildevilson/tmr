@@ -15,7 +15,7 @@
 enum StringType {
   INFO,
   WARNING,
-  ERROR
+  CONSOLE_ERROR
 };
 
 struct ConsoleLine {

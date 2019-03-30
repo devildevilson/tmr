@@ -69,7 +69,7 @@ public:
   template <typename... Args>
   void printfE(const char* formatMessage, const Args & ... args) {
     ConsoleLine cl = {};
-    cl.type = ERROR;
+    cl.type = CONSOLE_ERROR;
     cl.string = fmt::sprintf(formatMessage, args...);
     cl.string = trim(cl.string);
     

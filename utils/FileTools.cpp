@@ -34,34 +34,41 @@ namespace FileTools {
   
   std::string getAppDir() {
     std::string path;
-    // size_t len = 4096;
-    char pBuf[4096];
-    #if defined(_WIN32)
-      while(1) {
-        pBuf = new char[len + 1];
-        uint32_t r = GetModuleFileName(NULL, pBuf, len);
-        if (r < len && r != 0) break;
-        if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
-          delete [] pBuf;
-          len += 64;
-        }
+#if defined(_WIN32)
+	size_t len = 4096;
+    char* pBuf = nullptr;
+    while(1) {
+      pBuf = new char[len + 1];
+      uint32_t r = GetModuleFileName(NULL, pBuf, len);
+      if (r < len && r != 0) break;
+      if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+        delete [] pBuf;
+        len += 64;
       }
+    }
       
-      char* pch = strrchr(pBuf, '\\');
-      *(pch+1) = '\0';
-    #elif defined(__linux__)
-      char szTmp[32];
-      sprintf(szTmp, "/proc/%d/exe", getpid());
-      ssize_t length = readlink(szTmp, pBuf, sizeof(pBuf)-1);
-      if (length == -1) {
-        // errors
-      }
-      pBuf[length] = '\0';
-      char* pch = strrchr(pBuf, '/');
-      *(pch+1) = '\0';
-    #endif
+    char* pch = strrchr(pBuf, '\\');
+    *(pch+1) = '\0';
+#elif defined(__linux__)
+	size_t len = 4096;
+    char pBuf[len];
+	
+    char szTmp[32];
+    sprintf(szTmp, "/proc/%d/exe", getpid());
+	ssize_t length = readlink(szTmp, pBuf, len-1);
+	if (length == -1) {
+	  // errors
+	}
+	pBuf[length] = '\0';
+	char* pch = strrchr(pBuf, '/');
+	*(pch+1) = '\0';
+#endif
     
     path = std::string(pBuf);
+	
+#if defined(_WIN32)
+	delete [] pBuf;
+#endif
 
     return path;
   }

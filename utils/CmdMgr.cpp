@@ -1,5 +1,7 @@
 #include "CmdMgr.h"
 
+#include "Globals.h"
+
 std::vector<std::string> splitCommand(const std::string &command, const char &sep) {
   std::vector<std::string> tokens;
   size_t start = command.find_first_not_of(sep), end = 0;

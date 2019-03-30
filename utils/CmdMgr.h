@@ -15,9 +15,9 @@
 
 class CmdMgr;
 
-#include "Globals.h"
 #include <functional>
 #include <unordered_map>
+#include <vector>
 
 std::vector<std::string> splitCommand(const std::string &command, const char &sep = ' ');
 
@@ -36,7 +36,7 @@ public:
   void        addAlias(const std::string &commandName, const std::string &alias);
   void        execute(const std::string &command);
   std::string getArg(const uint32_t &i);
-  
+
   void help_f();
   void addAlias_f();
 private:

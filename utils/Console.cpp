@@ -242,7 +242,7 @@ void Console::printE(const std::stringstream &ss) {
 
 void Console::printE(const std::string &s) {
   ConsoleLine cl = {};
-  cl.type = ERROR;
+  cl.type = CONSOLE_ERROR;
   cl.string = s;
   cl.string = trim(cl.string);
   items.push_back(cl);

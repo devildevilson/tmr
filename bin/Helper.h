@@ -38,7 +38,10 @@
 #include "Components.h"
 #include "GraphicComponets.h"
 
-#include <apathy/path.hpp>
+//#include <apathy/path.hpp>
+#include <cppfs/fs.h>
+#include <cppfs/FileHandle.h>
+#include <cppfs/FileIterator.h>
 
 // микросекунды
 // примерно 18 кадров
@@ -64,9 +67,9 @@
 // треад пулл имеет смысл создать только тогда когда хотя бы одна система его использует
 
 // что с системами которые будут разными в зависимости от состояния приложения?
-// например рендер менюшки, рендер самой игры и тд, для этих двух рендеров 
+// например рендер менюшки, рендер самой игры и тд, для этих двух рендеров
 // точно нужны разные рендер стейджы (для менюшки достаточно 1 тектура на весь экран + гуи)
-// по идее мне нужно просто сменить рендер 
+// по идее мне нужно просто сменить рендер
 // (скорее всего тогда мы просто упакуем эти рендеры в дополнительный класс)
 
 // хотя нет, наверное метода updateSystems не будет
@@ -75,10 +78,10 @@
 // вообще нужно наверное еще дополнительно улучшить систем контейнер
 // например ввести метод get, который будет возвращать систему
 // это значит что нужно для систем сделать статик переменную
-// основная проблема наверное немного в другом, 
-// мне нужно возвращать класс по его интерфейсу, при этом 
+// основная проблема наверное немного в другом,
+// мне нужно возвращать класс по его интерфейсу, при этом
 // как я уже выяснил, у меня будет несколько рендеров одновременно
-// в частности с рендерами все сложнее, так как 
+// в частности с рендерами все сложнее, так как
 // по идее количество мониторов = количеству рендеров
 // количетсво аутпут конфигураций (монитор + устройство) = количеству рендеров
 
@@ -113,7 +116,7 @@ struct RenderConstructData {
   VulkanRender* render;
   Window* window;
   HardcodedMapLoader* mapLoader;
-  
+
   MonsterOptimizer* mon;
   GeometryOptimizer* geo;
   LightOptimizer* lights;
@@ -124,18 +127,18 @@ struct RenderConstructData {
 
 struct KeyConfiguration {
   uint64_t cont;
-  
+
   KeyConfiguration(const KeyConfiguration &copy);
   KeyConfiguration(const uint32_t &key1);
   KeyConfiguration(const uint32_t &key1, const uint32_t &key2);
   KeyConfiguration(const uint32_t &key1, const uint32_t &key2, const uint32_t &key3);
   KeyConfiguration(const uint32_t &key1, const uint32_t &key2, const uint32_t &key3, const uint32_t &key4);
-  
+
   uint32_t getFirstKey() const;
   uint32_t getSecondKey() const;
   uint32_t getThirdKey() const;
   uint32_t getForthKey() const;
-  
+
   uint32_t getKeysCount() const;
   uint32_t operator[] (const uint8_t &index) const;
 };
@@ -144,19 +147,19 @@ struct KeyConfiguration {
 // можно сделать иерархию, для иерархии нужно наверное виртуальные функции, проблема ли это?
 
 enum KeyState : uint8_t {
-  CLICK        = 0,
-  DOUBLE_CLICK = 1,
-  LONG_CLICK   = 2,
-  PRESS        = 3,
-  DOUBLE_PRESS = 4,
-  LONG_PRESS   = 5,
-  UNKNOWN      = 6
+  KEY_STATE_CLICK        = 0,
+  KEY_STATE_DOUBLE_CLICK = 1,
+  KEY_STATE_LONG_CLICK   = 2,
+  KEY_STATE_PRESS        = 3,
+  KEY_STATE_DOUBLE_PRESS = 4,
+  KEY_STATE_LONG_PRESS   = 5,
+  KEY_STATE_UNKNOWN      = 6
 };
 
 struct Reaction {
   Reaction();
   Reaction(const std::string &name, const std::function<void()> &f);
-  
+
   std::string name;
   std::function<void()> f;
 };
@@ -164,13 +167,13 @@ struct Reaction {
 class ActionKey {
 public:
   ActionKey(const KeyConfiguration &keys, const std::vector<ActionKey*> &keysPtr);
-  
+
   void execute(const int32_t &state, const uint64_t &_time);
   void setHandled();
-  
+
   Reaction* getReaction(uint8_t i) const;
   void setReaction(const uint8_t &index, Reaction* r);
-  
+
   uint32_t getKey(const uint8_t &index) const;
   uint32_t getKeysCount() const;
 private:
@@ -191,13 +194,13 @@ struct KeyContainer {
   MemoryPool<ActionKey, KEY_POOL_SIZE*sizeof(ActionKey)> keysPool;
   MemoryPool<Reaction, REACTION_POOL_SIZE*sizeof(Reaction)> reactionPool;
   KeyConfig* config;
-  
+
   KeyContainer(KeyConfig* config);
   ~KeyContainer();
-  
+
   ActionKey* create(const KeyConfiguration &keys, const std::vector<ActionKey*> &keysPtr);
   void sort();
-  
+
   Reaction* create(const std::string &name, const std::function<void()> &f);
 };
 

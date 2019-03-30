@@ -1444,7 +1444,7 @@ bool testRayBox(const RayData &ray, const FastAABB &box, const glm::mat4 &orn, g
     0.0f);
 
   float t[6];
-  for (uint i = 0; i < 3; ++i) {
+  for (uint32_t i = 0; i < 3; ++i) {
     if (glm::abs(f[i]) < EPSILON) {
       if (-e[i] - box.extent[i] > 0.0f || -e[i] + box.extent[i] < 0.0f) return false;
       f[i] = EPSILON;
@@ -1530,7 +1530,7 @@ bool testRayPoly(const ArrayInterface<glm::vec4>* verts, const RayData &ray, con
     // const vec4 refP = transform * orn * vertices[vertOffset];
     //const glm::vec4 refP = orn * (dir + verts->at(vertOffset));
     const glm::vec4 refP = transform(verts->at(vertOffset), dir, orn); //orn * (dir + verts->at(vertOffset));
-    for (uint i = vertOffset+1; i < vertOffset+vertSize-1; ++i) {
+    for (uint32_t i = vertOffset+1; i < vertOffset+vertSize-1; ++i) {
       // трансформа тут неправильно накладывается походу
 //       const glm::vec4 vert2 = orn * (dir + verts->at(i));
 //       const glm::vec4 vert3 = orn * (dir + verts->at(i+1));
@@ -1546,7 +1546,7 @@ bool testRayPoly(const ArrayInterface<glm::vec4>* verts, const RayData &ray, con
 
   float tE = 0.0f;
   float tL = 0.0f;
-  for (uint i = vertOffset+vertSize+1; i < vertOffset+vertSize+faceSize; ++i) {
+  for (uint32_t i = vertOffset+vertSize+1; i < vertOffset+vertSize+faceSize; ++i) {
     const glm::vec4 normal = orn * glm::vec4(glm::vec3(verts->at(i)), 0.0f);
     // тут нужно получить вершину, СКОРЕЕ ВСЕГО любую которая лежит на плоскости
     // судя по всему достаточно одной вершины которая лежит на плоскости

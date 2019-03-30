@@ -1,29 +1,99 @@
-#set(CMAKE_CXX_COMPILER /usr/bin/g++) # компилятор g++ (пока не понятно работает ли)
-
 # указываем минимальную версию CMAKE, а также название проекта и тип билда
 cmake_minimum_required(VERSION 3.0)
 project(testingApp)
-
-#set(CMAKE_BUILD_TYPE "DEBUG")
-
-#set(CURRENT_DIRECTORY .)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME})
 
 set(TARGET_NAME VulkanTest)
 
-# message("Binary dir: ${CMAKE_CURRENT_BINARY_DIR}")
-# message("Source dir: ${CMAKE_CURRENT_SOURCE_DIR}")
-# message("List   dir: ${WORKING_DIRECTORY}")
-# message("Output dir: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-# message("Binary dir: ${CMAKE_BINARY_DIR}")
-# message("Source dir: ${CMAKE_SOURCE_DIR}")
-# message("Output dir: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-#MESSAGE(FATAL_ERROR "End")
+find_package(git QUIET)
+if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
+# Update submodules as needed
+  option(GIT_SUBMODULE "Check submodules during build" ON)
+  if(GIT_SUBMODULE)
+    message(STATUS "Submodule update")
+    execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                    RESULT_VARIABLE GIT_SUBMOD_RESULT)
+    if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+      message(FATAL_ERROR "git submodule update --init failed with ${GIT_SUBMOD_RESULT}, please checkout submodules")
+    endif()
+  endif()
+endif()
+
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/include/fmt/CMakeLists.txt")
+  message(FATAL_ERROR "The submodules were not downloaded! GIT_SUBMODULE was turned off or failed. Please update submodules and try again.")
+endif()
+
+set(STB_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/include/stb)
+set(TINYOBJ_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/include/tinyobjloader)
+
+# директории, где компилятор ищет хедеры
+include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/bin/
+  ${CMAKE_CURRENT_SOURCE_DIR}/render/
+  ${CMAKE_CURRENT_SOURCE_DIR}/physics/
+  ${CMAKE_CURRENT_SOURCE_DIR}/utils/
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/include/
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/json/include/
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/VulkanMemoryAllocator/src/
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/glm/
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/cppfs/source/cppfs/include
+  ${STB_INCLUDE_PATH}
+  ${TINYOBJ_INCLUDE_PATH}
+  #                     /home/mikuhatsune/gwc/testingApp/include/libleaktracer/include
+  #                     ${CMAKE_CURRENT_SOURCE_DIR}/include/imgui/
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/TinyBehavior/
+)
+
+link_directories(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}) # директории, где компилятор ищет библиотечки
+
+if (WIN32)
+  set(CPPFS_LIB_PATH C:/libs/cppfs)
+
+  set(GLFW3_LIB_DIRS C:/libs/glfw-3.2.1.bin.WIN64/lib-mingw-w64)
+  set(GLFW3_INCLUDE_DIRS C:/libs/glfw-3.2.1.bin.WIN64/include)
+  set(GLFW3_LIBRARIES glfw3)
+
+  set(VULKAN_SDK_PATH C:/VulkanSDK/1.1.97.0)
+  set(VULKAN_LIB_PATH ${VULKAN_SDK_PATH}/Lib)
+  set(VULKAN_INCLUDE_PATH ${VULKAN_SDK_PATH}/Include)
+  set(GLSL_VALIDATOR "${VULKAN_SDK_PATH}/Bin/glslangValidator")
+  set(VULKAN_LIB_NAME vulkan-1)
+
+  include_directories(
+    ${GLFW3_INCLUDE_DIRS}
+	  ${VULKAN_INCLUDE_PATH}
+	  ${GLM_LIB_PATH}
+  )
+
+  link_directories(
+	  ${GLFW3_LIB_DIRS}
+	  ${VULKAN_LIB_PATH}
+    ${CPPFS_LIB_PATH}
+  )
+else()
+  # находим указанные зависимости (нужно чекнуть все ли это зависимости?)
+  # вместо glm у меня установлен gli
+  #find_package(glm)
+  find_package(glfw3)
+  find_package(PkgConfig REQUIRED)
+  #pkg_search_module(GLFW REQUIRED glfw3)
+  pkg_check_modules(GLFW3 REQUIRED glfw3)
+  # не может найти почему то vulkan-headers
+  #find_package(vulkan-headers)
+
+  set(VULKAN_LIB_NAME vulkan)
+  set(GLSL_VALIDATOR "glslangValidator")
+
+  include_directories(
+    ${GLFW3_INCLUDE_DIRS}
+  )
+endif()
 
 set(COMPILED_SHADERS_PATH ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders)
-set(GLSL_VALIDATOR "glslangValidator")
 
 file(MAKE_DIRECTORY ${COMPILED_SHADERS_PATH})
 
@@ -98,10 +168,10 @@ foreach(GLSL ${GLSL_SOURCE_FILES})
 endforeach(GLSL)
 
 add_custom_target(
-    shaders 
+    shaders
     DEPENDS ${SPIRV_BINARY_FILES}
     )
-    
+
 set(RESOURCE_DIR ${CMAKE_SOURCE_DIR}/resources)
 set(RESOURCE_DEST ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
@@ -125,9 +195,9 @@ set(RESOURCE_DEST ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 #  get_filename_component(dir ${RESOURCE} DIRECTORY)
 #  get_filename_component(dirname ${dir} NAME)
 #  get_filename_component(sourcedirname ${RESOURCE_DIR} NAME)
-#  
+#
 #  set (output "")
-#  
+#
 #  while(NOT ${dirname} STREQUAL ${sourcedirname})
 #   get_filename_component(path_component ${dir} NAME)
 #   set (output "${path_component}/${output}")
@@ -135,9 +205,9 @@ set(RESOURCE_DEST ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 #   get_filename_component(dirname ${dir} NAME)
 #   # мне тут нужно еще создать директорию для копирования
 #  endwhile()
-#  
+#
 #  set(output "${RESOURCE_DEST}/${output}/${filename}")
-#  
+#
 #  add_custom_command(
 #   COMMENT "Moving updated resource-file '${filename}'"
 #   OUTPUT ${output}
@@ -146,15 +216,15 @@ set(RESOURCE_DEST ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 #  )
 #  #add_custom_target(${filename} ALL DEPENDS ${resource} ${output})
 #  list(APPEND COPYING_RESOURCES ${output})
-#  
+#
 # endforeach()
-# 
+#
 # add_custom_target(
-#     resources 
+#     resources
 #     DEPENDS ${COPYING_RESOURCES}
 #     )
-    
-file(GLOB PROJECT_RESOURCE_FILES 
+
+file(GLOB PROJECT_RESOURCE_FILES
      "${RESOURCE_DIR}/models"
      "${RESOURCE_DIR}/tmrdata"
      "${RESOURCE_DIR}/settings.json"
@@ -164,16 +234,16 @@ foreach(RESOURCE ${PROJECT_RESOURCE_FILES})
   get_filename_component(dir ${RESOURCE} DIRECTORY)
   get_filename_component(dirname ${dir} NAME)
   get_filename_component(sourcedirname ${RESOURCE_DIR} NAME)
-  
+
   set(output ${RESOURCE_DEST}/${filename})
-  
+
   if(IS_DIRECTORY ${RESOURCE})
     add_custom_command(
       COMMENT "Moving updated resource-file '${filename}'"
       OUTPUT ${output}
       DEPENDS ${RESOURCE}
       COMMAND ${CMAKE_COMMAND} -E copy_directory
-      ${RESOURCE} 
+      ${RESOURCE}
       ${output}
     )
   else()
@@ -182,33 +252,19 @@ foreach(RESOURCE ${PROJECT_RESOURCE_FILES})
       OUTPUT ${output}
       DEPENDS ${RESOURCE}
       COMMAND ${CMAKE_COMMAND} -E copy
-      ${RESOURCE} 
+      ${RESOURCE}
       ${output}
     )
   endif()
-#copy_if_different 
-  
+#copy_if_different
+
   list(APPEND COPYING_RESOURCES ${output})
 endforeach()
 
 add_custom_target(
-    resources 
+    resources
     DEPENDS ${COPYING_RESOURCES}
     )
-      
-if (WIN32) 
-  
-else()
-  # находим указанные зависимости (нужно чекнуть все ли это зависимости?)
-  # вместо glm у меня установлен gli
-  #find_package(glm)
-  find_package(glfw3)
-  find_package(PkgConfig REQUIRED)
-  #pkg_search_module(GLFW REQUIRED glfw3)
-  pkg_check_modules(GLFW3 REQUIRED glfw3)
-  # не может найти почему то vulkan-headers
-  #find_package(vulkan-headers)
-endif()
 
 IF( NOT CMAKE_BUILD_TYPE )
    SET( CMAKE_BUILD_TYPE Debug ... FORCE )
@@ -229,96 +285,56 @@ endif (CMAKE_BUILD_TYPE MATCHES "Debug")
 SET(BUILD_SHARED_LIBS ON) # все библиотеки по дефолту компилятся как динамические
 #set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-#set(VULKAN_SDK_PATH /home/mikuhatsune/VulkanSDK/1.0.24.0/x86_64) # set задает переменную в cmake
-set(STB_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/include/stb)
-set(TINYOBJ_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/include/tinyobjloader)
-
 #pkg_check_modules(GLFW3 REQUIRED glfw3) # используем модуль pkg-config для glfw3 (замена `pkg-config --static --libs glfw3`)
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -g") # сишные флаги
 
-#${CMAKE_CURRENT_LIST_DIR}/build/
-# директории, где компилятор ищет хедеры
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/bin/ 
-                    ${CMAKE_CURRENT_SOURCE_DIR}/render/ 
-                    ${CMAKE_CURRENT_SOURCE_DIR}/physics/ 
-                    ${CMAKE_CURRENT_SOURCE_DIR}/utils/ 
-                    ${CMAKE_CURRENT_SOURCE_DIR}/include/
-                    ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/include/
-                    ${CMAKE_CURRENT_SOURCE_DIR}/include/json/include/
-                    ${CMAKE_CURRENT_SOURCE_DIR}/include/VulkanMemoryAllocator/src/
-                    ${GLFW3_INCLUDE_DIRS} 
-                    ${STB_INCLUDE_PATH} 
-                    ${TINYOBJ_INCLUDE_PATH} 
-#                     /home/mikuhatsune/gwc/testingApp/include/libleaktracer/include
-#                     ${CMAKE_CURRENT_SOURCE_DIR}/include/imgui/ 
-                    ${CMAKE_CURRENT_SOURCE_DIR}/include/TinyBehavior/) 
-
-link_directories(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}) # директории, где компилятор ищет библиотечки
-
-find_package(git QUIET)
-if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
-# Update submodules as needed
-  option(GIT_SUBMODULE "Check submodules during build" ON)
-  if(GIT_SUBMODULE)
-    message(STATUS "Submodule update")
-    execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
-                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                    RESULT_VARIABLE GIT_SUBMOD_RESULT)
-    if(NOT GIT_SUBMOD_RESULT EQUAL "0")
-      message(FATAL_ERROR "git submodule update --init failed with ${GIT_SUBMOD_RESULT}, please checkout submodules")
-    endif()
-  endif()
-endif()
-
-if(NOT EXISTS "${PROJECT_SOURCE_DIR}/include/fmt/CMakeLists.txt")
-  message(FATAL_ERROR "The submodules were not downloaded! GIT_SUBMODULE was turned off or failed. Please update submodules and try again.")
-endif()
+#${CMAKE_CURRENT_LIST_DIR}/build
 
 # ADD_LIBRARY(fmt STATIC IMPORTED)
 # SET_TARGET_PROPERTIES(fmt PROPERTIES
 #     IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/build/libfmt.a)
-    
+
 # ADD_LIBRARY(imgui STATIC IMPORTED)
 # SET_TARGET_PROPERTIES(imgui PROPERTIES
 #     IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/include/imgui/build/imgui.a)
-    
+
 # ADD_LIBRARY(soil STATIC IMPORTED)
 # SET_TARGET_PROPERTIES(soil PROPERTIES
 #     IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/include/SOIL/libSOIL.a)
-    
+
 #add_library(leaktracer DYNAMIC IMPORTED)
 #set_target_properties(leaktracer PROPERTIES
 #    IMPORTED_LOCATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libleaktracer.so)
 # начинаем компилировать (создаем цели компиляции)
 
 # UTILS
-set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/utils/CmdMgr.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Variable.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Console.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/TimeMeter.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Globals.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Utility.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Event.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Type.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/EntityComponentSystem.cpp 
+set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/utils/CmdMgr.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Variable.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Console.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/TimeMeter.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Globals.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Utility.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Event.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Type.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/EntityComponentSystem.cpp
 #              ${CMAKE_CURRENT_SOURCE_DIR}/utils/JobSystem.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Random.cpp
 #              ${CMAKE_CURRENT_SOURCE_DIR}/utils/State.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/ThreadPool.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/bin/Settings.cpp 
+             ${CMAKE_CURRENT_SOURCE_DIR}/bin/Settings.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/src/format.cc
              ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/src/posix.cc
 #              utils/ResourceManager.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/FileTools.cpp)
-set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/utils/CmdMgr.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Variable.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Console.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/TimeMeter.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Globals.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Utility.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Event.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Type.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/utils/EntityComponentSystem.h 
+set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/utils/CmdMgr.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Variable.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Console.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/TimeMeter.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Globals.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Utility.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Event.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Type.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/EntityComponentSystem.h
 #              ${CMAKE_CURRENT_SOURCE_DIR}/utils/JobSystem.h
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Random.h
 #              ${CMAKE_CURRENT_SOURCE_DIR}/utils/State.h
@@ -331,11 +347,11 @@ set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/utils/CmdMgr.h
 add_library(utils ${SRC_LIST} ${HDR_LIST}) # именно add_library объявляет цель в cmake (затем это имя мы используем как переменную в других функциях)
 target_link_libraries(utils) # например здесь fmt
 
-# PHYSICS             
+# PHYSICS
 set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsUtils.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/Physics.cpp 
+             ${CMAKE_CURRENT_SOURCE_DIR}/physics/Physics.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/BroadphaseInterface.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysics.cpp 
+             ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysics.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUPhysicsParallel.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUOctreeBroadphase.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUOctreeBroadphase.cpp
@@ -343,16 +359,16 @@ set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsUtils.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUNarrowphase.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUNarrowphase.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUNarrowphaseParallel.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUSolver.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolver.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolverParallel.cpp 
+             ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUSolver.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolver.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolverParallel.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysicsSorter.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUPhysicsSorter.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/HelperFunctions.cpp
-#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/Graph.cpp 
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/Graph.cpp
              )
 set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsUtils.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/Physics.h 
+             ${CMAKE_CURRENT_SOURCE_DIR}/physics/Physics.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/BroadphaseInterface.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysics.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUPhysicsParallel.h
@@ -365,70 +381,71 @@ set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsUtils.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUNarrowphase.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUNarrowphase.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUNarrowphaseParallel.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/Solver.h 
+             ${CMAKE_CURRENT_SOURCE_DIR}/physics/Solver.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUSolver.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolver.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolverParallel.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsSorter.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysicsSorter.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUPhysicsSorter.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/HelperFunctions.h 
+             ${CMAKE_CURRENT_SOURCE_DIR}/physics/HelperFunctions.h
 #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/Graph.h
              )
 add_library(physics ${SRC_LIST} ${HDR_LIST})
-target_link_libraries(physics utils)
+target_link_libraries(physics render utils)
 
 # RENDER
-set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/render/VulkanRender.cpp 
+set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/render/VulkanRender.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/render/Optimizers.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/render/RenderStages.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicComponets.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/Window.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/Deferred.cpp 
+             # ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicComponets.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/Window.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/Deferred.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicsContainer.cpp
-#              ${CMAKE_CURRENT_SOURCE_DIR}/render/Occlusion.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/Core.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/Tasks.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/Internal.cpp 
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/Makers.cpp 
+#              ${CMAKE_CURRENT_SOURCE_DIR}/render/Occlusion.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/Core.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/Tasks.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/Internal.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/Makers.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/render/Types.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/render/RAII.cpp
 #              render/TextureManager.cpp
 #              render/stbi_image_impl.cpp
              )
-set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/render/Render.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/VulkanRender.h 
+set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/render/Render.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/VulkanRender.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/Optimizer.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/Optimizers.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/RenderStages.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/RenderStage.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicComponets.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/Window.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/Deferred.h 
+             # ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicComponets.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/Window.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/Deferred.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicsContainer.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/nuklear_header.h
-#              ${CMAKE_CURRENT_SOURCE_DIR}/render/Occlusion.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/yavf.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/Core.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/Tasks.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/Internal.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/Makers.h 
-             ${CMAKE_CURRENT_SOURCE_DIR}/render/Types.h 
+#              ${CMAKE_CURRENT_SOURCE_DIR}/render/Occlusion.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/yavf.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/Core.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/Tasks.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/Internal.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/Makers.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/Types.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/RAII.h
-#              ${CMAKE_CURRENT_SOURCE_DIR}/render/vk_mem_alloc.h 
+#              ${CMAKE_CURRENT_SOURCE_DIR}/render/vk_mem_alloc.h
              ${CMAKE_CURRENT_SOURCE_DIR}/include/VulkanMemoryAllocator/src/vk_mem_alloc.h
 #              render/TextureManager.h
 #              render/stbi_image_header.h
              )
 add_library(render ${SRC_LIST} ${HDR_LIST})
-target_link_libraries(render utils vulkan ${GLFW3_LIBRARIES})
+target_link_libraries(render utils ${VULKAN_LIB_NAME} ${GLFW3_LIBRARIES})
 
 # BINARY
-set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/bin/Components.cpp 
-#              bin/CombatComponent.cpp 
-#              model/Animation.cpp 
-#              bin/AISystem.cpp 
-#              bin/Game.cpp 
+set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/bin/Components.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicComponets.cpp
+#              bin/CombatComponent.cpp
+#              model/Animation.cpp
+#              bin/AISystem.cpp
+#              bin/Game.cpp
 #              bin/main.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/EventComponent.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/AnimationComponent.cpp
@@ -441,10 +458,11 @@ set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/bin/Components.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/Helper.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/main.cpp)
 
-set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/bin/Components.h 
-#              bin/CombatComponent.h 
-#              model/Animation.h 
-#              bin/AISystem.h 
+set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/bin/Components.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicComponets.h
+#              bin/CombatComponent.h
+#              model/Animation.h
+#              bin/AISystem.h
 #              bin/Game.h
              #${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.h
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/EventComponent.h
@@ -457,5 +475,5 @@ set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/bin/Components.h
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/Helper.h
              )
 add_executable(${TARGET_NAME} ${SRC_LIST} ${HDR_LIST})
-target_link_libraries(${TARGET_NAME} render physics utils)
+target_link_libraries(${TARGET_NAME} render physics utils cppfs)
 add_dependencies(${TARGET_NAME} shaders resources)
