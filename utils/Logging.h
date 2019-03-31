@@ -14,15 +14,16 @@ public:
   inline ~RegionLog() {
     auto end = std::chrono::steady_clock::now() - tp;
     auto mcs = std::chrono::duration_cast<std::chrono::microseconds>(end).count();
-    
+
     std::cout << name << " takes " << mcs << " mcs" << "\n";
   }
-  
+
   std::chrono::steady_clock::time_point tp;
   std::string name;
 #else
-  inline RegionLog(const std::string &name) {
+  inline RegionLog(const std::string &name, const bool printStart = false) {
     (void)name;
+    (void)printStart;
   }
 #endif
 };

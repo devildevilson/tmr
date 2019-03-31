@@ -175,55 +175,6 @@ add_custom_target(
 set(RESOURCE_DIR ${CMAKE_SOURCE_DIR}/resources)
 set(RESOURCE_DEST ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
-# add_custom_command(
-#         TARGET ${TARGET_NAME} POST_BUILD
-#         COMMAND ${CMAKE_COMMAND} -E copy
-#                 ${CMAKE_SOURCE_DIR}/test/input.txt
-#                 ${CMAKE_CURRENT_BINARY_DIR}/input.txt)
-
-# file(GLOB_RECURSE PROJECT_RESOURCE_FILES
-#     ${RESOURCE_DIR}/*
-#     )
-
-# file(COPY ${PROJECT_RESOURCE_FILES} DESTINATION ${RESOURCE_DEST})
-# file(COPY . DESTINATION ${RESOURCE_DEST} PATTERN build EXCLUDE)
-
-# Scan through resource folder for updated files and copy if none existing or changed
-# file (GLOB_RECURSE PROJECT_RESOURCE_FILES "${RESOURCE_DIR}/*")
-# foreach(RESOURCE ${PROJECT_RESOURCE_FILES})
-#  get_filename_component(filename ${RESOURCE} NAME)
-#  get_filename_component(dir ${RESOURCE} DIRECTORY)
-#  get_filename_component(dirname ${dir} NAME)
-#  get_filename_component(sourcedirname ${RESOURCE_DIR} NAME)
-#
-#  set (output "")
-#
-#  while(NOT ${dirname} STREQUAL ${sourcedirname})
-#   get_filename_component(path_component ${dir} NAME)
-#   set (output "${path_component}/${output}")
-#   get_filename_component(dir ${dir} DIRECTORY)
-#   get_filename_component(dirname ${dir} NAME)
-#   # мне тут нужно еще создать директорию для копирования
-#  endwhile()
-#
-#  set(output "${RESOURCE_DEST}/${output}/${filename}")
-#
-#  add_custom_command(
-#   COMMENT "Moving updated resource-file '${filename}'"
-#   OUTPUT ${output}
-#   DEPENDS ${resource}
-#   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${resource} ${output}
-#  )
-#  #add_custom_target(${filename} ALL DEPENDS ${resource} ${output})
-#  list(APPEND COPYING_RESOURCES ${output})
-#
-# endforeach()
-#
-# add_custom_target(
-#     resources
-#     DEPENDS ${COPYING_RESOURCES}
-#     )
-
 file(GLOB PROJECT_RESOURCE_FILES
      "${RESOURCE_DIR}/models"
      "${RESOURCE_DIR}/tmrdata"
@@ -280,31 +231,8 @@ else()
 endif (CMAKE_BUILD_TYPE MATCHES "Debug")
 
 # указываем куда мы будем компилировать файлы, также некоторые настройки
-#SET(EXECUTABLE_OUTPUT_PATH build/) # исполняемый файл
-#SET(LIBRARY_OUTPUT_PATH build/) # библиотечки
 SET(BUILD_SHARED_LIBS ON) # все библиотеки по дефолту компилятся как динамические
-#set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-#pkg_check_modules(GLFW3 REQUIRED glfw3) # используем модуль pkg-config для glfw3 (замена `pkg-config --static --libs glfw3`)
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -g") # сишные флаги
-
-#${CMAKE_CURRENT_LIST_DIR}/build
-
-# ADD_LIBRARY(fmt STATIC IMPORTED)
-# SET_TARGET_PROPERTIES(fmt PROPERTIES
-#     IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/build/libfmt.a)
-
-# ADD_LIBRARY(imgui STATIC IMPORTED)
-# SET_TARGET_PROPERTIES(imgui PROPERTIES
-#     IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/include/imgui/build/imgui.a)
-
-# ADD_LIBRARY(soil STATIC IMPORTED)
-# SET_TARGET_PROPERTIES(soil PROPERTIES
-#     IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/include/SOIL/libSOIL.a)
-
-#add_library(leaktracer DYNAMIC IMPORTED)
-#set_target_properties(leaktracer PROPERTIES
-#    IMPORTED_LOCATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libleaktracer.so)
 # начинаем компилировать (создаем цели компиляции)
 
 # UTILS
