@@ -800,11 +800,11 @@ namespace simd {
   }
 
   inline vec4 operator*(const quat &q, const vec4 &v) {
-    const vec4 quatVec = vec4(simd_swizzle(q.native, 1, 2, 3, 0) * crossConst);
+    const vec4 quatVec = swizzle<0, 3, 2, 1>(vec4(q.native));
     const vec4 uv = cross(quatVec, v);
     const vec4 uuv = cross(quatVec, uv);
-    const vec4 tmp = v + ((uv * q.w) + uuv) * 2.0f;
-//     tmp.w = v.w;
+    const float w = _mm_cvtss_f32(q);
+    const vec4 tmp = v + ((uv * w) + uuv) * 2.0f;
 
     return tmp;
   }
@@ -2112,19 +2112,33 @@ namespace simd {
 //     return r;
 //   }
 
+  #define makeShuffleMask(x,y,z,w) (x | (y<<2) | (z<<4) | (w<<6))
+
+  #define vecSwizzleMask(vec, mask) vec4(_mm_castsi128_ps(_mm_shuffle_epi32(_mm_castps_si128(vec), mask)))
+  #define vecSwizzle(vec, x, y, z, w) vecSwizzleMask(vec, makeShuffleMask(x, y, z, w))
+  #define vecSwizzle1(vec, x) vecSwizzleMask(vec, makeShuffleMask(x, x, x, x))
+  #define vecSwizzle_0022(vec) vec4(_mm_moveldup_ps(vec))
+  #define vecSwizzle_1133(vec) vec4(_mm_movehdup_ps(vec))
+
+  // return (vec1[x], vec1[y], vec2[z], vec2[w])
+  #define vecShuffle(vec1, vec2, x,y,z,w)    vec4(_mm_shuffle_ps(vec1, vec2, makeShuffleMask(x,y,z,w)))
+  // special shuffle
+  #define vecShuffle_0101(vec1, vec2)        vec4(_mm_movelh_ps(vec1, vec2))
+  #define vecShuffle_2323(vec1, vec2)        vec4(_mm_movehl_ps(vec1, vec2))
+
   inline vec4 mat2Mul(const vec4 &mat1, const vec4 &mat2) {
-    return         mat1              * simd_swizzle(mat2, 0, 3, 0, 3) +
-           simd_swizzle(mat1, 1, 0, 3, 2) * simd_swizzle(mat2, 2, 1, 2, 1);
+    return            mat1              * vecSwizzle(mat2, 0, 3, 0, 3) +
+           vecSwizzle(mat1, 1, 0, 3, 2) * vecSwizzle(mat2, 2, 1, 2, 1);
   }
 
   inline vec4 mat2AdjMul(const vec4 &mat1, const vec4 &mat2) {
-    return simd_swizzle(mat1, 3, 3, 0, 0) *         mat2 -
-           simd_swizzle(mat1, 1, 1, 2, 2) * simd_swizzle(mat2, 2, 3, 0, 1);
+    return vecSwizzle(mat1, 3, 3, 0, 0) *         mat2 -
+           vecSwizzle(mat1, 1, 1, 2, 2) * vecSwizzle(mat2, 2, 3, 0, 1);
   }
 
   inline vec4 mat2MulAdj(const vec4 &mat1, const vec4 &mat2) {
-    return         mat1              * simd_swizzle(mat2, 0, 3, 0, 3) -
-           simd_swizzle(mat1, 1, 0, 3, 2) * simd_swizzle(mat2, 2, 1, 2, 1);
+    return            mat1              * vecSwizzle(mat2, 0, 3, 0, 3) -
+           vecSwizzle(mat1, 1, 0, 3, 2) * vecSwizzle(mat2, 2, 1, 2, 1);
   }
 
 //   // для всех
@@ -2264,13 +2278,21 @@ namespace simd {
   // нашел здесь http://fhtr.blogspot.com/2010/02/4x4-float-matrix-multiplication-using.html
   inline mat4 operator*(const mat4 &mat1, const mat4 &mat2) {
     mat4 mat;
-    const float* ptr = &mat2[0][0];
-    for (uint32_t i = 0; i < mat1.length(); ++i) {
-      mat[i] = mat1[0] * mat2[i];
+    for (uint32_t i = 0; i < 4; ++i) {
+      float arr[4];
+      mat1[i].store(arr);
 
-      for (uint32_t j = 1; j < mat2.length(); ++j) {
-        mat[i] += mat1[j] * vec4(ptr[i*4+j]);
-      }
+      const vec4 ARx = vec4(arr[0]);
+      const vec4 ARy = vec4(arr[1]);
+      const vec4 ARz = vec4(arr[2]);
+      const vec4 ARw = vec4(arr[3]);
+
+      const vec4 X = ARx * mat2[0];
+      const vec4 Y = ARy * mat2[1];
+      const vec4 Z = ARz * mat2[2];
+      const vec4 W = ARw * mat2[3];
+
+      mat[i] = X + Y + Z + W;
     }
 
     return mat;
@@ -2311,21 +2333,17 @@ namespace simd {
 
   inline vec4 operator*(const vec4 &vec, const mat4 &mat) {
 #ifdef __SSE4_1__
-    const mat4 transposed = transpose(mat);
-
-    const vec4 prod1 = _mm_dp_ps(transposed[0], vec, 0xFF);
-    const vec4 prod2 = _mm_dp_ps(transposed[1], vec, 0xFF);
-    const vec4 prod3 = _mm_dp_ps(transposed[2], vec, 0xFF);
-    const vec4 prod4 = _mm_dp_ps(transposed[3], vec, 0xFF);
+    const vec4 prod1 = _mm_dp_ps(mat[0], vec, 0xFF);
+    const vec4 prod2 = _mm_dp_ps(mat[1], vec, 0xFF);
+    const vec4 prod3 = _mm_dp_ps(mat[2], vec, 0xFF);
+    const vec4 prod4 = _mm_dp_ps(mat[3], vec, 0xFF);
 
     return simd_shuffle(movelh(prod1, prod2), movelh(prod3, prod4), 2, 0, 2, 0);
 #else
-    const mat4 transposed = transpose(mat);
-
-    const vec4 prod1 = transposed[0] * vec; //_mm_mul_ps(rows[0], v);
-    const vec4 prod2 = transposed[1] * vec; //_mm_mul_ps(rows[1], v);
-    const vec4 prod3 = transposed[2] * vec; //_mm_mul_ps(rows[2], v);
-    const vec4 prod4 = transposed[3] * vec; //_mm_mul_ps(rows[3], v);
+    const vec4 prod1 = mat[0] * vec; //_mm_mul_ps(rows[0], v);
+    const vec4 prod2 = mat[1] * vec; //_mm_mul_ps(rows[1], v);
+    const vec4 prod3 = mat[2] * vec; //_mm_mul_ps(rows[2], v);
+    const vec4 prod4 = mat[3] * vec; //_mm_mul_ps(rows[3], v);
 
     return hadd(hadd(prod1, prod2), hadd(prod3, prod4));
 #endif
@@ -2340,7 +2358,9 @@ namespace simd {
 
   inline mat4 translate(const mat4 &mat, const vec4 &vec) {
     mat4 r;
-    r[3] = mat[0] * vec[0] + mat[1] * vec[1] + mat[2] * vec[2] + mat[3];
+    float arr[4];
+    vec.store(arr);
+    r[3] = mat[0] * arr[0] + mat[1] * arr[1] + mat[2] * arr[2] + mat[3];
     return r;
   }
 
@@ -2374,9 +2394,11 @@ namespace simd {
 
   inline mat4 scale(const mat4 &mat, const vec4 &vec) {
     mat4 result(mat);
-    result[0] *= vec[0];
-    result[1] *= vec[1];
-    result[2] *= vec[2];
+    float arr[4];
+    vec.store(arr);
+    result[0] *= arr[0];
+    result[1] *= arr[1];
+    result[2] *= arr[2];
     //result[3] = m[3];
     return result;
   }

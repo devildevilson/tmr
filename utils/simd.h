@@ -182,9 +182,9 @@ namespace simd {
 //     return vec4(_mm_shuffle_ps(a, b, _MM_SHUFFLE(x, y, z, w)));
 //   }
 
-  #define simd_shuffle(a, b, x, y, z, w) vec4(_mm_shuffle_ps(a, b, _MM_SHUFFLE(x, y, z, w)))
-  #define simd_swizzle(a, x, y, z, w)    vec4(_mm_shuffle_ps(a, a, _MM_SHUFFLE(x, y, z, w)))
-  #define simd_swizzle1(a, x)            vec4(_mm_shuffle_ps(a, a, _MM_SHUFFLE(x, x, x, x)))
+  #define simd_shuffle(a, b, x, y, z, w) simd::vec4(_mm_shuffle_ps(a, b, _MM_SHUFFLE(x, y, z, w)))
+  #define simd_swizzle(a, x, y, z, w)    simd::vec4(_mm_shuffle_ps(a, a, _MM_SHUFFLE(x, y, z, w)))
+  #define simd_swizzle1(a, x)            simd::vec4(_mm_shuffle_ps(a, a, _MM_SHUFFLE(x, x, x, x)))
 
   template<uint32_t x, uint32_t y, uint32_t z, uint32_t w>
   inline vec4 shuffle(const vec4 &v1, const vec4 &v2) {
