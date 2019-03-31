@@ -66,7 +66,7 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
   narrow->updateBuffers(overlappingPairCache.size(), staticOverlappingPairCache.size());
   solver->updateBuffers(overlappingPairCache.size() + staticOverlappingPairCache.size(), rayPairCache.size());
 
-  RegionLog rl("Physics", true);
+  // RegionLog rl("Physics", true);
 
   // какое тут должно быть максимальное время? нафига оно вообще мне здесь?
   const size_t frameTime = std::min(time, size_t(250000));
@@ -76,7 +76,7 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
     memcpy(prevState.data(), currState.data(), currState.size()*sizeof(currState[0]));
 
     {
-      RegionLog rl("update velocities");
+      // RegionLog rl("update velocities");
       updateVelocities();
     }
 
@@ -453,11 +453,16 @@ void CPUPhysicsParallel::setGravity(const glm::vec4 &g) {
 }
 
 void CPUPhysicsParallel::updateMaxSpeed(const uint32_t &physicDataIndex, const float &maxSpeed) {
+  (void)physicDataIndex;
+  (void)maxSpeed;
   throw std::runtime_error("must not be called");
 }
 
 
 uint32_t CPUPhysicsParallel::setShapePointsAndFaces(const uint32_t &objectDataIndex, const std::vector<glm::vec4> &points, const std::vector<glm::vec4> &faces) {
+  (void)objectDataIndex;
+  (void)points;
+  (void)faces;
   throw std::runtime_error("not implemented yet");
 }
 

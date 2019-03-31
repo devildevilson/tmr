@@ -31,6 +31,9 @@ CPUSolverParallel::CPUSolverParallel(dt::thread_pool* pool, const float &thresho
 CPUSolverParallel::~CPUSolverParallel() {}
 
 void CPUSolverParallel::setInputBuffers(const InputBuffers &buffers, void* indirectIslandCount, void* indirectPairCount) {
+  (void)indirectIslandCount;
+  (void)indirectPairCount;
+
   objects = buffers.objects;
   verts = buffers.verts;
   systems = buffers.systems;
@@ -204,7 +207,7 @@ void CPUSolverParallel::calculateData() {
   // мне нужно заполнить overlappingData
   // причем мне нужно отсюда удалить старые пары и добавить новые, то есть
 
-  RegionLog rl("CPUSolverParallel::calculateData()");
+  // RegionLog rl("CPUSolverParallel::calculateData()");
 
   dataIndices->data()->indirectX = 1;
   dataIndices->data()->indirectY = 1;
@@ -315,10 +318,6 @@ void CPUSolverParallel::calculateData() {
 void CPUSolverParallel::calculateRayData() {
 //   static const auto rayIntersection = [&] (const uint32_t &index, std::atomic<uint32_t> &counter) {
   static const auto rayIntersection = [&] (const size_t &start, const size_t &count, std::atomic<uint32_t> &counter) {
-    // RegionLog rl("rayIntersection", true);
-    // std::cout << "start " << start << '\n';
-    // std::cout << "count " << count << '\n';
-    // std::cout << "size  " << rayPairs->size() << '\n';
     for (size_t index = start; index < start+count; ++index) {
       const BroadphasePair &pair = rayPairs->at(index+1);
 
@@ -328,8 +327,8 @@ void CPUSolverParallel::calculateRayData() {
       const uint32_t transformIndex = objects->at(objIndex).transformIndex;
 
       glm::vec4 point = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-      //const bool col = intersect(rayIndex, objIndex, transformIndex, point);
-      const bool col = true;
+      const bool col = intersect(rayIndex, objIndex, transformIndex, point);
+      //const bool col = true;
 
       if (col) {
         const uint32_t id = counter.fetch_add(1);
@@ -345,7 +344,7 @@ void CPUSolverParallel::calculateRayData() {
     }
   };
 
-  RegionLog rl("CPUSolverParallel::calculateRayData()", true);
+  // RegionLog rl("CPUSolverParallel::calculateRayData()", true);
 
   raysIndices->data()->indirectX = 1;
   raysIndices->data()->indirectY = 1;
@@ -373,11 +372,6 @@ void CPUSolverParallel::calculateRayData() {
     start += jobCount;
   }
 
-  std::cout << "firstIndex " << rayPairs->at(0).firstIndex << '\n';
-  std::cout << "count      " << count << '\n';
-  std::cout << "counter    " << counter << '\n';
-  std::cout << "size       " << raysData->size() << "\n";
-
   pool->compute();
   pool->wait();
 
@@ -387,33 +381,33 @@ void CPUSolverParallel::calculateRayData() {
 
 void CPUSolverParallel::solve() {
   // тут наверное быстрее сработает так
-  static const auto calcPos = [&] (const float &koef, const uint32_t &iteration, const uint32_t &index) {
-    const uint32_t objIndex = indicies->at(index+1);
-    const uint32_t staticPhysDataIndex = objects->at(objIndex).staticPhysicDataIndex;
-    const uint32_t physDataIndex = staticPhysDatas->at(staticPhysDataIndex).physDataIndex;
-
-    if (physDataIndex == UINT32_MAX) return;
-
-    const uint32_t transformIndex = datas->at(physDataIndex).transformIndex;
-    const float dt = MCS_TO_SEC(gravity->data()->time);
-
-    if (iteration == 0) {
-      //datas->at(physDataIndex).onGroundBits = datas->at(physDataIndex).onGroundBits | ((datas->at(physDataIndex).onGroundBits & 0x1) << 1);
-      datas->at(physDataIndex).onGroundBits <<= 1;
-      datas->at(physDataIndex).onGroundBits &= 0x2;
-      datas->at(physDataIndex).onGroundBits &= 0x3;
-      datas->at(physDataIndex).groundIndex = UINT32_MAX;
-      objects->at(objIndex).groundObjIndex = UINT32_MAX;
-      transforms->at(transformIndex).pos = datas->at(physDataIndex).oldPos;
-    }
-
-    // здесь мы перевычисляем позиции объектов
-    // нам нужна общая скорость (тип скорость объекта + скорость земли)
-    // по всей видимости тут нужен будет еще один буфер, где мы будем хранить скорость вычисленную еще в первом шаге
-    // скорости менять от столкновений нам придется видимо две
-    // куда поз сохранить? сразу в трансформы? или лучше в какой дополнительный буфер?
-    transforms->at(transformIndex).pos += koef * velocities->at(physDataIndex) * dt;
-  };
+  // static const auto calcPos = [&] (const float &koef, const uint32_t &iteration, const uint32_t &index) {
+  //   const uint32_t objIndex = indicies->at(index+1);
+  //   const uint32_t staticPhysDataIndex = objects->at(objIndex).staticPhysicDataIndex;
+  //   const uint32_t physDataIndex = staticPhysDatas->at(staticPhysDataIndex).physDataIndex;
+  //
+  //   if (physDataIndex == UINT32_MAX) return;
+  //
+  //   const uint32_t transformIndex = datas->at(physDataIndex).transformIndex;
+  //   const float dt = MCS_TO_SEC(gravity->data()->time);
+  //
+  //   if (iteration == 0) {
+  //     //datas->at(physDataIndex).onGroundBits = datas->at(physDataIndex).onGroundBits | ((datas->at(physDataIndex).onGroundBits & 0x1) << 1);
+  //     datas->at(physDataIndex).onGroundBits <<= 1;
+  //     datas->at(physDataIndex).onGroundBits &= 0x2;
+  //     datas->at(physDataIndex).onGroundBits &= 0x3;
+  //     datas->at(physDataIndex).groundIndex = UINT32_MAX;
+  //     objects->at(objIndex).groundObjIndex = UINT32_MAX;
+  //     transforms->at(transformIndex).pos = datas->at(physDataIndex).oldPos;
+  //   }
+  //
+  //   // здесь мы перевычисляем позиции объектов
+  //   // нам нужна общая скорость (тип скорость объекта + скорость земли)
+  //   // по всей видимости тут нужен будет еще один буфер, где мы будем хранить скорость вычисленную еще в первом шаге
+  //   // скорости менять от столкновений нам придется видимо две
+  //   // куда поз сохранить? сразу в трансформы? или лучше в какой дополнительный буфер?
+  //   transforms->at(transformIndex).pos += koef * velocities->at(physDataIndex) * dt;
+  // };
 
   static const auto prepareObjects = [&] (const size_t &start, const size_t &count) {
     for (size_t index = start; index < start+count; ++index) {
@@ -494,7 +488,7 @@ void CPUSolverParallel::solve() {
 
 //   const float koef = 1.0f / float(iterationCount);
 
-  RegionLog rl("CPUSolverParallel::solve()");
+  // RegionLog rl("CPUSolverParallel::solve()");
 
 //   for (uint32_t iteration = 0; iteration < iterationCount; ++iteration) {
 //     std::cout << "iteration " << iteration << '\n';
@@ -736,7 +730,8 @@ bool CPUSolverParallel::BoxBoxSAT(const float &treshold, const Object &first,  c
 // }
 
 bool CPUSolverParallel::BoxSphereSAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
-                             const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const {
+                                     const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const {
+  (void)second;
   const glm::mat4 &sys = systems->at(first.coordinateSystemIndex);
   float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
 
@@ -814,6 +809,8 @@ bool CPUSolverParallel::BoxPolySAT(const float &treshold, const Object &first,  
 
 bool CPUSolverParallel::SphereSphereSAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
                                         const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const {
+  (void)first;
+  (void)second;
   float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
 
   const glm::vec4 &tmpPos1 = transforms->at(transFirst).pos;
@@ -845,6 +842,7 @@ bool CPUSolverParallel::SphereSphereSAT(const float &treshold, const Object &fir
 
 bool CPUSolverParallel::PolySphereSAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
                                       const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const {
+  (void)second;
   float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
 
   const glm::vec4 &firstPos = transFirst != UINT32_MAX ? transforms->at(transFirst).pos : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);

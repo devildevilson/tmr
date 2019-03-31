@@ -55,7 +55,7 @@ namespace dt {
   }
 
   void thread_pool::compute() {
-    RegionLog rl("thread_pool::compute()", true);
+    // RegionLog rl("thread_pool::compute()", true);
 
     while (true) {
       std::function<void()> task;
@@ -88,7 +88,7 @@ namespace dt {
     }
   }
   void thread_pool::wait() {
-    RegionLog rl("thread_pool::wait()", true);
+    // RegionLog rl("thread_pool::wait()", true);
     // не уверен на сколько быстро это все работает
     // но по идее оверхед от атомарных переменных был бы больше
     if (is_dependent(std::this_thread::get_id())) return;

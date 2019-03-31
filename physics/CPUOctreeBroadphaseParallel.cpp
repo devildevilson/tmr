@@ -308,7 +308,7 @@ void CPUOctreeBroadphaseParallel::updateBuffers(const uint32_t &objCount, const 
 }
 
 void CPUOctreeBroadphaseParallel::update() {
-  RegionLog rl("CPUOctreeBroadphaseParallel::update()");
+  // RegionLog rl("CPUOctreeBroadphaseParallel::update()");
 
   static const auto updateAABB = [&] (const size_t &start, const size_t &count, std::atomic<uint32_t> &counter) {
     for (size_t index = start; index < start+count; ++index) {
@@ -549,7 +549,7 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
     }
   };
 
-  RegionLog rl("CPUOctreeBroadphaseParallel::calculateOverlappingPairs()");
+  // RegionLog rl("CPUOctreeBroadphaseParallel::calculateOverlappingPairs()");
 
   std::atomic<uint32_t> pairsCounter(0);
   std::atomic<uint32_t> staticPairsCounter(0);
@@ -649,7 +649,7 @@ void CPUOctreeBroadphaseParallel::calculateRayTests() {
     }
   };
 
-  RegionLog rl("CPUOctreeBroadphaseParallel::calculateRayTests()");
+  // RegionLog rl("CPUOctreeBroadphaseParallel::calculateRayTests()");
 
   std::atomic<uint32_t> counter(0);
 
@@ -784,7 +784,7 @@ void CPUOctreeBroadphaseParallel::calculateFrustumTests() {
     }
   };
 
-  RegionLog rl("CPUOctreeBroadphaseParallel::calculateFrustumTests()");
+  // RegionLog rl("CPUOctreeBroadphaseParallel::calculateFrustumTests()");
 
   std::atomic<uint32_t> counter(0);
 

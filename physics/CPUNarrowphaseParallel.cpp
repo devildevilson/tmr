@@ -79,7 +79,7 @@ void CPUNarrowphaseParallel::checkIdenticalPairs() {
 
   if (pairs->at(0).firstIndex < 1) return;
 
-  RegionLog rl("CPUNarrowphaseParallel::checkIdenticalPairs()");
+  // RegionLog rl("CPUNarrowphaseParallel::checkIdenticalPairs()");
 
   uint32_t uniqueFirstIndex = UINT32_MAX;
   uint32_t uniqueSecondIndex = UINT32_MAX;
@@ -145,7 +145,7 @@ void CPUNarrowphaseParallel::postCalculation() {
     }
   };
 
-  RegionLog rl("CPUNarrowphaseParallel::postCalculation()");
+  // RegionLog rl("CPUNarrowphaseParallel::postCalculation()");
 
   // имеет ли смысл тут параллелить на тяжелых тредах цпу?
   // тут можно раскидать задачи по тредам и с помощью фьючеров синхронизировать
