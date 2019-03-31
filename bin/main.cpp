@@ -2,7 +2,7 @@
 
 // #include "../sound/SoundSystem.h"
 
-int main(const int argc, const char** argv) {
+int main(int argc, char** argv) {
   for (int32_t i = 0; i < argc; ++i) {
     std::cout << argv[i] << "\n";
   }
@@ -50,6 +50,8 @@ int main(const int argc, const char** argv) {
   // например если в системе два треда (в этом случае скорее всего тоже норм)
   // если в настройках определено не использовать треад пул
   // то нам его создавать ни к чему
+  std::cout << "std::thread::hardware_concurrency() " << std::thread::hardware_concurrency() << "\n";
+  //throw std::runtime_error("no more");
   dt::thread_pool threadPool(std::max(std::thread::hardware_concurrency()-1, uint32_t(1))); // как там его правильно создать?
 
   initGLFW();
@@ -477,7 +479,7 @@ int main(const int argc, const char** argv) {
 
     // здесь же у нас должна быть настройка: тип какую частоту обновления экрана использовать?
     const size_t syncTime = Global::window()->isVsync() ? Global::window()->refreshTime() : 0; //16667
-//     std::cout << "syncTime " << syncTime << "\n";
+    //std::cout << "syncTime " << syncTime << "\n";
     sync(tm, syncTime);
 
     // неплохо было бы подумать на счет того чтобы отрисовывать часть вещей не дожидаясь свопчейна

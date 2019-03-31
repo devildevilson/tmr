@@ -24,26 +24,26 @@ CPUPhysicsParallel::CPUPhysicsParallel(const CreateInfo &info) : updateDelta(333
 
   objects.vector().reserve(3000);
   objects.update();
-  
+
   physicsDatas.vector().reserve(3000);
   physicsDatas.update();
-  
+
   staticPhysicDatas.vector().reserve(3000);
   staticPhysicDatas.update();
-  
+
   indices.resize(3000);
-  
+
   globalVel.vector().reserve(3000);
   globalVel.update();
-  
+
   memset(dataIndices.data(), 0, sizeof(DataIndices));
   memset(raysIndices.data(), 0, sizeof(DataIndices));
-  
+
   this->defaultStaticMatrixIndex = info.buffers->defaultStaticMatrixIndex;
   this->defaultDynamicMatrixIndex = info.buffers->defaultDynamicMatrixIndex;
-  
+
   setBuffers(*info.buffers);
-  
+
   matrices->at(defaultStaticMatrixIndex) = glm::mat4(1.0f);
   matrices->at(defaultDynamicMatrixIndex) = glm::mat4(1.0f);
 
@@ -65,71 +65,71 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
   broad->updateBuffers(objects.size(), physicsDatas.size(), rays.size(), frustums.size());
   narrow->updateBuffers(overlappingPairCache.size(), staticOverlappingPairCache.size());
   solver->updateBuffers(overlappingPairCache.size() + staticOverlappingPairCache.size(), rayPairCache.size());
-  
-//   RegionLog rl("Physics", true);
-  
+
+  RegionLog rl("Physics", true);
+
   // какое тут должно быть максимальное время? нафига оно вообще мне здесь?
   const size_t frameTime = std::min(time, size_t(250000));
 
   accumulator += frameTime;
   while (accumulator >= updateDelta) {
     memcpy(prevState.data(), currState.data(), currState.size()*sizeof(currState[0]));
-  
+
     {
-//       RegionLog rl("update velocities");
+      RegionLog rl("update velocities");
       updateVelocities();
     }
-    
+
 //     PRINT_VEC3("velocity", physicsDatas[0].velocity)
-    
+
     broad->update();
 
     broad->calculateOverlappingPairs();
-    
+
     sorter->sort(&overlappingPairCache, 1);
-    
+
     narrow->checkIdenticalPairs();
-    
+
     pool->submitnr([&] () {
       sorter->sort(&overlappingPairCache);
     });
-    
+
     pool->submitnr([&] () {
       sorter->sort(&staticOverlappingPairCache);
     });
-    
+
     pool->compute();
     pool->wait();
-    
+
     narrow->postCalculation();
     solver->calculateData();
     solver->solve();
-    
+
     accumulator -= updateDelta;
   }
 
   const float alpha = float(accumulator) / float(updateDelta);
-  
+
   interpolate(alpha);
 
-  broad->update();  
+  broad->update();
   broad->calculateRayTests();
   broad->calculateFrustumTests();
-  
+
   solver->calculateRayData();
-  
+
   pool->submitnr([&] () {
     sorter->sort(&frustumTestsResult);
   });
-  
+
   pool->submitnr([&] () {
     sorter->sort(&overlappingData, &dataIndices, 0);
   });
-  
+
   pool->submitnr([&] () {
     sorter->sort(&raysData, &raysIndices, 1);
   });
-  
+
   pool->compute();
   pool->wait();
 
@@ -141,9 +141,9 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
 //   memset(rays.data(), UINT32_MAX, sizeof(RayData));
 //   memset(frustums.data(), UINT32_MAX, sizeof(FrustumStruct));
   memset(frustumTestsResult.data(), 0, sizeof(BroadphasePair));
-  
+
   indices[0] = 0;
-  
+
   rays.vector().clear();
   rays.update();
   frustums.vector().clear();
@@ -178,7 +178,7 @@ void CPUPhysicsParallel::registerShape(const std::string &name, const uint32_t s
   if (shapeType == BBOX_TYPE) {
     if (info.faces.empty() || info.faces.size() > 1) throw std::runtime_error("Wrong box data");
 
-    controlCount = 1; 
+    controlCount = 1;
   } else {
     additionalFaceOffset = 1;
     controlCount = info.points.size() + info.faces.size() + 1;
@@ -192,14 +192,14 @@ void CPUPhysicsParallel::registerShape(const std::string &name, const uint32_t s
     0,
     0
   };
-      
+
   uint32_t oldIndex = UINT32_MAX;
   s.offset = freeVert;
   while (s.offset != UINT32_MAX && glm::floatBitsToUint(verts[s.offset].y) != controlCount) {
     oldIndex = s.offset;
     s.offset = glm::floatBitsToUint(verts[s.offset].x);
   }
-  
+
   if (s.offset != UINT32_MAX) {
     if (oldIndex == UINT32_MAX) {
       freeVert = glm::floatBitsToUint(verts[freeVert].x);
@@ -214,13 +214,13 @@ void CPUPhysicsParallel::registerShape(const std::string &name, const uint32_t s
 
   s.pointCount = info.points.size();
   s.faceCount = info.faces.size();
-  
+
   glm::vec4 localCenter = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
   for (uint32_t i = 0; i < info.points.size(); ++i) {
     verts[s.offset + i] = info.points[i];
-    
+
     //if (info.points[i].w != 1.0f) throw std::runtime_error("bad vertex");
-    
+
     localCenter += info.points[i];
   }
   localCenter.x /= float(info.points.size());
@@ -229,10 +229,10 @@ void CPUPhysicsParallel::registerShape(const std::string &name, const uint32_t s
   localCenter.w = 1.0f;
 
   verts[s.offset + s.pointCount] = localCenter;
-  
+
   for (uint32_t i = 0; i < info.faces.size(); ++i) {
     verts[s.offset + s.pointCount + additionalFaceOffset + i] = info.faces[i];
-    //if (info.faces[i].w == 6.0f) throw std::runtime_error("bad normal"); 
+    //if (info.faces[i].w == 6.0f) throw std::runtime_error("bad normal");
   }
 
   shapes[name] = s;
@@ -240,7 +240,7 @@ void CPUPhysicsParallel::registerShape(const std::string &name, const uint32_t s
 
 void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexContainer* container) {
   if (defaultStaticMatrixIndex == UINT32_MAX || defaultDynamicMatrixIndex == UINT32_MAX) throw std::runtime_error("No default matrix");
-  
+
   container->objectDataIndex = UINT32_MAX;
   container->physicDataIndex = UINT32_MAX;
   container->transformIndex = UINT32_MAX;
@@ -264,7 +264,7 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
   if (freeObj != UINT32_MAX) {
     container->objectDataIndex = freeObj;
     staticPhysIndex = freeObj;
-    
+
     freeObj = objects[freeObj].objectId;
   } else {
     container->objectDataIndex = objects.size();
@@ -275,7 +275,7 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
     staticPhysicDatas.vector().emplace_back();
     staticPhysicDatas.update();
   }
-  
+
   if (info.type.isDynamic()) {
     if (freePhys != UINT32_MAX) {
       container->physicDataIndex = freePhys;
@@ -285,7 +285,7 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
       physicsDatas.vector().emplace_back();
       physicsDatas.update();
     }
-    
+
 //     std::cout << "container->objectDataIndex " << container->objectDataIndex << "\n";
   }
 
@@ -295,36 +295,36 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
       currState.resize(info.transformIndex+1);
       prevState.resize(info.transformIndex+1);
     }
-    
+
     currState[info.transformIndex] = transforms->at(info.transformIndex);
     prevState[info.transformIndex] = transforms->at(info.transformIndex);
   }
-  
+
   container->inputIndex = info.inputIndex;
 
   container->rotationIndex = info.rotationIndex;
-  
+
 //   std::cout << "container->objectDataIndex " << container->objectDataIndex << "\n";
   const uint32_t proxyIndex = broad->createProxy({}, container->objectDataIndex, info.type, info.collisionGroup, info.collisionFilter);
-  
+
   const Object obj{
     container->internalIndex,
     proxyIndex,
     staticPhysIndex,
     container->transformIndex,
-    
+
     0,
     0,
     0,
     info.type,
-    
-    info.matrixIndex == defaultDynamicMatrixIndex || info.matrixIndex == defaultStaticMatrixIndex || info.matrixIndex == UINT32_MAX ? 
+
+    info.matrixIndex == defaultDynamicMatrixIndex || info.matrixIndex == defaultStaticMatrixIndex || info.matrixIndex == UINT32_MAX ?
                           (info.type.isDynamic() ? defaultDynamicMatrixIndex : defaultStaticMatrixIndex) : info.matrixIndex,
     UINT32_MAX,
     container->rotationIndex,
     0
   };
-  
+
   objects[container->objectDataIndex] = obj;
 
   const Constants c{
@@ -335,7 +335,7 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
   };
 
   staticPhysicDatas[staticPhysIndex] = c;
-  
+
   if (container->physicDataIndex != UINT32_MAX) {
     const PhysData2 data{
       glm::vec3(0.0f, 0.0f, 0.0f),
@@ -352,7 +352,7 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
       staticPhysIndex,
       0
     };
-    
+
     physicsDatas[container->physicDataIndex] = data;
   }
 
@@ -378,18 +378,18 @@ void CPUPhysicsParallel::remove(PhysicsIndexContainer* comp) {
 //   components.back()->internalIndex = comp->internalIndex;
 //   std::swap(components[comp->internalIndex], components.back());
 //   components.pop_back();
-  
+
   components[comp->internalIndex] = reinterpret_cast<PhysicsIndexContainer*&>(freeContainer);
   freeContainer = comp->internalIndex;
-  
+
 //   std::cout << "objDataIndex " << comp->objectDataIndex << "\n";
 //   std::cout << "proxy index  " << objects[comp->objectDataIndex].proxyIndex << "\n";
-  
+
   broad->destroyProxy(objects[comp->objectDataIndex].proxyIndex);
 
   objects[comp->objectDataIndex].objectId = freeObj;
   freeObj = comp->objectDataIndex;
-  
+
   if (comp->physicDataIndex != UINT32_MAX) {
     physicsDatas[comp->physicDataIndex].velocity.x = glm::uintBitsToFloat(freePhys);
     physicsDatas[comp->physicDataIndex].objectIndex = 0xFFFFFFFF;
@@ -448,7 +448,7 @@ void CPUPhysicsParallel::setGravity(const glm::vec4 &g) {
   gravLength2 = glm::length2(g);
   gravLength  = glm::sqrt(gravLength2);
   orientation = glm::orientation(-glm::vec3(gravityNorm.x, gravityNorm.y, gravityNorm.z), glm::vec3(0.0f, 1.0f, 0.0f));
-  
+
   matrices->at(defaultDynamicMatrixIndex) = orientation;
 }
 
@@ -494,22 +494,22 @@ const ArrayInterface<BroadphasePair>* CPUPhysicsParallel::getFrustumPairs() cons
 }
 
 void CPUPhysicsParallel::printStats() {
-  const size_t memoryUsed = verts.vector().size()*sizeof(verts[0]) + 
-                            objects.vector().size()*sizeof(objects[0]) + 
-                            physicsDatas.vector().size()*sizeof(physicsDatas[0]) + 
-                            //transforms.vector().size()*sizeof(transforms[0]) + 
-                            //inputs.vector().size()*sizeof(inputs[0]) + 
-                            indices[0]*sizeof(indices[0]) + 
-                            //coordinateSystems.vector().size()*sizeof(coordinateSystems[0]) + 
+  const size_t memoryUsed = verts.vector().size()*sizeof(verts[0]) +
+                            objects.vector().size()*sizeof(objects[0]) +
+                            physicsDatas.vector().size()*sizeof(physicsDatas[0]) +
+                            //transforms.vector().size()*sizeof(transforms[0]) +
+                            //inputs.vector().size()*sizeof(inputs[0]) +
+                            indices[0]*sizeof(indices[0]) +
+                            //coordinateSystems.vector().size()*sizeof(coordinateSystems[0]) +
                             globalVel.vector().size()*sizeof(globalVel[0]) + sizeof(Gravity);
 
-  const size_t memory = verts.vector().capacity() * sizeof(verts[0]) + 
-                        objects.vector().capacity() * sizeof(objects[0]) + 
-                        physicsDatas.vector().capacity() * sizeof(physicsDatas[0]) + 
-                        //transforms.vector().capacity() * sizeof(transforms[0]) + 
-                        //inputs.vector().capacity() * sizeof(inputs[0]) + 
-                        indices.vector().capacity() * sizeof(indices[0]) + 
-                        //coordinateSystems.vector().capacity() * sizeof(coordinateSystems[0]) + 
+  const size_t memory = verts.vector().capacity() * sizeof(verts[0]) +
+                        objects.vector().capacity() * sizeof(objects[0]) +
+                        physicsDatas.vector().capacity() * sizeof(physicsDatas[0]) +
+                        //transforms.vector().capacity() * sizeof(transforms[0]) +
+                        //inputs.vector().capacity() * sizeof(inputs[0]) +
+                        indices.vector().capacity() * sizeof(indices[0]) +
+                        //coordinateSystems.vector().capacity() * sizeof(coordinateSystems[0]) +
                         globalVel.vector().capacity() * sizeof(globalVel[0]) + sizeof(Gravity);
 
   std::cout << "Physics engine data" << '\n';
@@ -519,7 +519,7 @@ void CPUPhysicsParallel::printStats() {
   std::cout << "Total memory with data " << memoryUsed << " bytes" << "\n";
   std::cout << "Free memory            " << (memory - memoryUsed) << " bytes" << '\n';
   std::cout << "Physics class size     " << sizeof(CPUPhysicsParallel) << " bytes" << '\n';
-  
+
   broad->printStats();
   narrow->printStats();
   solver->printStats();
@@ -540,74 +540,74 @@ void CPUPhysicsParallel::updateInputOutput() {
   {
     Broadphase::InputBuffers input{
       &indices,
-      &verts, 
-      &objects, 
-      matrices, 
-      //transforms, 
+      &verts,
+      &objects,
+      matrices,
+      //transforms,
       &currState,
-      rotationDatas, 
-      &rays, 
-      &frustums, 
+      rotationDatas,
+      &rays,
+      &frustums,
       &frustumPoses
     };
-    
+
     broad->setInputBuffers(input);
-    
+
     Broadphase::OutputBuffers output{
       &overlappingPairCache,
       &staticOverlappingPairCache,
       &rayPairCache,
       &frustumTestsResult
     };
-    
+
     // нужно будет сюда добавить индирект буфер
     broad->setOutputBuffers(output);
   }
-  
+
   {
     Narrowphase::InputBuffers input{
       &overlappingPairCache,
       &staticOverlappingPairCache,
     };
-    
+
     narrow->setInputBuffers(input);
-    
+
     Narrowphase::OutputBuffers output{
-      &islands, 
+      &islands,
       &staticIslands
     };
-    
+
     narrow->setOutputBuffers(output);
   }
-  
+
   {
     Solver::InputBuffers input{
-      &objects, 
-      &verts, 
-      matrices, 
-      &physicsDatas, 
-      //transforms, 
+      &objects,
+      &verts,
+      matrices,
+      &physicsDatas,
+      //transforms,
       &currState,
-      &staticPhysicDatas, 
+      &staticPhysicDatas,
       rotationDatas,
-      
+
       &overlappingPairCache,
       &staticOverlappingPairCache,
-      
-      &islands, 
+
+      &islands,
       &staticIslands,
-      
-      &indices, 
-      &globalVel, 
-      &gravityBuffer, 
-      &rays, 
-      
+
+      &indices,
+      &globalVel,
+      &gravityBuffer,
+      &rays,
+
       &rayPairCache
     };
-    
+
     // нужно добавить индирект буферы
     solver->setInputBuffers(input);
-    
+
     Solver::OutputBuffers output{
       &overlappingData,
       &dataIndices,
@@ -615,7 +615,7 @@ void CPUPhysicsParallel::updateInputOutput() {
       &raysIndices,
       &triggerIndices
     };
-    
+
     solver->setOutputBuffers(output);
   }
 }
@@ -637,7 +637,7 @@ void computeGroundVelocity(const glm::vec4 &accelerationDir,
                              glm::vec4 &velocity,
                                  float &velocityScalar) {
   const float dt1 = MCS_TO_SEC(dt);
-  
+
   const glm::vec4 finalAcceleretionDir = accelerationDir * acceleration;
   const glm::vec4 a = finalAcceleretionDir + additionalForce;
 
@@ -646,21 +646,21 @@ void computeGroundVelocity(const glm::vec4 &accelerationDir,
   float fr = velocityScalar - stopspeed*groundFriction*dt1;
   fr = glm::max(fr, 0.0f);
   fr = velocityScalar == 0.0f ? 0.0f : fr / velocityScalar;
-  
+
   velocity = oldVelocity*fr + a * dt1;
-  
+
   float newSpeed = glm::length(velocity);
 
   const float jumpKoef = (4.0f / dt1);
   const float jumpAcceleration = jumpKoef * float(jump);
   const glm::vec4 jumpAccelerationDir = -gravityNorm * jumpAcceleration;
-  
+
   if (newSpeed <= EPSILON) {
     velocity = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) + jumpAccelerationDir*dt1;
     velocityScalar = jumpAcceleration*dt1;
     return;
   }
-  
+
   const glm::vec4 newVelNorm = projectVectorOnPlane(-gravityNorm, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), velocity / newSpeed);
 
   newSpeed = glm::min(newSpeed, maxSpeed);
@@ -724,15 +724,15 @@ void CPUPhysicsParallel::updateVelocities() {
       const float accelLenght = glm::length(acceleration);
       glm::vec4 aDir = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
       if (accelLenght > EPSILON) aDir = acceleration / accelLenght;
-      
+
       const glm::vec4 additionalForce = externalDatas->at(externalDataIndex).additionalForce;
       const float maxSpeed = externalDatas->at(externalDataIndex).maxSpeed;
       const float accelerationScalar = externalDatas->at(externalDataIndex).acceleration;
-      
+
       const glm::vec4 oldVel = glm::vec4(current.velocity, 0.0f);
       float scalar = glm::length(oldVel);
       glm::vec4 vel = oldVel;
-      
+
 //       std::cout << "index " << index << " scalar " << scalar << "\n";
 
       const float groundFriction = groundPhysicsIndex != UINT32_MAX ?
@@ -750,36 +750,36 @@ void CPUPhysicsParallel::updateVelocities() {
                               groundFriction,
                               vel,
                               scalar);
-        
+
 //         const float dt1 = MCS_TO_SEC(gravityBuffer.data()->time);
-//   
+//
 //         const glm::vec4 finalAcceleretionDir = aDir * accelerationScalar;
 //         const glm::vec4 a = finalAcceleretionDir + additionalForce;
-// 
+//
 //         const float stopspeed = scalar < STOP_SPEED ? STOP_SPEED : scalar;
 //         // фриктион? additionalData.y
 //         float fr = scalar - stopspeed*groundFriction*dt1;
 //         fr = glm::max(fr, 0.0f);
 //         fr = scalar == 0.0f ? 0.0f : fr / scalar;
-//         
+//
 //         vel = oldVel*fr + a * dt1;
-//         
+//
 //         float newSpeed = glm::length(vel);
-// 
+//
 //         const float jumpKoef = (4.0f / dt1);
 //         const float jumpAcceleration = jumpKoef * float(currentInput.moves.y);
 //         const glm::vec4 jumpAccelerationDir = -gravityBuffer.data()->gravityNormal * jumpAcceleration;
-//         
+//
 //         if (newSpeed <= EPSILON) {
 //           vel = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) + jumpAccelerationDir*dt1;
 //           scalar = jumpAcceleration*dt1;
 //           return;
 //         }
-//         
+//
 //         const glm::vec4 newVelNorm = vel / newSpeed;
-// 
+//
 //         newSpeed = glm::min(newSpeed, maxSpeed);
-// 
+//
 //         vel = newVelNorm * newSpeed + jumpAccelerationDir*dt1; // - globalData.gravity*aJump;
 //         scalar = glm::length(vel);
     } else {
@@ -790,7 +790,7 @@ void CPUPhysicsParallel::updateVelocities() {
 //                           gravityBuffer.data()->gravity,
 //                           vel,
 //                           scalar);
-      
+
         const float dt1 = MCS_TO_SEC(gravityBuffer.data()->time);
 
         const glm::vec4 vn = scalar > EPSILON ? oldVel / scalar : glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -803,15 +803,15 @@ void CPUPhysicsParallel::updateVelocities() {
 
         physicsDatas[index].groundIndex = UINT32_MAX;
       }
-      
+
       physicsDatas[index].scalar = scalar;
       physicsDatas[index].velocity = glm::vec3(vel);
-      
+
       physicsDatas[index].onGroundBits = bool(physicsDatas[index].onGroundBits & 0x1) && currentInput.moves.y > 0.0f ? 0 : physicsDatas[index].onGroundBits;
       if (!bool(physicsDatas[index].onGroundBits & 0x1)) physicsDatas[index].groundIndex = UINT32_MAX;
     }
   };
-  
+
   //static const auto calcPos = [&] (const uint32_t &index, std::atomic<uint32_t> &counter) {
   static const auto calcPos = [&] (const uint32_t &start, const uint32_t &count, std::atomic<uint32_t> &counter) {
     for (uint32_t index = start; index < start+count; ++index) {
@@ -847,49 +847,49 @@ void CPUPhysicsParallel::updateVelocities() {
         // const uint id = atomicAdd(count, 1);
         // indexies[id] = datas[index].objectIndex;
         const uint32_t id = counter.fetch_add(1);
-        
+
         indices[id+1] = physicsDatas[index].objectIndex;
       }
     }
   };
-  
+
 //   std::cout << "physicsDatas.size() " << physicsDatas.size() << "\n";
 //   if (physicsDatas.size() > 2) throw std::runtime_error("physicsDatas.size() > 2");
-  
+
   const size_t count = std::ceil(float(physicsDatas.size()) / float(pool->size()+1));
   size_t start = 0;
   for (uint32_t i = 0; i < pool->size()+1; ++i) {
     const size_t jobCount = std::min(count, physicsDatas.size()-start);
     if (jobCount == 0) break;
-    
+
     pool->submitnr(calcVel, start, jobCount);
-    
+
     start += jobCount;
   }
-  
+
 //   for (uint32_t i = 0; i < physicsDatas.size(); ++i) {
 //     pool->submitnr(calcVel, i);
 //   }
-  
+
   pool->compute();
   pool->wait();
-  
+
   std::atomic<uint32_t> counter(indices[0]);
-  
+
   start = 0;
   for (uint32_t i = 0; i < pool->size()+1; ++i) {
     const size_t jobCount = std::min(count, physicsDatas.size()-start);
     if (jobCount == 0) break;
-    
+
 //     pool->submitnr(calcPos, i, std::ref(counter));
     pool->submitnr(calcPos, start, jobCount, std::ref(counter));
-    
+
     start += jobCount;
   }
-  
+
   pool->compute();
   pool->wait();
-  
+
   indices[0] = counter;
 }
 
@@ -898,36 +898,36 @@ void CPUPhysicsParallel::updateRotationDatas() {
 // //     rotationDatas->at(index).currentAngle += rotationDatas->at(index).rotationSpeed;
 // //     rotationDatas->at(index).currentAngle = glm::min(rotationDatas->at(index).currentAngle, rotationDatas->at(index).maxAngle);
 // //     rotationDatas->at(index).currentAngle = glm::max(rotationDatas->at(index).currentAngle, 0.0f);
-// // 
+// //
 // //     const glm::vec4 &anchorDir = glm::vec4(rotationDatas->at(index).anchorDir, 0.0f);
 // //     const float &anchorDist = rotationDatas->at(index).anchorDist;
-// //     
+// //
 // //     rotationDatas->at(index).matrix = glm::translate(glm::mat4(1.0f), glm::vec3(anchorDir * anchorDist));
 // //     rotationDatas->at(index).matrix = glm::rotate(rotationDatas->at(index).matrix, rotationDatas->at(index).currentAngle, glm::vec3(rotationDatas->at(index).rotationNormal));
 // //     rotationDatas->at(index).matrix = glm::translate(rotationDatas->at(index).matrix, -glm::vec3(anchorDir * anchorDist));
-//     
+//
 //     data[index].currentAngle += data[index].rotationSpeed;
 //     data[index].currentAngle = glm::min(data[index].currentAngle, data[index].maxAngle);
 //     data[index].currentAngle = glm::max(data[index].currentAngle, 0.0f);
-// 
+//
 //     const glm::vec4 &anchorDir = glm::vec4(data[index].anchorDir, 0.0f);
 //     const float &anchorDist = data[index].anchorDist;
-//     
+//
 //     data[index].matrix = glm::translate(glm::mat4(1.0f), glm::vec3(anchorDir * anchorDist));
 //     data[index].matrix = glm::rotate(data[index].matrix, data[index].currentAngle, glm::vec3(data[index].rotationNormal));
 //     data[index].matrix = glm::translate(data[index].matrix, -glm::vec3(anchorDir * anchorDist));
 //   };
-//   
+//
 //   // вобщем с ротатионДатой у меня проблемы
 //   // мне нужно придумать как ее обновлять
 //   // почему собственно я ее вообще обновляю в физике??
-//   // гораздо лучше если я ее буду обновлять вне, 
+//   // гораздо лучше если я ее буду обновлять вне,
 //   // ко всему прочему так я буду знать сколько всего этой ротатионДаты у меня есть
-//   
+//
 //   // скорее всего это неудачное решение (точнее это неверное решение 250%)
 //   // короче, нужно просто вытащить RotationData из физики
 //   RotationData* data = rotationDatas->data();
-//   
+//
 //   for (uint32_t i = 0; i < *rotationDatasCount->data(); ++i) {
 //     pool->submitnr(calcRotationData, i, data);
 //   }
@@ -937,9 +937,9 @@ void CPUPhysicsParallel::interpolate(const float &alpha) {
   static const auto interpolateFunc = [&] (const size_t &start, const size_t &count, const float &alpha) {
     for (size_t index = start; index < start+count; ++index) {
       if (physicsDatas[index].objectIndex == UINT32_MAX) return;
-    
+
 //       const glm::vec4 vel = globalVel[index];
-      
+
 //       const size_t sixteeFrames = 16667;
       const uint32_t &transIndex = physicsDatas[index].transformIndex;
       //transforms->at(transIndex).pos = transforms->at(transIndex).pos + vel*alpha*MCS_TO_SEC(sixteeFrames);
@@ -947,22 +947,22 @@ void CPUPhysicsParallel::interpolate(const float &alpha) {
       // потом добавится кватернион который мы будем slerp'ать
     }
   };
-  
+
   const size_t count = std::ceil(float(physicsDatas.size()) / float(pool->size()+1));
   size_t start = 0;
   for (uint32_t i = 0; i < pool->size()+1; ++i) {
     const size_t jobCount = std::min(count, physicsDatas.size()-start);
     if (jobCount == 0) break;
-    
+
     pool->submitnr(interpolateFunc, start, jobCount, alpha);
-    
+
     start += jobCount;
   }
-  
+
 //   for (uint32_t i = 0; i < physicsDatas.size(); ++i) {
 //     pool->submitnr(interpolateFunc, i, alpha);
 //   }
-  
+
   pool->compute();
   pool->wait();
 }

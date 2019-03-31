@@ -13,7 +13,7 @@
 // float getAngle(const glm::vec4 &first, const glm::vec4 &second);
 // void clipVelocity(const glm::vec4 &clipNormal, const float &bounce, glm::vec4 &vel);
 // glm::vec4 transform(const glm::vec4 &p, const glm::vec4 &translation, const glm::mat4 &orientation);
-// 
+//
 // bool isNormalAdequate(const ArrayInterface<glm::vec4>* verts, const uint32_t &offset, const uint32_t &normalIndex, const glm::vec4 &normal);
 
 template <typename T>
@@ -25,7 +25,7 @@ CPUSolverParallel::CPUSolverParallel(dt::thread_pool* pool, const float &thresho
   this->pool = pool;
   this->threshold = threshold;
 //   this->iterationCount = iterationCount;
-  
+
   //lastVelocities.resize(4000);
 }
 CPUSolverParallel::~CPUSolverParallel() {}
@@ -38,13 +38,13 @@ void CPUSolverParallel::setInputBuffers(const InputBuffers &buffers, void* indir
   transforms = buffers.transforms;
   staticPhysDatas = buffers.staticPhysDatas;
   rotationDatas = buffers.rotationDatas;
-  
+
   pairs = buffers.pairs;
   staticPairs = buffers.staticPairs;
-  
+
   islands = buffers.islands;
   staticIslands = buffers.staticIslands;
-  
+
   indicies = buffers.indicies;
   velocities = buffers.velocities;
   gravity = buffers.gravity;
@@ -67,7 +67,7 @@ void CPUSolverParallel::updateBuffers(const uint32_t &pairsCount, const uint32_t
   if (overlappingData->size() < pairsCount * 1.5f) overlappingData->resize(pairsCount * 1.5f);
   if (triggerIndices->size() < overlappingData->size()) triggerIndices->resize(overlappingData->size());
   if (raysData->size() < rayPairs) raysData->resize(rayPairs);
-  
+
   //if (tmpBuffer.size() < pairsCount+1) tmpBuffer.resize(pairsCount+1);
 }
 
@@ -76,16 +76,16 @@ void CPUSolverParallel::calculateData() {
   static const auto searchAndAddDynamic = [&] (const size_t &start, const size_t &count, const BroadphasePair* pairs, std::atomic<uint32_t> &counter) {
     for (size_t i = start; i < start+count; ++i) {
       const BroadphasePair &pair = pairs[i+1];
-      
+
       const uint32_t overlappingDataCount = dataIndices->data()->count;
 
       bool found = false;
       const uint32_t foundedIndex = binarySearch(overlappingData->data(), overlappingData->data()+overlappingDataCount, pair.firstIndex);
-      
+
       if (foundedIndex != UINT32_MAX) {
   //       std::cout << "first index " << pair.firstIndex << "\n";
   //       std::cout << "first index found " << foundedIndex << "\n";
-        
+
         // мы вполне можем позволить себе сделать здесь цикл, так как объектов 250% будет около 3-ех (это скорее всего даже максимум)
         uint32_t startIndex = getToStart(overlappingData->data(), pair.firstIndex, foundedIndex);
         uint32_t pairFirstIndex = overlappingData->at(startIndex).firstIndex;
@@ -145,41 +145,41 @@ void CPUSolverParallel::calculateData() {
 
       // добавляем пару
       const uint32_t id = counter.fetch_add(1);
-      
+
       //if (foundedIndex != UINT32_MAX || foundedIndex2 != UINT32_MAX) throw std::runtime_error("something goes wrong");
-      
+
   //     std::cout << "Could not find " << pair.firstIndex << " " << pair.secondIndex << "\n";
-      
+
       overlappingData->at(id).firstIndex  = foundedIndex2 == UINT32_MAX ? pair.firstIndex  : pair.secondIndex;
       overlappingData->at(id).secondIndex = foundedIndex2 == UINT32_MAX ? pair.secondIndex : pair.firstIndex;
       overlappingData->at(id).hasCollision = 0;
       overlappingData->at(id).dummy = pair.islandIndex == ONLY_TRIGGER_ID ? 1 : 0;
     }
   };
-  
+
   //static const auto computeOverlappingData = [&] (const uint32_t &index, std::atomic<uint32_t> &counter) {
   static const auto computeOverlappingData = [&] (const size_t &start, const size_t &count, std::atomic<uint32_t> &counter, std::atomic<uint32_t> &triggerCounter) {
     for (size_t index = start; index < start+count; ++index) {
       // тут нужны дополнительные данные + заполнить triggerIndices
-    
+
       const OverlappingData &data = overlappingData->at(index);
-      
+
       const uint32_t objIndex1 = data.firstIndex;
       const uint32_t objIndex2 = data.secondIndex;
 
       const uint32_t transformIndex1 = objects->at(objIndex1).transformIndex;
       const uint32_t transformIndex2 = objects->at(objIndex2).transformIndex;
-      
+
       bool col = false;
       float dist = 100000.0f;
       glm::vec4 mtv = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
       // при вычислении на гпу мы используем распараллеленный SAT
       // здесь он обычный, его можно как нибудь ускорить?
       col = SAT(0.0f, objIndex1, transformIndex1, objIndex2, transformIndex2, mtv, dist);
-      
+
       if (!col) {
         counter.fetch_add(-1);
-        
+
         overlappingData->at(index).firstIndex  = UINT32_MAX;
         overlappingData->at(index).secondIndex = UINT32_MAX;
         overlappingData->at(index).hasCollision = 0;
@@ -187,7 +187,7 @@ void CPUSolverParallel::calculateData() {
       } else {
         overlappingData->at(index).vec = glm::vec3(mtv);
         overlappingData->at(index).dist = dist;
-        
+
         // нужно добавить пары, которые либо являются триггерами, либо могут быть триггерами
         const bool triggerAdd = bool(overlappingData->at(index).dummy);
         if (triggerAdd) {
@@ -197,57 +197,57 @@ void CPUSolverParallel::calculateData() {
       }
     }
   };
-  
+
   //throw std::runtime_error("Not implemented yet");
-  
+
   // сюда приходят пары
   // мне нужно заполнить overlappingData
   // причем мне нужно отсюда удалить старые пары и добавить новые, то есть
-  
-//   RegionLog rl("CPUSolverParallel::calculateData()");
-  
+
+  RegionLog rl("CPUSolverParallel::calculateData()");
+
   dataIndices->data()->indirectX = 1;
   dataIndices->data()->indirectY = 1;
   dataIndices->data()->indirectZ = 1;
-  
+
 //   for (uint32_t i = 0; i < dataIndices->data()->count; ++i) {
 //     std::cout << "Pair " << i << " ids: " << overlappingData->at(i).firstIndex << " " << overlappingData->at(i).secondIndex << "\n";
 //   }
-  
+
   dataIndices->data()->count = dataIndices->data()->temporaryCount;
-  
+
   std::atomic<uint32_t> counter(dataIndices->data()->count);
-  
+
   // приходящие пары мне нужно найти и если их нет, то нужно добавить
   // причем у меня теперь есть как статики так и динамики
-  
+
   const uint32_t dynamicPairsCount = pairs->at(0).secondIndex + glm::floatBitsToUint(pairs->at(0).dist);
   const uint32_t staticPairsCount  = staticPairs->at(0).firstIndex;
-  
+
 //   for (uint32_t i = 0; i < dynamicPairsCount; ++i) {
 //     const BroadphasePair &pair = pairs->at(i+1);
 //     if (pair.islandIndex == UINT32_MAX) continue;
-//     
+//
 //     pool->submitnr(searchAndAddDynamic, pair, std::ref(counter));
 //   }
-  
+
   {
     const size_t count = std::ceil(float(dynamicPairsCount) / float(pool->size()+1));
     size_t start = 0;
     for (size_t i = 0; i < pool->size()+1; ++i) {
       const uint32_t jobCount = std::min(count, dynamicPairsCount-start);
       if (jobCount == 0) break;
-      
+
       pool->submitnr(searchAndAddDynamic, start, jobCount, pairs->data(), std::ref(counter));
-      
+
       start += jobCount;
     }
   }
-  
+
 //   for (uint32_t i = 0; i < staticPairsCount; ++i) {
 //     const BroadphasePair &pair = staticPairs->at(i+1);
 //     if (pair.islandIndex == UINT32_MAX) continue;
-//     
+//
 //     pool->submitnr(searchAndAddDynamic, pair, std::ref(counter));
 //   }
 
@@ -257,35 +257,35 @@ void CPUSolverParallel::calculateData() {
     for (size_t i = 0; i < pool->size()+1; ++i) {
       const uint32_t jobCount = std::min(count, staticPairsCount-start);
       if (jobCount == 0) break;
-      
+
       pool->submitnr(searchAndAddDynamic, start, jobCount, staticPairs->data(), std::ref(counter));
-      
+
       start += jobCount;
     }
   }
-  
+
   pool->compute();
   pool->wait();
-  
+
   dataIndices->data()->count = counter;
   dataIndices->data()->indirectX = counter;
   const uint32_t newSize = counter;
-  
+
 //   //std::atomic<uint32_t> triggerCounter(0);
 //   std::cout << "new size " << newSize << "\n";
 //   std::cout << "dynamicPairsCount " << dynamicPairsCount << "\n";
 //   std::cout << "staticPairsCount " << staticPairsCount << "\n";
-//   
+//
 //   for (uint32_t i = 0; i < dataIndices->data()->count; ++i) {
 //     std::cout << "Pair " << i << " ids: " << overlappingData->at(i).firstIndex << " " << overlappingData->at(i).secondIndex << "\n";
 //   }
-//   
+//
 //   throw std::runtime_error("computeOverlappingData");
-  
+
 //   for (uint32_t i = 0; i < newSize; ++i) {
 //     pool->submitnr(computeOverlappingData, i, std::ref(counter));
 //   }
-  
+
   std::atomic<uint32_t> triggerCounter(0);
   {
     const size_t count = std::ceil(float(newSize) / float(pool->size()+1));
@@ -293,20 +293,20 @@ void CPUSolverParallel::calculateData() {
     for (size_t i = 0; i < pool->size()+1; ++i) {
       const uint32_t jobCount = std::min(count, newSize-start);
       if (jobCount == 0) break;
-      
+
       pool->submitnr(computeOverlappingData, start, jobCount, std::ref(counter), std::ref(triggerCounter));
-      
+
       start += jobCount;
     }
   }
-  
+
   pool->compute();
   pool->wait();
-  
+
   dataIndices->data()->temporaryCount = counter;
   dataIndices->data()->triggerIndicesCount = triggerCounter;
 //   triggerIndices->at(0) = triggerCounter;
-  
+
 //   for (uint32_t i = 0; i < dataIndices->data()->count; ++i) {
 //     std::cout << "Pair " << i << " ids: " << overlappingData->at(i).firstIndex << " " << overlappingData->at(i).secondIndex << "\n";
 //   }
@@ -315,60 +315,72 @@ void CPUSolverParallel::calculateData() {
 void CPUSolverParallel::calculateRayData() {
 //   static const auto rayIntersection = [&] (const uint32_t &index, std::atomic<uint32_t> &counter) {
   static const auto rayIntersection = [&] (const size_t &start, const size_t &count, std::atomic<uint32_t> &counter) {
+    // RegionLog rl("rayIntersection", true);
+    // std::cout << "start " << start << '\n';
+    // std::cout << "count " << count << '\n';
+    // std::cout << "size  " << rayPairs->size() << '\n';
     for (size_t index = start; index < start+count; ++index) {
       const BroadphasePair &pair = rayPairs->at(index+1);
-    
+
       const uint32_t rayIndex = pair.firstIndex;
       const uint32_t objIndex = pair.secondIndex;
-      
+
       const uint32_t transformIndex = objects->at(objIndex).transformIndex;
-      
+
       glm::vec4 point = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-      const bool col = intersect(rayIndex, objIndex, transformIndex, point);
-      
+      //const bool col = intersect(rayIndex, objIndex, transformIndex, point);
+      const bool col = true;
+
       if (col) {
         const uint32_t id = counter.fetch_add(1);
-        
+
         raysData->at(id).firstIndex = rayIndex;
         raysData->at(id).secondIndex = objIndex;
         raysData->at(id).hasCollision = uint32_t(col);
         raysData->at(id).dummy = 0;
-        
+
         raysData->at(id).vec = glm::vec3(point);
         raysData->at(id).dist = glm::distance2(rays->at(rayIndex).pos, point);
       }
     }
   };
-  
-//   RegionLog rl("CPUSolverParallel::calculateRayData()");
-  
+
+  RegionLog rl("CPUSolverParallel::calculateRayData()", true);
+
   raysIndices->data()->indirectX = 1;
   raysIndices->data()->indirectY = 1;
   raysIndices->data()->indirectZ = 1;
   raysIndices->data()->count = 0;
   raysIndices->data()->temporaryCount = 0;
   raysIndices->data()->powerOfTwo = 0;
-  
+
   std::atomic<uint32_t> counter(0);
-  
+
   //if (rayPairs->at(0).firstIndex == 0) throw std::runtime_error("rayPairs->at(0).firstIndex == 0");
-  
+
 //   for (uint32_t i = 0; i < rayPairs->at(0).firstIndex; ++i) {
 //     pool->submitnr(rayIntersection, i+1, std::ref(counter));
 //   }
-  
+
   const size_t count = std::ceil(float(rayPairs->at(0).firstIndex) / float(pool->size()+1));
   size_t start = 0;
   for (size_t i = 0; i < pool->size()+1; ++i) {
     const uint32_t jobCount = std::min(count, rayPairs->at(0).firstIndex-start);
     if (jobCount == 0) break;
+
     pool->submitnr(rayIntersection, start, jobCount, std::ref(counter));
+
     start += jobCount;
   }
-  
+
+  std::cout << "firstIndex " << rayPairs->at(0).firstIndex << '\n';
+  std::cout << "count      " << count << '\n';
+  std::cout << "counter    " << counter << '\n';
+  std::cout << "size       " << raysData->size() << "\n";
+
   pool->compute();
   pool->wait();
-  
+
   raysIndices->data()->count = counter;
   raysIndices->data()->temporaryCount = counter;
 }
@@ -402,17 +414,17 @@ void CPUSolverParallel::solve() {
     // куда поз сохранить? сразу в трансформы? или лучше в какой дополнительный буфер?
     transforms->at(transformIndex).pos += koef * velocities->at(physDataIndex) * dt;
   };
-  
+
   static const auto prepareObjects = [&] (const size_t &start, const size_t &count) {
     for (size_t index = start; index < start+count; ++index) {
       const uint32_t objIndex = indicies->at(index+1);
       const uint32_t staticPhysDataIndex = objects->at(objIndex).staticPhysicDataIndex;
       const uint32_t physDataIndex = staticPhysDatas->at(staticPhysDataIndex).physDataIndex;
-      
+
       if (physDataIndex == UINT32_MAX) return;
-      
+
 //       const uint32_t transformIndex = datas->at(physDataIndex).transformIndex;
-      
+
       //datas->at(physDataIndex).onGroundBits = datas->at(physDataIndex).onGroundBits | ((datas->at(physDataIndex).onGroundBits & 0x1) << 1);
       datas->at(physDataIndex).onGroundBits <<= 1;
       datas->at(physDataIndex).onGroundBits &= 0x2;
@@ -422,68 +434,68 @@ void CPUSolverParallel::solve() {
 //       transforms->at(transformIndex).pos = datas->at(physDataIndex).oldPos;
     }
   };
-  
+
   //static const auto solveStatic = [&] (const IslandData &island) {
   static const auto solveStatic = [&] (const size_t &start, const size_t &count, const IslandData* islandsPtr) {
     for (size_t i = start; i < start+count; ++i) {
       const IslandData &island = islandsPtr[i];
-      
+
       // здесь последовательно вычисляем пары в острове
       glm::vec4 normal;
-      
+
       for (uint32_t j = 0; j < island.size; ++j) {
         const uint32_t pairIndex = island.offset + j + 1;
         const BroadphasePair &pair = staticPairs->at(pairIndex);
-        
+
         const uint32_t objIndex2 = pair.secondIndex;
-        
+
         const uint32_t obj2Type = objects->at(objIndex2).objType.getObjType();
         if (obj2Type == POLYGON_TYPE && objects->at(objIndex2).vertexCount + 1 == objects->at(objIndex2).faceCount) {
           const uint32_t faceOffset = objects->at(objIndex2).vertexOffset + objects->at(objIndex2).vertexCount + 1;
           normal = verts->at(faceOffset);
-          
+
           const float planeAngle = getAngle(normal, -gravity->data()->gravityNormal);
-          
+
           if (planeAngle > PI_Q) continue;
         } else continue;
-        
+
         computePairWithGround(pair, normal);
-        
+
         staticPairs->at(pairIndex).islandIndex = UINT32_MAX;
       }
-      
+
       for (uint32_t j = 0; j < island.size; ++j) {
         const uint32_t pairIndex = island.offset + j + 1;
         const BroadphasePair &pair = staticPairs->at(pairIndex);
-        
+
         //if (pair.secondIndex == 5100) throw std::runtime_error("5100");
-        
+
         if (pair.islandIndex == UINT32_MAX) continue;
-        
+
         computePair(pair);
       }
     }
   };
-  
+
   //static const auto solveDynamic = [&] (const IslandData &island) {
   static const auto solveDynamic = [&] (const size_t &start, const size_t &count, const IslandData* islandsPtr) {
     for (size_t i = start; i < start+count; ++i) {
       const IslandData &island = islandsPtr[i];
-      
+
       // и здесь последовательно вычисляем каждую пару внутри острова
       for (uint32_t j = 0; j < island.size; ++j) {
         const uint32_t pairIndex = island.offset + j + 1;
         const BroadphasePair &pair = pairs->at(pairIndex);
-        
+
         computePair(pair);
       }
     }
   };
-  
+
 //   const float koef = 1.0f / float(iterationCount);
-  
-//   RegionLog rl("CPUSolverParallel::solve()");
-  
+
+  RegionLog rl("CPUSolverParallel::solve()");
+
 //   for (uint32_t iteration = 0; iteration < iterationCount; ++iteration) {
 //     std::cout << "iteration " << iteration << '\n';
     // перевычисление позиции возможно стоит сделать линейным
@@ -491,10 +503,10 @@ void CPUSolverParallel::solve() {
 //     for (uint32_t j = 0; j < objCount; ++j) {
 //       pool->submitnr(calcPos, koef, iteration, j+1);
 //     }
-    
+
 //     pool->compute();
 //     pool->wait();
-  
+
   {
     const uint32_t objCount = indicies->at(0);
     const size_t count = std::ceil(float(objCount) / float(pool->size()+1));
@@ -502,55 +514,55 @@ void CPUSolverParallel::solve() {
     for (size_t i = 0; i < pool->size()+1; ++i) {
       const uint32_t jobCount = std::min(count, objCount-start);
       if (jobCount == 0) break;
-      
+
       pool->submitnr(prepareObjects, start, jobCount);
-      
+
       start += jobCount;
     }
   }
-    
+
     struct IslandAdditionalData {
       glm::uvec4 octreeDepth;
       glm::uvec4 octreeLevels[10];
       glm::uvec4 islandCount;
     };
-    
+
     if (staticPairs->at(0).firstIndex > 0) {
       const IslandAdditionalData* data = staticIslands->structure_from_begin<IslandAdditionalData>();
       const IslandData* islandsPtr = staticIslands->data_from<IslandAdditionalData>();
-      
+
       // и начинаем вычисление пар
       // сначала у нас идет параллельное вычисление статиков
       // для статических пар тоже нужны острова так то (по индексам первых объектов)
-      
+
       const size_t count = std::ceil(float(data->islandCount.x) / float(pool->size()+1));
       size_t start = 0;
       //for (uint32_t i = 0; i < data->islandCount.x; ++i) {
       for (size_t i = 0; i < pool->size()+1; ++i) {
         const uint32_t jobCount = std::min(count, data->islandCount.x-start);
         if (jobCount == 0) break;
-        
+
 //         const uint32_t islandIndex = i;
 //         const IslandData &island = islandsPtr[islandIndex];
-        
+
 //         pool->submitnr(solveStatic, island);
         pool->submitnr(solveStatic, start, jobCount, islandsPtr);
-        
+
         start += jobCount;
       }
-      
+
       pool->compute();
       pool->wait();
     }
-    
+
     // а затем вычисление динамиков, которых мы разбили по уровням октодерева
     if (pairs->at(0).secondIndex > 0) {
       const IslandAdditionalData* data = islands->structure_from_begin<IslandAdditionalData>();
       const IslandData* islandsPtr = islands->data_from<IslandAdditionalData>();
-      
+
       for (uint32_t depth = 0; depth < data->octreeDepth.x; ++depth) {
         const glm::uvec4 &octreeLevel = data->octreeLevels[depth];
-        
+
         // затем параллелим по островам
         if (octreeLevel.z > 0) {
 //           std::cout << "octree level size " << octreeLevel.z << '\n';
@@ -559,19 +571,19 @@ void CPUSolverParallel::solve() {
           //for (uint32_t i = 0; i < octreeLevel.z; ++i) {
           for (size_t i = 0; i < pool->size()+1; ++i) {
 //             const IslandData &island = islandsPtr[octreeLevel.y + i];
-            
+
 //             std::cout << "dynamic pair index " << (octreeLevel.y + i) << '\n';
-            
+
 //             pool->submitnr(solveDynamic, island);
-            
+
             const uint32_t jobCount = std::min(count, octreeLevel.z-start);
             if (jobCount == 0) break;
-            
+
             pool->submitnr(solveDynamic, start, jobCount, islandsPtr);
-            
+
             start += jobCount;
           }
-          
+
           pool->compute();
           pool->wait();
         }
@@ -613,7 +625,7 @@ glm::vec4 CPUSolverParallel::getNormalCloseToGravity(const glm::mat4 &orn, const
     maxVal = glm::max(maxVal, tmp);
     index = maxVal == tmp ? offset+i : index;
   }
-  
+
   retIndex = index;
   const glm::vec4 &last = verts->at(index);
   return orn * glm::vec4(last.x, last.y, last.z, 0.0f);
@@ -668,16 +680,16 @@ void CPUSolverParallel::project(const glm::vec4 &axis, const glm::vec4 &pos, con
 // bool overlap(const float &min1, const float &max1, const float &min2, const float &max2, const glm::vec4 &axis, glm::vec4 &mtv, float &dist) {
 //   const float test1 = min1 - max2;
 //   const float test2 = min2 - max1;
-// 
+//
 //   if (test1 > 0.0f || test2 > 0.0f) return false;
-// 
+//
 //   const float d = glm::min(glm::abs(test1), glm::abs(test2));
-//   
+//
 //   if (d < dist) {
 //     mtv = axis;
 //     dist = d;
 //   }
-// 
+//
 //   return true;
 // }
 
@@ -776,7 +788,7 @@ bool CPUSolverParallel::BoxPolySAT(const float &treshold, const Object &first,  
   const uint32_t faceSize = second.faceCount;
 
   const glm::mat4 &orn = second.rotationDataIndex == UINT32_MAX ?
-                          systems->at(second.coordinateSystemIndex) : 
+                          systems->at(second.coordinateSystemIndex) :
                           rotationDatas->at(second.rotationDataIndex).matrix * systems->at(second.coordinateSystemIndex);
   const glm::mat4 &invOrn = glm::inverse(orn);
 
@@ -847,7 +859,7 @@ bool CPUSolverParallel::PolySphereSAT(const float &treshold, const Object &first
   const uint32_t faceSize = first.faceCount;
 
   const glm::mat4 &ornFirst = first.rotationDataIndex == UINT32_MAX ?
-                                systems->at(first.coordinateSystemIndex) : 
+                                systems->at(first.coordinateSystemIndex) :
                                 rotationDatas->at(first.rotationDataIndex).matrix * systems->at(first.coordinateSystemIndex);
   const glm::mat4 &invOrn = glm::inverse(ornFirst);
 
@@ -876,9 +888,9 @@ bool CPUSolverParallel::PolySphereSAT(const float &treshold, const Object &first
 //                           const uint32_t &index) {
 //   const glm::vec4 &polyNormal1 = verts->at(firstFace+index);
 //   const glm::vec4 &polyNormal2 = verts->at(secondFace+(index%secondFaceSize));
-//   
+//
 //   return index < firstFaceSize ?
-//            firstOrn  * glm::vec4(polyNormal1.x, polyNormal1.y, polyNormal1.z, 0.0f) : 
+//            firstOrn  * glm::vec4(polyNormal1.x, polyNormal1.y, polyNormal1.z, 0.0f) :
 //            secondOrn * glm::vec4(polyNormal2.x, polyNormal2.y, polyNormal2.z, 0.0f);
 // }
 
@@ -900,12 +912,12 @@ bool CPUSolverParallel::PolyPolySAT(const float &treshold, const Object &first, 
   const uint32_t secondFaceSize = second.faceCount;
 
   const glm::mat4 &ornFirst = first.rotationDataIndex == UINT32_MAX ?
-                                systems->at(first.coordinateSystemIndex) : 
+                                systems->at(first.coordinateSystemIndex) :
                                 rotationDatas->at(first.rotationDataIndex).matrix * systems->at(first.coordinateSystemIndex);
   const glm::mat4 &invOrnFirst = glm::inverse(ornFirst);
 
   const glm::mat4 &ornSecond = second.rotationDataIndex == UINT32_MAX ?
-                                systems->at(second.coordinateSystemIndex) : 
+                                systems->at(second.coordinateSystemIndex) :
                                 rotationDatas->at(second.rotationDataIndex).matrix * systems->at(second.coordinateSystemIndex);
   const glm::mat4 &invOrnSecond = glm::inverse(ornSecond);
 
@@ -944,7 +956,7 @@ bool CPUSolverParallel::PolyPolySAT(const float &treshold, const Object &first, 
 // она вычисляется гораздо быстрее чем то что у меня было раньше конечно,
 // но тут по прежнему много всякой фигни (например инверсы)
 // могут ли эти функции быть еще быстрее? хотя на момент 13.11.2018 я еще не замерял
-bool CPUSolverParallel::SAT(const float &treshold, const uint32_t &objectIndexFirst,  const uint32_t &transformIndexFirst, 
+bool CPUSolverParallel::SAT(const float &treshold, const uint32_t &objectIndexFirst,  const uint32_t &transformIndexFirst,
                     const uint32_t &objectIndexSecond, const uint32_t &transformIndexSecond, glm::vec4 &mtv, float &dist) const {
   const Object &first = objects->at(objectIndexFirst);
   const Object &second = objects->at(objectIndexSecond);
@@ -999,7 +1011,7 @@ bool CPUSolverParallel::SAT(const float &treshold, const uint32_t &objectIndexFi
   return col;
 }
 
-float CPUSolverParallel::SATOneAxis(const uint32_t &objectIndexFirst,  const uint32_t &transformIndexFirst, 
+float CPUSolverParallel::SATOneAxis(const uint32_t &objectIndexFirst,  const uint32_t &transformIndexFirst,
                             const uint32_t &objectIndexSecond, const uint32_t &transformIndexSecond, const glm::vec4 &axis) const {
   float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
   const Object &first = objects->at(objectIndexFirst);
@@ -1022,9 +1034,9 @@ float CPUSolverParallel::SATOneAxis(const uint32_t &objectIndexFirst,  const uin
       const uint32_t vert1     = first.vertexOffset;
       const uint32_t vertSize1 = first.vertexCount;
       glm::mat4 orn1 = first.rotationDataIndex == UINT32_MAX ?
-                         systems->at(first.coordinateSystemIndex) : 
+                         systems->at(first.coordinateSystemIndex) :
                          rotationDatas->at(first.rotationDataIndex).matrix * systems->at(first.coordinateSystemIndex);
-              
+
       orn1 = glm::inverse(orn1);
 
       project(axis, vert1, vertSize1, pos, orn1, minFirst, maxFirst);
@@ -1048,9 +1060,9 @@ float CPUSolverParallel::SATOneAxis(const uint32_t &objectIndexFirst,  const uin
       const uint32_t vert2     = second.vertexOffset;
       const uint32_t vertSize2 = second.vertexCount;
       glm::mat4 orn2 = second.rotationDataIndex == UINT32_MAX ?
-                         systems->at(second.coordinateSystemIndex) : 
+                         systems->at(second.coordinateSystemIndex) :
                          rotationDatas->at(second.rotationDataIndex).matrix * systems->at(second.coordinateSystemIndex);
-              
+
       orn2 = glm::inverse(orn2);
 
       project(axis, vert2, vertSize2, pos, orn2, minSecond, maxSecond);
@@ -1060,7 +1072,7 @@ float CPUSolverParallel::SATOneAxis(const uint32_t &objectIndexFirst,  const uin
 
   const float test1 = minFirst - maxSecond;
   const float test2 = minSecond - maxFirst;
-  
+
 //   std::cout << "minFirst  " << minFirst << "  maxFirst  " << maxFirst << '\n';
 //   std::cout << "minSecond " << minSecond << " maxSecond " << maxSecond << '\n';
 //   std::cout << "test1 " << test1 << "\n";
@@ -1093,45 +1105,45 @@ void CPUSolverParallel::computePair(const BroadphasePair& pair) {
   col = SAT(newThreshold, objIndex[0], transformIndex[0], objIndex[1], transformIndex[1], mtv, dist);
 
   const float mtvAngle = getAngle(-mtv, gravity->data()->gravityNormal);
-  
+
   OverlappingDataForSolver data;
 
   data.pairData.x = pair.firstIndex;
   data.pairData.y = pair.secondIndex;
   data.pairData.z = uint32_t(col);
   data.pairData.w = glm::floatBitsToUint(mtvAngle);
-  
+
   if (!bool(data.pairData.z)/* || dist < threshold*/) return;
 
   data.mtvDist.x = mtv.x;
   data.mtvDist.y = mtv.y;
   data.mtvDist.z = mtv.z;
   data.mtvDist.w = dist;//glm::max(dist - threshold, 0.0f);
-  
+
   glm::vec4 objCenter[2] = {glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)};
-  
+
   // начинаем поиск ступеньки
   const uint32_t taskCount = 2;
   for (uint32_t i = 0; i < taskCount; ++i) {
     const uint32_t index = i;
 
     glm::vec4 normal = gravity->data()->gravityNormal;
-    
+
     // мне нужно взять нормаль ДРУГОГО объекта
     const uint32_t objType = objects->at(objIndex[1-index]).objType.getObjType();
     if (objType == BBOX_TYPE) {
       const uint32_t systemIndex = objects->at(objIndex[1-index]).coordinateSystemIndex;
       normal = getNormalCloseToGravity(systems->at(systemIndex), -gravity->data()->gravityNormal);
-      
+
       objCenter[index] = transforms->at(transformIndex[1-index]).pos;
     } else if (objType == POLYGON_TYPE) {
       const uint32_t facesOffset = objects->at(objIndex[1-index]).vertexOffset + objects->at(objIndex[1-index]).vertexCount + 1;
       const uint32_t facesSize = objects->at(objIndex[1-index]).faceCount;
-      
+
       const uint32_t systemIndex = objects->at(objIndex[1-index]).coordinateSystemIndex;
       const uint32_t rotationDataIndex = objects->at(objIndex[1-index]).rotationDataIndex;
       const glm::mat4 &orn = rotationDataIndex == UINT32_MAX ? systems->at(systemIndex) : rotationDatas->at(rotationDataIndex).matrix * systems->at(systemIndex);
-      
+
       if (objects->at(objIndex[1-index]).vertexCount + 1 == facesSize) {
         const glm::vec4 &tmp = verts->at(facesOffset);
         normal = orn * glm::vec4(tmp.x, tmp.y, tmp.z, 0.0f);
@@ -1139,7 +1151,7 @@ void CPUSolverParallel::computePair(const BroadphasePair& pair) {
         uint32_t normalIndex;
         normal = getNormalCloseToGravity(orn, facesOffset, facesSize, -gravity->data()->gravityNormal, normalIndex);
       }
-      
+
       const uint32_t localCenter = objects->at(objIndex[1-index]).vertexOffset + objects->at(objIndex[1-index]).vertexCount;
       const glm::vec4 dir = transformIndex[1-index] == UINT32_MAX ? glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) : transforms->at(transformIndex[1-index]).pos;
       objCenter[index] = transform(verts->at(localCenter), dir, orn);
@@ -1161,20 +1173,20 @@ void CPUSolverParallel::computePair(const BroadphasePair& pair) {
 
     data.stairsMoves[index] = uint32_t(stairDist < (staticPhysDatas->at(staticPhysDataIndex[index]).stairHeight - EPSILON));
   }
-  
+
   // исправляем знак (я в принципе делаю тоже самое и в САТ'е)
   data.stairsMoves[0] = uint32_t(bool(data.stairsMoves[0]) && glm::dot(objCenter[1] - objCenter[0], data.normals[0]) > 0.0f);
   data.stairsMoves[1] = uint32_t(bool(data.stairsMoves[1]) && glm::dot(objCenter[0] - objCenter[1], data.normals[1]) > 0.0f);
-  
+
   const glm::vec4 &vel1 = physDataIndex[0] == 0xFFFFFFFF ? glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) : velocities->at(physDataIndex[0]);
   const glm::vec4 &vel2 = physDataIndex[1] == 0xFFFFFFFF ? glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) : velocities->at(physDataIndex[1]);
-  
+
   const bool moves1 = glm::dot(vel1, vel1) > 0.0f;
   const bool moves2 = glm::dot(vel2, vel2) > 0.0f;
 
   data.stairsMoves[2] = uint32_t(objects->at(objIndex[0]).objType.isDynamic() && moves1);
   data.stairsMoves[3] = uint32_t(objects->at(objIndex[1]).objType.isDynamic() && moves2);
-  
+
   applyChanges(data);
 }
 
@@ -1197,41 +1209,41 @@ void CPUSolverParallel::computePairWithGround(const BroadphasePair &pair, const 
   // здесь он обычный, его можно как нибудь ускорить?
   //const float newThreshold = (1.0f / float(iterationCount)) * threshold;
   const float newThreshold = threshold;
-  
+
   col = SAT(newThreshold, objIndex[0], transformIndex[0], objIndex[1], transformIndex[1], mtv, dist);
 
   const float mtvAngle = getAngle(-mtv, gravity->data()->gravityNormal);
-  
+
   OverlappingDataForSolver data;
 
   data.pairData.x = pair.firstIndex;
   data.pairData.y = pair.secondIndex;
   data.pairData.z = uint32_t(col);
   data.pairData.w = glm::floatBitsToUint(mtvAngle);
-  
+
   if (!bool(data.pairData.z)/* || dist < threshold*/) return; // выходить мы можем и раньше
 
   data.mtvDist.x = mtv.x;
   data.mtvDist.y = mtv.y;
   data.mtvDist.z = mtv.z;
   data.mtvDist.w = dist;//glm::max(dist - threshold, 0.0f);
-  
+
 //   glm::vec4 objCenter = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 //   const uint32_t objType = objects->at(objIndex[0]).objType.getObjType();
-//     if (objType == BBOX_TYPE) {      
+//     if (objType == BBOX_TYPE) {
 //       objCenter = transforms->at(transformIndex[0]).pos;
 //     } else if (objType == POLYGON_TYPE) {
 //       const uint32_t systemIndex = objects->at(objIndex[0]).coordinateSystemIndex;
 //       const uint32_t rotationDataIndex = objects->at(objIndex[0]).rotationDataIndex;
 //       const glm::mat4 &orn = rotationDataIndex == UINT32_MAX ? systems->at(systemIndex) : rotationDatas->at(rotationDataIndex).matrix * systems->at(systemIndex);
-//       
+//
 //       const uint32_t localCenter = objects->at(objIndex[0]).vertexOffset + objects->at(objIndex[0]).vertexCount;
 //       const glm::vec4 dir = transformIndex[0] == UINT32_MAX ? glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) : glm::vec4(glm::vec3(transforms->at(transformIndex[0]).pos), 0.0f);
 //       objCenter = transform(verts->at(localCenter), dir, orn);
 //     } else {
 //       objCenter = transforms->at(transformIndex[0]).pos;
 //     }
-  
+
   // начинаем поиск ступеньки
   data.normals[0] = normal;
 
@@ -1240,7 +1252,7 @@ void CPUSolverParallel::computePairWithGround(const BroadphasePair &pair, const 
   // тут со знаками может быть какая то хрень!!!!
   const float normalAngle = getAngle(normal, -(gravity->data()->gravityNormal));
   data.satAngleStair[0] = normalAngle;
-  
+
 //   std::cout << "normal x: " << normal.x << " y: " << normal.y << " z: " << normal.z << " w: " << normal.w << "\n";
 //   std::cout << "normal angle " << normalAngle << "\n";
 
@@ -1254,19 +1266,19 @@ void CPUSolverParallel::computePairWithGround(const BroadphasePair &pair, const 
 
   data.stairsMoves[0] = uint32_t(stairDist < (staticPhysDatas->at(staticPhysDataIndex[0]).stairHeight - EPSILON));
   data.stairsMoves[1] = 0;
-  
+
 //   std::cout << "data.satAngleStair[index+2] " << data.satAngleStair[2] << "\n";
 //   std::cout << "data.stairsMoves[index] " << data.stairsMoves[0] << "\n";
 
 //   const glm::vec4 &pos1 = transformIndex[0] == UINT32_MAX ? glm::vec4(0.0f, 0.0f, 0.0f, 1.0f) : transforms->at(transformIndex[0]).pos;
 //   const glm::vec4 &pos2 = transformIndex[1] == UINT32_MAX ? glm::vec4(0.0f, 0.0f, 0.0f, 1.0f) : transforms->at(transformIndex[1]).pos;
-// 
+//
 //   const bool moves1 = glm::dot(pos2 - pos1, (physDataIndex[0] == 0xFFFFFFFF ? glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) : velocities->at(physDataIndex[0]))) > 0.0f;
 //   const bool moves2 = glm::dot(pos1 - pos2, (physDataIndex[1] == 0xFFFFFFFF ? glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) : velocities->at(physDataIndex[1]))) > 0.0f;
 
   data.stairsMoves[2] = uint32_t(objects->at(objIndex[0]).objType.isDynamic());// && moves1);
   data.stairsMoves[3] = uint32_t(objects->at(objIndex[1]).objType.isDynamic());// && moves2);
-  
+
   applyChanges(data);
 }
 
@@ -1281,7 +1293,7 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
 
   const bool wasOnGround[2] = {physDataIndex[0] == UINT32_MAX ? false : bool(datas->at(physDataIndex[0]).onGroundBits & 0x2),
                                physDataIndex[1] == UINT32_MAX ? false : bool(datas->at(physDataIndex[1]).onGroundBits & 0x2)};
-  
+
   // тут мы должны в одном потоке сделать следующие действия
 //   const uint32_t objType1 = objects->at(objIndex[0]).objType.getObjType();
 //   const uint32_t objType2 = objects->at(objIndex[1]).objType.getObjType();
@@ -1290,13 +1302,13 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
   // вообще я сомневаюсь что я все учел здесь
   if ((glm::uintBitsToFloat(data.pairData.w) < PI_Q) && physDataIndex[0] != UINT32_MAX) {
     // если мы попали сюда то значит А стоит на B
-    
+
     objects->at(objIndex[0]).groundObjIndex = objIndex[1];
     datas->at(physDataIndex[0]).groundIndex = staticPhysDataIndex[1];
     datas->at(physDataIndex[0]).onGroundBits |= 0x1;
   } else if ((glm::abs(glm::uintBitsToFloat(data.pairData.w) - PI) < PI_Q) && physDataIndex[1] != UINT32_MAX) {
     // здесь учтем вариант когда B стоит на A
-    
+
     objects->at(objIndex[1]).groundObjIndex = objIndex[0];
     datas->at(physDataIndex[1]).groundIndex = staticPhysDataIndex[0]; //physDataIndex1;
     datas->at(physDataIndex[1]).onGroundBits |= 0x1; //uint32_t(true);
@@ -1311,10 +1323,10 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
           objIndex[0] : objIndex[1])
         : objIndex[1])
       : objIndex[0];
-    
+
     const bool objStair1 = (objIndex[0] == index) && wasOnGround[0] && bool(data.stairsMoves.x);
     const bool objStair2 = (objIndex[1] == index) && wasOnGround[1] && bool(data.stairsMoves.y);
-    
+
     if (objStair1) {
       const glm::vec4 &mtvDist = data.mtvDist;
       const glm::vec4 &mtv = glm::vec4(mtvDist.x, mtvDist.y, mtvDist.z, 0.0f);
@@ -1324,7 +1336,7 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
       datas->at(physDataIndex[0]).groundIndex = staticPhysDataIndex[1];
       datas->at(physDataIndex[0]).onGroundBits |= 0x1;
     }
-    
+
     if (objStair2) {
       const glm::vec4 &mtvDist = data.mtvDist;
       const glm::vec4 &mtv = glm::vec4(mtvDist.x, mtvDist.y, mtvDist.z, 0.0f);
@@ -1334,7 +1346,7 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
       datas->at(physDataIndex[1]).groundIndex = staticPhysDataIndex[0];
       datas->at(physDataIndex[1]).onGroundBits |= 0x1;
     }
-    
+
     if (objStair1 || objStair2) return; // тут выходим если есть ступенька!
   }
 
@@ -1343,9 +1355,9 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
   if (divider == 0) return;
 
   const float move = data.mtvDist.w / float(divider);
-  
+
   //const float dt = MCS_TO_SEC(gravity->data()->time);
-  
+
   // в принципе неплохо работает со скоростями (иногда вылетает, точнее пока что был только один случай)
   // пока что вылетает тогда когда челик стоит на мне, опять с индексами где-то напортачил
   // от поверхностей отскакивает, но не сильно. нужно ли это исправить? думаю что пока не будет отскакивает от пола можно с этим повременить
@@ -1353,33 +1365,33 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
   // в этом случае мы рисуем объект до изменения положения от столкновения, а значит мы каждый раз чутка входим в стенку и снова возвращаемся в следующем
   // как это исправить? впринципе ничего предугадать невозможно так как мы вычисляем скорость до вычислений пересечений
   // вычислять скорость в другом месте? нужно попробовать (чет пока ничего не вышло)
-  
+
   // мне нужно сделать так чтобы я либо мог двигать объекты, но они не проходили сквозь стены
   // либо я не мог двигать объекты
   // возможно как раз мелкую скорость и можно придавать
-  
+
   // мне в будущем нужно как то перейти к вычислению скоростей здесь
   // скорее всего с изменением этого придет и изменение вычисления островов
   // в принципе скорее всего то как я вычисляю острова сейчас - норм
   // ну а если вычисление констраинтов можно будет разделить на статики и динамики то будет вообще замечательно
-  
+
   const float bounce = glm::min(staticPhysDatas->at(staticPhysDataIndex[0]).overbounce, staticPhysDatas->at(staticPhysDataIndex[1]).overbounce);
   if (bool(data.stairsMoves.z)) {
     const glm::vec4 &mtvDist = data.mtvDist;
     const glm::vec4 &mtv = glm::vec4(mtvDist.x, mtvDist.y, mtvDist.z, 0.0f);
     transforms->at(transformIndex[0]).pos += mtv * move;
-    
+
 //     if (transforms->at(transformIndex[0]).pos.x != transforms->at(transformIndex[0]).pos.x) {
 //       std::cout << "indices " << objIndex[0] << " " << objIndex[1] << "\n";
-//       
+//
 //       const uint32_t vertexOffset = objects->at(objIndex[1]).vertexOffset;
 //       const uint32_t dataCount = objects->at(objIndex[1]).vertexCount + objects->at(objIndex[1]).faceCount + 1;
-//       
+//
 //       for (uint32_t i = vertexOffset; i < vertexOffset + dataCount; ++i) {
 //         const glm::vec4 vec = verts->at(i);
 //         std::cout << "x: " << vec.x << " y: " << vec.y << " z: " << vec.z << " w: " << vec.w << "\n";
 //       }
-//       
+//
 //       throw std::runtime_error("NAN");
 //     }
 
@@ -1391,7 +1403,7 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
 
     datas->at(physDataIndex[0]).velocity = glm::vec3(vel1.x, vel1.y, vel1.z);// + glm::vec3((mtv * move) / dt);
     velocities->at(physDataIndex[0]) = vel1Global;// + (mtv * move) / dt;
-    
+
     //lastVelocities[physDataIndex[0]] = (mtv * move) / dt;
   }
 
@@ -1399,18 +1411,18 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
     const glm::vec4 &mtvDist = data.mtvDist;
     const glm::vec4 &mtv = glm::vec4(mtvDist.x, mtvDist.y, mtvDist.z, 0.0f);
     transforms->at(transformIndex[1]).pos -= mtv * move;
-    
+
 //     if (transforms->at(transformIndex[1]).pos.x != transforms->at(transformIndex[1]).pos.x) {
 //       std::cout << "indices " << objIndex[0] << " " << objIndex[1] << "\n";
-//       
+//
 //       const uint32_t vertexOffset = objects->at(objIndex[1]).vertexOffset;
 //       const uint32_t dataCount = objects->at(objIndex[1]).vertexCount + objects->at(objIndex[1]).faceCount + 1;
-//       
+//
 //       for (uint32_t i = vertexOffset; i < vertexOffset + dataCount; ++i) {
 //         const glm::vec4 vec = verts->at(i);
 //         std::cout << "x: " << vec.x << " y: " << vec.y << " z: " << vec.z << " w: " << vec.w << "\n";
 //       }
-//       
+//
 //       throw std::runtime_error("NAN");
 //     }
 
@@ -1422,7 +1434,7 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
 
     datas->at(physDataIndex[1]).velocity = glm::vec3(vel2.x, vel2.y, vel2.z);// - glm::vec3((mtv * move) / dt);
     velocities->at(physDataIndex[1]) = vel2Global;// - (mtv * move) / dt;
-    
+
     //lastVelocities[physDataIndex[1]] = -(mtv * move) / dt;
   }
 }
@@ -1524,7 +1536,7 @@ bool testRayPoly(const ArrayInterface<glm::vec4>* verts, const RayData &ray, con
   if (vertSize+1 == faceSize) { // по идее это полигон
     const float det = glm::dot(glm::vec4(glm::vec3(verts->at(vertOffset+vertSize+1)), 0.0f), ray.dir);
     if (glm::abs(det) < EPSILON) return false;
-    
+
     //throw std::runtime_error("ray intersect poly");
 
     // const vec4 refP = transform * orn * vertices[vertOffset];
@@ -1534,10 +1546,10 @@ bool testRayPoly(const ArrayInterface<glm::vec4>* verts, const RayData &ray, con
       // трансформа тут неправильно накладывается походу
 //       const glm::vec4 vert2 = orn * (dir + verts->at(i));
 //       const glm::vec4 vert3 = orn * (dir + verts->at(i+1));
-      
+
       const glm::vec4 vert2 = transform(verts->at(i), dir, orn);
       const glm::vec4 vert3 = transform(verts->at(i+1), dir, orn);
-      
+
       if (testRayTri(ray, refP, vert2, vert3, point)) return true;
     }
 
@@ -1585,9 +1597,9 @@ bool testRayPoly(const ArrayInterface<glm::vec4>* verts, const RayData &ray, con
 bool CPUSolverParallel::intersect(const uint32_t &rayIndex, const uint32_t &objIndex, const uint32_t &transformIndex, glm::vec4 &point) const {
   const RayData &ray = rays->at(rayIndex);
   const Object &object = objects->at(objIndex);
-  
+
   const glm::vec4 pos = transformIndex != 0xFFFFFFFF ? transforms->at(transformIndex).pos : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-  
+
   switch(object.objType.getObjType()) {
     case BBOX_TYPE: {
       //std::cout << "Ray intersect " << objIndex << "\n";
@@ -1636,7 +1648,7 @@ uint32_t getToStart(T* arr, const uint32_t &firstObjIndex, const uint32_t &found
   uint32_t retIndex = foundedIndex;
   while (retIndex > 0) {
     if (arr[retIndex-1].firstIndex != firstObjIndex) break;
-    
+
     --retIndex;
   }
 
@@ -1648,40 +1660,39 @@ uint32_t getToStart(T* arr, const uint32_t &firstObjIndex, const uint32_t &found
 //   const float dotV = glm::dot(first, second);
 //   const float lenSq1 = glm::length2(first);
 //   const float lenSq2 = glm::length2(second);
-// 
+//
 //   return glm::acos(dotV / glm::sqrt(lenSq1 * lenSq2));
 // }
-// 
+//
 // void clipVelocity(const glm::vec4 &clipNormal, const float &bounce, glm::vec4 &vel) {
 //   const float backoff = glm::dot(vel, clipNormal) * bounce;
-// 
+//
 //   vel = vel - clipNormal * backoff;
 // }
-// 
+//
 // glm::vec4 transform(const glm::vec4 &p, const glm::vec4 &translation, const glm::mat4 &orientation) {
 //   return orientation * p + translation;
 // }
-// 
+//
 // bool isNormalAdequate(const ArrayInterface<glm::vec4>* verts, const uint32_t &offset, const uint32_t &normalIndex, const glm::vec4 &normal) {
 //   const uint32_t vertexIndex = glm::floatBitsToUint(verts->at(normalIndex).w);
 //   const glm::vec4 &normalVertex = verts->at(vertexIndex);
-//   
+//
 //   for (uint32_t i = offset; i < offset+3; ++i) {
 //     const glm::vec4 &vert = verts->at(i);
-//     
+//
 //     std::cout << "vert     x: " << vert.x << " y: " << vert.y << " z: " << vert.z << " w: " << vert.w << "\n" ;
-//     
+//
 //     const glm::vec4 &vectorOP = vert - normalVertex;
-//     
+//
 //     std::cout << "vectorOP x: " << vectorOP.x << " y: " << vectorOP.y << " z: " << vectorOP.z << " w: " << vectorOP.w << "\n" ;
-//     
+//
 //     const float dist = glm::dot(vectorOP, normal);
-//     
+//
 //     std::cout << "dist " << dist << '\n';
-//     
+//
 //     if (glm::abs(dist) > EPSILON) return false;
 //   }
-//   
+//
 //   return true;
 // }
-
