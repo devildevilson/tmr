@@ -42,7 +42,7 @@ VkResult createSwapChain(const SurfaceData &surfaceData,
   };
 
   swapchainData.swapchain = device->recreate(info, "window_swapchain");
-  
+
   swapchainData.images = device->getSwapchainImages(swapchainData.swapchain);
 
   return VK_SUCCESS;
@@ -111,32 +111,32 @@ void WindowRenderTarget::set(const VkRect2D &windowSize, const yavf::RenderPass 
 
 Window::Window() :
   vsync(true),
-  fullscreenMode(false), 
-  windowedNoFrame(false), 
-  iconified(false), 
-  focused(false), 
-  fov(0.0f), 
-  imageIndex(0), 
-  currentVirtualFrame(0), 
-  instance(nullptr), 
-  device(nullptr), 
-  monitor(nullptr), 
-  window(nullptr), 
+  fullscreenMode(false),
+  windowedNoFrame(false),
+  iconified(false),
+  focused(false),
+  fov(0.0f),
+  imageIndex(0),
+  currentVirtualFrame(0),
+  instance(nullptr),
+  device(nullptr),
+  monitor(nullptr),
+  window(nullptr),
   renderPassHandle(VK_NULL_HANDLE) {}
 
-Window::Window(const CreateInfo &info) 
+Window::Window(const CreateInfo &info)
   : vsync(true),
-    fullscreenMode(info.fullscreen), 
-    windowedNoFrame(false), 
-    iconified(false), 
-    focused(false), 
-    fov(info.fov), 
-    imageIndex(0), 
-    currentVirtualFrame(0), 
-    instance(info.inst), 
-    device(info.device), 
-    monitor(info.monitor), 
-    window(info.window), 
+    fullscreenMode(info.fullscreen),
+    windowedNoFrame(false),
+    iconified(false),
+    focused(false),
+    fov(info.fov),
+    imageIndex(0),
+    currentVirtualFrame(0),
+    instance(info.inst),
+    device(info.device),
+    monitor(info.monitor),
+    window(info.window),
     renderPassHandle(VK_NULL_HANDLE) {
   create(info);
 }
@@ -149,16 +149,16 @@ Window::~Window() {
   for (size_t i = 0; i < frames.size(); ++i) {
     device->destroy(frames[i].imageAvailableSemaphore);
     device->destroy(frames[i].finishedRenderingSemaphore);
-    
+
     device->destroy(depthImages[i]);
-    
+
     device->destroy(targets[i].framebuffer());
   }
-  
+
   device->destroy(renderPassHandle);
 
   device->destroy(swapchain.swapchain);
-  
+
   vkDestroySurfaceKHR(instance->handle(), surface.handle, nullptr);
 }
 
@@ -171,8 +171,8 @@ void Window::addMonitor(MonitorInfo info) {
 
 void Window::create(const CreateInfo &info) {
   // if (surface.handle != VK_NULL_HANDLE) return;
-  
-  fullscreenMode = info.fullscreen; 
+
+  fullscreenMode = info.fullscreen;
   windowedNoFrame = false;
   iconified = false;
   focused = false;
@@ -183,21 +183,21 @@ void Window::create(const CreateInfo &info) {
   device = info.device;
   monitor = info.monitor;
   window = info.window;
-  
+
   {
     auto m = glfwGetWindowMonitor(window);
     const auto data = glfwGetVideoMode(m == nullptr ? glfwGetPrimaryMonitor() : m);
-    refreshTimeVar = std::min(size_t(REFRESH_RATE_TO_MCS(data->refreshRate+1)), refreshTimeVar);
+    refreshTimeVar = std::min(size_t(REFRESH_RATE_TO_MCS(data->refreshRate)), refreshTimeVar);
   }
-  
+
   this->surface.handle = info.surface;
-  
+
   glfwGetWindowPos(window, &windowSize.offset.x, &windowSize.offset.y);
   int w, h;
   glfwGetWindowSize(window, &w, &h);
   windowSize.extent.width = w;
   windowSize.extent.height = h;
-  
+
   for (size_t i = 0; i < device->getFamiliesCount(); ++i) {
     VkBool32 present;
     vkGetPhysicalDeviceSurfaceSupportKHR(device->physicalHandle(), i, surface.handle, &present);
@@ -207,7 +207,7 @@ void Window::create(const CreateInfo &info) {
       break;
     }
   }
-  
+
   vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device->physicalHandle(), surface.handle, &surface.capabilities);
 
   // возможно нужно проверить на наличие hdr вывода
@@ -215,12 +215,12 @@ void Window::create(const CreateInfo &info) {
   vkGetPhysicalDeviceSurfaceFormatsKHR(device->physicalHandle(), surface.handle, &count, nullptr);
   std::vector<VkSurfaceFormatKHR> formats(count);
   vkGetPhysicalDeviceSurfaceFormatsKHR(device->physicalHandle(), surface.handle, &count, formats.data());
-  
+
 //   std::cout << "Window formats count " << formats.size() << "\n";
 //   for (uint32_t i = 0; i < formats.size(); ++i) {
 //     std::cout << "Window format " << i << " : " << (formats[i].format) << "\n";
 //   }
-  
+
   // в будущем понадобится переделывать под разные презент моды
   vkGetPhysicalDeviceSurfacePresentModesKHR(device->physicalHandle(), surface.handle, &count, nullptr);
   std::vector<VkPresentModeKHR> presents(count);
@@ -229,59 +229,59 @@ void Window::create(const CreateInfo &info) {
   surface.format = yavf::chooseSwapSurfaceFormat(formats);
   surface.presentMode = yavf::chooseSwapPresentMode(presents);
   surface.extent = yavf::chooseSwapchainExtent(windowSize.extent.width, windowSize.extent.height, surface.capabilities);
-  
+
   immediatePresentMode = yavf::checkSwapchainPresentMode(presents, VK_PRESENT_MODE_IMMEDIATE_KHR);
-  
+
 //   std::cout << "Width: " << width << " height: " << height << "\n";
 //   std::cout << "Width: " << surface.extent.width << " height: " << surface.extent.height << "\n";
 
-//   yavf::vkCheckError("createSwapChain", nullptr, 
+//   yavf::vkCheckError("createSwapChain", nullptr,
   createSwapChain(surface, device, swapchain);
-  
+
   values = {
     {0.0f, 0.0f, 0.0f, 1.0f},
     {1.0f, 0}
   };
-  
+
   const VkFormat depth = yavf::findSupportedFormat(device->physicalHandle(),
                                                    {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
                                                    VK_IMAGE_TILING_OPTIMAL,
                                                    VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-  
+
   depthImages.resize(swapchain.images.size(), nullptr);
   frames.resize(swapchain.images.size());
   targets.resize(swapchain.images.size());
   for (uint32_t i = 0; i < swapchain.images.size(); ++i) {
     swapchain.images[i]->createView(VK_IMAGE_VIEW_TYPE_2D, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, surface.format.format);
-    
-    depthImages[i] = device->create(yavf::ImageCreateInfo::texture2D(surface.extent, 
-                                                                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 
-                                                                     depth), 
+
+    depthImages[i] = device->create(yavf::ImageCreateInfo::texture2D(surface.extent,
+                                                                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                                                     depth),
                                     VMA_MEMORY_USAGE_GPU_ONLY);
     depthImages[i]->createView(VK_IMAGE_VIEW_TYPE_2D, {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1});
-    
+
     frames[i].imageAvailableSemaphore = device->createSemaphore();
     frames[i].flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     frames[i].finishedRenderingSemaphore = device->createSemaphore();
   }
-  
+
   createRenderPass();
-  
+
   for (uint32_t i = 0; i < swapchain.images.size(); ++i) {
     const std::vector<VkImageView> views = {
-      swapchain.images[i]->view()->handle(), 
+      swapchain.images[i]->view()->handle(),
       depthImages[i]->view()->handle()
     };
-    yavf::Framebuffer fb = device->create(yavf::FramebufferCreateInfo::framebuffer(renderPassHandle, 
-                                                                                   views.size(), 
-                                                                                   views.data(), 
-                                                                                   surface.extent.width, 
-                                                                                   surface.extent.height), 
+    yavf::Framebuffer fb = device->create(yavf::FramebufferCreateInfo::framebuffer(renderPassHandle,
+                                                                                   views.size(),
+                                                                                   views.data(),
+                                                                                   surface.extent.width,
+                                                                                   surface.extent.height),
                                           "window_framebuffer_"+std::to_string(i));
-    
+
     targets[i].set({{0, 0}, surface.extent}, renderPassHandle, fb, &values);
   }
-  
+
   yavf::TransferTask* task = device->allocateTransferTask();
 
   task->begin();
@@ -333,30 +333,30 @@ yavf::RenderTarget* Window::currentRenderTarget() {
 //     {0, 0},
 //     surface.extent
 //   };
-// 
+//
 //   return rect;
 // }
-// 
+//
 // VkRenderPass Window::renderPass() const  {
 //   return renderPassHandle;
 // }
-// 
+//
 // VkViewport Window::viewport() const  {
 //   return view;
 // }
-// 
+//
 // VkRect2D Window::scissor() const  {
 //   return scis;
 // }
-// 
+//
 // yavf::Framebuffer Window::framebuffer() const  {
 //   return frames[currentFrame].framebuffer;
 // }
-// 
+//
 // yavf::SemaphoreProxy* Window::getSemaphoreProxy() const {
 //   return owner;
 // }
-// 
+//
 // void Window::addSemaphoreProxy(yavf::SemaphoreProxy* proxy) {
 //   proxies.push_back(proxy);
 // }
@@ -364,7 +364,7 @@ yavf::RenderTarget* Window::currentRenderTarget() {
 // VkSemaphore Window::imageAvailable() const  {
 //   return frames[currentFrame].imageAvailableSemaphore;
 // }
-// 
+//
 // VkSemaphore Window::finishRendering() const  {
 //   return frames[currentFrame].finishedRenderingSemaphore;
 // }
@@ -389,12 +389,12 @@ void Window::nextFrame() {
 //   if (frames[currentFrame].framebuffer != VK_NULL_HANDLE) {
 //     vkDestroyFramebuffer(device->handle(), frames[currentFrame].framebuffer, nullptr);
 //   }
-// 
+//
 //   const std::array<VkImageView, 2> attachments = {
 //     swapchain.imageViews[imageIndex],
 //     depthImages[imageIndex]->view().handle
 //   };
-// 
+//
 //   const VkFramebufferCreateInfo framebufferCreateInfo{
 //     VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
 //     nullptr,
@@ -406,22 +406,22 @@ void Window::nextFrame() {
 //     surface.extent.height,
 //     1
 //   };
-// 
+//
 // //   std::cout << "Window next frame" << "\n";
-//   
-//   yavf::vkCheckError("vkCreateFramebuffer", nullptr, 
+//
+//   yavf::vkCheckError("vkCreateFramebuffer", nullptr,
 //   vkCreateFramebuffer(device->handle(), &framebufferCreateInfo, nullptr, &frames[currentFrame].framebuffer));
 }
 
 void Window::present() {
 //   if (proxies.empty()) throw std::runtime_error("Proxies == 0 in window");
-  
+
 //   VkSemaphore s[proxies.size()];
 //   for (uint32_t i = 0; i < proxies.size(); ++i) {
 //     s[i] = proxies[i]->get();
 // //     std::cout << "Wait " << s[i] << " semaphore" << "\n";
 //   }
-  
+
 //   VkPresentInfoKHR info{
 //     VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 //     nullptr,
@@ -434,7 +434,7 @@ void Window::present() {
 //   };
 
   const VkSwapchainKHR s = swapchain.swapchain;
-  
+
   const VkPresentInfoKHR info{
     VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
     nullptr,
@@ -462,13 +462,13 @@ void Window::present() {
       Global::console()->print("Problem occurred during image presentation!\n");
       throw std::runtime_error("Problem occurred during image presentation!");
   }
-  
+
 //   vkQueueWaitIdle(queue.handle);
 }
 
 void Window::resize() {
   device->wait();
-  
+
   int width, height;
   glfwGetWindowSize(window, &width, &height);
 
@@ -481,39 +481,39 @@ void Window::resize() {
   vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device->physicalHandle(), surface.handle, &surface.capabilities);
   surface.extent = yavf::chooseSwapchainExtent(width, height, surface.capabilities);
 
-//   yavf::vkCheckError("createSwapChain", nullptr, 
+//   yavf::vkCheckError("createSwapChain", nullptr,
 //   createSwapChain(device->handle(), surface, swapchain));
-  
+
   createSwapChain(surface, device, swapchain);
-  
+
   const VkFormat depth = yavf::findSupportedFormat(device->physicalHandle(),
                                                    {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
                                                    VK_IMAGE_TILING_OPTIMAL,
                                                    VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-  
+
   for (uint32_t i = 0; i < swapchain.images.size(); ++i) {
     device->destroy(depthImages[i]);
     device->destroy(targets[i].framebuffer());
-    
+
     swapchain.images[i]->createView(VK_IMAGE_VIEW_TYPE_2D, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, surface.format.format);
-    
-    depthImages[i] = device->create(yavf::ImageCreateInfo::texture2D(surface.extent, 
-                                                                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 
-                                                                     depth), 
+
+    depthImages[i] = device->create(yavf::ImageCreateInfo::texture2D(surface.extent,
+                                                                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                                                     depth),
                                     VMA_MEMORY_USAGE_GPU_ONLY);
     depthImages[i]->createView(VK_IMAGE_VIEW_TYPE_2D, {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1});
-    
+
     const std::vector<VkImageView> views = {
-      swapchain.images[i]->view()->handle(), 
+      swapchain.images[i]->view()->handle(),
       depthImages[i]->view()->handle()
     };
-    yavf::Framebuffer fb = device->create(yavf::FramebufferCreateInfo::framebuffer(renderPassHandle, 
-                                                                                   views.size(), 
-                                                                                   views.data(), 
-                                                                                   surface.extent.width, 
-                                                                                   surface.extent.height), 
+    yavf::Framebuffer fb = device->create(yavf::FramebufferCreateInfo::framebuffer(renderPassHandle,
+                                                                                   views.size(),
+                                                                                   views.data(),
+                                                                                   surface.extent.width,
+                                                                                   surface.extent.height),
                                           "window_framebuffer_"+std::to_string(i));
-    
+
     targets[i].set({{0, 0}, surface.extent}, renderPassHandle, fb, &values);
   }
 
@@ -531,15 +531,15 @@ void Window::resize() {
   device->deallocate(task);
 
   if (render == nullptr) return;
-  
+
   const glm::mat4 &perspective = glm::perspective(glm::radians(fov), float(surface.extent.width) / float(surface.extent.height), 0.1f, FAR_CLIPPING);
   const glm::mat4 &ortho = glm::ortho(0.0f, float(surface.extent.width) / float(surface.extent.height), 0.0f, 1.0f, 0.1f, FAR_CLIPPING);
 
   render->setPersp(perspective);
   render->setOrtho(ortho);
-  
+
   render->setCameraDim(surface.extent.width, surface.extent.height);
-  
+
   render->updateCamera();
 }
 
@@ -603,16 +603,16 @@ bool Window::shouldClose() const {
 
 void Window::toggleVsync() {
   if (!immediatePresentMode) return;
-  
+
   vsync = !vsync;
-  
+
   if (vsync) {
     surface.presentMode = lastMode;
   } else {
     lastMode = surface.presentMode;
     surface.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
   }
-  
+
   resize();
 }
 
@@ -642,15 +642,15 @@ float Window::getFov() const {
 
 void Window::setRender(VulkanRender* render) {
   this->render = render;
-  
+
   const glm::mat4 &perspective = glm::perspective(glm::radians(fov), float(surface.extent.width) / float(surface.extent.height), 0.1f, FAR_CLIPPING);
   const glm::mat4 &ortho = glm::ortho(0.0f, float(surface.extent.width) / float(surface.extent.height), 0.0f, 1.0f, 0.1f, FAR_CLIPPING);
 
   render->setPersp(perspective);
   render->setOrtho(ortho);
-  
+
   render->setCameraDim(surface.extent.width, surface.extent.height);
-  
+
   render->updateCamera();
 }
 
@@ -684,7 +684,7 @@ yavf::RenderPass Window::pass() const {
 
 // void Window::createDescriptors(VkDescriptorSetLayout layout, VkDescriptorPool pool) {
 //   yavf::DescriptorMaker dm(device);
-//   
+//
 //   swapchain.sets.resize(swapchain.images.size(), VK_NULL_HANDLE);
 //   for (uint32_t i = 0; i < swapchain.images.size(); ++i) {
 //     auto descs = dm.layout(layout).create(pool);
@@ -759,7 +759,7 @@ void Window::createRenderPass() {
 
       display = props[i].display;
 
-      // найдем плоскость по критериям: 
+      // найдем плоскость по критериям:
       // - подходит дисплею + моду
       // - не прикрепленна к другому дисплею
       // - поддерживает попиксельный альфа канал
@@ -829,7 +829,7 @@ void Window::createRenderPass() {
         alpha,
         {200, 200} // здесь я должен задать величину картинок, как ее узнать? узнать ее можно из VkDisplayPlaneCapabilitiesKHR
       };
-      
+
       vkCreateDisplayPlaneSurfaceKHR(instance->handle(), &createInfo, nullptr, &surface.handle);
     }
     */

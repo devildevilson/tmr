@@ -1211,10 +1211,38 @@ void nextGuiFrame() {
 //   ImGui::NewFrame();
 }
 
+// #ifdef _WIN32
+// #include <windows.h>
+//
+// struct my_clock {
+//   typedef double                             rep;
+//   typedef std::ratio<1>                      period;
+//   typedef std::chrono::duration<rep, period> duration;
+//   typedef std::chrono::time_point<my_clock>  time_point;
+//   static const bool is_steady =              false;
+//
+//   static time_point now() {
+//       static const long long frequency = init_frequency();
+//       LARGE_INTEGER t;
+//       QueryPerformanceCounter(&t);
+//       return time_point(duration(static_cast<rep>(t.QuadPart)/frequency));
+//   }
+//
+//   static LARGE_INTEGER nowInt() {
+//     LARGE_INTEGER t;
+//     QueryPerformanceCounter(&t);
+//     return t;
+//   }
+// //private:
+//   static long long init_frequency() {
+//       LARGE_INTEGER f;
+//       QueryPerformanceFrequency(&f);
+//       return f.QuadPart;
+//   }
+// };
+// #endif
 
 void sync(TimeMeter &tm, const size_t &syncTime) {
-  // отмечаем время "сна"
-  // нам здесь все же будет полезен TimeMeter
   tm.stop();
 
   {
@@ -1224,9 +1252,18 @@ void sync(TimeMeter &tm, const size_t &syncTime) {
 
   size_t accumulatedTime = 0;
   while (accumulatedTime < syncTime) {
-    std::this_thread::sleep_for(std::chrono::microseconds(1));
+    std::this_thread::sleep_for(std::chrono::microseconds(500));
+// #ifdef _WIN32
+//     static const long long frequency = my_clock::init_frequency();
+//     LARGE_INTEGER t;
+//     QueryPerformanceCounter(&t);
+//
+//     const auto point = my_clock::now() - tm.getStart();
+//     accumulatedTime = std::chrono::duration_cast<std::chrono::microseconds>(point).count();
+// #else
     const auto point = std::chrono::steady_clock::now() - tm.getStart();
-    accumulatedTime += std::chrono::duration_cast<std::chrono::microseconds>(point).count();
+    accumulatedTime = std::chrono::duration_cast<std::chrono::microseconds>(point).count();
+//#endif
   }
 }
 
