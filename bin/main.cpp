@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
   // например если в системе два треда (в этом случае скорее всего тоже норм)
   // если в настройках определено не использовать треад пул
   // то нам его создавать ни к чему
-  std::cout << "std::thread::hardware_concurrency() " << std::thread::hardware_concurrency() << "\n";
+  //std::cout << "std::thread::hardware_concurrency() " << std::thread::hardware_concurrency() << "\n";
   //throw std::runtime_error("no more");
   dt::thread_pool threadPool(std::max(std::thread::hardware_concurrency()-1, uint32_t(1))); // как там его правильно создать?
 
