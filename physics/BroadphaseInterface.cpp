@@ -47,6 +47,6 @@ PhysicsType BroadphaseProxy::getType() const {
 
 Broadphase::~Broadphase() {}
   
-void Broadphase::getBroadphaseAabb(FastAABB &box) const {
-  box = this->box;
-}
+// void Broadphase::getBroadphaseAabb(FastAABB &box) const {
+//   box = this->box;
+// }

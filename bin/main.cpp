@@ -142,7 +142,7 @@ int main(int argc, char** argv) {
   DataArrays arrays;
   ArrayContainers arraysContainer(sizeof(CPUContainer<ExternalData>) +
                                   sizeof(CPUContainer<InputData>) +
-                                  sizeof(CPUContainer<glm::mat4>) +
+                                  sizeof(CPUContainer<simd::mat4>) +
                                   sizeof(CPUBuffer<uint32_t>) +
                                   sizeof(CPUContainer<RotationData>) +
                                   sizeof(CPUContainer<Transform>) +
@@ -370,7 +370,7 @@ int main(int argc, char** argv) {
     dynPipe[i]->recreatePipelines(textureLoader);
   }
 
-  Global::physics()->setGravity(glm::vec4(0.0f, -9.8f, 0.0f, 0.0f));
+  Global::physics()->setGravity(simd::vec4(0.0f, -9.8f, 0.0f, 0.0f));
 
   Global::window()->show();
   //Global::window()->toggleVsync();
@@ -419,7 +419,7 @@ int main(int argc, char** argv) {
 
         Global::physics()->add(ray);
 
-        const glm::mat4 &frustum = Global::render()->getViewProj();
+        const simd::mat4 &frustum = Global::render()->getViewProj();
         Global::physics()->add(frustum, playerTransform->pos());
       }
 
@@ -441,8 +441,8 @@ int main(int argc, char** argv) {
 //       const uint32_t rayOutputCount = 0;
 //       const uint32_t frustumOutputCount = 0;
 //
-//       glm::vec4 pos = glm::vec4(0.0f);
-//       glm::vec4 rot = glm::vec4(0.0f);
+//       simd::vec4 pos = simd::vec4(0.0f);
+//       simd::vec4 rot = simd::vec4(0.0f);
 
       const SimpleOverlayData overlayData{
         playerTransform->pos(),

@@ -4,7 +4,7 @@
 #include <cstring>
 #include <chrono>
 
-#include <glm/gtx/norm.hpp>
+//#include <glm/gtx/norm.hpp>
 
 #define PRINT_VAR(name, var) std::cout << name << ": " << var << "\n";
 #define PRINT_VEC4(name, var) std::cout << name << " x: " << var.x << " y: " << var.y << " z: " << var.z << " w: " << var.w << "\n";
@@ -14,16 +14,6 @@
 #define INTERSECT 2
 
 #define ONLY_TRIGGER_ID 0xFFFFFFFF-1
-
-// FastAABB recalcAABB(const glm::vec4 &pos, const glm::vec4 &ext, const glm::mat4 &orn);
-// FastAABB recalcAABB(const ArrayInterface<glm::vec4>* verticies, const glm::vec4 &pos, const uint32_t &vertexOffset, const uint32_t &vertexSize, const glm::mat4 &orn);
-// //bool AABBcontain(const FastAABB &first, const FastAABB &second);
-//
-// //bool testAABB(const FastAABB &first, const FastAABB &second);
-//
-// bool intersection(const FastAABB &box, const RayData &ray);
-//
-// uint32_t testFrustumAABB(const FrustumStruct &frustum, const FastAABB &box);
 
 #include <HelperFunctions.h>
 
@@ -62,9 +52,9 @@ void CPUOctreeProxyParallel::updateAABB() {
 
 }
 
-FastAABB CPUOctreeBroadphaseParallel::CPUParallelOctreeNode::getAABB() const {
-  return box;
-}
+// FastAABB CPUOctreeBroadphaseParallel::CPUParallelOctreeNode::getAABB() const {
+//   return box;
+// }
 
 void CPUOctreeBroadphaseParallel::CPUParallelOctreeNode::add(CPUOctreeProxyParallel* proxy) {
   //basePtr->mutexes[index]
@@ -132,6 +122,7 @@ CPUOctreeBroadphaseParallel::CPUOctreeBroadphaseParallel(dt::thread_pool* pool, 
 
   std::vector<CPUParallelOctreeNode> list(nodesCount);
   nodes.swap(list);
+  nodeBoxes.resize(nodesCount);
   //nodes.resize(nodesCount);
   //mutexies.resize(nodesCount);
   indices1.resize(1000);
@@ -158,7 +149,8 @@ CPUOctreeBroadphaseParallel::CPUOctreeBroadphaseParallel(dt::thread_pool* pool, 
 
   nodes[0].nodeIndex = 0;
   nodes[0].childIndex = 1;
-  nodes[0].box = {octreeInfo.center, octreeInfo.extent};
+  nodeBoxes[0] = {octreeInfo.center, octreeInfo.extent};
+  //nodes[0].box = {octreeInfo.center, octreeInfo.extent};
 
   std::vector<size_t> nodeIdx;
   nodeIdx.reserve(nodesCount);
@@ -178,21 +170,21 @@ CPUOctreeBroadphaseParallel::CPUOctreeBroadphaseParallel(dt::thread_pool* pool, 
 
       for (uint8_t k = 0; k < 8; ++k) {
         const size_t index = count + (parentIndex - lastCount) * 8 + k;
-        const FastAABB &parentBox = nodes[parentIndex].box;
+        const FastAABB &parentBox = nodeBoxes[parentIndex];
 
         //nodes.push_back({});
 //         nodes[index].basePtr = this;
         nodes[index].nodeIndex = index;
         nodes[index].childIndex = UINT32_MAX;
 
-        glm::vec4 extent = parentBox.extent / 2.0f;
-        glm::vec4 center;
+        simd::vec4 extent = parentBox.extent / 2.0f;
+        simd::vec4 center;
         center.x = xMask & k ? parentBox.center.x + extent.x : parentBox.center.x - extent.x;
         center.y = yMask & k ? parentBox.center.y + extent.y : parentBox.center.y - extent.y;
         center.z = zMask & k ? parentBox.center.z + extent.z : parentBox.center.z - extent.z;
         center.w = 1.0f;
 
-        nodes[index].box = FastAABB{center, extent};
+        nodeBoxes[index] = FastAABB{center, extent};
 
 //         proxies.emplace_back(UINT32_MAX, PhysicsType(0, 0, 0, 0, 0, 0), 0, 0);
 //         proxies.back().setAABB({center, extent});
@@ -308,40 +300,62 @@ void CPUOctreeBroadphaseParallel::updateBuffers(const uint32_t &objCount, const 
 }
 
 void CPUOctreeBroadphaseParallel::update() {
-  // RegionLog rl("CPUOctreeBroadphaseParallel::update()");
-
   static const auto updateAABB = [&] (const size_t &start, const size_t &count, std::atomic<uint32_t> &counter) {
     for (size_t index = start; index < start+count; ++index) {
       const uint32_t &objIndex = indexBuffer->at(index);
       const Object &obj = objects->at(objIndex);
       const uint32_t &proxyIndex = obj.proxyIndex;
+      
+      // куда подевались индексы 0 и 3?????????
+//       if (objIndex == 0) std::cout << "objIndex " << objIndex << "\n";
+//       if (objIndex == 3) std::cout << "objIndex " << objIndex << "\n";
 
       if (obj.objType.getObjType() == BBOX_TYPE) {
-        const glm::vec4 &pos = transforms->at(obj.transformIndex).pos;
-        const glm::vec4 &ext = verticies->at(obj.vertexOffset);
-        const glm::mat4 &orn = systems->at(obj.coordinateSystemIndex);
+        const simd::vec4 &pos = transforms->at(obj.transformIndex).pos;
+        const simd::vec4 &ext = verticies->at(obj.vertexOffset);
+        const simd::mat4 &orn = systems->at(obj.coordinateSystemIndex);
 
-        proxies[proxyIndex].setAABB(recalcAABB(pos, ext, orn));
+        const FastAABB aabb = recalcAABB(pos, ext, orn);
+        proxies[proxyIndex].setAABB(aabb);
+        
+//         if (proxyIndex == 0) {
+//           std::cout << "updateAABB" << "\n";
+//           std::cout << "obj.coordinateSystemIndex " << obj.coordinateSystemIndex << "\n";
+//           PRINT_VEC4("proxy center ", proxies[proxyIndex].getAABB().center)
+//           PRINT_VEC4("proxy extent ", proxies[proxyIndex].getAABB().extent)
+//           PRINT_VEC4("aabb  center ", aabb.center)
+//           PRINT_VEC4("aabb  extent ", aabb.extent)
+//         }
 
       } else if (obj.objType.getObjType() == SPHERE_TYPE) {
-        const glm::vec4 &sphere = transforms->at(obj.transformIndex).pos;
-
-        const FastAABB box = {glm::vec4(sphere.x, sphere.y, sphere.z, 1.0f), glm::vec4(sphere.w, sphere.w, sphere.w, 0.0f)};
+        const simd::vec4 &sphere = transforms->at(obj.transformIndex).pos;
+        float arr[4];
+        sphere.store(arr);
+        
+        const FastAABB box = {simd::vec4(arr[0], arr[1], arr[2], 1.0f), simd::vec4(arr[3], arr[3], arr[3], 0.0f)};
         proxies[proxyIndex].setAABB(box);
       } else {
-        const glm::vec4 pos = obj.transformIndex != UINT32_MAX ? transforms->at(obj.transformIndex).pos : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-        glm::mat4 orn = systems->at(obj.coordinateSystemIndex);
+        const simd::vec4 pos = obj.transformIndex != UINT32_MAX ? transforms->at(obj.transformIndex).pos : simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        simd::mat4 orn = systems->at(obj.coordinateSystemIndex);
 
         if (obj.rotationDataIndex != UINT32_MAX) {
           const RotationData &data = rotationDatas->at(obj.rotationDataIndex);
 
-          const glm::mat4 &anchorMatrix = data.matrix;
+          const simd::mat4 &anchorMatrix = data.matrix;
 
           orn = anchorMatrix * orn;
         }
 
         proxies[proxyIndex].setAABB(recalcAABB(verticies, pos, obj.vertexOffset, obj.vertexCount, orn));
       }
+      
+//       if (proxyIndex == 0) {
+//         std::cout << "updateAABB" << "\n";
+//         PRINT_VEC4("proxy center ", proxies[proxyIndex].getAABB().center)
+//         PRINT_VEC4("proxy extent ", proxies[proxyIndex].getAABB().extent)
+//       }
+      
+      //throw std::runtime_error("no more");
 
       const uint32_t id = counter.fetch_add(1);
       proxyIndices[id+1] = proxyIndex;
@@ -354,6 +368,12 @@ void CPUOctreeBroadphaseParallel::update() {
       ASSERT(proxies.size() > proxyIndex);
       CPUOctreeProxyParallel* data = &proxies[proxyIndex];
       uint32_t currentIndex = 0;
+      
+//       if (proxyIndex == 0 || proxyIndex == 3) {
+//         std::cout << "changePlaceInOctree" << "\n";
+//         PRINT_VEC4("proxy center ", data->getAABB().center)
+//         PRINT_VEC4("proxy extent ", data->getAABB().extent)
+//       }
 
       bool end = true;
       while (end) {
@@ -363,7 +383,8 @@ void CPUOctreeBroadphaseParallel::update() {
 
         for (uint32_t i = 0; i < 8; ++i) {
           const uint32_t &index = nodes[currentIndex].childIndex + i;
-          const FastAABB &nodeBox = nodes[index].box;
+          //const FastAABB &nodeBox = nodes[index].box;
+          const FastAABB &nodeBox = nodeBoxes[index];
           //const bool inChild = ObjinNode(data, index); // тут нужно чекать находится ли объект в octree node
           const bool inChild = AABBcontain(data->getAABB(), nodeBox);
           isOneChild = isOneChild || inChild;
@@ -381,6 +402,13 @@ void CPUOctreeBroadphaseParallel::update() {
         if (data->getNodeIndex() != UINT32_MAX) nodes[data->getNodeIndex()].remove(data);
         nodes[currentIndex].add(data);
       }
+      
+//       std::cout << "Object Index " << data->getObjectIndex() << " data->getNodeIndex() " << data->getNodeIndex() << " node size " << nodes[currentIndex].proxies.size() << "\n";
+      
+//       if (proxyIndex == 0 || proxyIndex == 3) {
+//         std::cout << "changePlaceInOctree" << "\n";
+//         std::cout << "data->getNodeIndex() " << data->getNodeIndex() << "\n";
+//       }
 
       if (data->getType().isDynamic()) {
         // я полагаю тут нужно использовать
@@ -390,6 +418,8 @@ void CPUOctreeBroadphaseParallel::update() {
       }
     }
   };
+  
+//   RegionLog rl("CPUOctreeBroadphaseParallel::update()");
 
   proxyIndices[0] = 0;
   std::atomic<uint32_t> proxyCounter(0);
@@ -412,6 +442,8 @@ void CPUOctreeBroadphaseParallel::update() {
     pool->compute();
     pool->wait();
   }
+  
+  //throw std::runtime_error("no more");
 
   proxyIndices[0] = proxyCounter;
   toPairsCalculate[0] = 0;
@@ -432,6 +464,10 @@ void CPUOctreeBroadphaseParallel::update() {
     pool->compute();
     pool->wait();
   }
+  
+  //printStats();
+  
+  //throw std::runtime_error("no more");
 
   toPairsCalculate[0] = counter;
 }
@@ -469,7 +505,7 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
 
         overlappingPairCache->at(id+1).firstIndex = firstIndex;
         overlappingPairCache->at(id+1).secondIndex = secondIndex;
-        const float dist2 = glm::distance2(firstBox.center, secondBox.center);
+        const float dist2 = simd::distance2(firstBox.center, secondBox.center);
         overlappingPairCache->at(id+1).dist = dist2;
         overlappingPairCache->at(id+1).islandIndex = triggerOnly ? ONLY_TRIGGER_ID : nodesCount - glm::min(first->getNodeIndex(), second->getNodeIndex()) - 1;
 
@@ -481,7 +517,7 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
 
         staticOverlappingPairCache->at(id+1).firstIndex = first->getObjectIndex();
         staticOverlappingPairCache->at(id+1).secondIndex = second->getObjectIndex();
-        const float dist2 = glm::distance2(firstBox.center, secondBox.center);
+        const float dist2 = simd::distance2(firstBox.center, secondBox.center);
         staticOverlappingPairCache->at(id+1).dist = dist2;
         staticOverlappingPairCache->at(id+1).islandIndex = triggerOnly ? ONLY_TRIGGER_ID : first->getObjectIndex();
         // эти пары похоже что нужно отсортировать только раз
@@ -492,6 +528,8 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
 
   static const std::function<void(const CPUParallelOctreeNode*, const CPUOctreeProxyParallel*, std::atomic<uint32_t>&, std::atomic<uint32_t>&)> calcPairReq =
   [&] (const CPUParallelOctreeNode* node, const CPUOctreeProxyParallel* current, std::atomic<uint32_t> &pairsCounter, std::atomic<uint32_t> &staticPairsCounter) {
+//     std::cout << "calcPairReq childNode index " << node->nodeIndex << " childNode size  " << node->proxies.size() << "\n";
+    
     for (uint32_t i = 0; i < node->proxies.size(); ++i) {
       if (node->proxies[i] == UINT32_MAX) continue;
 
@@ -507,8 +545,9 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
       // мне кажется что возможно так будет быстрее, хотя кто знает
 
       const CPUParallelOctreeNode* childNode = &nodes[node->childIndex + i];
-
-      if (!testAABB(childNode->box, current->getAABB())) continue;
+      const FastAABB nodeBox = nodeBoxes[childNode->nodeIndex];
+      
+      if (!testAABB(nodeBox, current->getAABB())) continue;
 
       calcPairReq(childNode, current, pairsCounter, staticPairsCounter);
     }
@@ -517,12 +556,22 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
   static const auto calcPair = [&] (const size_t &start, const size_t &count, std::atomic<uint32_t> &pairsCounter, std::atomic<uint32_t> &staticPairsCounter) {
     for (size_t i = start; i < start+count; ++i) {
       const uint32_t index = toPairsCalculate[i];
+//       std::cout << "index " << index << "\n";
       const CPUOctreeProxyParallel &current = proxies[index];
       const FastAABB &first = current.getAABB();
 
-  //     PRINT_VEC4("center", first.center)
-  //     PRINT_VEC4("extent", first.extent)
-      if (!testAABB(nodes[0].box, first)) throw std::runtime_error("obj " + std::to_string(proxies[index].getObjectIndex()) + " not in octree");
+      // короче неправильный аабб сюда приходит у объекта, где может быть проблема?
+      // по идее он перевычисляется в одном месте
+      
+//       if (index == 0) {
+//         std::cout << "calcPair" << "\n";
+//         PRINT_VEC4("center", first.center)
+//         PRINT_VEC4("extent", first.extent)
+//         throw std::runtime_error("ewpkdewdwewev");
+//       }
+      
+      const FastAABB &nodeBox = nodeBoxes[0];
+      if (!testAABB(nodeBox, first)) throw std::runtime_error(std::string("obj ") + std::to_string(proxies[index].getObjectIndex()) + " not in octree");
 
       const CPUParallelOctreeNode* node = &nodes[0];
 
@@ -541,8 +590,15 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
         // мне кажется что возможно так будет быстрее, хотя кто знает
 
         const CPUParallelOctreeNode* childNode = &nodes[node->childIndex + i];
-
-        if (!testAABB(childNode->box, first)) continue;
+        const FastAABB &nodeBox = nodeBoxes[childNode->nodeIndex];
+        
+//         PRINT_VEC4("first center", first.center)
+//         PRINT_VEC4("first extent", first.extent)
+//         
+//         PRINT_VEC4("nodeBox center", nodeBox.center)
+//         PRINT_VEC4("nodeBox extent", nodeBox.extent)
+        
+        if (!testAABB(nodeBox, first)) continue;
 
         calcPairReq(childNode, &current, pairsCounter, staticPairsCounter);
       }
@@ -567,6 +623,8 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
 
   pool->compute();
   pool->wait();
+  
+  //throw std::runtime_error("no more");
 
   overlappingPairCache->at(0).firstIndex = pairsCounter;
   overlappingPairCache->at(0).secondIndex = 0;
@@ -591,14 +649,16 @@ void CPUOctreeBroadphaseParallel::calculateRayTests() {
     const FastAABB &box = proxy->getAABB();
 
 //     std::cout << "proxy " << proxy->getProxyIndex() << " obj index " << proxy->getObjectIndex() << "\n";
-//     PRINT_VEC4("proxy pos", proxy->getAABB().center)
+//     PRINT_VEC4("proxy   pos", proxy->getAABB().center)
+//     PRINT_VEC4("current pos", current.pos)
+//     PRINT_VEC4("current dir", current.dir)
     if (intersection(box, current)) {
       const uint32_t id = counter.fetch_add(1);
 //       std::cout << "id " << id << "\n";
 
       rayPairCache->at(id+1).firstIndex = currentIndex;
       rayPairCache->at(id+1).secondIndex = proxy->getObjectIndex();
-      const float dist2 = glm::distance2(current.pos, box.center);
+      const float dist2 = simd::distance2(current.pos, box.center);
       rayPairCache->at(id+1).dist = dist2;
       rayPairCache->at(id+1).islandIndex = currentIndex;
     }
@@ -616,8 +676,9 @@ void CPUOctreeBroadphaseParallel::calculateRayTests() {
 
     for (uint32_t i = 0; i < 8; ++i) {
       const CPUParallelOctreeNode* childNode = &nodes[node->childIndex + i];
-
-      if (!intersection(childNode->box, current)) continue;
+      const FastAABB &nodeBox = nodeBoxes[childNode->nodeIndex];
+      
+      if (!intersection(nodeBox, current)) continue;
 
       calcRayPairsReq(childNode, index, current, counter);
     }
@@ -627,7 +688,8 @@ void CPUOctreeBroadphaseParallel::calculateRayTests() {
     for (size_t index = start; index < start+count; ++index) {
       const RayData &current = rays->at(index);
 
-      if (!intersection(nodes[0].box, current)) return;
+      const FastAABB &nodeBox = nodeBoxes[0];
+      if (!intersection(nodeBox, current)) return;
 
       const CPUParallelOctreeNode* node = &nodes[0];
 
@@ -641,8 +703,9 @@ void CPUOctreeBroadphaseParallel::calculateRayTests() {
 
       for (uint32_t i = 0; i < 8; ++i) {
         const CPUParallelOctreeNode* childNode = &nodes[node->childIndex + i];
-
-        if (!intersection(childNode->box, current)) continue;
+        const FastAABB &nodeBox = nodeBoxes[childNode->nodeIndex];
+        
+        if (!intersection(nodeBox, current)) continue;
 
         calcRayPairsReq(childNode, index, current, counter);
       }
@@ -674,7 +737,7 @@ void CPUOctreeBroadphaseParallel::calculateFrustumTests() {
   static const std::function<void(const CPUParallelOctreeNode*, const uint32_t &, std::atomic<uint32_t> &)> addObjInNode =
   [&] (const CPUParallelOctreeNode* node, const uint32_t &index, std::atomic<uint32_t> &counter) {
     //const FrustumStruct &frustum = frustums->at(index);
-    const glm::vec4 &pos = frustumPoses->at(index);
+    const simd::vec4 &pos = frustumPoses->at(index);
 
     for (uint32_t i = 0; i < node->proxies.size(); ++i) {
       if (node->proxies[i] == UINT32_MAX) continue;
@@ -689,7 +752,7 @@ void CPUOctreeBroadphaseParallel::calculateFrustumTests() {
 
       frustumTestsResult->at(id+1).firstIndex = index;
       frustumTestsResult->at(id+1).secondIndex = proxy->getObjectIndex();
-      const float dist2 = glm::distance2(pos, proxy->getAABB().center);
+      const float dist2 = simd::distance2(pos, proxy->getAABB().center);
       frustumTestsResult->at(id+1).dist = dist2;
       frustumTestsResult->at(id+1).islandIndex = index;
     }
@@ -706,22 +769,31 @@ void CPUOctreeBroadphaseParallel::calculateFrustumTests() {
   static const std::function<void(const CPUParallelOctreeNode*, const uint32_t &, std::atomic<uint32_t> &)> calcFrustumPairsReq =
   [&] (const CPUParallelOctreeNode* node, const uint32_t &index, std::atomic<uint32_t> &counter) {
     const FrustumStruct &frustum = frustums->at(index);
-    const glm::vec4 &pos = frustumPoses->at(index);
+    const simd::vec4 &pos = frustumPoses->at(index);
+    
+//     std::cout << "childNode index " << node->nodeIndex << " childNode size  " << node->proxies.size() << "\n";
 
     for (uint32_t i = 0; i < node->proxies.size(); ++i) {
       if (node->proxies[i] == UINT32_MAX) continue;
 
       if (!proxies[node->proxies[i]].getType().isVisible()) continue;
-
+      
+      ASSERT(proxies.size() > node->proxies[i]);
       const CPUOctreeProxyParallel* proxy = &proxies[node->proxies[i]];
-
-      if (testFrustumAABB(frustum, proxy->getAABB()) == OUTSIDE) continue;
+      
+//       std::cout << "proxy index " << node->proxies[i] << "\n";
+//       PRINT_VEC4("proxy center ", proxy->getAABB().center)
+//       PRINT_VEC4("proxy extent ", proxy->getAABB().extent)
+      
+      const uint32_t res = testFrustumAABB(frustum, proxy->getAABB());
+//       std::cout << "res " << res << '\n';
+      if (res == OUTSIDE) continue;
 
       const uint32_t id = counter.fetch_add(1);
 
       frustumTestsResult->at(id+1).firstIndex = index;
       frustumTestsResult->at(id+1).secondIndex = proxy->getObjectIndex();
-      const float dist2 = glm::distance2(pos, proxy->getAABB().center);
+      const float dist2 = simd::distance2(pos, proxy->getAABB().center);
       frustumTestsResult->at(id+1).dist = dist2;
       frustumTestsResult->at(id+1).islandIndex = index;
     }
@@ -730,8 +802,9 @@ void CPUOctreeBroadphaseParallel::calculateFrustumTests() {
 
     for (uint32_t i = 0; i < 8; ++i) {
       const CPUParallelOctreeNode* childNode = &nodes[node->childIndex + i];
+      const FastAABB &nodeBox = nodeBoxes[childNode->nodeIndex];
 
-      int res = testFrustumAABB(frustum, childNode->box);
+      int res = testFrustumAABB(frustum, nodeBox);
 
       if (res == INSIDE) addObjInNode(childNode, index, counter);
       else if (res == INTERSECT) calcFrustumPairsReq(childNode, index, counter);
@@ -741,9 +814,10 @@ void CPUOctreeBroadphaseParallel::calculateFrustumTests() {
   static const auto calcFrustumPairs = [&] (const size_t &start, const size_t &count, dt::thread_pool* pool, std::atomic<uint32_t> &counter) {
     for (size_t index = start; index < start+count; ++index) {
       const FrustumStruct &frustum = frustums->at(index);
-      const glm::vec4 &pos = frustumPoses->at(index);
+      const simd::vec4 &pos = frustumPoses->at(index);
 
-      if (testFrustumAABB(frustum, nodes[0].box) == OUTSIDE) return;
+      const FastAABB &nodeBox = nodeBoxes[0];
+      if (testFrustumAABB(frustum, nodeBox) == OUTSIDE) throw std::runtime_error("wtf?");
 
       const CPUParallelOctreeNode* node = &nodes[0];
 
@@ -756,13 +830,18 @@ void CPUOctreeBroadphaseParallel::calculateFrustumTests() {
 
         int res = testFrustumAABB(frustum, proxy->getAABB());
 
+//         std::cout << "proxy index " << node->proxies[i] << "\n";
+//         PRINT_VEC4("proxy center ", proxy->getAABB().center)
+//         PRINT_VEC4("proxy extent ", proxy->getAABB().extent)
+//         std::cout << "res " << res << '\n';
+        
         if (res == OUTSIDE) continue;
 
         const uint32_t id = counter.fetch_add(1);
 
         frustumTestsResult->at(id+1).firstIndex = index;
         frustumTestsResult->at(id+1).secondIndex = proxy->getObjectIndex();
-        const float dist2 = glm::distance2(pos, proxy->getAABB().center);
+        const float dist2 = simd::distance2(pos, proxy->getAABB().center);
         frustumTestsResult->at(id+1).dist = dist2;
         frustumTestsResult->at(id+1).islandIndex = index;
       }
@@ -771,15 +850,21 @@ void CPUOctreeBroadphaseParallel::calculateFrustumTests() {
 
       for (uint32_t i = 0; i < 8; ++i) {
         const CPUParallelOctreeNode* childNode = &nodes[node->childIndex + i];
+        const FastAABB &nodeBox = nodeBoxes[childNode->nodeIndex];
 
-        int res = testFrustumAABB(frustum, childNode->box);
+        int res = testFrustumAABB(frustum, nodeBox);
+        
+//         PRINT_VEC4("childNode->box center ", childNode->box.center)
+//         PRINT_VEC4("childNode->box extent ", childNode->box.extent)
+//         std::cout << "res " << res << '\n';
 
         // тут поди надо добавить эти функции в треад пул
-  //       if (res == INSIDE) addObjInNode(childNode, index, counter);
-  //       else if (res == INTERSECT) calcFrustumPairsReq(childNode, index, counter);
+//         if (res == INSIDE) addObjInNode(childNode, index, counter);
+//         else if (res == INTERSECT) calcFrustumPairsReq(childNode, index, counter);
 
         if (res == INSIDE) pool->submitnr(addObjInNode, childNode, index, std::ref(counter));
         else if (res == INTERSECT) pool->submitnr(calcFrustumPairsReq, childNode, index, std::ref(counter));
+//         pool->submitnr(addObjInNode, childNode, index, std::ref(counter));
       }
     }
   };
@@ -801,6 +886,10 @@ void CPUOctreeBroadphaseParallel::calculateFrustumTests() {
 
   pool->compute();
   pool->wait();
+  
+  //printStats();
+  
+  //throw std::runtime_error("no more");
 
   frustumTestsResult->at(0).firstIndex = counter;
 }
@@ -918,8 +1007,9 @@ void CPUOctreeBroadphaseParallel::printStats() {
   PRINT_VAR("Avg obj in node", float(objsInNodes) / float(nodesCount))
   PRINT_VAR("Max obj in node", maxObjInNode)
   PRINT_VAR("Node idx with max", index)
-  PRINT_VEC4("Max node center", nodes[index].box.center)
-  PRINT_VEC4("Max node extent", nodes[index].box.extent)
+  const FastAABB &nodeBox = nodeBoxes[index];
+  PRINT_VEC4("Max node center", nodeBox.center)
+  PRINT_VEC4("Max node extent", nodeBox.extent)
 
   std::cout << '\n';
 
@@ -967,8 +1057,8 @@ void CPUOctreeBroadphaseParallel::printStats() {
   // std::cout << '\n';
 }
 
-// glm::vec4 getVertex(const glm::vec4 &pos, const glm::vec4 &ext, const glm::mat4 &orn, const uint32_t &index) {
-//   glm::vec4 p = pos;
+// simd::vec4 getVertex(const simd::vec4 &pos, const simd::vec4 &ext, const simd::mat4 &orn, const uint32_t &index) {
+//   simd::vec4 p = pos;
 //   p = (index & 1) > 0 ? p + orn[0]*ext.x : p - orn[0]*ext.x;
 //   p = (index & 2) > 0 ? p + orn[1]*ext.y : p - orn[1]*ext.y;
 //   p = (index & 4) > 0 ? p + orn[2]*ext.z : p - orn[2]*ext.z;
@@ -977,45 +1067,45 @@ void CPUOctreeBroadphaseParallel::printStats() {
 //   return p;
 // }
 
-// FastAABB recalcAABB(const glm::vec4 &pos, const glm::vec4 &ext, const glm::mat4 &orn) {
-//   glm::vec4 mx = getVertex(pos, ext, orn, 0), mn = getVertex(pos, ext, orn, 0);
+// FastAABB recalcAABB(const simd::vec4 &pos, const simd::vec4 &ext, const simd::mat4 &orn) {
+//   simd::vec4 mx = getVertex(pos, ext, orn, 0), mn = getVertex(pos, ext, orn, 0);
 //
 //   for (uint32_t i = 1; i < 8; ++i) {
 //     mx = glm::max(mx, getVertex(pos, ext, orn, i));
 //     mn = glm::min(mn, getVertex(pos, ext, orn, i));
 //   }
 //
-//   const glm::vec4 boxPos =         (mn + mx) / 2.0f;
-//   const glm::vec4 boxExt = glm::abs(mn - mx) / 2.0f;
+//   const simd::vec4 boxPos =         (mn + mx) / 2.0f;
+//   const simd::vec4 boxExt = glm::abs(mn - mx) / 2.0f;
 //
 //   return {boxPos, boxExt};
 // }
 //
-// FastAABB recalcAABB(const ArrayInterface<glm::vec4>* verticies, const glm::vec4 &pos, const uint32_t &vertexOffset, const uint32_t &vertexSize, const glm::mat4 &orn) {
-//   const glm::vec4 dir = glm::vec4(pos.x, pos.y, pos.z, 0.0f);
-//   glm::vec4 mx = orn * (dir + verticies->at(vertexOffset)), mn = orn * (dir + verticies->at(vertexOffset));
+// FastAABB recalcAABB(const ArrayInterface<simd::vec4>* verticies, const simd::vec4 &pos, const uint32_t &vertexOffset, const uint32_t &vertexSize, const simd::mat4 &orn) {
+//   const simd::vec4 dir = simd::vec4(pos.x, pos.y, pos.z, 0.0f);
+//   simd::vec4 mx = orn * (dir + verticies->at(vertexOffset)), mn = orn * (dir + verticies->at(vertexOffset));
 //
 //   for (uint32_t i = 1; i < vertexSize; ++i) {
 //     mx = glm::max(mx, orn * (dir + verticies->at(vertexOffset + i)));
 //     mn = glm::min(mn, orn * (dir + verticies->at(vertexOffset + i)));
 //   }
 //
-//   const glm::vec4 boxPos =         (mn + mx) / 2.0f;
-//   const glm::vec4 boxExt = glm::abs(mn - mx) / 2.0f;
+//   const simd::vec4 boxPos =         (mn + mx) / 2.0f;
+//   const simd::vec4 boxExt = glm::abs(mn - mx) / 2.0f;
 //
 //   return {boxPos, boxExt};
 // }
 //
 // // bool testAABB(const FastAABB &first, const FastAABB &second) {
-// //   const glm::vec4 center = glm::abs(first.center - second.center);
-// //   const glm::vec4 extent =          first.extent + second.extent;
+// //   const simd::vec4 center = glm::abs(first.center - second.center);
+// //   const simd::vec4 extent =          first.extent + second.extent;
 //
 // //   return extent.x > center.x && extent.y > center.y && extent.z > center.z;
 // // }
 //
 // bool intersection(const FastAABB &box, const RayData &ray) {
-//   const glm::vec4 boxMin = box.center - box.extent;
-//   const glm::vec4 boxMax = box.center + box.extent;
+//   const simd::vec4 boxMin = box.center - box.extent;
+//   const simd::vec4 boxMax = box.center + box.extent;
 //
 //   float t1 = (boxMin[0] - ray.dir[0]) / ray.dir[0];
 //   float t2 = (boxMax[0] - ray.dir[0]) / ray.dir[0];
@@ -1037,11 +1127,11 @@ void CPUOctreeBroadphaseParallel::printStats() {
 // uint32_t testFrustumAABB(const FrustumStruct &frustum, const FastAABB &box) {
 //   uint32_t result = INSIDE; // Assume that the aabb will be inside the frustum
 //   for(uint32_t i = 0; i < 6; ++i) {
-//     const glm::vec4 frustumPlane = frustum.planes[i];
+//     const simd::vec4 frustumPlane = frustum.planes[i];
 //
-//     const float d = glm::dot(box.center,          glm::vec4(frustumPlane.x, frustumPlane.y, frustumPlane.z, 0.0f));
+//     const float d = glm::dot(box.center,          simd::vec4(frustumPlane.x, frustumPlane.y, frustumPlane.z, 0.0f));
 //
-//     const float r = glm::dot(box.extent, glm::abs(glm::vec4(frustumPlane.x, frustumPlane.y, frustumPlane.z, 0.0f)));
+//     const float r = glm::dot(box.extent, glm::abs(simd::vec4(frustumPlane.x, frustumPlane.y, frustumPlane.z, 0.0f)));
 //
 //     const float d_p_r = d + r;
 //     const float d_m_r = d - r;

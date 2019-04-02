@@ -123,10 +123,18 @@ public:
     transformIndex = container->insert({});
   }
 
-  TransformComponent(const glm::vec3 &pos, const glm::vec3 &rot, const glm::vec3 &scale) {
+//   TransformComponent(const glm::vec3 &pos, const glm::vec3 &rot, const glm::vec3 &scale) {
+//     // здесь должен быть доступ к массиву трансформ, где и будут собственно храниться позиции и прочее
+//     transformIndex = container->insert({simd::vec4(pos, 1.0f), simd::vec4(rot, 0.0f), simd::vec4(scale, 0.0f)});
+// //     const uint32_t prevIndex = prevTransfoms->insert({simd::vec4(pos, 1.0f), simd::vec4(rot, 0.0f), simd::vec4(scale, 0.0f)});
+//     
+// //     ASSERT(transformIndex == prevIndex);
+//   }
+
+  TransformComponent(const simd::vec4 &pos, const simd::vec4 &rot, const simd::vec4 &scale) {
     // здесь должен быть доступ к массиву трансформ, где и будут собственно храниться позиции и прочее
-    transformIndex = container->insert({glm::vec4(pos, 1.0f), glm::vec4(rot, 0.0f), glm::vec4(scale, 0.0f)});
-//     const uint32_t prevIndex = prevTransfoms->insert({glm::vec4(pos, 1.0f), glm::vec4(rot, 0.0f), glm::vec4(scale, 0.0f)});
+    transformIndex = container->insert({pos, rot, scale});
+//     const uint32_t prevIndex = prevTransfoms->insert({simd::vec4(pos, 1.0f), simd::vec4(rot, 0.0f), simd::vec4(scale, 0.0f)});
     
 //     ASSERT(transformIndex == prevIndex);
   }
@@ -143,51 +151,51 @@ public:
   
   void uiDraw() override;
   
-  glm::mat4 getTransform(const bool rotation = false) const;
+  simd::mat4 getTransform(const bool rotation = false) const;
 
 //   void updatePos() {
-//     container->at(transformIndex).pos = glm::vec4(pos, 1.0f);
+//     container->at(transformIndex).pos = simd::vec4(pos, 1.0f);
 //   }
 
-//   glm::vec4 getPos() {
+//   simd::vec4 getPos() {
 //     return container->at(transformIndex).pos;
 //   }
   
-  const glm::vec4 & pos() const {
+  const simd::vec4 & pos() const {
     return container->at(transformIndex).pos;
   }
   
-  const glm::vec4 & rot() const {
+  const simd::vec4 & rot() const {
     return container->at(transformIndex).rot;
   }
   
-  const glm::vec4 & scale() const {
+  const simd::vec4 & scale() const {
     return container->at(transformIndex).scale;
   }
   
-  glm::vec4 & pos() {
+  simd::vec4 & pos() {
     return container->at(transformIndex).pos;
   }
   
-  glm::vec4 & rot() {
+  simd::vec4 & rot() {
     return container->at(transformIndex).rot;
   }
   
-  glm::vec4 & scale() {
+  simd::vec4 & scale() {
     return container->at(transformIndex).scale;
   }
   
-//   glm::vec4 mixpos(const float &alpha) const {
+//   simd::vec4 mixpos(const float &alpha) const {
 //     return glm::mix(prevTransfoms->at(transformIndex).pos, container->at(transformIndex).pos, alpha);
 //   }
 //   
-//   glm::vec4 mixrot(const float &alpha) const {
+//   simd::vec4 mixrot(const float &alpha) const {
 //     //glm::mix(prevTransfoms->at(transformIndex).rot, container->at(transformIndex).rot, alpha);
 //     (void)alpha;
 //     return container->at(transformIndex).rot;
 //   }
 //   
-//   glm::vec4 mixscale(const float &alpha) const {
+//   simd::vec4 mixscale(const float &alpha) const {
 //     //glm::mix(prevTransfoms->at(transformIndex).scale, container->at(transformIndex).scale, alpha);
 //     (void)alpha;
 //     return container->at(transformIndex).scale;
@@ -222,23 +230,23 @@ public:
   void update(const size_t &time = 0) override { (void)time; }
   void init(void* userData) override;// { (void)userData; }
   
-//   glm::vec4 predictPos(const size_t &predictionTime) const;
+//   simd::vec4 predictPos(const size_t &predictionTime) const;
 //   
-//   void seek(const glm::vec4 &target);
-//   void flee(const glm::vec4 &target);
+//   void seek(const simd::vec4 &target);
+//   void flee(const simd::vec4 &target);
 //   void followPath(const size_t &predictionTime, const Pathway &path, const size_t &currentPathSegmentIndex); // , const size_t &currentPathSegmentIndex
 //   void stayOnPath(const size_t &predictionTime, const Pathway &path);
 
 //   void updateInput();
   
-  glm::vec4 & front();
-  glm::vec4 & up();
-  glm::vec4 & right();
-  glm::vec4 & movementData();
-  const glm::vec4 & front() const;
-  const glm::vec4 & up() const;
-  const glm::vec4 & right() const;
-  const glm::vec4 & movementData() const;
+  simd::vec4 & front();
+  simd::vec4 & up();
+  simd::vec4 & right();
+  simd::vec4 & movementData();
+  const simd::vec4 & front() const;
+  const simd::vec4 & up() const;
+  const simd::vec4 & right() const;
+  const simd::vec4 & movementData() const;
   
   void setMovement(const float &front, const float &up, const float &right);
   
@@ -251,9 +259,9 @@ public:
   PhysicsComponent2* physics2;
   TransformComponent* trans;
   
-//   glm::vec4 frontVec;
-//   glm::vec4 upVec;
-//   glm::vec4 rightVec;
+//   simd::vec4 frontVec;
+//   simd::vec4 upVec;
+//   simd::vec4 rightVec;
 
   static Container<InputData>* container;
 };
@@ -276,7 +284,7 @@ public:
 
   const PhysicsIndexContainer & getIndexContainer() const;
   
-  glm::vec4 getVelocity() const;
+  simd::vec4 getVelocity() const;
 
   // сюда приходит input
   // + здесь должна обновляться всякая дополнительная информация
@@ -392,7 +400,7 @@ class UserInputComponent : public InputComponent {
 public:
   CLASS_TYPE_DECLARE
   
-  UserInputComponent(const glm::vec3 &startingDir);
+  UserInputComponent();
   ~UserInputComponent();
   
   void update(const size_t &time = 0) override;
@@ -413,7 +421,6 @@ private:
   TransformComponent* trans;
   
   glm::vec3 rotation;
-  glm::vec3 startingDir;
 };
 
 class CameraComponent : public yacs::Component {
@@ -426,7 +433,7 @@ private:
   TransformComponent* trans = nullptr;
   InputComponent* input = nullptr;
   
-  glm::mat4 view;
+  //simd::mat4 view;
 };
 
 #endif

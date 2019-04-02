@@ -28,7 +28,7 @@ enum RenderType : uint32_t {
 // видится мне что например для анимаций нужен будет каких то космических масштабов буфер
 // struct InputBuffers {
 //   ArrayInterface<Transform>* transforms;
-//   ArrayInterface<glm::mat4>* matrices;
+//   ArrayInterface<simd::mat4>* matrices;
 //   ArrayInterface<uint32_t>* rotationDatasCount;
 //   ArrayInterface<RotationData>* rotationDatas;
 //   ArrayInterface<glm::uvec4>* textures;
@@ -64,7 +64,7 @@ class MonsterOptimizer : public Optimizer {
 public:
   struct InputBuffers {
     ArrayInterface<Transform>* transforms;
-    ArrayInterface<glm::mat4>* matrices;
+    ArrayInterface<simd::mat4>* matrices;
     ArrayInterface<uint32_t>* rotationDatasCount;
     ArrayInterface<RotationData>* rotationDatas;
     //ArrayInterface<glm::uvec4>* textures;
@@ -75,7 +75,7 @@ public:
   };
   
   struct InstanceData {
-    glm::mat4 mat;
+    simd::mat4 mat;
 //     uint32_t imageIndex;
 //     uint32_t imageLayer;
 //     uint32_t samplerIndex;
@@ -115,7 +115,7 @@ public:
   size_t size() const override;
 private:
   ArrayInterface<Transform>* transforms = nullptr;
-  ArrayInterface<glm::mat4>* matrices = nullptr;
+  ArrayInterface<simd::mat4>* matrices = nullptr;
   ArrayInterface<uint32_t>* rotationDatasCount = nullptr;
   ArrayInterface<RotationData>* rotationDatas = nullptr;
 //   ArrayInterface<glm::uvec4>* textures = nullptr;
@@ -139,7 +139,7 @@ class GeometryOptimizer : public Optimizer {
 public:
   struct InputBuffers {
     ArrayInterface<Transform>* transforms;
-    ArrayInterface<glm::mat4>* matrices;
+    ArrayInterface<simd::mat4>* matrices;
     ArrayInterface<uint32_t>* rotationDatasCount;
     ArrayInterface<RotationData>* rotationDatas;
     //ArrayInterface<glm::uvec4>* textures;
@@ -192,7 +192,7 @@ public:
   size_t size() const override;
 private:
   ArrayInterface<Transform>* transforms = nullptr;
-  ArrayInterface<glm::mat4>* matrices = nullptr;
+  ArrayInterface<simd::mat4>* matrices = nullptr;
   ArrayInterface<uint32_t>* rotationDatasCount = nullptr;
   ArrayInterface<RotationData>* rotationDatas = nullptr;
   //ArrayInterface<Texture>* textures = nullptr;
@@ -283,8 +283,8 @@ public:
   };
   
   struct InstanceData {
-    glm::mat4 mat;
-    glm::vec4 color;
+    simd::mat4 mat;
+    simd::vec4 color;
   };
   
   struct OutputBuffers {
@@ -296,7 +296,7 @@ public:
   
   //uint32_t add(const LightRegisterInfo &info);
   //void remove(const uint32_t &index);
-  void setDebugColor(const uint32_t &transformIndex, const glm::vec4 &color); // const uint32_t &index, 
+  void setDebugColor(const uint32_t &transformIndex, const simd::vec4 &color); // const uint32_t &index, 
   
   void setInputBuffers(const InputBuffers &buffers);
   void setOutputBuffers(const OutputBuffers &buffers);
@@ -323,7 +323,7 @@ public:
   };
   
   struct InstanceData {
-    glm::vec4 color;
+    simd::vec4 color;
   };
   
   struct OutputBuffers {
@@ -335,7 +335,7 @@ public:
   
   //uint32_t add(const LightRegisterInfo &info);
   //void remove(const uint32_t &index);
-  void setDebugColor(const uint32_t &index, const glm::vec4 &color); // const uint32_t &index, 
+  void setDebugColor(const uint32_t &index, const simd::vec4 &color); // const uint32_t &index, 
   
   void setInputBuffers(const InputBuffers &buffers);
   void setOutputBuffers(const OutputBuffers &buffers);

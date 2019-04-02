@@ -41,7 +41,7 @@ namespace simd {
     };
 
     inline vec4();
-    inline constexpr vec4(const vec4 &vec);
+    inline vec4(const vec4 &vec);
     inline vec4(const float &x, const float &y, const float &z, const float &w);
     inline vec4(const float &f1);
     inline vec4(const float* ptr);
@@ -50,11 +50,11 @@ namespace simd {
     inline vec4(const ivec4 &vec);
 #endif
 
-    inline constexpr vec4(__m128 native);
-//     inline ~vec4();
+    inline vec4(__m128 native);
+    inline ~vec4();
 
-    inline constexpr uint32_t length() const;
-    inline int movemask();
+    inline constexpr uint32_t length() const { return 4; }
+    inline int movemask() const;
     inline float hsum() const;
     inline vec4 hsum_vec() const;
     inline vec4 aproximate_inverse();
@@ -62,7 +62,6 @@ namespace simd {
     inline vec4 & abs();
     inline void load(const float* p);
     inline void store(float* p) const;
-    inline vec4 & operator-();
     inline vec4 & operator-= (const vec4 &rhs);
     inline vec4 & operator+= (const vec4 &rhs);
     inline vec4 & operator*= (const vec4 &rhs);
@@ -91,6 +90,7 @@ namespace simd {
     inline const float & operator[](const uint32_t &index) const;
   };
 
+  inline vec4 operator-(const vec4 &vec);
   inline vec4 operator-(const vec4 &vec1, const vec4 &vec2);
   inline vec4 operator+(const vec4 &vec1, const vec4 &vec2);
   inline vec4 operator*(const vec4 &vec1, const vec4 &vec2);
@@ -118,10 +118,21 @@ namespace simd {
   inline vec4 min(const vec4 &vec1, const vec4 &vec2);
   inline vec4 abs(const vec4 &vec);
   inline vec4 sqrt(const vec4 &vec);
-  // 12 инструкций
-  inline vec4 cross(const vec4 &a, const vec4 &b);
+  
+  inline vec4 equal(const vec4 &a, const vec4 &b, const float &epsilon);
+  inline bool all(const vec4 &vec);
+  inline bool any(const vec4 &vec);
+  inline bool all_xyz(const vec4 &vec);
+  inline bool any_xyz(const vec4 &vec);
+  
   inline float hsum(const vec4 &vec);
   inline vec4 hsum_vec(const vec4 &vec);
+  
+  inline vec4 mix(const vec4 &x, const vec4 &y, const float &a);
+//   inline vec4 lerp(const vec4 &x, const vec4 &y, const float &a);
+  
+  // 12 инструкций
+  inline vec4 cross(const vec4 &a, const vec4 &b);
 
   inline float dot(const vec4 &vec1, const vec4 &vec2);
 
@@ -426,9 +437,7 @@ namespace simd {
   inline vec4 hadd(const vec4 &a, const vec4 &b);
   inline vec4 hsub(const vec4 &a, const vec4 &b);
 
-  struct mat4 {
-  private:
-    vec4 value[4];
+  struct alignas(16) mat4 {
   public:
     inline mat4();
     inline mat4(const float &a);
@@ -458,6 +467,8 @@ namespace simd {
     inline mat4 & operator/=(const float &a);
     inline mat4 & operator*=(const mat4 &mat);
     inline mat4 & operator*=(const float &a);
+  private:
+    vec4 value[4];
   };
 
   inline mat4 operator-(const mat4 &mat1, const mat4 &mat2);
@@ -495,6 +506,9 @@ namespace simd {
   // 106 строк, и все в основном потому что получение одного числа из регистра это дорого
   mat4 rotate(const mat4 &mat, const float &angle, const vec4 &axis);
   inline mat4 scale(const mat4 &mat, const vec4 &vec);
+  
+  inline mat4 orientation(const vec4 &normal, const vec4 &up);
+  
   inline mat4 ortho(const float &left, const float &right, const float &bottom, const float &top, const float &zNear, const float &zFar);
 //   mat4 orthoLH(const float &left, const float &right, const float &bottom, const float &top, const float &zNear, const float &zFar);
 //   mat4 orthoRH(const float &left, const float &right, const float &bottom, const float &top, const float &zNear, const float &zFar);
@@ -503,37 +517,37 @@ namespace simd {
 //   mat4 frustumLH(const float &left, const float &right, const float &bottom, const float &top, const float &zNear, const float &zFar);
 //   mat4 frustumRH(const float &left, const float &right, const float &bottom, const float &top, const float &zNear, const float &zFar);
 
-  // TODO: bug with 'far' on windows g++
-  // inline mat4 perspective(const float &fovy, const float &aspect, const float &near, const float &far) {
-  //   const float tanHalfFovy = std::tan(fovy / 2.0f);
-  //
-	//   const float far1 = far;
-	//   const float near1 = near;
-  //
-  //   mat4 result(0.0f);
-  //   result[0][0] = 1.0f / (aspect * tanHalfFovy);
-  //   result[1][1] = 1.0f / (tanHalfFovy);
-  //   result[2][3] = -1.0f;
-  //   result[2][2] = far1 / (near1 - far1);
-  //   result[3][2] = -(far1 * near1) / (far1 - near1);
-  //
-  //   return result;
-  // }
-  //
-  // inline mat4 perspectiveFov(const float &fov, const float &width, const float &height, const float &near, const float &far) {
-  //   const float rad = fov;
-  //   const float h = ::cos(0.5f * rad) / ::sin(0.5f * rad);
-  //   const float w = h * height / width; ///todo max(width , Height) / min(width , Height)?
-  //
-  //   mat4 result(0.0f);
-  //   result[0][0] = w;
-  //   result[1][1] = h;
-  //   result[2][3] = -1.0f;
-  //   result[2][2] = far / (near - far);
-  //   result[3][2] = -(far * near) / (far - near);
-  //
-  //   return result;
-  // }
+  // TODO: bug with 'far' and 'near' on windows g++
+  inline mat4 perspective(const float &fovy, const float &aspect, const float &near, const float &far) {
+    const float tanHalfFovy = std::tan(fovy / 2.0f);
+  
+	  const float far1 = far;
+	  const float near1 = near;
+  
+    mat4 result(0.0f);
+    result[0][0] = 1.0f / (aspect * tanHalfFovy);
+    result[1][1] = 1.0f / (tanHalfFovy);
+    result[2][3] = -1.0f;
+    result[2][2] = far1 / (near1 - far1);
+    result[3][2] = -(far1 * near1) / (far1 - near1);
+  
+    return result;
+  }
+  
+  inline mat4 perspectiveFov(const float &fov, const float &width, const float &height, const float &near, const float &far) {
+    const float rad = fov;
+    const float h = ::cos(0.5f * rad) / ::sin(0.5f * rad);
+    const float w = h * height / width; ///todo max(width , Height) / min(width , Height)?
+  
+    mat4 result(0.0f);
+    result[0][0] = w;
+    result[1][1] = h;
+    result[2][3] = -1.0f;
+    result[2][2] = far / (near - far);
+    result[3][2] = -(far * near) / (far - near);
+  
+    return result;
+  }
 
   inline vec4 project(const vec4 &obj, const mat4 &model, const mat4 &proj, const vec4 &viewport);
   inline vec4 unProject(const vec4 &win, const mat4 &model, const mat4 &proj, const vec4 &viewport);

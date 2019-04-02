@@ -6,8 +6,8 @@
 
 struct SolverBuffers {
   ArrayInterface<Object>* objects;
-  ArrayInterface<glm::vec4>* verts;
-  ArrayInterface<glm::mat4>* systems;
+  ArrayInterface<simd::vec4>* verts;
+  ArrayInterface<simd::mat4>* systems;
   ArrayInterface<PhysData2>* datas;
   ArrayInterface<Transform>* transforms;
   ArrayInterface<Constants>* staticPhysDatas;
@@ -17,7 +17,7 @@ struct SolverBuffers {
   ArrayInterface<IslandData>* islands;
   ArrayInterface<IslandData>* staticIslands;
   ArrayInterface<uint32_t>* indicies;
-  ArrayInterface<glm::vec4>* velocities;
+  ArrayInterface<simd::vec4>* velocities;
   ArrayInterface<Gravity>* gravity;
 
   ArrayInterface<RayData>* rays;
@@ -28,8 +28,8 @@ class Solver {
 public:
   struct InputBuffers {
     ArrayInterface<Object>* objects;
-    ArrayInterface<glm::vec4>* verts;
-    ArrayInterface<glm::mat4>* systems;
+    ArrayInterface<simd::vec4>* verts;
+    ArrayInterface<simd::mat4>* systems;
     ArrayInterface<PhysData2>* datas;
     ArrayInterface<Transform>* transforms;
     ArrayInterface<Constants>* staticPhysDatas;
@@ -39,7 +39,7 @@ public:
     ArrayInterface<IslandData>* islands;
     ArrayInterface<IslandData>* staticIslands;
     ArrayInterface<uint32_t>* indicies;
-    ArrayInterface<glm::vec4>* velocities;
+    ArrayInterface<simd::vec4>* velocities;
     ArrayInterface<Gravity>* gravity;
 
     ArrayInterface<RayData>* rays;

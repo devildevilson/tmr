@@ -532,8 +532,8 @@ void Window::resize() {
 
   if (render == nullptr) return;
 
-  const glm::mat4 &perspective = glm::perspective(glm::radians(fov), float(surface.extent.width) / float(surface.extent.height), 0.1f, FAR_CLIPPING);
-  const glm::mat4 &ortho = glm::ortho(0.0f, float(surface.extent.width) / float(surface.extent.height), 0.0f, 1.0f, 0.1f, FAR_CLIPPING);
+  const simd::mat4 &perspective = simd::perspective(glm::radians(fov), float(surface.extent.width) / float(surface.extent.height), 0.1f, FAR_CLIPPING);
+  const simd::mat4 &ortho = simd::ortho(0.0f, float(surface.extent.width) / float(surface.extent.height), 0.0f, 1.0f, 0.1f, FAR_CLIPPING);
 
   render->setPersp(perspective);
   render->setOrtho(ortho);
@@ -640,11 +640,20 @@ float Window::getFov() const {
   return fov;
 }
 
+//#define PRINT_VEC(name, vec) std::cout << name << " (" << vec.x << ", " << vec.y << ", " << vec.z << ", " << vec.w << ")" << "\n";
+
 void Window::setRender(VulkanRender* render) {
   this->render = render;
 
-  const glm::mat4 &perspective = glm::perspective(glm::radians(fov), float(surface.extent.width) / float(surface.extent.height), 0.1f, FAR_CLIPPING);
-  const glm::mat4 &ortho = glm::ortho(0.0f, float(surface.extent.width) / float(surface.extent.height), 0.0f, 1.0f, 0.1f, FAR_CLIPPING);
+  const simd::mat4 &perspective = simd::perspective(glm::radians(fov), float(surface.extent.width) / float(surface.extent.height), 0.1f, FAR_CLIPPING);
+  const simd::mat4 &ortho = simd::ortho(0.0f, float(surface.extent.width) / float(surface.extent.height), 0.0f, 1.0f, 0.1f, FAR_CLIPPING);
+  
+//   PRINT_VEC("view ", perspective[0])
+//   PRINT_VEC("     ", perspective[1])
+//   PRINT_VEC("     ", perspective[2])
+//   PRINT_VEC("     ", perspective[3])
+  
+  //throw std::runtime_error("no more");
 
   render->setPersp(perspective);
   render->setOrtho(ortho);

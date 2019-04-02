@@ -243,6 +243,58 @@ private:
 // + ко всему у меня должны быть частицы которые обладают физикой (это скорее всего будут просто объекты в форме частицы) и которые нет
 // 
 
+// те частицы что мы будем рисовать для гбуфера должны быть непрозрачными
+// а нужно ли их рисовать обязательно в гбуфере? так мы сможем легко кидать на них свет
+// с другой стороны большое количество частиц вообще то прозрачны, 
+// а прозрачные объекты мы в гбуфер добавить не можем, так как у нас будет неправильная глубина
+// в кваке частицы непрозрачные, ну и там нет дефферед шейдинга
+// мне бы еще хотелось сделать качественное затуманивание, для этого скорее всего придется добавить прозрачные частицы
+class ParticleGBufferStage : public GBufferPart {
+public:
+  ParticleGBufferStage();
+  ~ParticleGBufferStage();
+  
+  void create(const CreateInfo &info) override;
+  
+  void recreatePipelines(ImageResourceContainer* data) override;
+  
+  void begin() override;
+  bool doWork(const uint32_t &index) override;
+private:
+  
+};
+
+struct DecalData {
+  TextureData texture;
+  // точки
+};
+// с декалями все более менее просто, мне необходимо передать сюда 
+// положение (несколько для ломаной декали) и тектурку для каждого положения
+class DecalsGBufferStage : public GBufferPart {
+public:
+  DecalsGBufferStage();
+  ~DecalsGBufferStage();
+  
+  void create(const CreateInfo &info) override;
+  
+  void recreatePipelines(ImageResourceContainer* data) override;
+  
+  void begin() override;
+  bool doWork(const uint32_t &index) override;
+private:
+  yavf::Device* device;
+  yavf::Pipeline pipe;
+  
+  // оптимизер декалей? по идее декаль должна вычисляться лишь единожды
+  // здесь нужен просто доступ к системе скорее всего
+  
+  yavf::Buffer* uniformBuffer;
+  yavf::RenderTarget* target;
+  
+  yavf::DescriptorSet* images;
+  yavf::DescriptorSet* samplers;
+};
+
 #define WORKGROUP_SIZE 16
 
 class DefferedLightStage : public RenderStage {

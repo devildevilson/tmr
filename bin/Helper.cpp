@@ -464,16 +464,22 @@ void nkOverlay(const SimpleOverlayData &data, nk_context* ctx) {
   if (nk_begin(ctx, "Basic window", nk_rect(10, 10, 300, 240),
         NK_WINDOW_NO_SCROLLBAR)) {
     {
-      const glm::vec4 &pos = glm::vec4(data.pos);
-      const auto &str = fmt::sprintf("Camera pos: (%.2f,%.2f,%.2f,%.2f)", pos.x, pos.y, pos.z, pos.w);
+      const simd::vec4 &pos = data.pos;
+      float arr[4];
+      pos.store(arr);
+      
+      const auto &str = fmt::sprintf("Camera pos: (%.2f,%.2f,%.2f,%.2f)", arr[0], arr[1], arr[2], arr[3]);
 
       nk_layout_row_static(ctx, 30.0f, 300, 1); // ряд высотой 30, каждый элемент шириной 300, 1 столбец
       nk_label(ctx, str.c_str(), NK_TEXT_LEFT); // nk_layout_row_static скорее всего нужно указывать каждый раз
     }
 
     {
-      const glm::vec3 &dir = data.rot;
-      const auto &str = fmt::sprintf("Camera dir: (%.2f,%.2f,%.2f)", dir.x, dir.y, dir.z);
+      const simd::vec4 &dir = data.rot;
+      float arr[4];
+      dir.store(arr);
+      
+      const auto &str = fmt::sprintf("Camera dir: (%.2f,%.2f,%.2f)", arr[0], arr[1], arr[2]);
 
       nk_layout_row_static(ctx, 30.0f, 300, 1);
       nk_label(ctx, str.c_str(), NK_TEXT_LEFT);
@@ -669,7 +675,7 @@ void simpleOverlay(const SimpleOverlayData &data) {
 //     ImGui::Text("Simple overlay\non the top-left side of the screen.");
 //     ImGui::Separator();
 //
-//     const glm::vec4 &pos = glm::vec4(data.pos); //playerTransform->pos;
+//     const simd::vec4 &pos = simd::vec4(data.pos); //playerTransform->pos;
 //     ImGui::Text("Camera pos: (%.2f,%.2f,%.2f,%.2f)", pos.x,
 //                                                       pos.y,
 //                                                       pos.z,
@@ -930,7 +936,7 @@ void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, Da
 
   arrays.externals = arraysContainer.add<CPUContainer<ExternalData>>();
   arrays.inputs = arraysContainer.add<CPUContainer<InputData>>();
-  arrays.matrices = arraysContainer.add<CPUContainer<glm::mat4>>();
+  arrays.matrices = arraysContainer.add<CPUContainer<simd::mat4>>();
   arrays.rotationCountBuffer = arraysContainer.add<CPUBuffer<uint32_t>>();
   arrays.rotations = arraysContainer.add<CPUContainer<RotationData>>();
   arrays.transforms = arraysContainer.add<CPUContainer<Transform>>();
@@ -1077,7 +1083,7 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
 
 void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, PhysicsContainer &physicsContainer, PhysicsEngine** engine) {
 // const GPUOctreeBroadphase::GPUOctreeBroadphaseCreateInfo octreeInfo{
-  //   {glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), glm::vec4(100.0f, 100.0f, 100.0f, 0.0f), 5},
+  //   {simd::vec4(0.0f, 0.0f, 0.0f, 1.0f), simd::vec4(100.0f, 100.0f, 100.0f, 0.0f), 5},
   //   device,
   //   task, // таск
   //   nullptr
@@ -1085,15 +1091,15 @@ void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, Physic
   // GPUOctreeBroadphase broad(octreeInfo);
 
 //   const CPUOctreeBroadphase::OctreeCreateInfo octree{
-//     glm::vec4(0.0f, 0.0f, 0.0f, 1.0f),
-//     glm::vec4(100.0f, 100.0f, 100.0f, 0.0f),
+//     simd::vec4(0.0f, 0.0f, 0.0f, 1.0f),
+//     simd::vec4(100.0f, 100.0f, 100.0f, 0.0f),
 //     4
 //   };
 //   CPUOctreeBroadphase broad(octree);
 
   const CPUOctreeBroadphaseParallel::OctreeCreateInfo octree{
-    glm::vec4(0.0f, 0.0f, 0.0f, 1.0f),
-    glm::vec4(100.0f, 100.0f, 100.0f, 0.0f),
+    simd::vec4(0.0f, 0.0f, 0.0f, 1.0f),
+    simd::vec4(100.0f, 100.0f, 100.0f, 0.0f),
     5
   };
   //CPUOctreeBroadphaseParallel broad(threadPool, octree);
@@ -1122,8 +1128,8 @@ void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, Physic
   //CPUPhysicsSorter sorter;
   CPUPhysicsSorter* sorter = physicsContainer.createPhysicsSorter<CPUPhysicsSorter>();
 
-  const uint32_t staticMatrix = arrays.matrices->insert(glm::mat4(1.0f));
-  const uint32_t dynamicMatrix = arrays.matrices->insert(glm::mat4(1.0f));
+  const uint32_t staticMatrix = arrays.matrices->insert(simd::mat4(1.0f));
+  const uint32_t dynamicMatrix = arrays.matrices->insert(simd::mat4(1.0f));
   const PhysicsExternalBuffers bufferInfo{
     staticMatrix,
     dynamicMatrix,

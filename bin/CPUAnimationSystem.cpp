@@ -210,19 +210,19 @@ void CPUAnimationSystem::update(const uint64_t &time) {
     if (units[i].transformIndex != UINT32_MAX && frameSize > 1) {
       // тут вычисляем поворот относительно игрока
       // для этого нам потребуется еще один буфер с данными игрока
-      const glm::vec4 playerPos = Global::getPlayerPos();
+      const simd::vec4 playerPos = Global::getPlayerPos();
       const Transform &trans = transforms->at(units[i].transformIndex);
       
-      glm::vec4 dir = playerPos - trans.pos;
+      simd::vec4 dir = playerPos - trans.pos;
       
       // это не особо решает проблему с изменением координат
       // скорее всего мне потребуется умножать на матрицу вектор, чтобы привести его в обатное состояние
       // но теперь мне скорее всего этого будет достаточно
-      const glm::vec4 dirOnGround = projectVectorOnPlane(-Global::physics()->getGravityNorm(), trans.pos, dir);
+      const simd::vec4 dirOnGround = projectVectorOnPlane(-Global::physics()->getGravityNorm(), trans.pos, dir);
       
-      dir = glm::normalize(dirOnGround);
+      dir = simd::normalize(dirOnGround);
       
-      float angle2 = glm::acos(glm::dot(trans.rot, dir));
+      float angle2 = glm::acos(simd::dot(trans.rot, dir));
       // проверим сторону
       const bool side = sideOf(trans.pos, trans.pos+trans.rot, playerPos, -Global::physics()->getGravityNorm()) > 0.0f;
       angle2 = side ? -angle2 : angle2;

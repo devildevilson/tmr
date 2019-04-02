@@ -34,7 +34,7 @@ struct PhysicsObjectCreateInfo {
   float groundFricion;
   
   float radius;
-  //glm::vec4 pos;
+  //simd::vec4 pos;
 
   uint32_t inputIndex;
   uint32_t transformIndex;
@@ -43,14 +43,14 @@ struct PhysicsObjectCreateInfo {
   uint32_t rotationIndex;
   
   //PhysicsIndexContainer* comp;
-  // std::vector<glm::vec4> points;
-  // std::vector<glm::vec4> faces;
+  // std::vector<simd::vec4> points;
+  // std::vector<simd::vec4> faces;
   std::string shapeName;
 };
 
 struct RegisterNewShapeInfo {
-  std::vector<glm::vec4> points;
-  std::vector<glm::vec4> faces;
+  std::vector<simd::vec4> points;
+  std::vector<simd::vec4> faces;
   // нужно ли тут что то еще?
 };
 
@@ -70,7 +70,7 @@ struct PhysicsExternalBuffers {
 
   ArrayInterface<InputData>* inputs;
   ArrayInterface<Transform>* transforms;
-  ArrayInterface<glm::mat4>* matrices;
+  ArrayInterface<simd::mat4>* matrices;
   ArrayInterface<uint32_t>* rotationDatasCount;
   ArrayInterface<RotationData>* rotationDatas;
   ArrayInterface<ExternalData>* externalDatas;
@@ -121,16 +121,16 @@ class PhysicsEngine : public Engine {
 public:
   virtual ~PhysicsEngine();
   
-  static glm::vec4 getGravity();
-  static glm::vec4 getGravityNorm();
+  static simd::vec4 getGravity();
+  static simd::vec4 getGravityNorm();
   static float getGravLenght();
   static float getGravLenght2();
   
-  static glm::vec4 abscissa();
-  static glm::vec4 ordinate();
-  static glm::vec4 applicat();
-  static glm::mat3 getTransform();
-  static glm::mat4 getOrientation();
+  static simd::vec4 abscissa();
+  static simd::vec4 ordinate();
+  static simd::vec4 applicat();
+  //static glm::mat3 getTransform();
+  static simd::mat4 getOrientation();
 
   virtual void setBuffers(const PhysicsExternalBuffers &buffers) = 0;
   
@@ -143,7 +143,7 @@ public:
   // тип обозвать его как-нибудь физиксУтилс, и он будет сортировать разные массивы
   // точнее наверное один (два) тип разных массивов
   virtual uint32_t add(const RayData &ray) = 0; // лучи и фрустумы нужно передобавлять каждый кадр
-  virtual uint32_t add(const glm::mat4 &frustum, const glm::vec4 &pos = glm::vec4(10000.0f)) = 0; // так добавить фрустум, или вычислить его вне?
+  virtual uint32_t add(const simd::mat4 &frustum, const simd::vec4 &pos = simd::vec4(10000.0f)) = 0; // так добавить фрустум, или вычислить его вне?
   
   virtual Object & getObjectData(const uint32_t &index) = 0;
   virtual const Object & getObjectData(const uint32_t &index) const = 0;
@@ -159,11 +159,11 @@ public:
   
   virtual void* getUserData(const uint32_t &objIndex) const = 0;
   
-  virtual void setGravity(const glm::vec4 &g) = 0;
+  virtual void setGravity(const simd::vec4 &g) = 0;
   
   virtual void updateMaxSpeed(const uint32_t &physicDataIndex, const float &maxSpeed) = 0;
   //virtual void setInput(const uint32_t &index, const InputData &input) = 0;
-  virtual uint32_t setShapePointsAndFaces(const uint32_t &objectDataIndex, const std::vector<glm::vec4> &points, const std::vector<glm::vec4> &faces) = 0;
+  virtual uint32_t setShapePointsAndFaces(const uint32_t &objectDataIndex, const std::vector<simd::vec4> &points, const std::vector<simd::vec4> &faces) = 0;
 
   // мы еще должны здесь получать данные пересечия, причем пересечения на предыдущем кадре тоже должны быть проверены
   // и в итоге должен быть массив, в котором поддерживаются результаты пересечения
@@ -193,12 +193,12 @@ public:
 
   virtual void printStats() = 0;
 protected:
-  static glm::vec4 gravity;
-  static glm::vec4 gravityNorm;
+  static simd::vec4 gravity;
+  static simd::vec4 gravityNorm;
   static float gravLength2;
   static float gravLength;
   
-  static glm::mat4 orientation;
+  static simd::mat4 orientation;
 
   uint32_t overlappingDataSize = 0;
   uint32_t triggerPairsIndicesSize = 0;

@@ -42,7 +42,7 @@ public:
   void remove(PhysicsIndexContainer* comp) override;
 
   uint32_t add(const RayData &ray) override; // лучи и фрустумы нужно передобавлять каждый кадр
-  uint32_t add(const glm::mat4 &frustum, const glm::vec4 &pos = glm::vec4(10000.0f)) override; // так добавить фрустум, или вычислить его вне?
+  uint32_t add(const simd::mat4 &frustum, const simd::vec4 &pos = simd::vec4(10000.0f)) override; // так добавить фрустум, или вычислить его вне?
   
   Object & getObjectData(const uint32_t &index) override;
   const Object & getObjectData(const uint32_t &index) const override;
@@ -52,10 +52,10 @@ public:
   
   void* getUserData(const uint32_t &objIndex) const override;
   
-  void setGravity(const glm::vec4 &g) override;
+  void setGravity(const simd::vec4 &g) override;
   
   void updateMaxSpeed(const uint32_t &physicDataIndex, const float &maxSpeed) override;
-  uint32_t setShapePointsAndFaces(const uint32_t &objectDataIndex, const std::vector<glm::vec4> &points, const std::vector<glm::vec4> &faces) override;
+  uint32_t setShapePointsAndFaces(const uint32_t &objectDataIndex, const std::vector<simd::vec4> &points, const std::vector<simd::vec4> &faces) override;
 
   ArrayInterface<OverlappingData>* getOverlappingPairsData() override;
   const ArrayInterface<OverlappingData>* getOverlappingPairsData() const override;
@@ -88,7 +88,7 @@ protected:
   
   ArrayInterface<InputData>* inputs = nullptr;
   ArrayInterface<Transform>* transforms = nullptr;
-  ArrayInterface<glm::mat4>* matrices = nullptr;
+  ArrayInterface<simd::mat4>* matrices = nullptr;
   ArrayInterface<uint32_t>* rotationDatasCount = nullptr;
   ArrayInterface<RotationData>* rotationDatas = nullptr;
   ArrayInterface<ExternalData>* externalDatas = nullptr;
@@ -105,7 +105,7 @@ protected:
 
   CPUBuffer<Gravity> gravityBuffer;
 
-  CPUArray<glm::vec4> verts;
+  CPUArray<simd::vec4> verts;
   
   CPUArray<Object> objects;
   CPUArray<PhysData2> physicsDatas;
@@ -116,11 +116,11 @@ protected:
   
   CPUArray<uint32_t> indices;
 
-  CPUArray<glm::vec4> globalVel;
+  CPUArray<simd::vec4> globalVel;
 
   CPUArray<RayData> rays; // надо ли их нормализовывать? 
   CPUArray<FrustumStruct> frustums;
-  CPUArray<glm::vec4> frustumPoses;
+  CPUArray<simd::vec4> frustumPoses;
   
   // было бы удобно создавать инпут и аутпут буферы вне этого класса
   // это свойство наследовать на все зависимые классы

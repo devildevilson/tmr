@@ -21,7 +21,7 @@
 // #define YAVF_INFO_REPORT
 // #include "yavf.h"
 
-#include <glm/glm.hpp>
+//#include <glm/glm.hpp>
 
 #include "RenderStage.h"
 #include "StageContainer.h"
@@ -58,30 +58,32 @@ class Render : public Engine {
 public:
   // : opts(RENDER_TYPE_MAX, nullptr)
   
-  Render(const size_t &stageContainerSize) : stageContainer(stageContainerSize), perspective(true) {}
+  Render(const size_t &stageContainerSize) : perspective(true), stageContainer(stageContainerSize), matrices(new Matrices()) {}
   
   virtual ~Render() {
     for (uint32_t i = 0; i < stages.size(); ++i) {
       stageContainer.destroyStage(stages[i]);
     }
+    
+    delete matrices;
   }
   
   // вот эти функции тоже было бы неплохо сделать виртуальными
   // ну и вообще переделать, разные юниформ данные могут потребоваться
   bool isPrespective() const;
   void toggleProjection();
-  Matrices getMatrices() const;
-  void setView(const glm::mat4 &view);
-  void setPersp(const glm::mat4 &persp);
-  void setOrtho(const glm::mat4 &ortho);
-  void setCameraDir(const glm::vec4 &dir);
-  void setCameraPos(const glm::vec4 &pos);
+  Matrices* getMatrices();
+  void setView(const simd::mat4 &view);
+  void setPersp(const simd::mat4 &persp);
+  void setOrtho(const simd::mat4 &ortho);
+  void setCameraDir(const simd::vec4 &dir);
+  void setCameraPos(const simd::vec4 &pos);
   void setCameraDim(const uint32_t &width, const uint32_t &height);
   
-  glm::mat4 getViewProj() const;
-  glm::mat4 getView() const;
-  glm::mat4 getPersp() const;
-  glm::mat4 getOrtho() const;
+  simd::mat4 getViewProj() const;
+  simd::mat4 getView() const;
+  simd::mat4 getPersp() const;
+  simd::mat4 getOrtho() const;
   
 //   template <typename T>
 //   void setOptimizer(Optimizer* opt) {
@@ -133,23 +135,21 @@ protected:
   // (вообще звучит как план)
   // а, вопрос заключается в том где стартовать таски? в стейджах не вариант на самом деле
   // задать отдельные стейджы которые только нужны для старта и окончания тасков......... (в общем ничего криминального не вижу, но эт очень странно)
-  std::vector<RenderStage*> stages;
-  
-  StageContainer stageContainer;
-  
   bool perspective;
-  Matrices matrices;
+  std::vector<RenderStage*> stages;
+  StageContainer stageContainer;
+  Matrices* matrices;
 };
 
 // struct Vertex {
 //   glm::vec3 pos;
-//   glm::vec4 color;
+//   simd::vec4 color;
 //   glm::vec2 texCoord;
 // };
 
 // struct PushConst {
-//   glm::mat4 mat;
-//   glm::vec4 color;
+//   simd::mat4 mat;
+//   simd::vec4 color;
 //   glm::vec3 normal;
 // };
 // 

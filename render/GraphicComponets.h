@@ -16,7 +16,7 @@ class GraphicComponent : public yacs::Component, /*public Controller,*/ public E
 public:
   CLASS_TYPE_DECLARE
   
-  static void setContainer(Container<glm::mat4>* matrices);
+  static void setContainer(Container<simd::mat4>* matrices);
   static void setContainer(Container<RotationData>* rotationDatas);
   static void setContainer(Container<TextureData>* textureContainer);
   
@@ -33,7 +33,7 @@ public:
   
   void uiDraw() override;
   
-  virtual void drawBoundingShape(const glm::vec4 &color) const;
+  virtual void drawBoundingShape(const simd::vec4 &color) const;
   
   // это нужно в основном для того чтобы не городить анимационный компонент для каждого энтити
   void setTexture(const Texture &t);
@@ -53,7 +53,7 @@ protected:
   // суть в том что по логике это трансформа объекта, и по идее эти вещи должны быть там
   // проблема возникает в случае когда мне не нужна дополнительная позиция
   // городить тогда абстракцию? ладно оставлю пока здесь (хотя это и не очевидно)
-  static Container<glm::mat4>* matrices;
+  static Container<simd::mat4>* matrices;
   static Container<RotationData>* rotationDatas;
   static Container<TextureData>* textureContainer;
   
@@ -76,7 +76,7 @@ public:
   
   void uiDraw() override;
   
-  void drawBoundingShape(const glm::vec4 &color) const override;
+  void drawBoundingShape(const simd::vec4 &color) const override;
 protected:
   // Buffer indicies;
   uint32_t faceIndex;

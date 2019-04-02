@@ -87,11 +87,8 @@ public:
   static GlobalData* data();
   
   static std::string getGameDir();
-  static glm::vec4 getPlayerPos();
+  static simd::vec4 getPlayerPos();
   static glm::vec4 getPlayerRot();
-  
-  static void setPlayerPos(const glm::vec4 &pos);
-  static void setPlayerRot(const glm::vec4 &rot);
 
 //   static yavf::Buffer getMapVertex();
 //   static yavf::Buffer getMapIndex();
@@ -106,6 +103,9 @@ public:
   void setWindow(Window* window);
   
   void setGameDir(const std::string &dir);
+  
+  void setPlayerPos(const simd::vec4 &pos);
+  void setPlayerRot(const glm::vec4 &rot);
 private:
   static Console globalConsole;
   static CmdMgr globalCommandMgr;
@@ -125,7 +125,7 @@ private:
   static GlobalData globalData;
   
   static std::string appDir;
-  static glm::vec4 playerCoords;
+  static simd::vec4 playerCoords;
   static glm::vec4 playerView;
 
 //   static yavf::Buffer mapVertex;

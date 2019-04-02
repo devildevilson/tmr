@@ -26,8 +26,8 @@ struct TextureData {
 };
 
 struct Vertex {
-  glm::vec4 pos;
-  glm::vec4 color;
+  simd::vec4 pos;
+  simd::vec4 color;
   glm::vec2 texCoord;
 };
 
@@ -39,26 +39,26 @@ struct LightData {
 };
 
 struct CameraData {
-  glm::mat4 viewproj;
-  glm::mat4 view;
-  glm::vec4 pos;
-  glm::vec4 dir;
+  simd::mat4 viewproj;
+  simd::mat4 view;
+  simd::vec4 pos;
+  simd::vec4 dir;
   uint32_t width;
   uint32_t height;
 };
 
 struct MatBuffer {
-  glm::mat4 proj;
-  glm::mat4 view;
-  glm::mat4 invProj;
-  glm::mat4 invView;
-  glm::mat4 invViewProj;
+  simd::mat4 proj;
+  simd::mat4 view;
+  simd::mat4 invProj;
+  simd::mat4 invView;
+  simd::mat4 invViewProj;
 };
 
 struct Matrices {
-  glm::mat4 persp;
-  glm::mat4 ortho;
-  glm::mat4 view;
+  simd::mat4 persp;
+  simd::mat4 ortho;
+  simd::mat4 view;
   MatBuffer matrixes;
   CameraData camera;
 };

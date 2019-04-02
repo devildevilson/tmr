@@ -234,7 +234,7 @@ void HardcodedEntityLoader::create() {
   {
     const RegisterNewShapeInfo info{
       {},
-      {glm::vec4(0.5f, 0.5f, 0.5f, 0.0f)}
+      {simd::vec4(0.5f, 0.5f, 0.5f, 0.0f)}
     };
     
     Global::physics()->registerShape("boxShape", BBOX_TYPE, info);
@@ -248,13 +248,13 @@ void HardcodedEntityLoader::create() {
   
   {
     yacs::Entity* ent1 = world.createEntity();
-    playerTransform = ent1->assign<TransformComponent>(glm::vec3(1.0f, 5.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f)).get();
+    playerTransform = ent1->assign<TransformComponent>(simd::vec4(1.0f, 5.0f, 2.0f, 1.0f), simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f)).get();
     
 //     std::cout << "HardcodedEntityLoader::create 01" << "\n";
     
 //     ent1->assign<InputComponent>();
     
-    input = ent1->assign<UserInputComponent>(glm::vec3(0.0f, 0.0f, 1.0f)).get();
+    input = ent1->assign<UserInputComponent>().get();
     camera = ent1->assign<CameraComponent>().get();
     
 //     std::cout << "input ptr " << input << "\n";
@@ -273,7 +273,7 @@ void HardcodedEntityLoader::create() {
   
   {
     yacs::Entity* ent2 = world.createEntity();
-    ent2->assign<TransformComponent>(glm::vec3(1.0f, 0.9f, 1.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+    ent2->assign<TransformComponent>(simd::vec4(1.0f, 0.9f, 1.0f, 1.0f), simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
     ent2->assign<EventComponent>();
     ent2->assign<StateController>();
     ent2->assign<PhysicsComponent2>();
@@ -288,7 +288,7 @@ void HardcodedEntityLoader::create() {
   
   {
     yacs::Entity* ent3 = world.createEntity();
-    ent3->assign<TransformComponent>(glm::vec3(1.0f, -0.1f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+    ent3->assign<TransformComponent>(simd::vec4(1.0f, -0.1f, 0.0f, 1.0f), simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
     ent3->assign<EventComponent>();
     ent3->assign<StateController>();
     ent3->assign<PhysicsComponent2>();
@@ -304,7 +304,7 @@ void HardcodedEntityLoader::create() {
   
   {
     yacs::Entity* ent4 = world.createEntity();
-    ent4->assign<TransformComponent>(glm::vec3(2.0f, 3.5f, 1.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+    ent4->assign<TransformComponent>(simd::vec4(2.0f, 3.5f, 1.0f, 1.0f), simd::vec4(1.0f, 0.0f, 0.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
     auto events = ent4->assign<EventComponent>();
     ent4->assign<InputComponent>();
     auto states = ent4->assign<StateController>();
@@ -341,10 +341,10 @@ void HardcodedEntityLoader::create() {
     std::uniform_real_distribution<> dist(-99,99);
     //std::uniform_real_distribution<> distY(0,99);
     for (size_t i = 0; i < objCount; ++i) {
-      glm::vec3 pos = glm::vec3(dist(gen), dist(gen), dist(gen));
+      const simd::vec4 pos = simd::vec4(dist(gen), dist(gen), dist(gen), 1.0f);
       
       yacs::Entity* ent = world.createEntity();
-      ent->assign<TransformComponent>(pos, glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+      ent->assign<TransformComponent>(pos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
       ent->assign<EventComponent>();
       ent->assign<StateController>();
       ent->assign<PhysicsComponent2>();
@@ -364,20 +364,20 @@ void HardcodedEntityLoader::create() {
     std::uniform_real_distribution<> dist(-9,9);
     std::uniform_real_distribution<> dist2(0,1);
     
-    glm::vec3 firstPos = glm::vec3(0.0f, 0.4f, 0.0f);
+    const simd::vec4 firstPos = simd::vec4(0.0f, 0.4f, 0.0f, 1.0f);
     
         yacs::Entity* ent = world.createEntity();
-    ent->assign<TransformComponent>(firstPos, glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+    ent->assign<TransformComponent>(firstPos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
     ent->assign<Light>(2.0f, 0.1f, glm::vec3(1.0f, 1.0f, 1.0f));
     ent->assign<InfoComponent>(Type::get("Generated light " + std::to_string(0)));
     ent->init(nullptr);
     
     for (size_t i = 0; i < lightSize; ++i) {
-      glm::vec3 pos = glm::vec3(dist(gen), dist(gen), dist(gen));
+      const simd::vec4 pos = simd::vec4(dist(gen), dist(gen), dist(gen), 1.0f);
       glm::vec3 color = glm::vec3(dist2(gen), dist2(gen), dist2(gen));
       
             yacs::Entity* ent = world.createEntity();
-      ent->assign<TransformComponent>(pos, glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+      ent->assign<TransformComponent>(pos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
       ent->assign<Light>(2.0f, 0.1f, color);
       ent->assign<InfoComponent>(Type::get("Generated light " + std::to_string(i+1)));
       ent->init(nullptr);
@@ -534,14 +534,14 @@ void HardcodedMapLoader::end() {
         // + собираем индексы
         
         tinyobj::index_t idx = shapes[s].mesh.indices[index_offset+i];
-        const glm::vec4 v = glm::vec4(attrib.vertices[3*idx.vertex_index+0], attrib.vertices[3*idx.vertex_index+1], attrib.vertices[3*idx.vertex_index+2], 1.0f);
+        const simd::vec4 v = simd::vec4(attrib.vertices[3*idx.vertex_index+0], attrib.vertices[3*idx.vertex_index+1], attrib.vertices[3*idx.vertex_index+2], 1.0f);
         shapeInfo.points.push_back(v);
         
 //         globalIndicies.push_back(offset);
 //         ++offset;
       }
       
-      shapeInfo.faces.push_back(glm::vec4(0.0f, 0.0f, 0.0f , 0.0f));
+      shapeInfo.faces.push_back(simd::vec4(0.0f, 0.0f, 0.0f, 0.0f));
       // где то еще вычисляем нормаль
       for (size_t i = 0; i < shapeInfo.points.size(); i++) {
         const size_t j = (i+1) % shapeInfo.points.size();
@@ -551,15 +551,20 @@ void HardcodedMapLoader::end() {
 //         PRINT_VEC4("k", shapeInfo.points[k])
 //         PRINT_VEC4("j", shapeInfo.points[j])
 
-        const glm::vec4 p = shapeInfo.points[j] - shapeInfo.points[i];
-        const glm::vec4 q = shapeInfo.points[k] - shapeInfo.points[i];
-        const glm::vec3 normal = glm::normalize(glm::cross(glm::vec3(p), glm::vec3(q)));
+        const simd::vec4 p = shapeInfo.points[j] - shapeInfo.points[i];
+        const simd::vec4 q = shapeInfo.points[k] - shapeInfo.points[i];
+        const simd::vec4 normal = simd::normalize(simd::cross(p, q));
+        
+        float arr[4];
+        normal.store(arr);
 //         PRINT_VEC3("normal", normal)
         //float distance = -(normal.x*v1.x + normal.y*v1.y + normal.z*v1.z);
 
-        if (!((normal.x != normal.x || normal.y != normal.y || normal.z != normal.z) ||
-              (normal.x == 0.0f && normal.y == 0.0f && normal.z == 0.0f))) {
-          shapeInfo.faces.back() = glm::vec4(normal, glm::uintBitsToFloat(0));
+//         if (!((normal.x != normal.x || normal.y != normal.y || normal.z != normal.z) ||
+//               (normal.x == 0.0f && normal.y == 0.0f && normal.z == 0.0f))) {
+        if (!((arr[0] != arr[0] || arr[1] != arr[1] || arr[2] != arr[2]) ||
+              (arr[0] == 0.0f && arr[1] == 0.0f && arr[2] == 0.0f))) {
+          shapeInfo.faces.back() = simd::vec4(arr[0], arr[1], arr[2], glm::uintBitsToFloat(0));
           break;
         }
       }
@@ -568,41 +573,46 @@ void HardcodedMapLoader::end() {
       
 //       throw std::runtime_error("NAN");
       
-      glm::vec3 x;
-      glm::vec3 y;
+      simd::vec4 x;
+      simd::vec4 y;
       
-      const glm::vec4 normal = shapeInfo.faces.back();
-      if (fast_fabsf(normal.x) < EPSILON && fast_fabsf(normal.y) < EPSILON) {
-        x = glm::vec3(1.0f, 0.0f, 0.0f);
-        y = glm::vec3(0.0f, 1.0f, 0.0f);
+      const simd::vec4 normal = shapeInfo.faces.back();
+      float normalArr[4];
+      normal.store(normalArr);
+        
+      if (fast_fabsf(normalArr[0]) < EPSILON && fast_fabsf(normalArr[1]) < EPSILON) {
+        x = simd::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+        y = simd::vec4(0.0f, 1.0f, 0.0f, 0.0f);
       } else {
-        x = glm::normalize(glm::vec3(-normal.y, normal.x, 0.0f));
-        y = glm::normalize(glm::vec3(-normal.x*normal.z, -normal.y*normal.z, normal.x*normal.x + normal.y*normal.y));
+        x = simd::normalize(simd::vec4(-normalArr[1], normalArr[0], 0.0f, 0.0f));
+        y = simd::normalize(simd::vec4(-normalArr[0]*normalArr[2], -normalArr[1]*normalArr[2], normalArr[0]*normalArr[0] + normalArr[1]*normalArr[1], 0.0f));
+//         x = simd::normalize(glm::vec3(-normal.y, normal.x, 0.0f));
+//         y = simd::normalize(glm::vec3(-normal.x*normal.z, -normal.y*normal.z, normal.x*normal.x + normal.y*normal.y));
       }
       
-//       float a1 = glm::dot(x, v2-v1);
-//       float b1 = glm::dot(y, v2-v1);
-//       float a2 = glm::dot(x, v3-v1);
-//       float b2 = glm::dot(y, v3-v1);
+//       std::cout << "\n";
+//       std::cout << "face " << f << "\n";
+//       
+//       PRINT_VEC4("normal ", normal)
       
-      const glm::vec3 v1 = glm::vec3(shapeInfo.points[0]);
+      const simd::vec4 v1 = shapeInfo.points[0];
       for (size_t i = 0; i < shapeInfo.points.size(); ++i) {
         if (i == 0) {
           const Vertex v{
-            glm::vec4(v1, 1.0f),
-            glm::vec4(normal.x, normal.y, normal.z, glm::uintBitsToFloat(f)),
+            v1,
+            simd::vec4(normalArr[0], normalArr[1], normalArr[2], glm::uintBitsToFloat(f)),
             glm::vec2(0.0f, 0.0f)
           };
           
           verts.push_back(v);
           globalIndicies.push_back(verts.size()-1);
         } else {
-          float a = glm::dot(x, glm::vec3(shapeInfo.points[i])-v1);
-          float b = glm::dot(y, glm::vec3(shapeInfo.points[i])-v1);
+          const float a = simd::dot(x, shapeInfo.points[i]-v1);
+          const float b = simd::dot(y, shapeInfo.points[i]-v1);
           
           const Vertex v{
             shapeInfo.points[i],
-            glm::vec4(normal.x, normal.y, normal.z, glm::uintBitsToFloat(f)),
+            simd::vec4(normalArr[0], normalArr[1], normalArr[2], glm::uintBitsToFloat(f)),
             glm::vec2(a, b)
           };
           
@@ -612,13 +622,15 @@ void HardcodedMapLoader::end() {
         
         const size_t j = (i+1) % shapeInfo.points.size();
 
-        const glm::vec3 firstPoint = glm::vec3(shapeInfo.points[i]);
-        const glm::vec3 secondPoint = glm::vec3(shapeInfo.points[j]);
+        const simd::vec4 firstPoint = shapeInfo.points[i];
+        const simd::vec4 secondPoint = shapeInfo.points[j];
 
-        const glm::vec3 side = glm::cross(secondPoint - firstPoint, glm::vec3(shapeInfo.faces[0]));
-        const glm::vec3 normSide = glm::normalize(side);
+        const simd::vec4 side = simd::cross(secondPoint - firstPoint, shapeInfo.faces[0]);
+        const simd::vec4 normSide = simd::normalize(side);
+        float arr[4];
+        normSide.store(arr);
 
-        shapeInfo.faces.push_back(glm::vec4(normSide, glm::uintBitsToFloat(i)));
+        shapeInfo.faces.push_back(simd::vec4(arr[0], arr[1], arr[2], glm::uintBitsToFloat(i)));
         // нужно еще написать примерно такой же код для объектов (например, двери)
       }
       

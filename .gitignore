@@ -2,6 +2,7 @@
 *.kdev4
 .old/
 build/
+libs/
 include_old/
 *.gch
 */*.gch

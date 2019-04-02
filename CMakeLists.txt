@@ -75,6 +75,8 @@ if (WIN32)
     ${CPPFS_LIB_PATH}
   )
 else()
+  set(CPPFS_LIB_PATH ${CMAKE_CURRENT_SOURCE_DIR}/libs)
+
   # находим указанные зависимости (нужно чекнуть все ли это зависимости?)
   # вместо glm у меня установлен gli
   #find_package(glm)
@@ -90,6 +92,10 @@ else()
 
   include_directories(
     ${GLFW3_INCLUDE_DIRS}
+  )
+  
+  link_directories(
+    ${CPPFS_LIB_PATH}
   )
 endif()
 
@@ -279,18 +285,18 @@ target_link_libraries(utils) # например здесь fmt
 set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsUtils.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/Physics.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/BroadphaseInterface.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysics.cpp
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysics.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUPhysicsParallel.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUOctreeBroadphase.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUOctreeBroadphase.cpp
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUOctreeBroadphase.cpp
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUOctreeBroadphase.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUOctreeBroadphaseParallel.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUNarrowphase.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUNarrowphase.cpp
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUNarrowphase.cpp
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUNarrowphase.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUNarrowphaseParallel.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUSolver.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolver.cpp
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUSolver.cpp
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolver.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolverParallel.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysicsSorter.cpp
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysicsSorter.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUPhysicsSorter.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/HelperFunctions.cpp
 #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/Graph.cpp
@@ -298,23 +304,23 @@ set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsUtils.cpp
 set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsUtils.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/Physics.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/BroadphaseInterface.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysics.h
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysics.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUPhysicsParallel.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUOctreeBroadphase.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUOctreeBroadphase.h
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUOctreeBroadphase.h
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUOctreeBroadphase.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUOctreeBroadphaseParallel.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/ArrayInterface.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUArray.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/NarrowphaseInterface.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUNarrowphase.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUNarrowphase.h
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUNarrowphase.h
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUNarrowphase.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUNarrowphaseParallel.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/Solver.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUSolver.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolver.h
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUSolver.h
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolver.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolverParallel.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsSorter.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysicsSorter.h
+#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysicsSorter.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUPhysicsSorter.h
              ${CMAKE_CURRENT_SOURCE_DIR}/physics/HelperFunctions.h
 #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/Graph.h

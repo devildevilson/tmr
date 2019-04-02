@@ -117,7 +117,7 @@ float atan2Approximation(float y, float x) {
   return t2;
 }
 
-void cartesianToSpherical(const glm::vec3 &vec, float &theta, float &phi) {
+void cartesianToSpherical(const simd::vec4 &vec, float &theta, float &phi) {
   theta = glm::acos(vec.y / 1.0f);
   phi = glm::atan(vec.z, vec.x);
 }

@@ -14,10 +14,10 @@ class CPUSolverParallel : public Solver {
 public:
   struct OverlappingDataForSolver {
     glm::uvec4 pairData; // w == mtvAngle
-    glm::vec4 mtvDist;
+    simd::vec4 mtvDist;
 
-    glm::vec4 normals[2];
-    glm::vec4 satAngleStair;
+    simd::vec4 normals[2];
+    simd::vec4 satAngleStair;
     glm::uvec4 stairsMoves;
   };
 
@@ -39,8 +39,8 @@ protected:
   
   // input buffers
   ArrayInterface<Object>* objects = nullptr;
-  ArrayInterface<glm::vec4>* verts = nullptr;
-  ArrayInterface<glm::mat4>* systems = nullptr;
+  ArrayInterface<simd::vec4>* verts = nullptr;
+  ArrayInterface<simd::mat4>* systems = nullptr;
   ArrayInterface<PhysData2>* datas = nullptr;
   ArrayInterface<Transform>* transforms = nullptr;
   ArrayInterface<Constants>* staticPhysDatas = nullptr;
@@ -50,7 +50,7 @@ protected:
   ArrayInterface<IslandData>* islands = nullptr;
   ArrayInterface<IslandData>* staticIslands = nullptr;
   ArrayInterface<uint32_t>* indicies = nullptr;
-  ArrayInterface<glm::vec4>* velocities = nullptr;
+  ArrayInterface<simd::vec4>* velocities = nullptr;
   ArrayInterface<Gravity>* gravity = nullptr;
   ArrayInterface<RayData>* rays = nullptr;
   ArrayInterface<BroadphasePair>* rayPairs = nullptr;
@@ -65,35 +65,35 @@ protected:
   float threshold = 0.04f;
 //   uint32_t iterationCount = 10;
 
-  glm::vec4 getNormalCloseToGravity(const glm::mat4 &orn, const glm::vec4 &gravityNorm) const;
-  glm::vec4 getNormalCloseToGravity(const glm::mat4 &orn, const uint32_t &offset, const uint32_t &facesCount, const glm::vec4 &gravityNorm, uint32_t &retIndex) const;
+  simd::vec4 getNormalCloseToGravity(const simd::mat4 &orn, const simd::vec4 &gravityNorm) const;
+  simd::vec4 getNormalCloseToGravity(const simd::mat4 &orn, const uint32_t &offset, const uint32_t &facesCount, const simd::vec4 &gravityNorm, uint32_t &retIndex) const;
 
-  void project(const glm::vec4 &axis, const uint32_t &offset, const uint32_t &size, const glm::vec4 &pos, const glm::mat4 &invOrn, float &minRet, float &maxRet) const;
-  void project(const glm::vec4 &axis, const glm::vec4 &pos, const glm::vec4 &ext, const glm::mat4 &orn, float &minRet, float &maxRet) const;
-  void project(const glm::vec4 &axis, const glm::vec4 &pos, const float &radius, float &minRet, float &maxRet) const;
+  void project(const simd::vec4 &axis, const uint32_t &offset, const uint32_t &size, const simd::vec4 &pos, const simd::mat4 &invOrn, float &minRet, float &maxRet) const;
+  void project(const simd::vec4 &axis, const simd::vec4 &pos, const simd::vec4 &ext, const simd::mat4 &orn, float &minRet, float &maxRet) const;
+  void project(const simd::vec4 &axis, const simd::vec4 &pos, const float &radius, float &minRet, float &maxRet) const;
 
   bool BoxBoxSAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
-                 const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const;
+                 const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const;
   bool BoxSphereSAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
-                    const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const;
+                    const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const;
   bool BoxPolySAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
-                  const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const;
+                  const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const;
   bool SphereSphereSAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
-                       const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const;
+                       const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const;
   bool PolySphereSAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
-                     const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const;
+                     const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const;
   bool PolyPolySAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
-                   const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const;
+                   const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const;
   bool SAT(const float &treshold, const uint32_t &objectIndexFirst,  const uint32_t &transformIndexFirst, 
-           const uint32_t &objectIndexSecond, const uint32_t &transformIndexSecond, glm::vec4 &mtv, float &dist) const;
+           const uint32_t &objectIndexSecond, const uint32_t &transformIndexSecond, simd::vec4 &mtv, float &dist) const;
   float SATOneAxis(const uint32_t &objectIndexFirst,  const uint32_t &transformIndexFirst, 
-                   const uint32_t &objectIndexSecond, const uint32_t &transformIndexSecond, const glm::vec4 &axis) const;
+                   const uint32_t &objectIndexSecond, const uint32_t &transformIndexSecond, const simd::vec4 &axis) const;
                    
   void computePair(const BroadphasePair &pair);
-  void computePairWithGround(const BroadphasePair &pair, const glm::vec4 &normal);
+  void computePairWithGround(const BroadphasePair &pair, const simd::vec4 &normal);
   void applyChanges(const OverlappingDataForSolver &data);
   
-  bool intersect(const uint32_t &rayIndex, const uint32_t &objIndex, const uint32_t &transformIndex, glm::vec4 &point) const;
+  bool intersect(const uint32_t &rayIndex, const uint32_t &objIndex, const uint32_t &transformIndex, simd::vec4 &point) const;
 };
 
 #endif // !CPU_SOLVER_PARALLEL_H

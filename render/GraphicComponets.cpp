@@ -4,7 +4,7 @@
 
 CLASS_TYPE_DEFINE_WITH_NAME(GraphicComponent, "GraphicComponent")
 
-void GraphicComponent::setContainer(Container<glm::mat4>* matrices) {
+void GraphicComponent::setContainer(Container<simd::mat4>* matrices) {
   GraphicComponent::matrices = matrices;
 }
 
@@ -64,7 +64,7 @@ void GraphicComponent::uiDraw() {
   
 }
 
-void GraphicComponent::drawBoundingShape(const glm::vec4 &color) const {
+void GraphicComponent::drawBoundingShape(const simd::vec4 &color) const {
   auto trans = getEntity()->get<TransformComponent>();
   
   debugOptimizer->setDebugColor(trans->transformIndex, color);
@@ -96,7 +96,7 @@ uint32_t GraphicComponent::getTextureContainerIndex() const {
   return textureContainerIndex;
 }
 
-Container<glm::mat4>* GraphicComponent::matrices = nullptr;
+Container<simd::mat4>* GraphicComponent::matrices = nullptr;
 Container<RotationData>* GraphicComponent::rotationDatas = nullptr;
 Container<TextureData>* GraphicComponent::textureContainer = nullptr;
 MonsterOptimizer* GraphicComponent::optimizer = nullptr;
@@ -156,7 +156,7 @@ void GraphicComponentIndexes::uiDraw() {
   
 }
 
-void GraphicComponentIndexes::drawBoundingShape(const glm::vec4 &color) const {
+void GraphicComponentIndexes::drawBoundingShape(const simd::vec4 &color) const {
   debugOptimizer->setDebugColor(optimiserIndex, color);
 }
 

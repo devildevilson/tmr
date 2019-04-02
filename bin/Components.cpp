@@ -146,13 +146,13 @@ void TransformComponent::uiDraw() {
 //   }
 }
 
-glm::mat4 TransformComponent::getTransform(const bool rotation) const {
-  glm::mat4 mat = glm::translate(glm::mat4(1.0f), glm::vec3(pos()));
+simd::mat4 TransformComponent::getTransform(const bool rotation) const {
+  simd::mat4 mat = simd::translate(simd::mat4(1.0f), pos());
   if (rotation) {
     const glm::vec3 &rot = Global::getPlayerRot();
-    mat = glm::rotate(mat, glm::half_pi<float>() - rot.y, glm::vec3(0.0f, 1.0f, 0.0f));
+    mat = simd::rotate(mat, glm::half_pi<float>() - rot.y, simd::vec4(0.0f, 1.0f, 0.0f, 0.0f));
   }
-  mat = glm::scale(mat, glm::vec3(scale()));
+  mat = simd::scale(mat, scale());
   
   return mat;
 }
@@ -195,18 +195,18 @@ void InputComponent::init(void* userData) {
   }
 }
 
-// glm::vec4 InputComponent::predictPos(const size_t &predictionTime) const {
+// simd::vec4 InputComponent::predictPos(const size_t &predictionTime) const {
 //   return trans->pos() + physics2->getVelocity() * MCS_TO_SEC(predictionTime);
 // }
 // 
-// void InputComponent::seek(const glm::vec4 &target) {
+// void InputComponent::seek(const simd::vec4 &target) {
 //   frontVec = target - trans->pos();
 //   updateInput();
 // //   const glm::vec3 &dVel = target - trans->pos;
 // //   return dVel - physic->getVelocity();
 // }
 // 
-// void InputComponent::flee(const glm::vec4 &target) {
+// void InputComponent::flee(const simd::vec4 &target) {
 //   frontVec = trans->pos() - target;
 //   updateInput();
 // }
@@ -215,12 +215,12 @@ void InputComponent::init(void* userData) {
 // //   const float pathDistOffset = dir * MCS_TO_SEC(predictionTime) * physic->getSpeed();
 //   
 //   // предскажем нашу будущую позицию
-//   const glm::vec4 &futurePos = predictPos(predictionTime);
+//   const simd::vec4 &futurePos = predictPos(predictionTime);
 //   const Path & pathSeg = path.getPathSegments()[currentPathSegmentIndex];
 //   const Path & prevPathSeg = path.getPathSegments()[currentPathSegmentIndex-1];
 //   
-//   const glm::vec4 &nextPoint = pathSeg.point + pathSeg.lineDir * trans->scale().x;
-//   const glm::vec4 &prevPoint = prevPathSeg.point + prevPathSeg.lineDir * trans->scale().x;
+//   const simd::vec4 &nextPoint = pathSeg.point + pathSeg.lineDir * trans->scale().x;
+//   const simd::vec4 &prevPoint = prevPathSeg.point + prevPathSeg.lineDir * trans->scale().x;
 //   
 //   // примерно так узнаем что мы двигаемся в правильную сторону
 //   const bool rightWay2 = glm::dot(physics2->getVelocity(), nextPoint - prevPoint) > 0.0f;
@@ -298,44 +298,44 @@ void InputComponent::init(void* userData) {
 //     rightVec,
 //     upVec,
 //     frontVec,
-//     glm::vec4(sideMove, upMove, forwardMove, 0.0f)
+//     simd::vec4(sideMove, upMove, forwardMove, 0.0f)
 //   };
 // }
 
-glm::vec4 & InputComponent::front() {
+simd::vec4 & InputComponent::front() {
   return container->at(inputIndex).front;
 }
 
-glm::vec4 & InputComponent::up() {
+simd::vec4 & InputComponent::up() {
   return container->at(inputIndex).up;
 }
 
-glm::vec4 & InputComponent::right() {
+simd::vec4 & InputComponent::right() {
   return container->at(inputIndex).right;
 }
 
-glm::vec4 & InputComponent::movementData() {
+simd::vec4 & InputComponent::movementData() {
   return container->at(inputIndex).moves;
 }
 
-const glm::vec4 & InputComponent::front() const {
+const simd::vec4 & InputComponent::front() const {
   return container->at(inputIndex).front;
 }
 
-const glm::vec4 & InputComponent::up() const {
+const simd::vec4 & InputComponent::up() const {
   return container->at(inputIndex).up;
 }
 
-const glm::vec4 & InputComponent::right() const {
+const simd::vec4 & InputComponent::right() const {
   return container->at(inputIndex).right;
 }
 
-const glm::vec4 & InputComponent::movementData() const {
+const simd::vec4 & InputComponent::movementData() const {
   return container->at(inputIndex).moves;
 }
 
 void InputComponent::setMovement(const float &front, const float &up, const float &right) {
-  container->at(inputIndex).moves = glm::vec4(right, up, front, 0.0f);
+  container->at(inputIndex).moves = simd::vec4(right, up, front, 0.0f);
 }
 
 Container<InputData>* InputComponent::container = nullptr;
@@ -387,7 +387,7 @@ PhysicsComponent2::PhysicsComponent2(/*void* userData*/) {
 
   // с ускорениями нужно поиграть побольше
   const ExternalData data{
-    glm::vec4(0.0f, 0.0f, 0.0f, 0.0f),
+    simd::vec4(0.0f, 0.0f, 0.0f, 0.0f),
     7.0f, 80.0f, 0.0f, 0.0f
   };
 
@@ -458,8 +458,9 @@ const PhysicsIndexContainer & PhysicsComponent2::getIndexContainer() const {
   return container;
 }
 
-glm::vec4 PhysicsComponent2::getVelocity() const {
-  return glm::vec4(Global::physics()->getPhysicData(container.physicDataIndex).velocity, 0.0f);
+simd::vec4 PhysicsComponent2::getVelocity() const {
+  const glm::vec3 &vel = Global::physics()->getPhysicData(container.physicDataIndex).velocity;
+  return simd::vec4(vel.x, vel.y, vel.z, 0.0f);
 }
 
 Container<ExternalData>* PhysicsComponent2::externalDatas = nullptr;
@@ -616,7 +617,7 @@ std::unordered_set<size_t> StateController::loopedStates;
 
 // CLASS_TYPE_DEFINE_WITH_NAME(GraphicComponent, "GraphicComponent")
 // 
-// void GraphicComponent::setContainer(Container<glm::mat4>* matrices) {
+// void GraphicComponent::setContainer(Container<simd::mat4>* matrices) {
 //   GraphicComponent::matrices = matrices;
 // }
 // 
@@ -726,7 +727,7 @@ std::unordered_set<size_t> StateController::loopedStates;
 //   }
 // }
 // 
-// void GraphicComponent::drawBoundingShape(CollisionComponent* shape, const glm::vec4 &color) const {
+// void GraphicComponent::drawBoundingShape(CollisionComponent* shape, const simd::vec4 &color) const {
 //   // if (shape->getType() != AABBOX) {
 //   //   Global::console()->print("Entity's (id: " + std::to_string(getEntity()->getId()) + ") shape is not AABB");
 //   // }
@@ -747,7 +748,7 @@ std::unordered_set<size_t> StateController::loopedStates;
 //   
 //   (void)shape;
 //   
-//   glm::mat4 mat = glm::translate(glm::mat4(), trans->pos);
+//   simd::mat4 mat = glm::translate(simd::mat4(), trans->pos);
 //   mat = glm::scale(mat, trans->scale);
 //   
 //   Global::render()->addDebugDraw([mat, color] (yavf::GraphicTask* task) {
@@ -809,7 +810,7 @@ std::unordered_set<size_t> StateController::loopedStates;
 //   return textureContainerIndex;
 // }
 // 
-// Container<glm::mat4>* GraphicComponent::matrices = nullptr;
+// Container<simd::mat4>* GraphicComponent::matrices = nullptr;
 // Container<RotationData>* GraphicComponent::rotationDatas = nullptr;
 // Container<Texture>* GraphicComponent::textureContainer = nullptr;
 // MonsterOptimizer* GraphicComponent::optimizer = nullptr;
@@ -1093,10 +1094,10 @@ std::unordered_set<size_t> StateController::loopedStates;
 //   }
 // }
 // 
-// void GraphicComponentIndexes::drawBoundingShape(CollisionComponent* shape, const glm::vec4 &color) const {
+// void GraphicComponentIndexes::drawBoundingShape(CollisionComponent* shape, const simd::vec4 &color) const {
 //   size_t count = elemCount;
 //   size_t indexOffset = offset;
-// //   glm::vec4 color1 = color;
+// //   simd::vec4 color1 = color;
 // //   color1.w = 0.5f;
 //   
 //   if (shape && shape->getType() != PLANE) {
@@ -1106,13 +1107,13 @@ std::unordered_set<size_t> StateController::loopedStates;
 // 
 //   Global::render()->addDebugDraw([color, shape, count, indexOffset] (yavf::GraphicTask* task) {
 //     struct PushConst {
-//       glm::mat4 mat;
-//       glm::vec4 color;
+//       simd::mat4 mat;
+//       simd::vec4 color;
 //       glm::vec3 normal;
 //     };
 //     
 //     PushConst consts{
-//       glm::mat4(1.0f),
+//       simd::mat4(1.0f),
 //       color,
 //       //((Polygon*)shape)->normal
 //       ((Polygon*)shape->getCollidable())->normal
@@ -1163,8 +1164,11 @@ void Light::init(void* userData) {
     throw std::runtime_error("Entity " + std::to_string(getEntity()->getId()) + " does not have TransformComponent!");
   }
   
+  float arr[4];
+  trans->pos().store(arr);
+  
   const LightOptimizer::LightRegisterInfo info{
-    glm::vec3(trans->pos()),
+    glm::vec3(arr[0], arr[1], arr[2]),
     radius,
     color,
     cutoff,
@@ -1178,7 +1182,7 @@ LightOptimizer* Light::optimizer = nullptr;
 
 CLASS_TYPE_DEFINE_WITH_NAME(UserInputComponent, "UserInputComponent")
 
-UserInputComponent::UserInputComponent(const glm::vec3 &startingDir) : horisontalAngleSum(0.0f), verticalAngleSum(0.0f), states(nullptr), trans(nullptr), rotation(0.0f), startingDir(startingDir) {}
+UserInputComponent::UserInputComponent() : horisontalAngleSum(0.0f), verticalAngleSum(0.0f), states(nullptr), trans(nullptr), rotation(0.0f) {}
 UserInputComponent::~UserInputComponent() {}
 
 void UserInputComponent::update(const size_t &time) { (void)time; }
@@ -1209,6 +1213,7 @@ void UserInputComponent::init(void* userData) {
     throw std::runtime_error("Entity " + std::to_string(getEntity()->getId()) + " does not have TransformComponent!");
   }
   
+  const simd::vec4 &startingDir = trans->rot();
   cartesianToSpherical(startingDir, horisontalAngleSum, verticalAngleSum);
     
   horisontalAngleSum = glm::degrees(horisontalAngleSum);
@@ -1242,26 +1247,26 @@ void UserInputComponent::mouseMove(const float &horisontalAngle, const float &ve
   rotation.y = x; // yaw 
   rotation.x = y; // pitch
   
-  glm::vec4 front;
+  simd::vec4 front;
   front.x = glm::sin(y) * glm::cos(x); // r = 1.0f
   front.y = -glm::cos(y);
   front.z = glm::sin(y) * glm::sin(x);
   front.w = 0.0f;
   
-  front = glm::normalize(front);
+  front = simd::normalize(front);
   
-  glm::vec4 right;
+  simd::vec4 right;
   right.x = glm::cos(x - glm::half_pi<float>());
   right.y = 0.0f;
   right.z = glm::sin(x - glm::half_pi<float>());
   right.w = 0.0f;
   
-  right = glm::normalize(right);
+  right = simd::normalize(right);
   
-  glm::vec4 up = glm::normalize(glm::vec4(glm::cross(glm::vec3(right), glm::vec3(front)), 0.0f));
+  simd::vec4 up = simd::normalize(simd::cross(right, front));
   
   // transform я должен получать из вне
-  const glm::mat4 &transform = Global::physics()->getOrientation();
+  const simd::mat4 &transform = Global::physics()->getOrientation();
   front = transform * front;
   right = transform * right;
   up = transform * up;
@@ -1269,7 +1274,10 @@ void UserInputComponent::mouseMove(const float &horisontalAngle, const float &ve
   this->InputComponent::right() = right;
   this->up() = up;
   playerRotation = rotation;
-  Global::setPlayerRot(glm::vec4(rotation, 0.0f));
+  {
+    Global g;
+    g.setPlayerRot(glm::vec4(rotation, 0.0f));
+  }
   
   trans->rot() = front;
   
@@ -1313,21 +1321,28 @@ void UserInputComponent::jump() {
 
 CLASS_TYPE_DEFINE_WITH_NAME(CameraComponent, "CameraComponent")
 
+//#define PRINT_VEC(name, vec) std::cout << name << " (" << vec.x << ", " << vec.y << ", " << vec.z << ", " << vec.w << ")" << "\n";
+
 void CameraComponent::update(const size_t &time) {
   (void)time;
   
-  static const glm::mat4 toVulkanSpace = glm::mat4(1.0f, 0.0f, 0.0f, 0.0f,
-                                                   0.0f,-1.0f, 0.0f, 0.0f,
-                                                   0.0f, 0.0f, 1.0f, 0.0f,
-                                                   0.0f, 0.0f, 0.0f, 1.0f);
+  static const simd::mat4 toVulkanSpace = simd::mat4(1.0f, 0.0f, 0.0f, 0.0f,
+                                                     0.0f,-1.0f, 0.0f, 0.0f,
+                                                     0.0f, 0.0f, 1.0f, 0.0f,
+                                                     0.0f, 0.0f, 0.0f, 1.0f);
   
   //glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-  const glm::vec4 pos = trans->pos();
+  const simd::vec4 pos = trans->pos();
   //const glm::vec3 pos = trans->pos;
-  //const glm::vec4 &changePos = trans->getPos();
-  //TransformComponent::container->at(trans->transformIndex).pos = glm::vec4(trans->pos, 1.0f);
-  view = toVulkanSpace * glm::lookAt(glm::vec3(pos), glm::vec3(pos + input->front()), glm::vec3(0.0f, 1.0f, 0.0f)); // input->upVec
+  //const simd::vec4 &changePos = trans->getPos();
+  //TransformComponent::container->at(trans->transformIndex).pos = simd::vec4(trans->pos, 1.0f);
+  const simd::mat4 view = toVulkanSpace * simd::lookAt(pos, pos + input->front(), simd::vec4(0.0f, 1.0f, 0.0f, 0.0f)); // input->upVec
   //view = glm::lookAt(pos, pos + input->frontVec, glm::vec3(0.0f, 1.0f, 0.0f)); // input->upVec
+  
+//   PRINT_VEC("view ", view[0])
+//   PRINT_VEC("     ", view[1])
+//   PRINT_VEC("     ", view[2])
+//   PRINT_VEC("     ", view[3])
    
   Global::render()->setView(view);
   Global::render()->setCameraPos(pos);

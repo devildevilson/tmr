@@ -34,49 +34,49 @@ void Render::toggleProjection() {
   perspective = !perspective;
 }
 
-Matrices Render::getMatrices() const {
+Matrices* Render::getMatrices() {
   return matrices;
 }
 
-void Render::setView(const glm::mat4 &view) {
-  matrices.view = view;
+void Render::setView(const simd::mat4 &view) {
+  matrices->view = view;
 }
 
-void Render::setPersp(const glm::mat4 &persp) {
-  matrices.persp = persp;
+void Render::setPersp(const simd::mat4 &persp) {
+  matrices->persp = persp;
 }
 
-void Render::setOrtho(const glm::mat4 &ortho) {
-  matrices.ortho = ortho;
+void Render::setOrtho(const simd::mat4 &ortho) {
+  matrices->ortho = ortho;
 }
 
-void Render::setCameraDir(const glm::vec4 &dir) {
-  matrices.camera.dir = dir;
+void Render::setCameraDir(const simd::vec4 &dir) {
+  matrices->camera.dir = dir;
 }
 
-void Render::setCameraPos(const glm::vec4 &pos) {
-  matrices.camera.pos = pos;
+void Render::setCameraPos(const simd::vec4 &pos) {
+  matrices->camera.pos = pos;
 }
 
 void Render::setCameraDim(const uint32_t &width, const uint32_t &height) {
-  matrices.camera.width = width;
-  matrices.camera.height = height;
+  matrices->camera.width = width;
+  matrices->camera.height = height;
 }
 
-glm::mat4 Render::getViewProj() const {
-  return matrices.camera.viewproj;
+simd::mat4 Render::getViewProj() const {
+  return matrices->camera.viewproj;
 }
 
-glm::mat4 Render::getView() const {
-  return matrices.view;
+simd::mat4 Render::getView() const {
+  return matrices->view;
 }
 
-glm::mat4 Render::getPersp() const {
-  return matrices.persp;
+simd::mat4 Render::getPersp() const {
+  return matrices->persp;
 }
 
-glm::mat4 Render::getOrtho() const {
-  return matrices.ortho;
+simd::mat4 Render::getOrtho() const {
+  return matrices->ortho;
 }
 
 // VulkanRender::VulkanRender(const size_t &stageContainerSize) : Render(stageContainerSize) {
@@ -166,25 +166,36 @@ void VulkanRender::setContextIndex(const uint32_t &index) {
   this->currentIndex = index;
 }
 
+//#define PRINT_VEC(name, vec) std::cout << name << " (" << vec.x << ", " << vec.y << ", " << vec.z << ", " << vec.w << ")" << "\n";
+
 void VulkanRender::updateCamera() {  
   if (perspective) {
     //matrices.camera.viewproj = matrices.persp * matrices.view;
-    matrices.matrixes.proj = matrices.persp;
+    matrices->matrixes.proj = matrices->persp;
     //matrices.matrixes.invProj = glm::inverse(matrices.persp);
   } else {
-    matrices.matrixes.proj = matrices.ortho;
+    matrices->matrixes.proj = matrices->ortho;
     //matrices.matrixes.invProj = glm::inverse(matrices.ortho);
   }
   
-  matrices.camera.viewproj = matrices.matrixes.proj * matrices.view;
-  matrices.camera.view = matrices.view;
-  matrices.matrixes.view = matrices.view;
-  matrices.matrixes.invView = glm::inverse(matrices.view);
-  matrices.matrixes.invProj = glm::inverse(matrices.matrixes.proj);
-  matrices.matrixes.invViewProj = glm::inverse(matrices.camera.viewproj);
+  matrices->camera.viewproj = matrices->matrixes.proj * matrices->view;
+  matrices->camera.view = matrices->view;
+  matrices->matrixes.view = matrices->view;
+  matrices->matrixes.invView = simd::inverse(matrices->view);
+  matrices->matrixes.invProj = simd::inverse(matrices->matrixes.proj);
+  matrices->matrixes.invViewProj = simd::inverse(matrices->camera.viewproj);
   
-  memcpy(uniformCameraData->ptr(), &matrices.camera, sizeof(CameraData));
-  memcpy(uniformMatrixes->ptr(), &matrices.matrixes, sizeof(MatBuffer));
+  memcpy(uniformCameraData->ptr(), &matrices->camera, sizeof(CameraData));
+  memcpy(uniformMatrixes->ptr(), &matrices->matrixes, sizeof(MatBuffer));
+  
+  //CameraData* data = reinterpret_cast<CameraData*>(uniformCameraData->ptr());
+  
+//   PRINT_VEC("viewproj ", data->viewproj[0])
+//   PRINT_VEC("         ", data->viewproj[1])
+//   PRINT_VEC("         ", data->viewproj[2])
+//   PRINT_VEC("         ", data->viewproj[3])
+  
+  //throw std::runtime_error("no more");
 }
 
 void VulkanRender::update(const uint64_t &time) {

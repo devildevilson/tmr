@@ -15,7 +15,7 @@ public:
   
   void update(const uint64_t &time) override;
 private:
-    yacs::Entity* player = nullptr;
+  yacs::Entity* player = nullptr;
   TransformComponent* playerTransform = nullptr;
 };
 

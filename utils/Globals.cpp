@@ -56,7 +56,7 @@ GlobalData Global::globalData = {
 };
 
 std::string Global::appDir;
-glm::vec4 Global::playerCoords;
+simd::vec4 Global::playerCoords;
 glm::vec4 Global::playerView;
 
 // Buffer Global::meshVertex;
@@ -160,20 +160,12 @@ std::string Global::getGameDir() {
   return appDir;
 }
 
-glm::vec4 Global::getPlayerPos() {
+simd::vec4 Global::getPlayerPos() {
   return playerCoords;
 }
 
 glm::vec4 Global::getPlayerRot() {
   return playerView;
-}
-
-void Global::setPlayerPos(const glm::vec4 &pos) {
-  playerCoords = pos;
-}
-
-void Global::setPlayerRot(const glm::vec4 &rot) {
-  playerView = rot;
 }
 
 // yavf::Buffer Global::getMapVertex() {
@@ -218,6 +210,14 @@ void Global::setWindow(Window* window) {
 
 void Global::setGameDir(const std::string &dir) {
   this->appDir = dir;
+}
+
+void Global::setPlayerPos(const simd::vec4 &pos) {
+  playerCoords = pos;
+}
+
+void Global::setPlayerRot(const glm::vec4 &rot) {
+  playerView = rot;
 }
 
 // Buffer Global::getMeshVertex() {

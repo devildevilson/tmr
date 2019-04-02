@@ -41,8 +41,8 @@ void PostPhysics::update(const uint64_t &time) {
         if (ray.secondIndex == index) rayCollide = true;
       }
       
-      if (rayCollide) graphic->drawBoundingShape(glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
-      else graphic->drawBoundingShape(glm::vec4(0.0f, 1.0f, 0.0f, 0.5f));
+      if (rayCollide) graphic->drawBoundingShape(simd::vec4(1.0f, 0.0f, 0.0f, 0.5f));
+      else graphic->drawBoundingShape(simd::vec4(0.0f, 1.0f, 0.0f, 0.5f));
     }
     
     // тут будет еще и обновление других компонентов, нужно наверное упрятать в какую-нибудь "систему"
@@ -54,6 +54,7 @@ void PostPhysics::update(const uint64_t &time) {
   }
   
   {
-    Global::setPlayerPos(playerTransform->pos());
+    Global g;
+    g.setPlayerPos(playerTransform->pos());
   }
 }

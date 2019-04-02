@@ -30,31 +30,19 @@ protected:
   uint32_t objIndex;
 };
 
-struct UpdateBuffers {
-  ArrayInterface<glm::vec4>* verticies; // броадфаза по идее не должна знать это
-  ArrayInterface<Object>* objects;      // это тоже броадфазе не нужно
-  ArrayInterface<glm::mat4>* systems;   // это уже никуда не годится
-  ArrayInterface<Transform>* transforms;
-  ArrayInterface<RotationData>* rotationDatas;
-
-  ArrayInterface<RayData>* rays;
-  ArrayInterface<FrustumStruct>* frustums;
-  ArrayInterface<glm::vec4>* frustumPoses;
-};
-
 class Broadphase {
 public:
   struct InputBuffers {
     ArrayInterface<uint32_t>* indexBuffer;
-    ArrayInterface<glm::vec4>* verticies; // броадфаза по идее не должна знать это
+    ArrayInterface<simd::vec4>* verticies; // броадфаза по идее не должна знать это
     ArrayInterface<Object>* objects;      // это тоже броадфазе не нужно
-    ArrayInterface<glm::mat4>* systems;   // это уже никуда не годится
+    ArrayInterface<simd::mat4>* systems;   // это уже никуда не годится
     ArrayInterface<Transform>* transforms;
     ArrayInterface<RotationData>* rotationDatas;
 
     ArrayInterface<RayData>* rays;
     ArrayInterface<FrustumStruct>* frustums;
-    ArrayInterface<glm::vec4>* frustumPoses;
+    ArrayInterface<simd::vec4>* frustumPoses;
   };
   
   struct OutputBuffers {
@@ -66,12 +54,7 @@ public:
   
   virtual ~Broadphase();
   
-  void getBroadphaseAabb(FastAABB &box) const;
-  
-//   virtual void setCollisionTestBuffer(ArrayInterface<uint32_t>* indexBuffer) = 0;
-//   virtual void setRayTestBuffer(ArrayInterface<RayData>* rayBuffer) = 0;
-//   //virtual void setRayTestBuffer(ArrayInterface<glm::mat4>* frustumBuffer) = 0;
-//   virtual void setUpdateBuffers(const UpdateBuffers &buffers) = 0;
+//   void getBroadphaseAabb(FastAABB &box) const;
   
   virtual void setInputBuffers(const InputBuffers &buffers) = 0;
   virtual void setOutputBuffers(const OutputBuffers &buffers, void* indirectPairBuffer = nullptr) = 0;
@@ -108,7 +91,7 @@ public:
   
   virtual void printStats() = 0;
 protected:
-  FastAABB box;
+//   FastAABB box;
 };
 
 #endif

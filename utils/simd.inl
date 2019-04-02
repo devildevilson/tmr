@@ -3,6 +3,8 @@
 #include <cmath>
 #include <algorithm>
 
+//#include <iostream>
+
 #ifdef _DEBUG
   #include <cassert>
   #define ASSERT(expr) assert(expr)
@@ -13,12 +15,12 @@
 namespace simd {
 
 #ifdef __SSE__
-  inline vec4::vec4() : native(_mm_setzero_ps()) {
+  inline vec4::vec4() {
     native = _mm_setzero_ps();
   }
 
-  inline constexpr vec4::vec4(const vec4 &vec) : native(vec.native) {
-//     this->native = vec.native;
+  inline vec4::vec4(const vec4 &vec) {
+    this->native = vec.native;
   }
 
   inline vec4::vec4(const float &x, const float &y, const float &z, const float &w) : native(_mm_setr_ps(x, y, z, w)) {
@@ -39,17 +41,17 @@ namespace simd {
 //  }
 //#endif
 
-  inline constexpr vec4::vec4(__m128 native) : native(native) {
-//     this->native = native;
+  inline vec4::vec4(__m128 native) {
+    this->native = native;
   }
 
-//   inline vec4::~vec4() {}
+  inline vec4::~vec4() {}
 
-  constexpr uint32_t vec4::length() const {
-    return 4;
-  }
+//   constexpr uint32_t vec4::length() const {
+//     return 4;
+//   }
 
-  inline int vec4::movemask() {
+  inline int vec4::movemask() const {
     return _mm_movemask_ps(native);
   }
 
@@ -106,10 +108,10 @@ namespace simd {
     _mm_store_ps(p, native);
   }
 
-  inline vec4 & vec4::operator-() {
-    native = _mm_sub_ps(_mm_setzero_ps(), native);
-    return *this;
-  }
+//   inline vec4 & vec4::operator-() {
+//     native = _mm_sub_ps(_mm_setzero_ps(), native);
+//     return *this;
+//   }
 
   inline vec4 & vec4::operator-= (const vec4 &rhs) {
     this->native = _mm_sub_ps(this->native, rhs.native);
@@ -219,6 +221,10 @@ namespace simd {
     return arr[index];
   }
 
+  inline vec4 operator-(const vec4 &vec) {
+    return vec4(_mm_sub_ps(_mm_setzero_ps(), vec));
+  }
+  
   inline vec4 operator-(const vec4 &vec1, const vec4 &vec2) {
     return _mm_sub_ps(vec1, vec2);
   }
@@ -322,6 +328,26 @@ namespace simd {
   inline vec4 sqrt(const vec4 &vec) {
     return _mm_sqrt_ps(vec);
   }
+  
+  inline vec4 equal(const vec4 &a, const vec4 &b, const float &epsilon) {
+    return vec4(epsilon) > abs(a-b);
+  }
+  
+  inline bool all(const vec4 &vec) {
+    return (vec.movemask() & 0xf) == 0xf;
+  }
+  
+  inline bool any(const vec4 &vec) {
+    return (vec.movemask() & 0xf) != 0;
+  }
+  
+  inline bool all_xyz(const vec4 &vec) {
+    return (vec.movemask() & 0x7) == 0x7;
+  }
+  
+  inline bool any_xyz(const vec4 &vec) {
+    return (vec.movemask() & 0x7) != 0;
+  }
 
   const vec4 crossConst = vec4(1.0f, 1.0f, 1.0f, 0.0f);
   // 12 инструкций
@@ -369,6 +395,14 @@ namespace simd {
       return   vec4(_mm_cvtss_f32(_mm_add_ss(sums, shuf)));
 #endif
     }
+    
+  inline vec4 mix(const vec4 &x, const vec4 &y, const float &a) {
+    return x + a * (y - x);
+  }
+    
+//   inline vec4 lerp(const vec4 &x, const vec4 &y, const float &a) {
+//     
+//   }
 
   inline float dot(const vec4 &vec1, const vec4 &vec2) {
 #ifdef __SSE4_1__
@@ -1118,7 +1152,7 @@ namespace simd {
 
   // судя по предыдущим записям здесь сгерерируется 12 инструкций
   inline bool collision_aabb(const vec4 &pos1, const vec4 &extents1, const vec4 &pos2, const vec4 &extents2) {
-    return ((abs(pos1 - pos2) < extents1 + extents2).movemask() & 0x111) == 0x111;
+    return ((abs(pos1 - pos2) < extents1 + extents2).movemask() & 0xe) == 0xe;
   }
 #endif
 
@@ -2276,21 +2310,22 @@ namespace simd {
   }
 
   // нашел здесь http://fhtr.blogspot.com/2010/02/4x4-float-matrix-multiplication-using.html
+  // на том сайте в другую сторону матрицы умножались
   inline mat4 operator*(const mat4 &mat1, const mat4 &mat2) {
     mat4 mat;
     for (uint32_t i = 0; i < 4; ++i) {
       float arr[4];
-      mat1[i].store(arr);
+      mat2[i].store(arr);
 
       const vec4 ARx = vec4(arr[0]);
       const vec4 ARy = vec4(arr[1]);
       const vec4 ARz = vec4(arr[2]);
       const vec4 ARw = vec4(arr[3]);
 
-      const vec4 X = ARx * mat2[0];
-      const vec4 Y = ARy * mat2[1];
-      const vec4 Z = ARz * mat2[2];
-      const vec4 W = ARw * mat2[3];
+      const vec4 X = ARx * mat1[0];
+      const vec4 Y = ARy * mat1[1];
+      const vec4 Z = ARz * mat1[2];
+      const vec4 W = ARw * mat1[3];
 
       mat[i] = X + Y + Z + W;
     }
@@ -2357,7 +2392,7 @@ namespace simd {
   }
 
   inline mat4 translate(const mat4 &mat, const vec4 &vec) {
-    mat4 r;
+    mat4 r(mat);
     float arr[4];
     vec.store(arr);
     r[3] = mat[0] * arr[0] + mat[1] * arr[1] + mat[2] * arr[2] + mat[3];
@@ -2401,6 +2436,17 @@ namespace simd {
     result[2] *= arr[2];
     //result[3] = m[3];
     return result;
+  }
+  
+#define EPSILON 0.000001f
+  
+  inline mat4 orientation(const vec4 &normal, const vec4 &up) {
+    if (all(equal(normal, up, EPSILON))) return mat4(1.0f);
+    
+    const vec4 rotationAxis = cross(up, normal);
+    const float angle = std::acos(dot(normal, up));
+    
+    return rotate(mat4(1.0f), angle, rotationAxis);
   }
 
   inline mat4 ortho(const float &left, const float &right, const float &bottom, const float &top, const float &zNear, const float &zFar) {

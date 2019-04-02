@@ -10,12 +10,6 @@
 
 #define ONLY_TRIGGER_ID 0xFFFFFFFF-1
 
-// float getAngle(const glm::vec4 &first, const glm::vec4 &second);
-// void clipVelocity(const glm::vec4 &clipNormal, const float &bounce, glm::vec4 &vel);
-// glm::vec4 transform(const glm::vec4 &p, const glm::vec4 &translation, const glm::mat4 &orientation);
-//
-// bool isNormalAdequate(const ArrayInterface<glm::vec4>* verts, const uint32_t &offset, const uint32_t &normalIndex, const glm::vec4 &normal);
-
 template <typename T>
 uint32_t binarySearch(T* begin, T* end, const uint32_t &firstObjIndex);
 template <typename T>
@@ -175,7 +169,7 @@ void CPUSolverParallel::calculateData() {
 
       bool col = false;
       float dist = 100000.0f;
-      glm::vec4 mtv = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+      simd::vec4 mtv = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
       // при вычислении на гпу мы используем распараллеленный SAT
       // здесь он обычный, его можно как нибудь ускорить?
       col = SAT(0.0f, objIndex1, transformIndex1, objIndex2, transformIndex2, mtv, dist);
@@ -188,7 +182,10 @@ void CPUSolverParallel::calculateData() {
         overlappingData->at(index).hasCollision = 0;
         overlappingData->at(index).dummy = UINT32_MAX;
       } else {
-        overlappingData->at(index).vec = glm::vec3(mtv);
+        float arr[4];
+        mtv.store(arr);
+        
+        overlappingData->at(index).vec = glm::vec3(arr[0], arr[1], arr[2]);
         overlappingData->at(index).dist = dist;
 
         // нужно добавить пары, которые либо являются триггерами, либо могут быть триггерами
@@ -326,10 +323,13 @@ void CPUSolverParallel::calculateRayData() {
 
       const uint32_t transformIndex = objects->at(objIndex).transformIndex;
 
-      glm::vec4 point = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+      simd::vec4 point = simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
       const bool col = intersect(rayIndex, objIndex, transformIndex, point);
       //const bool col = true;
 
+      float arr[4];
+      point.store(arr);
+      
       if (col) {
         const uint32_t id = counter.fetch_add(1);
 
@@ -338,8 +338,8 @@ void CPUSolverParallel::calculateRayData() {
         raysData->at(id).hasCollision = uint32_t(col);
         raysData->at(id).dummy = 0;
 
-        raysData->at(id).vec = glm::vec3(point);
-        raysData->at(id).dist = glm::distance2(rays->at(rayIndex).pos, point);
+        raysData->at(id).vec = glm::vec3(arr[0], arr[1], arr[2]);
+        raysData->at(id).dist = simd::distance2(rays->at(rayIndex).pos, point);
       }
     }
   };
@@ -435,7 +435,7 @@ void CPUSolverParallel::solve() {
       const IslandData &island = islandsPtr[i];
 
       // здесь последовательно вычисляем пары в острове
-      glm::vec4 normal;
+      simd::vec4 normal;
 
       for (uint32_t j = 0; j < island.size; ++j) {
         const uint32_t pairIndex = island.offset + j + 1;
@@ -589,51 +589,51 @@ void CPUSolverParallel::printStats() {
   std::cout << "CPU solver" << '\n';
 }
 
-glm::vec4 CPUSolverParallel::getNormalCloseToGravity(const glm::mat4 &orn, const glm::vec4 &gravityNorm) const {
-  float maxVal = glm::dot(orn[0], gravityNorm);
+simd::vec4 CPUSolverParallel::getNormalCloseToGravity(const simd::mat4 &orn, const simd::vec4 &gravityNorm) const {
+  float maxVal = simd::dot(orn[0], gravityNorm);
   uint32_t index = 0;
 
   for (uint32_t i = 1; i < 6; ++i) {
     if (i < 3) {
-      const float tmp = glm::dot(orn[i], gravityNorm);
+      const float tmp = simd::dot(orn[i], gravityNorm);
       maxVal = glm::max(maxVal, tmp);
       index = maxVal == tmp ? i : index;
     } else {
-      const float tmp = glm::dot(-orn[i%3], gravityNorm);
+      const float tmp = simd::dot(-simd::vec4(orn[i%3]), gravityNorm);
       maxVal = glm::max(maxVal, tmp);
       index = maxVal == tmp ? i : index;
     }
   }
 
-  return index < 3 ? orn[index] : -orn[index%3];
+  return index < 3 ? orn[index] : -simd::vec4(orn[index%3]);
 }
 
-glm::vec4 CPUSolverParallel::getNormalCloseToGravity(const glm::mat4 &orn, const uint32_t &offset, const uint32_t &facesCount, const glm::vec4 &gravityNorm, uint32_t &retIndex) const {
-  const glm::vec4 &first = verts->at(offset);
-  float maxVal = glm::dot(orn * glm::vec4(first.x, first.y, first.z, 0.0f), gravityNorm);
+simd::vec4 CPUSolverParallel::getNormalCloseToGravity(const simd::mat4 &orn, const uint32_t &offset, const uint32_t &facesCount, const simd::vec4 &gravityNorm, uint32_t &retIndex) const {
+  const simd::vec4 &first = verts->at(offset);
+  float maxVal = simd::dot(orn * (first * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f)), gravityNorm);
   uint32_t index = offset;
 
   for (uint32_t i = 1; i < facesCount; ++i) {
-    const glm::vec4 &vert = verts->at(offset+i);
-    const float tmp = glm::dot(orn * glm::vec4(vert.x, vert.y, vert.z, 0.0f), gravityNorm);
+    const simd::vec4 &vert = verts->at(offset+i);
+    const float tmp = simd::dot(orn * (vert * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f)), gravityNorm);
     maxVal = glm::max(maxVal, tmp);
     index = maxVal == tmp ? offset+i : index;
   }
 
   retIndex = index;
-  const glm::vec4 &last = verts->at(index);
-  return orn * glm::vec4(last.x, last.y, last.z, 0.0f);
+  const simd::vec4 &last = verts->at(index);
+  return orn * simd::vec4(last.x, last.y, last.z, 0.0f);
 }
 
-void CPUSolverParallel::project(const glm::vec4 &axis, const uint32_t &offset, const uint32_t &size, const glm::vec4 &pos, const glm::mat4 &invOrn, float &minRet, float &maxRet) const {
-  const glm::vec4 &localAxis = invOrn * axis; // по идее это должно работать
-  const float offsetF = glm::dot(pos, axis);
-  const glm::vec4 &first = verts->at(offset);
-  minRet = maxRet = glm::dot(first, localAxis);
+void CPUSolverParallel::project(const simd::vec4 &axis, const uint32_t &offset, const uint32_t &size, const simd::vec4 &pos, const simd::mat4 &invOrn, float &minRet, float &maxRet) const {
+  const simd::vec4 &localAxis = invOrn * axis; // по идее это должно работать
+  const float offsetF = simd::dot(pos, axis);
+  const simd::vec4 &first = verts->at(offset);
+  minRet = maxRet = simd::dot(first, localAxis);
 
   for (uint32_t i = 1; i < size; ++i) {
-    const glm::vec4 &vert = verts->at(offset + i);
-    const float d = glm::dot(vert, localAxis);
+    const simd::vec4 &vert = verts->at(offset + i);
+    const float d = simd::dot(vert, localAxis);
 
     minRet = glm::min(minRet, d);
     maxRet = glm::max(maxRet, d);
@@ -649,29 +649,29 @@ void CPUSolverParallel::project(const glm::vec4 &axis, const uint32_t &offset, c
   maxRet += offsetF;
 }
 
-void CPUSolverParallel::project(const glm::vec4 &axis, const glm::vec4 &pos, const glm::vec4 &ext, const glm::mat4 &orn, float &minRet, float &maxRet) const {
-  const glm::vec4 &localAxis = /*orn **/ axis;
+void CPUSolverParallel::project(const simd::vec4 &axis, const simd::vec4 &pos, const simd::vec4 &ext, const simd::mat4 &orn, float &minRet, float &maxRet) const {
+  const simd::vec4 &localAxis = /*orn **/ axis;
   //const float offsetF = dot(pos, axis);
-  const glm::vec4 &first = getVertex(pos, ext, orn, 0);
-  minRet = maxRet = glm::dot(first, localAxis);
+  const simd::vec4 &first = getVertex(pos, ext, orn, 0);
+  minRet = maxRet = simd::dot(first, localAxis);
 
   for (uint32_t i = 1; i < 8; ++i) {
-    const glm::vec4 &vert = getVertex(pos, ext, orn, i);
-    const float d = glm::dot(vert, localAxis);
+    const simd::vec4 &vert = getVertex(pos, ext, orn, i);
+    const float d = simd::dot(vert, localAxis);
 
     minRet = glm::min(minRet, d);
     maxRet = glm::max(maxRet, d);
   }
 }
 
-void CPUSolverParallel::project(const glm::vec4 &axis, const glm::vec4 &pos, const float &radius, float &minRet, float &maxRet) const {
-  minRet = maxRet = glm::dot(pos, axis);
+void CPUSolverParallel::project(const simd::vec4 &axis, const simd::vec4 &pos, const float &radius, float &minRet, float &maxRet) const {
+  minRet = maxRet = simd::dot(pos, axis);
 
   minRet -= radius;
   maxRet += radius;
 }
 
-// bool overlap(const float &min1, const float &max1, const float &min2, const float &max2, const glm::vec4 &axis, glm::vec4 &mtv, float &dist) {
+// bool overlap(const float &min1, const float &max1, const float &min2, const float &max2, const simd::vec4 &axis, simd::vec4 &mtv, float &dist) {
 //   const float test1 = min1 - max2;
 //   const float test2 = min2 - max1;
 //
@@ -687,32 +687,32 @@ void CPUSolverParallel::project(const glm::vec4 &axis, const glm::vec4 &pos, con
 //   return true;
 // }
 
-// glm::vec4 getBoxBoxFace(const glm::mat4 &orn1, const glm::mat4 &orn2, const uint32_t &index) {
+// simd::vec4 getBoxBoxFace(const simd::mat4 &orn1, const simd::mat4 &orn2, const uint32_t &index) {
 //   // СЧЕТ НАЧИНАЕТСЯ С НУЛЯ (0!!!) СЛЕДОВАТЕЛЬНО 3-ИЙ ВЕКТОР ИМЕЕТ ИНДЕКС 2
 //   // А ЗНАЧИТ ВСЕ ЧТО БОЛЬШЕ 2 (ДВУХ) (А НЕ ТРЕХ) УЖЕ ДРУГАЯ МАТРИЦА
 //   return index > 2 ? orn1[index%3] : orn2[index];
 // }
 
 bool CPUSolverParallel::BoxBoxSAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
-                          const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const {
+                          const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const {
   // тут по идее нужен еще вариант когда у нас в этих индексах стоит 0xFFFFFFFF
   // но думаю этот вариант добавлю позже (нужен он вообще? для него скорее всего придется делать более нормальный солвер)
-  const glm::mat4 &sys1 = systems->at(first.coordinateSystemIndex);
-  const glm::mat4 &sys2 = systems->at(second.coordinateSystemIndex);
+  const simd::mat4 &sys1 = systems->at(first.coordinateSystemIndex);
+  const simd::mat4 &sys2 = systems->at(second.coordinateSystemIndex);
 
   float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
 
-  const glm::vec4 &firstPos  = transforms->at(transFirst).pos;
-  const glm::vec4 &secondPos = transforms->at(transSecond).pos;
+  const simd::vec4 &firstPos  = transforms->at(transFirst).pos;
+  const simd::vec4 &secondPos = transforms->at(transSecond).pos;
 
-  const glm::vec4 &firstExt  = verts->at(first.vertexOffset);
-  const glm::vec4 &secondExt = verts->at(second.vertexOffset);
+  const simd::vec4 &firstExt  = verts->at(first.vertexOffset);
+  const simd::vec4 &secondExt = verts->at(second.vertexOffset);
 
-  const glm::vec4 &delta = firstPos - secondPos;
+  const simd::vec4 &delta = firstPos - secondPos;
 
   for (uint32_t i = 0; i < 3+3; ++i) {
     const uint32_t index = i;
-    const glm::vec4 &axis = getBoxBoxFace(sys1, sys2, index);
+    const simd::vec4 &axis = getBoxBoxFace(sys1, sys2, index);
 
     project(axis, firstPos,  firstExt,  sys1,  minFirst,  maxFirst);
     project(axis, secondPos, secondExt, sys2, minSecond, maxSecond);
@@ -720,32 +720,32 @@ bool CPUSolverParallel::BoxBoxSAT(const float &treshold, const Object &first,  c
     if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
   }
 
-  if (glm::dot(-delta, mtv) > 0.0f) mtv = -mtv;
+  if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
 
   return true;
 }
 
-// glm::vec4 getBoxSphereFace(const glm::mat4 &orn, const glm::vec4 &pos1, const glm::vec4 &pos2, const uint32_t &index) {
+// simd::vec4 getBoxSphereFace(const simd::mat4 &orn, const simd::vec4 &pos1, const simd::vec4 &pos2, const uint32_t &index) {
 //   return index > 0 ? orn[index%3] : glm::normalize(pos2 - pos1);
 // }
 
 bool CPUSolverParallel::BoxSphereSAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
-                                     const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const {
+                                     const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const {
   (void)second;
-  const glm::mat4 &sys = systems->at(first.coordinateSystemIndex);
+  const simd::mat4 &sys = systems->at(first.coordinateSystemIndex);
   float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
 
-  const glm::vec4 &firstPos  = transforms->at(transFirst).pos;
-  const glm::vec4 &secondPos = glm::vec4(transforms->at(transSecond).pos.x, transforms->at(transSecond).pos.y, transforms->at(transSecond).pos.z, 1.0f);
+  const simd::vec4 &firstPos  = transforms->at(transFirst).pos;
+  const simd::vec4 &secondPos = simd::vec4(transforms->at(transSecond).pos.x, transforms->at(transSecond).pos.y, transforms->at(transSecond).pos.z, 1.0f);
 
-  const glm::vec4 &firstExt  = verts->at(first.vertexOffset);
+  const simd::vec4 &firstExt  = verts->at(first.vertexOffset);
   const float radius = transforms->at(transSecond).pos.w;
 
-  const glm::vec4 &delta = firstPos - secondPos;
+  const simd::vec4 &delta = firstPos - secondPos;
 
   for (uint32_t i = 0; i < 3+1; ++i) {
     const uint32_t index = i;
-    const glm::vec4 &axis = getBoxSphereFace(sys, firstPos, secondPos, index);
+    const simd::vec4 &axis = getBoxSphereFace(sys, firstPos, secondPos, index);
 
     project(axis, firstPos,  firstExt,  sys,  minFirst,  maxFirst);
     project(axis, secondPos, radius, minSecond, maxSecond);
@@ -753,48 +753,48 @@ bool CPUSolverParallel::BoxSphereSAT(const float &treshold, const Object &first,
     if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
   }
 
-  if (glm::dot(-delta, mtv) > 0.0f) mtv = -mtv;
+  if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
 
   return true;
 }
 
 // нужно или не нужно нормализовывать?
-// glm::vec4 getBoxPolyFace(const ArrayInterface<glm::vec4>* verts, const uint32_t &face, const uint32_t &faceSize, const glm::mat4 &polyOrn, const glm::mat4 &orn, const uint32_t &index) {
-//   const glm::vec4 &polyNormal = verts->at(face+(index%faceSize));
-//   return index > 2 ? polyOrn * glm::vec4(polyNormal.x, polyNormal.y, polyNormal.z, 0.0f) : orn[index];
+// simd::vec4 getBoxPolyFace(const ArrayInterface<simd::vec4>* verts, const uint32_t &face, const uint32_t &faceSize, const simd::mat4 &polyOrn, const simd::mat4 &orn, const uint32_t &index) {
+//   const simd::vec4 &polyNormal = verts->at(face+(index%faceSize));
+//   return index > 2 ? polyOrn * simd::vec4(polyNormal.x, polyNormal.y, polyNormal.z, 0.0f) : orn[index];
 // }
 
 bool CPUSolverParallel::BoxPolySAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
-                           const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const {
+                           const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const {
   float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
 
   // first = box always
 
-  const glm::mat4 &sys = systems->at(first.coordinateSystemIndex);
+  const simd::mat4 &sys = systems->at(first.coordinateSystemIndex);
 
-  const glm::vec4 &firstPos  = transforms->at(transFirst).pos;
-  const glm::vec4 &secondPos = transSecond != UINT32_MAX ? transforms->at(transSecond).pos : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+  const simd::vec4 &firstPos  = transforms->at(transFirst).pos;
+  const simd::vec4 &secondPos = transSecond != UINT32_MAX ? transforms->at(transSecond).pos : simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
 
-  const glm::vec4 &firstExt  = verts->at(first.vertexOffset);
+  const simd::vec4 &firstExt  = verts->at(first.vertexOffset);
 
   const uint32_t vert     = second.vertexOffset;
   const uint32_t vertSize = second.vertexCount;
   const uint32_t face     = vert + vertSize + 1;
   const uint32_t faceSize = second.faceCount;
 
-  const glm::mat4 &orn = second.rotationDataIndex == UINT32_MAX ?
+  const simd::mat4 &orn = second.rotationDataIndex == UINT32_MAX ?
                           systems->at(second.coordinateSystemIndex) :
                           rotationDatas->at(second.rotationDataIndex).matrix * systems->at(second.coordinateSystemIndex);
-  const glm::mat4 &invOrn = glm::inverse(orn);
+  const simd::mat4 &invOrn = simd::inverse(orn);
 
-  glm::vec4 &localCenter = verts->at(vert + vertSize);
+  simd::vec4 &localCenter = verts->at(vert + vertSize);
   localCenter = transform(localCenter, secondPos, orn);
 
-  const glm::vec4 &delta = firstPos - localCenter;
+  const simd::vec4 &delta = firstPos - localCenter;
 
   for (uint32_t i = 0; i < faceSize+3; ++i) {
     const uint32_t index = i;
-    const glm::vec4 &axis = getBoxPolyFace(verts, face, faceSize, orn, sys, index);
+    const simd::vec4 &axis = getBoxPolyFace(verts, face, faceSize, orn, sys, index);
 
     project(axis, firstPos,  firstExt,  sys,  minFirst,  maxFirst);
     project(axis, vert, vertSize, secondPos, invOrn,  minSecond, maxSecond);
@@ -802,52 +802,52 @@ bool CPUSolverParallel::BoxPolySAT(const float &treshold, const Object &first,  
     if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
   }
 
-  if (glm::dot(-delta, mtv) > 0.0f) mtv = -mtv;
+  if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
 
   return true;
 }
 
 bool CPUSolverParallel::SphereSphereSAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
-                                        const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const {
+                                        const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const {
   (void)first;
   (void)second;
   float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
 
-  const glm::vec4 &tmpPos1 = transforms->at(transFirst).pos;
-  const glm::vec4 &firstPos = glm::vec4(tmpPos1.x, tmpPos1.y, tmpPos1.z, 1.0f);
+  const simd::vec4 &tmpPos1 = transforms->at(transFirst).pos;
+  const simd::vec4 &firstPos = simd::vec4(tmpPos1.x, tmpPos1.y, tmpPos1.z, 1.0f);
   const float firstRadius = transforms->at(transFirst).pos.w;
 
-  const glm::vec4 &tmpPos2 = transforms->at(transFirst).pos;
-  const glm::vec4 &secondPos = glm::vec4(tmpPos2.x, tmpPos2.y, tmpPos2.z, 1.0f);
+  const simd::vec4 &tmpPos2 = transforms->at(transFirst).pos;
+  const simd::vec4 &secondPos = simd::vec4(tmpPos2.x, tmpPos2.y, tmpPos2.z, 1.0f);
   const float secondRadius = transforms->at(transSecond).pos.w;
 
-  const glm::vec4 &axis = glm::normalize(secondPos - firstPos);
+  const simd::vec4 &axis = simd::normalize(secondPos - firstPos);
 
-  const glm::vec4 &delta = firstPos - secondPos;
+  const simd::vec4 &delta = firstPos - secondPos;
 
   project(axis, firstPos, firstRadius, minSecond, maxSecond);
   project(axis, secondPos, secondRadius, minSecond, maxSecond);
 
   if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
 
-  if (glm::dot(-delta, mtv) > 0.0f) mtv = -mtv;
+  if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
 
   return true;
 }
 
-// glm::vec4 getPolySphereFace(const ArrayInterface<glm::vec4>* verts, const uint32_t &face, const uint32_t &faceSize, const glm::mat4 &ornFirst, const glm::vec4 &pos1, const glm::vec4 &pos2, const uint32_t &index) {
-//   const glm::vec4 &polyNormal = verts->at(face+(index%faceSize));
-//   return index > 0 ? ornFirst * glm::vec4(polyNormal.x, polyNormal.y, polyNormal.z, 0.0f) : glm::normalize(pos2 - pos1);
+// simd::vec4 getPolySphereFace(const ArrayInterface<simd::vec4>* verts, const uint32_t &face, const uint32_t &faceSize, const simd::mat4 &ornFirst, const simd::vec4 &pos1, const simd::vec4 &pos2, const uint32_t &index) {
+//   const simd::vec4 &polyNormal = verts->at(face+(index%faceSize));
+//   return index > 0 ? ornFirst * simd::vec4(polyNormal.x, polyNormal.y, polyNormal.z, 0.0f) : glm::normalize(pos2 - pos1);
 // }
 
 bool CPUSolverParallel::PolySphereSAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
-                                      const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const {
+                                      const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const {
   (void)second;
   float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
 
-  const glm::vec4 &firstPos = transFirst != UINT32_MAX ? transforms->at(transFirst).pos : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-  const glm::vec4 &tmpPos = transforms->at(transSecond).pos;
-  const glm::vec4 &secondPos = glm::vec4(tmpPos.x, tmpPos.y, tmpPos.z, 1.0f);
+  const simd::vec4 &firstPos = transFirst != UINT32_MAX ? transforms->at(transFirst).pos : simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+  const simd::vec4 &tmpPos = transforms->at(transSecond).pos;
+  const simd::vec4 &secondPos = simd::vec4(tmpPos.x, tmpPos.y, tmpPos.z, 1.0f);
 
   const float secondRadius = transforms->at(transSecond).pos.w;
 
@@ -856,18 +856,18 @@ bool CPUSolverParallel::PolySphereSAT(const float &treshold, const Object &first
   const uint32_t face     = vert + vertSize + 1;
   const uint32_t faceSize = first.faceCount;
 
-  const glm::mat4 &ornFirst = first.rotationDataIndex == UINT32_MAX ?
+  const simd::mat4 &ornFirst = first.rotationDataIndex == UINT32_MAX ?
                                 systems->at(first.coordinateSystemIndex) :
                                 rotationDatas->at(first.rotationDataIndex).matrix * systems->at(first.coordinateSystemIndex);
-  const glm::mat4 &invOrn = glm::inverse(ornFirst);
+  const simd::mat4 &invOrn = simd::inverse(ornFirst);
 
-  glm::vec4 &localCenter = verts->at(vert + vertSize);
+  simd::vec4 &localCenter = verts->at(vert + vertSize);
   localCenter = transform(localCenter, firstPos, ornFirst);
-  const glm::vec4 &delta = localCenter - secondPos;
+  const simd::vec4 &delta = localCenter - secondPos;
 
   for (uint32_t i = 0; i < faceSize+1; ++i) {
     const uint32_t index = i;
-    const glm::vec4 &axis = getPolySphereFace(verts, face, faceSize, ornFirst, firstPos, secondPos, index);
+    const simd::vec4 &axis = getPolySphereFace(verts, face, faceSize, ornFirst, firstPos, secondPos, index);
 
     project(axis, vert, vertSize, firstPos, invOrn, minSecond, maxSecond);
     project(axis, secondPos, secondRadius, minSecond, maxSecond);
@@ -875,29 +875,29 @@ bool CPUSolverParallel::PolySphereSAT(const float &treshold, const Object &first
     if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
   }
 
-  if (glm::dot(-delta, mtv) > 0.0f) mtv = -mtv;
+  if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
 
   return true;
 }
 
-// glm::vec4 getPolyPolyFace(const ArrayInterface<glm::vec4>* verts,
-//                           const uint32_t &firstFace,  const uint32_t &firstFaceSize,  const glm::mat4 &firstOrn,
-//                           const uint32_t &secondFace, const uint32_t &secondFaceSize, const glm::mat4 &secondOrn,
+// simd::vec4 getPolyPolyFace(const ArrayInterface<simd::vec4>* verts,
+//                           const uint32_t &firstFace,  const uint32_t &firstFaceSize,  const simd::mat4 &firstOrn,
+//                           const uint32_t &secondFace, const uint32_t &secondFaceSize, const simd::mat4 &secondOrn,
 //                           const uint32_t &index) {
-//   const glm::vec4 &polyNormal1 = verts->at(firstFace+index);
-//   const glm::vec4 &polyNormal2 = verts->at(secondFace+(index%secondFaceSize));
+//   const simd::vec4 &polyNormal1 = verts->at(firstFace+index);
+//   const simd::vec4 &polyNormal2 = verts->at(secondFace+(index%secondFaceSize));
 //
 //   return index < firstFaceSize ?
-//            firstOrn  * glm::vec4(polyNormal1.x, polyNormal1.y, polyNormal1.z, 0.0f) :
-//            secondOrn * glm::vec4(polyNormal2.x, polyNormal2.y, polyNormal2.z, 0.0f);
+//            firstOrn  * simd::vec4(polyNormal1.x, polyNormal1.y, polyNormal1.z, 0.0f) :
+//            secondOrn * simd::vec4(polyNormal2.x, polyNormal2.y, polyNormal2.z, 0.0f);
 // }
 
 bool CPUSolverParallel::PolyPolySAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
-                            const Object &second, const uint32_t &transSecond, glm::vec4 &mtv, float &dist) const {
+                            const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const {
   float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
 
-  const glm::vec4 &firstPos  = transFirst  != UINT32_MAX ? transforms->at(transFirst).pos  : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-  const glm::vec4 &secondPos = transSecond != UINT32_MAX ? transforms->at(transSecond).pos : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+  const simd::vec4 &firstPos  = transFirst  != UINT32_MAX ? transforms->at(transFirst).pos  : simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+  const simd::vec4 &secondPos = transSecond != UINT32_MAX ? transforms->at(transSecond).pos : simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
 
   const uint32_t firstVert     = first.vertexOffset;
   const uint32_t firstVertSize = first.vertexCount;
@@ -909,23 +909,23 @@ bool CPUSolverParallel::PolyPolySAT(const float &treshold, const Object &first, 
   const uint32_t secondFace     = secondVert + secondVertSize + 1;
   const uint32_t secondFaceSize = second.faceCount;
 
-  const glm::mat4 &ornFirst = first.rotationDataIndex == UINT32_MAX ?
+  const simd::mat4 &ornFirst = first.rotationDataIndex == UINT32_MAX ?
                                 systems->at(first.coordinateSystemIndex) :
                                 rotationDatas->at(first.rotationDataIndex).matrix * systems->at(first.coordinateSystemIndex);
-  const glm::mat4 &invOrnFirst = glm::inverse(ornFirst);
+  const simd::mat4 &invOrnFirst = simd::inverse(ornFirst);
 
-  const glm::mat4 &ornSecond = second.rotationDataIndex == UINT32_MAX ?
+  const simd::mat4 &ornSecond = second.rotationDataIndex == UINT32_MAX ?
                                 systems->at(second.coordinateSystemIndex) :
                                 rotationDatas->at(second.rotationDataIndex).matrix * systems->at(second.coordinateSystemIndex);
-  const glm::mat4 &invOrnSecond = glm::inverse(ornSecond);
+  const simd::mat4 &invOrnSecond = simd::inverse(ornSecond);
 
-  glm::vec4 &localCenter1 = verts->at(firstVert + firstVertSize);
+  simd::vec4 &localCenter1 = verts->at(firstVert + firstVertSize);
   localCenter1 = transform(localCenter1, firstPos, ornFirst);
 
-  glm::vec4 &localCenter2 = verts->at(secondVert + secondVertSize);
+  simd::vec4 &localCenter2 = verts->at(secondVert + secondVertSize);
   localCenter2 = transform(localCenter2, firstPos, ornSecond);
 
-  const glm::vec4 &delta = localCenter1 - localCenter2;
+  const simd::vec4 &delta = localCenter1 - localCenter2;
 
   // нужно ли нормализовать полученные нормали?
   // мы аж 2 операции проводим, вряд ли вектора остаются нормализованными после этого
@@ -937,7 +937,7 @@ bool CPUSolverParallel::PolyPolySAT(const float &treshold, const Object &first, 
 
   for (uint32_t i = 0; i < firstFaceSize+secondFaceSize; ++i) {
     const uint32_t index = i;
-    const glm::vec4 &axis = getPolyPolyFace(verts, firstFace, firstFaceSize, ornFirst, secondFace, secondFaceSize, ornSecond, index);
+    const simd::vec4 &axis = getPolyPolyFace(verts, firstFace, firstFaceSize, ornFirst, secondFace, secondFaceSize, ornSecond, index);
 
     project(axis, firstVert, firstVertSize, firstPos, invOrnFirst, minSecond, maxSecond);
     project(axis, secondVert, secondVertSize, secondPos, invOrnSecond, minSecond, maxSecond);
@@ -945,7 +945,7 @@ bool CPUSolverParallel::PolyPolySAT(const float &treshold, const Object &first, 
     if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
   }
 
-  if (glm::dot(-delta, mtv) > 0.0f) mtv = -mtv;
+  if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
 
   return true;
 }
@@ -955,7 +955,7 @@ bool CPUSolverParallel::PolyPolySAT(const float &treshold, const Object &first, 
 // но тут по прежнему много всякой фигни (например инверсы)
 // могут ли эти функции быть еще быстрее? хотя на момент 13.11.2018 я еще не замерял
 bool CPUSolverParallel::SAT(const float &treshold, const uint32_t &objectIndexFirst,  const uint32_t &transformIndexFirst,
-                    const uint32_t &objectIndexSecond, const uint32_t &transformIndexSecond, glm::vec4 &mtv, float &dist) const {
+                    const uint32_t &objectIndexSecond, const uint32_t &transformIndexSecond, simd::vec4 &mtv, float &dist) const {
   const Object &first = objects->at(objectIndexFirst);
   const Object &second = objects->at(objectIndexSecond);
   bool col;
@@ -1010,7 +1010,7 @@ bool CPUSolverParallel::SAT(const float &treshold, const uint32_t &objectIndexFi
 }
 
 float CPUSolverParallel::SATOneAxis(const uint32_t &objectIndexFirst,  const uint32_t &transformIndexFirst,
-                            const uint32_t &objectIndexSecond, const uint32_t &transformIndexSecond, const glm::vec4 &axis) const {
+                            const uint32_t &objectIndexSecond, const uint32_t &transformIndexSecond, const simd::vec4 &axis) const {
   float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
   const Object &first = objects->at(objectIndexFirst);
   const Object &second = objects->at(objectIndexSecond);
@@ -1021,21 +1021,25 @@ float CPUSolverParallel::SATOneAxis(const uint32_t &objectIndexFirst,  const uin
     }
     break;
     case SPHERE_TYPE: {
-      const glm::vec4 &tmpPos1 = transforms->at(transformIndexFirst).pos;
-      const glm::vec4 pos = glm::vec4(tmpPos1.x, tmpPos1.y, tmpPos1.z, 1.0f);
-      const float radius = tmpPos1.w;
+      const simd::vec4 &tmpPos1 = transforms->at(transformIndexFirst).pos;
+      float arr[4];
+      tmpPos1.store(arr);
+      
+      const simd::vec4 pos = simd::vec4(arr[0], arr[1], arr[2], 1.0f);
+      const float radius = arr[3];
+      
       project(axis, pos, radius, minFirst, maxFirst);
     }
     break;
     case POLYGON_TYPE: {
-      const glm::vec4 &pos = transformIndexFirst == UINT32_MAX ? glm::vec4(0.0f, 0.0f, 0.0f, 1.0f) : transforms->at(transformIndexFirst).pos;
+      const simd::vec4 &pos = transformIndexFirst == UINT32_MAX ? simd::vec4(0.0f, 0.0f, 0.0f, 1.0f) : transforms->at(transformIndexFirst).pos;
       const uint32_t vert1     = first.vertexOffset;
       const uint32_t vertSize1 = first.vertexCount;
-      glm::mat4 orn1 = first.rotationDataIndex == UINT32_MAX ?
+      simd::mat4 orn1 = first.rotationDataIndex == UINT32_MAX ?
                          systems->at(first.coordinateSystemIndex) :
                          rotationDatas->at(first.rotationDataIndex).matrix * systems->at(first.coordinateSystemIndex);
 
-      orn1 = glm::inverse(orn1);
+      orn1 = simd::inverse(orn1);
 
       project(axis, vert1, vertSize1, pos, orn1, minFirst, maxFirst);
     }
@@ -1047,21 +1051,25 @@ float CPUSolverParallel::SATOneAxis(const uint32_t &objectIndexFirst,  const uin
       project(axis, transforms->at(transformIndexSecond).pos, verts->at(second.vertexOffset), systems->at(second.coordinateSystemIndex), minSecond, maxSecond);
     break;
     case SPHERE_TYPE: {
-      const glm::vec4 &tmpPos2 = transforms->at(transformIndexSecond).pos;
-      const glm::vec4 pos = glm::vec4(tmpPos2.x, tmpPos2.y, tmpPos2.z, 1.0f);
-      const float radius = tmpPos2.w;
+      const simd::vec4 &tmpPos2 = transforms->at(transformIndexSecond).pos;
+      float arr[4];
+      tmpPos2.store(arr);
+      
+      const simd::vec4 pos = simd::vec4(arr[0], arr[1], arr[2], 1.0f);
+      const float radius = arr[3];
+      
       project(axis, pos, radius, minSecond, maxSecond);
     }
     break;
     case POLYGON_TYPE: {
-      const glm::vec4 &pos = transformIndexSecond == UINT32_MAX ? glm::vec4(0.0f, 0.0f, 0.0f, 1.0f) : transforms->at(transformIndexSecond).pos;
+      const simd::vec4 &pos = transformIndexSecond == UINT32_MAX ? simd::vec4(0.0f, 0.0f, 0.0f, 1.0f) : transforms->at(transformIndexSecond).pos;
       const uint32_t vert2     = second.vertexOffset;
       const uint32_t vertSize2 = second.vertexCount;
-      glm::mat4 orn2 = second.rotationDataIndex == UINT32_MAX ?
+      simd::mat4 orn2 = second.rotationDataIndex == UINT32_MAX ?
                          systems->at(second.coordinateSystemIndex) :
                          rotationDatas->at(second.rotationDataIndex).matrix * systems->at(second.coordinateSystemIndex);
 
-      orn2 = glm::inverse(orn2);
+      orn2 = simd::inverse(orn2);
 
       project(axis, vert2, vertSize2, pos, orn2, minSecond, maxSecond);
     }
@@ -1095,7 +1103,7 @@ void CPUSolverParallel::computePair(const BroadphasePair& pair) {
 
   bool col = false;
   float dist = 100000.0f;
-  glm::vec4 mtv = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+  simd::vec4 mtv = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
   // при вычислении на гпу мы используем распараллеленный SAT
   // здесь он обычный, его можно как нибудь ускорить?
   //const float newThreshold = (1.0f / float(iterationCount)) * threshold;
@@ -1118,14 +1126,14 @@ void CPUSolverParallel::computePair(const BroadphasePair& pair) {
   data.mtvDist.z = mtv.z;
   data.mtvDist.w = dist;//glm::max(dist - threshold, 0.0f);
 
-  glm::vec4 objCenter[2] = {glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)};
+  simd::vec4 objCenter[2] = {simd::vec4(0.0f, 0.0f, 0.0f, 0.0f), simd::vec4(0.0f, 0.0f, 0.0f, 0.0f)};
 
   // начинаем поиск ступеньки
   const uint32_t taskCount = 2;
   for (uint32_t i = 0; i < taskCount; ++i) {
     const uint32_t index = i;
 
-    glm::vec4 normal = gravity->data()->gravityNormal;
+    simd::vec4 normal = gravity->data()->gravityNormal;
 
     // мне нужно взять нормаль ДРУГОГО объекта
     const uint32_t objType = objects->at(objIndex[1-index]).objType.getObjType();
@@ -1140,21 +1148,22 @@ void CPUSolverParallel::computePair(const BroadphasePair& pair) {
 
       const uint32_t systemIndex = objects->at(objIndex[1-index]).coordinateSystemIndex;
       const uint32_t rotationDataIndex = objects->at(objIndex[1-index]).rotationDataIndex;
-      const glm::mat4 &orn = rotationDataIndex == UINT32_MAX ? systems->at(systemIndex) : rotationDatas->at(rotationDataIndex).matrix * systems->at(systemIndex);
+      const simd::mat4 &orn = rotationDataIndex == UINT32_MAX ? systems->at(systemIndex) : rotationDatas->at(rotationDataIndex).matrix * systems->at(systemIndex);
 
       if (objects->at(objIndex[1-index]).vertexCount + 1 == facesSize) {
-        const glm::vec4 &tmp = verts->at(facesOffset);
-        normal = orn * glm::vec4(tmp.x, tmp.y, tmp.z, 0.0f);
+        const simd::vec4 &tmp = verts->at(facesOffset) * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f);
+        normal = orn * tmp;
       } else {
         uint32_t normalIndex;
         normal = getNormalCloseToGravity(orn, facesOffset, facesSize, -gravity->data()->gravityNormal, normalIndex);
       }
 
       const uint32_t localCenter = objects->at(objIndex[1-index]).vertexOffset + objects->at(objIndex[1-index]).vertexCount;
-      const glm::vec4 dir = transformIndex[1-index] == UINT32_MAX ? glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) : transforms->at(transformIndex[1-index]).pos;
+      const simd::vec4 dir = transformIndex[1-index] == UINT32_MAX ? simd::vec4(0.0f, 0.0f, 0.0f, 0.0f) : transforms->at(transformIndex[1-index]).pos * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f);
+      
       objCenter[index] = transform(verts->at(localCenter), dir, orn);
     } else {
-      objCenter[index] = transforms->at(transformIndex[1-index]).pos;
+      objCenter[index] = transforms->at(transformIndex[1-index]).pos * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f) + simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
     }
 
     data.normals[index] = normal;
@@ -1173,14 +1182,14 @@ void CPUSolverParallel::computePair(const BroadphasePair& pair) {
   }
 
   // исправляем знак (я в принципе делаю тоже самое и в САТ'е)
-  data.stairsMoves[0] = uint32_t(bool(data.stairsMoves[0]) && glm::dot(objCenter[1] - objCenter[0], data.normals[0]) > 0.0f);
-  data.stairsMoves[1] = uint32_t(bool(data.stairsMoves[1]) && glm::dot(objCenter[0] - objCenter[1], data.normals[1]) > 0.0f);
+  data.stairsMoves[0] = uint32_t(bool(data.stairsMoves[0]) && simd::dot(objCenter[1] - objCenter[0], data.normals[0]) > 0.0f);
+  data.stairsMoves[1] = uint32_t(bool(data.stairsMoves[1]) && simd::dot(objCenter[0] - objCenter[1], data.normals[1]) > 0.0f);
 
-  const glm::vec4 &vel1 = physDataIndex[0] == 0xFFFFFFFF ? glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) : velocities->at(physDataIndex[0]);
-  const glm::vec4 &vel2 = physDataIndex[1] == 0xFFFFFFFF ? glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) : velocities->at(physDataIndex[1]);
+  const simd::vec4 &vel1 = physDataIndex[0] == 0xFFFFFFFF ? simd::vec4(0.0f, 0.0f, 0.0f, 0.0f) : velocities->at(physDataIndex[0]);
+  const simd::vec4 &vel2 = physDataIndex[1] == 0xFFFFFFFF ? simd::vec4(0.0f, 0.0f, 0.0f, 0.0f) : velocities->at(physDataIndex[1]);
 
-  const bool moves1 = glm::dot(vel1, vel1) > 0.0f;
-  const bool moves2 = glm::dot(vel2, vel2) > 0.0f;
+  const bool moves1 = simd::dot(vel1, vel1) > 0.0f;
+  const bool moves2 = simd::dot(vel2, vel2) > 0.0f;
 
   data.stairsMoves[2] = uint32_t(objects->at(objIndex[0]).objType.isDynamic() && moves1);
   data.stairsMoves[3] = uint32_t(objects->at(objIndex[1]).objType.isDynamic() && moves2);
@@ -1188,7 +1197,7 @@ void CPUSolverParallel::computePair(const BroadphasePair& pair) {
   applyChanges(data);
 }
 
-void CPUSolverParallel::computePairWithGround(const BroadphasePair &pair, const glm::vec4 &normal) {
+void CPUSolverParallel::computePairWithGround(const BroadphasePair &pair, const simd::vec4 &normal) {
   const uint32_t objIndex[2] = {pair.firstIndex, pair.secondIndex};
 
   const uint32_t staticPhysDataIndex[2] = {objects->at(objIndex[0]).staticPhysicDataIndex, objects->at(objIndex[1]).staticPhysicDataIndex};
@@ -1202,7 +1211,7 @@ void CPUSolverParallel::computePairWithGround(const BroadphasePair &pair, const 
 
   bool col = false;
   float dist = 100000.0f;
-  glm::vec4 mtv = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+  simd::vec4 mtv = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
   // при вычислении на гпу мы используем распараллеленный SAT
   // здесь он обычный, его можно как нибудь ускорить?
   //const float newThreshold = (1.0f / float(iterationCount)) * threshold;
@@ -1226,17 +1235,17 @@ void CPUSolverParallel::computePairWithGround(const BroadphasePair &pair, const 
   data.mtvDist.z = mtv.z;
   data.mtvDist.w = dist;//glm::max(dist - threshold, 0.0f);
 
-//   glm::vec4 objCenter = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+//   simd::vec4 objCenter = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 //   const uint32_t objType = objects->at(objIndex[0]).objType.getObjType();
 //     if (objType == BBOX_TYPE) {
 //       objCenter = transforms->at(transformIndex[0]).pos;
 //     } else if (objType == POLYGON_TYPE) {
 //       const uint32_t systemIndex = objects->at(objIndex[0]).coordinateSystemIndex;
 //       const uint32_t rotationDataIndex = objects->at(objIndex[0]).rotationDataIndex;
-//       const glm::mat4 &orn = rotationDataIndex == UINT32_MAX ? systems->at(systemIndex) : rotationDatas->at(rotationDataIndex).matrix * systems->at(systemIndex);
+//       const simd::mat4 &orn = rotationDataIndex == UINT32_MAX ? systems->at(systemIndex) : rotationDatas->at(rotationDataIndex).matrix * systems->at(systemIndex);
 //
 //       const uint32_t localCenter = objects->at(objIndex[0]).vertexOffset + objects->at(objIndex[0]).vertexCount;
-//       const glm::vec4 dir = transformIndex[0] == UINT32_MAX ? glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) : glm::vec4(glm::vec3(transforms->at(transformIndex[0]).pos), 0.0f);
+//       const simd::vec4 dir = transformIndex[0] == UINT32_MAX ? simd::vec4(0.0f, 0.0f, 0.0f, 0.0f) : simd::vec4(glm::vec3(transforms->at(transformIndex[0]).pos), 0.0f);
 //       objCenter = transform(verts->at(localCenter), dir, orn);
 //     } else {
 //       objCenter = transforms->at(transformIndex[0]).pos;
@@ -1268,11 +1277,11 @@ void CPUSolverParallel::computePairWithGround(const BroadphasePair &pair, const 
 //   std::cout << "data.satAngleStair[index+2] " << data.satAngleStair[2] << "\n";
 //   std::cout << "data.stairsMoves[index] " << data.stairsMoves[0] << "\n";
 
-//   const glm::vec4 &pos1 = transformIndex[0] == UINT32_MAX ? glm::vec4(0.0f, 0.0f, 0.0f, 1.0f) : transforms->at(transformIndex[0]).pos;
-//   const glm::vec4 &pos2 = transformIndex[1] == UINT32_MAX ? glm::vec4(0.0f, 0.0f, 0.0f, 1.0f) : transforms->at(transformIndex[1]).pos;
+//   const simd::vec4 &pos1 = transformIndex[0] == UINT32_MAX ? simd::vec4(0.0f, 0.0f, 0.0f, 1.0f) : transforms->at(transformIndex[0]).pos;
+//   const simd::vec4 &pos2 = transformIndex[1] == UINT32_MAX ? simd::vec4(0.0f, 0.0f, 0.0f, 1.0f) : transforms->at(transformIndex[1]).pos;
 //
-//   const bool moves1 = glm::dot(pos2 - pos1, (physDataIndex[0] == 0xFFFFFFFF ? glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) : velocities->at(physDataIndex[0]))) > 0.0f;
-//   const bool moves2 = glm::dot(pos1 - pos2, (physDataIndex[1] == 0xFFFFFFFF ? glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) : velocities->at(physDataIndex[1]))) > 0.0f;
+//   const bool moves1 = glm::dot(pos2 - pos1, (physDataIndex[0] == 0xFFFFFFFF ? simd::vec4(0.0f, 0.0f, 0.0f, 0.0f) : velocities->at(physDataIndex[0]))) > 0.0f;
+//   const bool moves2 = glm::dot(pos1 - pos2, (physDataIndex[1] == 0xFFFFFFFF ? simd::vec4(0.0f, 0.0f, 0.0f, 0.0f) : velocities->at(physDataIndex[1]))) > 0.0f;
 
   data.stairsMoves[2] = uint32_t(objects->at(objIndex[0]).objType.isDynamic());// && moves1);
   data.stairsMoves[3] = uint32_t(objects->at(objIndex[1]).objType.isDynamic());// && moves2);
@@ -1326,8 +1335,8 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
     const bool objStair2 = (objIndex[1] == index) && wasOnGround[1] && bool(data.stairsMoves.y);
 
     if (objStair1) {
-      const glm::vec4 &mtvDist = data.mtvDist;
-      const glm::vec4 &mtv = glm::vec4(mtvDist.x, mtvDist.y, mtvDist.z, 0.0f);
+      const simd::vec4 &mtvDist = data.mtvDist * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f);
+      const simd::vec4 &mtv = mtvDist;
       transforms->at(transformIndex[0]).pos += data.normals[0]*data.satAngleStair.z - mtv*0.01f;
 
       objects->at(objIndex[0]).groundObjIndex = objIndex[1];
@@ -1336,8 +1345,8 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
     }
 
     if (objStair2) {
-      const glm::vec4 &mtvDist = data.mtvDist;
-      const glm::vec4 &mtv = glm::vec4(mtvDist.x, mtvDist.y, mtvDist.z, 0.0f);
+      const simd::vec4 &mtvDist = data.mtvDist * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f);
+      const simd::vec4 &mtv = mtvDist;
       transforms->at(transformIndex[1]).pos += data.normals[1]*data.satAngleStair.w + mtv*0.01f;
 
       objects->at(objIndex[1]).groundObjIndex = objIndex[0];
@@ -1375,8 +1384,8 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
 
   const float bounce = glm::min(staticPhysDatas->at(staticPhysDataIndex[0]).overbounce, staticPhysDatas->at(staticPhysDataIndex[1]).overbounce);
   if (bool(data.stairsMoves.z)) {
-    const glm::vec4 &mtvDist = data.mtvDist;
-    const glm::vec4 &mtv = glm::vec4(mtvDist.x, mtvDist.y, mtvDist.z, 0.0f);
+    const simd::vec4 &mtvDist = data.mtvDist * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f);
+    const simd::vec4 &mtv = mtvDist;
     transforms->at(transformIndex[0]).pos += mtv * move;
 
 //     if (transforms->at(transformIndex[0]).pos.x != transforms->at(transformIndex[0]).pos.x) {
@@ -1386,28 +1395,32 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
 //       const uint32_t dataCount = objects->at(objIndex[1]).vertexCount + objects->at(objIndex[1]).faceCount + 1;
 //
 //       for (uint32_t i = vertexOffset; i < vertexOffset + dataCount; ++i) {
-//         const glm::vec4 vec = verts->at(i);
+//         const simd::vec4 vec = verts->at(i);
 //         std::cout << "x: " << vec.x << " y: " << vec.y << " z: " << vec.z << " w: " << vec.w << "\n";
 //       }
 //
 //       throw std::runtime_error("NAN");
 //     }
-
-    glm::vec4 vel1 = glm::vec4(datas->at(physDataIndex[0]).velocity, 0.0f);
-    glm::vec4 vel1Global = velocities->at(physDataIndex[0]);
+    
+    const glm::vec3 &vel = datas->at(physDataIndex[0]).velocity;
+    simd::vec4 vel1 = simd::vec4(vel.x, vel.y, vel.z, 0.0f);
+    simd::vec4 vel1Global = velocities->at(physDataIndex[0]);
 
     clipVelocity( mtv, bounce, vel1);
     clipVelocity( mtv, bounce, vel1Global);
+    
+    float arr[4];
+    vel1.store(arr);
 
-    datas->at(physDataIndex[0]).velocity = glm::vec3(vel1.x, vel1.y, vel1.z);// + glm::vec3((mtv * move) / dt);
+    datas->at(physDataIndex[0]).velocity = glm::vec3(arr[0], arr[1], arr[2]);// + glm::vec3((mtv * move) / dt);
     velocities->at(physDataIndex[0]) = vel1Global;// + (mtv * move) / dt;
 
     //lastVelocities[physDataIndex[0]] = (mtv * move) / dt;
   }
 
   if (bool(data.stairsMoves.w)) {
-    const glm::vec4 &mtvDist = data.mtvDist;
-    const glm::vec4 &mtv = glm::vec4(mtvDist.x, mtvDist.y, mtvDist.z, 0.0f);
+    const simd::vec4 &mtvDist = data.mtvDist * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f);
+    const simd::vec4 &mtv = mtvDist;
     transforms->at(transformIndex[1]).pos -= mtv * move;
 
 //     if (transforms->at(transformIndex[1]).pos.x != transforms->at(transformIndex[1]).pos.x) {
@@ -1417,20 +1430,24 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
 //       const uint32_t dataCount = objects->at(objIndex[1]).vertexCount + objects->at(objIndex[1]).faceCount + 1;
 //
 //       for (uint32_t i = vertexOffset; i < vertexOffset + dataCount; ++i) {
-//         const glm::vec4 vec = verts->at(i);
+//         const simd::vec4 vec = verts->at(i);
 //         std::cout << "x: " << vec.x << " y: " << vec.y << " z: " << vec.z << " w: " << vec.w << "\n";
 //       }
 //
 //       throw std::runtime_error("NAN");
 //     }
 
-    glm::vec4 vel2 = glm::vec4(datas->at(physDataIndex[1]).velocity, 0.0f);
-    glm::vec4 vel2Global = velocities->at(physDataIndex[1]);
+    const glm::vec3 &vel = datas->at(physDataIndex[0]).velocity;
+    simd::vec4 vel2 = simd::vec4(vel.x, vel.y, vel.z, 0.0f);
+    simd::vec4 vel2Global = velocities->at(physDataIndex[1]);
 
-    clipVelocity(-mtv, bounce, vel2);
-    clipVelocity(-mtv, bounce, vel2Global);
+    clipVelocity(-simd::vec4(mtv), bounce, vel2);
+    clipVelocity(-simd::vec4(mtv), bounce, vel2Global);
+    
+    float arr[4];
+    vel2.store(arr);
 
-    datas->at(physDataIndex[1]).velocity = glm::vec3(vel2.x, vel2.y, vel2.z);// - glm::vec3((mtv * move) / dt);
+    datas->at(physDataIndex[1]).velocity = glm::vec3(arr[0], arr[1], arr[2]);// - glm::vec3((mtv * move) / dt);
     velocities->at(physDataIndex[1]) = vel2Global;// - (mtv * move) / dt;
 
     //lastVelocities[physDataIndex[1]] = -(mtv * move) / dt;
@@ -1438,30 +1455,33 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
 }
 
 // код взят: https://github.com/gszauer/GamePhysicsCookbook/blob/master/Code/Geometry3D.cpp
-bool testRayBox(const RayData &ray, const FastAABB &box, const glm::mat4 &orn, glm::vec4 &point) {
-  const glm::vec4 dir = box.center - ray.pos;
+bool testRayBox(const RayData &ray, const FastAABB &box, const simd::mat4 &orn, simd::vec4 &point) {
+  const simd::vec4 dir = box.center - ray.pos;
 
   glm::vec4 f = glm::vec4(
-    glm::dot(orn[0], ray.dir),
-    glm::dot(orn[1], ray.dir),
-    glm::dot(orn[2], ray.dir),
+    simd::dot(orn[0], ray.dir),
+    simd::dot(orn[1], ray.dir),
+    simd::dot(orn[2], ray.dir),
     0.0f);
 
   const glm::vec4 e = glm::vec4(
-    glm::dot(orn[0], dir),
-    glm::dot(orn[1], dir),
-    glm::dot(orn[2], dir),
+    simd::dot(orn[0], dir),
+    simd::dot(orn[1], dir),
+    simd::dot(orn[2], dir),
     0.0f);
+  
+  float extent[4];
+  box.extent.store(extent);
 
   float t[6];
   for (uint32_t i = 0; i < 3; ++i) {
     if (glm::abs(f[i]) < EPSILON) {
-      if (-e[i] - box.extent[i] > 0.0f || -e[i] + box.extent[i] < 0.0f) return false;
+      if (-e[i] - extent[i] > 0.0f || -e[i] + extent[i] < 0.0f) return false;
       f[i] = EPSILON;
     }
 
-    t[i*2+0] = (e[i] + box.extent[i]) / f[i];
-    t[i*2+1] = (e[i] - box.extent[i]) / f[i];
+    t[i*2+0] = (e[i] + extent[i]) / f[i];
+    t[i*2+1] = (e[i] - extent[i]) / f[i];
   }
 
   float minf = glm::max(glm::max(glm::min(t[0], t[1]), glm::min(t[2], t[3])), glm::min(t[4], t[5]));
@@ -1476,11 +1496,11 @@ bool testRayBox(const RayData &ray, const FastAABB &box, const glm::mat4 &orn, g
   return true;
 }
 
-bool testRaySphere(const RayData &ray, const glm::vec4 &sphereCenter, const float &radius, glm::vec4 &point) {
-  const glm::vec4 dir = sphereCenter - ray.pos;
+bool testRaySphere(const RayData &ray, const simd::vec4 &sphereCenter, const float &radius, simd::vec4 &point) {
+  const simd::vec4 dir = sphereCenter - ray.pos;
 
-  const float eSq = glm::length2(dir);
-  const float a = glm::dot(dir, ray.dir);
+  const float eSq = simd::length2(dir);
+  const float a = simd::dot(dir, ray.dir);
   const float b = radius*radius - (eSq - a*a);
 
   if (b < 0.0f) return false;
@@ -1493,21 +1513,21 @@ bool testRaySphere(const RayData &ray, const glm::vec4 &sphereCenter, const floa
   return true;
 }
 
-bool testRayTri(const RayData &ray, const glm::vec4 &vert1, const glm::vec4 &vert2, const glm::vec4 &vert3, glm::vec4 &point) {
-  const glm::vec4 v0v1 = vert2 - vert1;
-  const glm::vec4 v0v2 = vert3 - vert1;
-  const glm::vec4 pvec = glm::vec4(glm::cross(glm::vec3(ray.dir), glm::vec3(v0v2)), 0.0f);
-  const float invDet = 1.0f/glm::dot(v0v1, pvec); // скорее всего этот det не совпадает с тем что я вычисляю от нормали и направления
+bool testRayTri(const RayData &ray, const simd::vec4 &vert1, const simd::vec4 &vert2, const simd::vec4 &vert3, simd::vec4 &point) {
+  const simd::vec4 v0v1 = vert2 - vert1;
+  const simd::vec4 v0v2 = vert3 - vert1;
+  const simd::vec4 pvec = simd::cross(ray.dir, v0v2);
+  const float invDet = 1.0f/simd::dot(v0v1, pvec); // скорее всего этот det не совпадает с тем что я вычисляю от нормали и направления
 
-  const glm::vec4 tvec = ray.pos - vert1;
-  const float u = glm::dot(tvec, pvec) * invDet;
+  const simd::vec4 tvec = ray.pos - vert1;
+  const float u = simd::dot(tvec, pvec) * invDet;
   if (u < 0.0f || u > 1.0f) return false;
 
-  const glm::vec4 qvec = glm::vec4(glm::cross(glm::vec3(tvec), glm::vec3(v0v1)), 0.0f);
-  const float v = glm::dot(ray.dir, qvec) * invDet;
+  const simd::vec4 qvec = simd::cross(tvec, v0v1);
+  const float v = simd::dot(ray.dir, qvec) * invDet;
   if (v < 0.0f || u + v > 1.0f) return false;
 
-  const float t = glm::dot(v0v2, qvec) * invDet;
+  const float t = simd::dot(v0v2, qvec) * invDet;
 
   if (t < 0.0f) return false;
 
@@ -1527,26 +1547,26 @@ bool testRayTri(const RayData &ray, const glm::vec4 &vert1, const glm::vec4 &ver
 // вообще плоскости + 1 точка, должно быть достаточно чтоб узнать пересечение (для мешей)
 // для полигона плоскость и одна точка - недостаточно, но там понятно что к чему
 // кажется я нашел как можно сделать: http://adrianboeing.blogspot.com/2010/02/intersection-of-convex-hull-with-line.html
-bool testRayPoly(const ArrayInterface<glm::vec4>* verts, const RayData &ray, const uint32_t &vertOffset, const uint32_t &vertSize, const uint32_t &faceSize, const glm::vec4 &pos, const glm::mat4 &orn, glm::vec4 &point) {
+bool testRayPoly(const ArrayInterface<simd::vec4>* verts, const RayData &ray, const uint32_t &vertOffset, const uint32_t &vertSize, const uint32_t &faceSize, const simd::vec4 &pos, const simd::mat4 &orn, simd::vec4 &point) {
   //const mat4 transform = mat4(1.0, 0.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 0.0, 1.0, 0.0,  pos.x, pos.y, pos.z, 1.0);
-  const glm::vec4 dir = glm::vec4(glm::vec3(pos), 0.0f);
+  const simd::vec4 dir = pos * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f);
 
   if (vertSize+1 == faceSize) { // по идее это полигон
-    const float det = glm::dot(glm::vec4(glm::vec3(verts->at(vertOffset+vertSize+1)), 0.0f), ray.dir);
+    const float det = simd::dot(verts->at(vertOffset+vertSize+1) * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f), ray.dir);
     if (glm::abs(det) < EPSILON) return false;
 
     //throw std::runtime_error("ray intersect poly");
 
     // const vec4 refP = transform * orn * vertices[vertOffset];
-    //const glm::vec4 refP = orn * (dir + verts->at(vertOffset));
-    const glm::vec4 refP = transform(verts->at(vertOffset), dir, orn); //orn * (dir + verts->at(vertOffset));
+    //const simd::vec4 refP = orn * (dir + verts->at(vertOffset));
+    const simd::vec4 refP = transform(verts->at(vertOffset), dir, orn); //orn * (dir + verts->at(vertOffset));
     for (uint32_t i = vertOffset+1; i < vertOffset+vertSize-1; ++i) {
       // трансформа тут неправильно накладывается походу
-//       const glm::vec4 vert2 = orn * (dir + verts->at(i));
-//       const glm::vec4 vert3 = orn * (dir + verts->at(i+1));
+//       const simd::vec4 vert2 = orn * (dir + verts->at(i));
+//       const simd::vec4 vert3 = orn * (dir + verts->at(i+1));
 
-      const glm::vec4 vert2 = transform(verts->at(i), dir, orn);
-      const glm::vec4 vert3 = transform(verts->at(i+1), dir, orn);
+      const simd::vec4 vert2 = transform(verts->at(i), dir, orn);
+      const simd::vec4 vert3 = transform(verts->at(i+1), dir, orn);
 
       if (testRayTri(ray, refP, vert2, vert3, point)) return true;
     }
@@ -1557,17 +1577,17 @@ bool testRayPoly(const ArrayInterface<glm::vec4>* verts, const RayData &ray, con
   float tE = 0.0f;
   float tL = 0.0f;
   for (uint32_t i = vertOffset+vertSize+1; i < vertOffset+vertSize+faceSize; ++i) {
-    const glm::vec4 normal = orn * glm::vec4(glm::vec3(verts->at(i)), 0.0f);
+    const simd::vec4 normal = orn * (verts->at(i) * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
     // тут нужно получить вершину, СКОРЕЕ ВСЕГО любую которая лежит на плоскости
     // судя по всему достаточно одной вершины которая лежит на плоскости
-    const glm::vec4 vertex = verts->at(vertOffset+glm::floatBitsToUint(verts->at(i).w));
+    const simd::vec4 vertex = verts->at(vertOffset+glm::floatBitsToUint(verts->at(i).w));
     // трансформа тут неправильно накладывается походу
-    const glm::vec4 oneNormalVertex = orn * (dir + vertex);
-    const float N = -dot(ray.pos - oneNormalVertex, normal);
-    const float D = dot(ray.dir, normal);
+    const simd::vec4 oneNormalVertex = orn * (dir + vertex);
+    const float N = -simd::dot(ray.pos - oneNormalVertex, normal);
+    const float D = simd::dot(ray.dir, normal);
 
     // параллельна ли данная нормаль направлению луча?
-    if (abs(D) < EPSILON) {
+    if (glm::abs(D) < EPSILON) {
       if (N < 0.0f) return false; // луч не может пересечь объект
       else continue; // луч параллелен одной из плоскостей, но еще может пересечь объект
     }
@@ -1592,11 +1612,11 @@ bool testRayPoly(const ArrayInterface<glm::vec4>* verts, const RayData &ray, con
   // может ли тут где нибудь быть мина?
 }
 
-bool CPUSolverParallel::intersect(const uint32_t &rayIndex, const uint32_t &objIndex, const uint32_t &transformIndex, glm::vec4 &point) const {
+bool CPUSolverParallel::intersect(const uint32_t &rayIndex, const uint32_t &objIndex, const uint32_t &transformIndex, simd::vec4 &point) const {
   const RayData &ray = rays->at(rayIndex);
   const Object &object = objects->at(objIndex);
 
-  const glm::vec4 pos = transformIndex != 0xFFFFFFFF ? transforms->at(transformIndex).pos : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+  const simd::vec4 pos = transformIndex != 0xFFFFFFFF ? transforms->at(transformIndex).pos : simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
 
   switch(object.objType.getObjType()) {
     case BBOX_TYPE: {
@@ -1605,12 +1625,18 @@ bool CPUSolverParallel::intersect(const uint32_t &rayIndex, const uint32_t &objI
       return testRayBox(ray, box, systems->at(object.coordinateSystemIndex), point);
     }
     break;
-    case SPHERE_TYPE:
-      return testRaySphere(ray, glm::vec4(glm::vec3(pos), 1.0f), pos.w, point);
+    case SPHERE_TYPE: {
+      float arr[4];
+      pos.store(arr);
+      simd::vec4 tmpPos = simd::vec4(arr[0], arr[1], arr[2], 1.0f);
+      float radius = arr[3];
+      
+      return testRaySphere(ray, tmpPos, radius, point);
+    }
     break;
     case POLYGON_TYPE: {
       //std::cout << "Ray intersect " << objIndex << "\n";
-      const glm::mat4 orn = object.rotationDataIndex == 0xFFFFFFFF ?
+      const simd::mat4 orn = object.rotationDataIndex == 0xFFFFFFFF ?
                               systems->at(object.coordinateSystemIndex) : rotationDatas->at(object.rotationDataIndex).matrix * systems->at(object.coordinateSystemIndex);
       return testRayPoly(verts, ray, object.vertexOffset, object.vertexCount, object.faceCount, pos, orn, point);
     }
@@ -1654,7 +1680,7 @@ uint32_t getToStart(T* arr, const uint32_t &firstObjIndex, const uint32_t &found
 }
 
 
-// float getAngle(const glm::vec4 &first, const glm::vec4 &second) {
+// float getAngle(const simd::vec4 &first, const simd::vec4 &second) {
 //   const float dotV = glm::dot(first, second);
 //   const float lenSq1 = glm::length2(first);
 //   const float lenSq2 = glm::length2(second);
@@ -1662,26 +1688,26 @@ uint32_t getToStart(T* arr, const uint32_t &firstObjIndex, const uint32_t &found
 //   return glm::acos(dotV / glm::sqrt(lenSq1 * lenSq2));
 // }
 //
-// void clipVelocity(const glm::vec4 &clipNormal, const float &bounce, glm::vec4 &vel) {
+// void clipVelocity(const simd::vec4 &clipNormal, const float &bounce, simd::vec4 &vel) {
 //   const float backoff = glm::dot(vel, clipNormal) * bounce;
 //
 //   vel = vel - clipNormal * backoff;
 // }
 //
-// glm::vec4 transform(const glm::vec4 &p, const glm::vec4 &translation, const glm::mat4 &orientation) {
+// simd::vec4 transform(const simd::vec4 &p, const simd::vec4 &translation, const simd::mat4 &orientation) {
 //   return orientation * p + translation;
 // }
 //
-// bool isNormalAdequate(const ArrayInterface<glm::vec4>* verts, const uint32_t &offset, const uint32_t &normalIndex, const glm::vec4 &normal) {
+// bool isNormalAdequate(const ArrayInterface<simd::vec4>* verts, const uint32_t &offset, const uint32_t &normalIndex, const simd::vec4 &normal) {
 //   const uint32_t vertexIndex = glm::floatBitsToUint(verts->at(normalIndex).w);
-//   const glm::vec4 &normalVertex = verts->at(vertexIndex);
+//   const simd::vec4 &normalVertex = verts->at(vertexIndex);
 //
 //   for (uint32_t i = offset; i < offset+3; ++i) {
-//     const glm::vec4 &vert = verts->at(i);
+//     const simd::vec4 &vert = verts->at(i);
 //
 //     std::cout << "vert     x: " << vert.x << " y: " << vert.y << " z: " << vert.z << " w: " << vert.w << "\n" ;
 //
-//     const glm::vec4 &vectorOP = vert - normalVertex;
+//     const simd::vec4 &vectorOP = vert - normalVertex;
 //
 //     std::cout << "vectorOP x: " << vectorOP.x << " y: " << vectorOP.y << " z: " << vectorOP.z << " w: " << vectorOP.w << "\n" ;
 //

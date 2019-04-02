@@ -100,7 +100,7 @@ struct WindowData {
 struct DataArrays {
   Container<Transform>* transforms;
   Container<InputData>* inputs;
-  Container<glm::mat4>* matrices;
+  Container<simd::mat4>* matrices;
   ArrayInterface<uint32_t>* rotationCountBuffer;
   Container<RotationData>* rotations;
   Container<ExternalData>* externals;
@@ -224,8 +224,8 @@ void deinitnk(nuklear_data &data);
 void nextnkFrame(Window* window, nk_context* ctx);
 
 struct SimpleOverlayData {
-  glm::vec4 pos;
-  glm::vec4 rot;
+  simd::vec4 pos;
+  simd::vec4 rot;
   size_t frameComputeTime;
   size_t frameSleepTime;
   float fps;

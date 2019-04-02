@@ -38,8 +38,8 @@ private:
 class CPUOctreeBroadphase : public Broadphase {
 public:
   struct OctreeCreateInfo {
-    glm::vec4 center;
-    glm::vec4 extent;
+    simd::vec4 center;
+    simd::vec4 extent;
     uint32_t depth;
   };
 
@@ -85,15 +85,15 @@ public:
   void printStats() override;
 protected:
   ArrayInterface<uint32_t>* indexBuffer = nullptr;
-  ArrayInterface<glm::vec4>* verticies = nullptr;
+  ArrayInterface<simd::vec4>* verticies = nullptr;
   ArrayInterface<Object>* objects = nullptr;
-  ArrayInterface<glm::mat4>* systems = nullptr;
+  ArrayInterface<simd::mat4>* systems = nullptr;
   ArrayInterface<Transform>* transforms = nullptr;
   ArrayInterface<RotationData>* rotationDatas = nullptr;
 
   ArrayInterface<RayData>* rays = nullptr;
   ArrayInterface<FrustumStruct>* frustums = nullptr;
-  ArrayInterface<glm::vec4>* frustumPoses = nullptr;
+  ArrayInterface<simd::vec4>* frustumPoses = nullptr;
 
 //   CPUArray<BroadphasePair> objPairs;
 //   CPUArray<BroadphasePair> staticObjPairs;
@@ -127,8 +127,8 @@ protected:
   std::vector<uint32_t> proxyIndices;
   std::vector<uint32_t> toPairsCalculate;
 
-  void addEveryObj(const uint32_t &mainNodeIndex, const uint32_t &depth, const uint32_t &frustumIndex, const glm::vec4 &frustumPos);
-  void addEveryObjIterative(const uint32_t &mainNodeIndex, const uint32_t &depth, const uint32_t &frustumIndex, const glm::vec4 &frustumPos);
+  void addEveryObj(const uint32_t &mainNodeIndex, const uint32_t &depth, const uint32_t &frustumIndex, const simd::vec4 &frustumPos);
+  void addEveryObjIterative(const uint32_t &mainNodeIndex, const uint32_t &depth, const uint32_t &frustumIndex, const simd::vec4 &frustumPos);
 };
 
 #endif

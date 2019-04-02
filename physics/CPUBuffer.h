@@ -7,16 +7,20 @@ template<typename T>
 class CPUBuffer : public ArrayInterface<T> {
 public:
   CPUBuffer() {
+    dataBuf = new T();
+    
     ArrayInterface<T>::sizeVar = 1;
-    ArrayInterface<T>::ptr = &dataBuf;
+    ArrayInterface<T>::ptr = dataBuf;
   }
-  virtual ~CPUBuffer() {}
+  ~CPUBuffer() {
+    delete dataBuf;
+  }
 
   void resize(const uint32_t &size) override { (void)size; }
   void descriptorPtr(void* ptr) const override { (void)ptr; }
   void push_back(const T &value) override { (void)value; }
 private:
-  T dataBuf;
+  T* dataBuf;
 };
 
 #endif // !CPU_BUFFER_H

@@ -79,7 +79,7 @@ void MonsterOptimizer::markAsVisible(const uint32_t &index) {
 //   {
 //     const yavf::BufferCreateInfo info{
 //       0,
-//       100 * (sizeof(Texture) + sizeof(glm::mat4)),
+//       100 * (sizeof(Texture) + sizeof(simd::mat4)),
 //       VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 //       100,
 //       VMA_MEMORY_USAGE_CPU_ONLY
@@ -131,6 +131,8 @@ void MonsterOptimizer::prepare() {
 //   throw std::runtime_error("Occlusion culling not implemented yet");
 // }
 
+//#define PRINT_VEC(name, vec) std::cout << name << " (" << vec.x << ", " << vec.y << ", " << vec.z << ", " << vec.w << ")" << "\n";
+
 void MonsterOptimizer::optimize() {
   if (visible.empty()) return;
   
@@ -152,14 +154,21 @@ void MonsterOptimizer::optimize() {
 //     instDatas->at(i).imageLayer = text.imageArrayLayer;
 //     instDatas->at(i).samplerIndex = text.samplerIndex;
     
-    const glm::vec4 &pos = transforms->at(objs[objIndex].transform).pos;
-    const glm::vec4 &scale = transforms->at(objs[objIndex].transform).scale;
-    const glm::vec4 &vulkanScale = glm::vec4(scale.x, -scale.y, scale.z, scale.w);
+    const simd::vec4 &pos = transforms->at(objs[objIndex].transform).pos;
+    const simd::vec4 &scale = transforms->at(objs[objIndex].transform).scale;
+    const simd::vec4 &vulkanScale = scale * simd::vec4(1.0f, -1.0f, 1.0f, 0.0f);
     
-    instDatas->at(i).mat = glm::translate(glm::mat4(1.0f), glm::vec3(pos));
-    instDatas->at(i).mat = glm::rotate(instDatas->at(i).mat, glm::half_pi<float>() - rot.y, glm::vec3(0.0f, 1.0f, 0.0f));
+    instDatas->at(i).mat = simd::translate(simd::mat4(1.0f), pos);
+    instDatas->at(i).mat = simd::rotate(instDatas->at(i).mat, glm::half_pi<float>() - rot.y, simd::vec4(0.0f, 1.0f, 0.0f, 0.0f));
     //instDatas->at(i).mat = glm::scale(instDatas->at(i).mat, glm::vec3(1.0f, -1.0f, 1.0f));
-    instDatas->at(i).mat = glm::scale(instDatas->at(i).mat, glm::vec3(vulkanScale));
+    instDatas->at(i).mat = simd::scale(instDatas->at(i).mat, vulkanScale);
+    
+    //PRINT_VEC("instDatas->at(i).mat ", instDatas->at(i).mat[0])
+    //PRINT_VEC("                     ", instDatas->at(i).mat[1])
+    //PRINT_VEC("                     ", instDatas->at(i).mat[2])
+    //PRINT_VEC("                     ", instDatas->at(i).mat[3])
+    
+    //throw std::runtime_error("no more");
   }
 }
 
@@ -536,7 +545,7 @@ size_t LightOptimizer::size() const {
 MonsterDebugOptimizer::MonsterDebugOptimizer() : count(0) {}
 MonsterDebugOptimizer::~MonsterDebugOptimizer() {}
 
-void MonsterDebugOptimizer::setDebugColor(const uint32_t &transformIndex, const glm::vec4 &color){
+void MonsterDebugOptimizer::setDebugColor(const uint32_t &transformIndex, const simd::vec4 &color){
 //   ASSERT(count > optimizerInstDatas->size());
   
   if (instDatas->size() < count+1) {
@@ -546,8 +555,8 @@ void MonsterDebugOptimizer::setDebugColor(const uint32_t &transformIndex, const 
 //     std::cout << "count+1   size " << (count+1) << "\n";
   }
   
-  instDatas->at(count).mat = glm::translate(glm::mat4(), glm::vec3(transforms->at(transformIndex).pos));
-  instDatas->at(count).mat = glm::scale(instDatas->at(count).mat, glm::vec3(transforms->at(transformIndex).scale));
+  instDatas->at(count).mat = simd::translate(simd::mat4(), transforms->at(transformIndex).pos);
+  instDatas->at(count).mat = simd::scale(instDatas->at(count).mat, transforms->at(transformIndex).scale);
   instDatas->at(count).color = color;
   //instDatas->at(count).mat = optimizerInstDatas->at(count).mat;
   
@@ -584,7 +593,7 @@ size_t MonsterDebugOptimizer::size() const {
 GeometryDebugOptimizer::GeometryDebugOptimizer() : count(0) {}
 GeometryDebugOptimizer::~GeometryDebugOptimizer() {}
 
-void GeometryDebugOptimizer::setDebugColor(const uint32_t &index, const glm::vec4 &color) {
+void GeometryDebugOptimizer::setDebugColor(const uint32_t &index, const simd::vec4 &color) {
   count = std::max(count, size_t(index));
   
   // не очень правильно пересоздаются массивы

@@ -44,8 +44,8 @@ CPUPhysicsParallel::CPUPhysicsParallel(const CreateInfo &info) : updateDelta(333
 
   setBuffers(*info.buffers);
 
-  matrices->at(defaultStaticMatrixIndex) = glm::mat4(1.0f);
-  matrices->at(defaultDynamicMatrixIndex) = glm::mat4(1.0f);
+  matrices->at(defaultStaticMatrixIndex) = simd::mat4(1.0f);
+  matrices->at(defaultDynamicMatrixIndex) = simd::mat4(1.0f);
 
   updateInputOutput();
 }
@@ -215,7 +215,7 @@ void CPUPhysicsParallel::registerShape(const std::string &name, const uint32_t s
   s.pointCount = info.points.size();
   s.faceCount = info.faces.size();
 
-  glm::vec4 localCenter = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+  simd::vec4 localCenter = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
   for (uint32_t i = 0; i < info.points.size(); ++i) {
     verts[s.offset + i] = info.points[i];
 
@@ -223,10 +223,12 @@ void CPUPhysicsParallel::registerShape(const std::string &name, const uint32_t s
 
     localCenter += info.points[i];
   }
-  localCenter.x /= float(info.points.size());
-  localCenter.y /= float(info.points.size());
-  localCenter.z /= float(info.points.size());
-  localCenter.w = 1.0f;
+//   localCenter.x /= float(info.points.size());
+//   localCenter.y /= float(info.points.size());
+//   localCenter.z /= float(info.points.size());
+//   localCenter.w = 1.0f;
+
+  localCenter /= float(info.points.size());
 
   verts[s.offset + s.pointCount] = localCenter;
 
@@ -340,7 +342,7 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
     const PhysData2 data{
       glm::vec3(0.0f, 0.0f, 0.0f),
       0.0f,
-      glm::vec4(0.0f, 0.0f, 0.0f, 0.0f),
+      simd::vec4(0.0f, 0.0f, 0.0f, 0.0f),
 
       container->objectDataIndex,
       container->inputIndex,
@@ -409,7 +411,7 @@ uint32_t CPUPhysicsParallel::add(const RayData &ray) {
   return index;
 }
 
-uint32_t CPUPhysicsParallel::add(const glm::mat4 &frustum, const glm::vec4 &pos) {
+uint32_t CPUPhysicsParallel::add(const simd::mat4 &frustum, const simd::vec4 &pos) {
   uint32_t index = frustums.vector().size();
   // здесь он будет все пересчитывать
   frustums.vector().emplace_back(frustum);
@@ -442,12 +444,12 @@ void* CPUPhysicsParallel::getUserData(const uint32_t &objIndex) const {
   return components[obj.objectId]->userData;
 }
 
-void CPUPhysicsParallel::setGravity(const glm::vec4 &g) {
+void CPUPhysicsParallel::setGravity(const simd::vec4 &g) {
   gravity = g;
-  gravityNorm = glm::normalize(g);
-  gravLength2 = glm::length2(g);
+  gravityNorm = simd::normalize(g);
+  gravLength2 = simd::length2(g);
   gravLength  = glm::sqrt(gravLength2);
-  orientation = glm::orientation(-glm::vec3(gravityNorm.x, gravityNorm.y, gravityNorm.z), glm::vec3(0.0f, 1.0f, 0.0f));
+  orientation = simd::orientation(-gravityNorm, simd::vec4(0.0f, 1.0f, 0.0f, 0.0f));
 
   matrices->at(defaultDynamicMatrixIndex) = orientation;
 }
@@ -459,7 +461,7 @@ void CPUPhysicsParallel::updateMaxSpeed(const uint32_t &physicDataIndex, const f
 }
 
 
-uint32_t CPUPhysicsParallel::setShapePointsAndFaces(const uint32_t &objectDataIndex, const std::vector<glm::vec4> &points, const std::vector<glm::vec4> &faces) {
+uint32_t CPUPhysicsParallel::setShapePointsAndFaces(const uint32_t &objectDataIndex, const std::vector<simd::vec4> &points, const std::vector<simd::vec4> &faces) {
   (void)objectDataIndex;
   (void)points;
   (void)faces;
@@ -630,21 +632,21 @@ void CPUPhysicsParallel::updateInputOutput() {
 #define AIR_ACCELERATION 5.0f
 #define DEFAULT_GROUND_FRICTION 4.0f
 
-void computeGroundVelocity(const glm::vec4 &accelerationDir,
-                           const glm::vec4 &oldVelocity,
+void computeGroundVelocity(const simd::vec4 &accelerationDir,
+                           const simd::vec4 &oldVelocity,
                            const uint32_t &dt,
                            const bool jump,
-                           const glm::vec4 &additionalForce,
-                           const glm::vec4 &gravityNorm,
+                           const simd::vec4 &additionalForce,
+                           const simd::vec4 &gravityNorm,
                            const float &maxSpeed,
                            const float &acceleration,
                            const float &groundFriction,
-                             glm::vec4 &velocity,
+                             simd::vec4 &velocity,
                                  float &velocityScalar) {
   const float dt1 = MCS_TO_SEC(dt);
 
-  const glm::vec4 finalAcceleretionDir = accelerationDir * acceleration;
-  const glm::vec4 a = finalAcceleretionDir + additionalForce;
+  const simd::vec4 finalAcceleretionDir = accelerationDir * acceleration;
+  const simd::vec4 a = finalAcceleretionDir + additionalForce;
 
   const float stopspeed = velocityScalar < STOP_SPEED ? STOP_SPEED : velocityScalar;
   // фриктион? additionalData.y
@@ -654,47 +656,47 @@ void computeGroundVelocity(const glm::vec4 &accelerationDir,
 
   velocity = oldVelocity*fr + a * dt1;
 
-  float newSpeed = glm::length(velocity);
+  float newSpeed = simd::length(velocity);
 
   const float jumpKoef = (4.0f / dt1);
   const float jumpAcceleration = jumpKoef * float(jump);
-  const glm::vec4 jumpAccelerationDir = -gravityNorm * jumpAcceleration;
+  const simd::vec4 jumpAccelerationDir = -gravityNorm * jumpAcceleration;
 
   if (newSpeed <= EPSILON) {
-    velocity = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) + jumpAccelerationDir*dt1;
+    velocity = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f) + jumpAccelerationDir*dt1;
     velocityScalar = jumpAcceleration*dt1;
     return;
   }
 
-  const glm::vec4 newVelNorm = projectVectorOnPlane(-gravityNorm, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), velocity / newSpeed);
+  const simd::vec4 newVelNorm = projectVectorOnPlane(-gravityNorm, simd::vec4(0.0f, 0.0f, 0.0f, 1.0f), velocity / newSpeed);
 
   newSpeed = glm::min(newSpeed, maxSpeed);
 
   velocity = newVelNorm * newSpeed + jumpAccelerationDir*dt1; // - globalData.gravity*aJump;
-  velocityScalar = glm::length(velocity);
+  velocityScalar = simd::length(velocity);
 }
 
-void computeAirVelocity(const glm::vec4 &accelerationDir,
-                        const glm::vec4 &oldVelocity,
+void computeAirVelocity(const simd::vec4 &accelerationDir,
+                        const simd::vec4 &oldVelocity,
                         const uint32_t  &dt,
-                        const glm::vec4 &additionalForce,
-                        const glm::vec4 &gravity,
-                        glm::vec4 &velocity,
+                        const simd::vec4 &additionalForce,
+                        const simd::vec4 &gravity,
+                        simd::vec4 &velocity,
                         float &velocityScalar) {
   const float dt1 = MCS_TO_SEC(dt);
 
-  const glm::vec4 vn = velocityScalar > EPSILON ? oldVelocity / velocityScalar : glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+  const simd::vec4 vn = velocityScalar > EPSILON ? oldVelocity / velocityScalar : simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 
   const float airFriction = 0.0f;
-  const glm::vec4 a = -vn*airFriction + additionalForce + gravity + AIR_ACCELERATION_DIR*accelerationDir*AIR_ACCELERATION;
+  const simd::vec4 a = -simd::vec4(vn)*airFriction + additionalForce + gravity + AIR_ACCELERATION_DIR*accelerationDir*AIR_ACCELERATION;
 
   velocity = oldVelocity + a * dt1;
-  velocityScalar = glm::length(velocity);
+  velocityScalar = simd::length(velocity);
 }
 
-// glm::vec4 projectVectorOnPlane(const glm::vec4 normal, const glm::vec4 origin, const glm::vec4 vector) {
+// simd::vec4 projectVectorOnPlane(const simd::vec4 normal, const simd::vec4 origin, const simd::vec4 vector) {
 //   float dist = glm::dot(vector, normal);
-//   glm::vec4 point = origin + vector - normal*dist;
+//   simd::vec4 point = origin + vector - normal*dist;
 //   return point - origin;
 // }
 
@@ -717,26 +719,26 @@ void CPUPhysicsParallel::updateVelocities() {
       const uint32_t &groundPhysicsIndex = current.groundIndex;
 
       const InputData &currentInput = inputs->at(current.inputIndex);
-      glm::vec4 frontOnGround = currentInput.moves.z == 0.0f ? glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) :
+      simd::vec4 frontOnGround = currentInput.moves.z == 0.0f ? simd::vec4(0.0f, 0.0f, 0.0f, 0.0f) :
         projectVectorOnPlane(-gravityBuffer.data()->gravityNormal, trans.pos, currentInput.front);
 
-      const float &lengthFront = glm::length(frontOnGround);
+      const float &lengthFront = simd::length(frontOnGround);
       if (lengthFront > EPSILON) frontOnGround /= lengthFront;
-      else frontOnGround = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+      else frontOnGround = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 
-      const glm::vec4 &acceleration = frontOnGround * currentInput.moves.z + currentInput.right * currentInput.moves.x;// + currentInput.up * currentInput.moves.y;
+      const simd::vec4 &acceleration = frontOnGround * currentInput.moves.z + currentInput.right * currentInput.moves.x;// + currentInput.up * currentInput.moves.y;
 
-      const float accelLenght = glm::length(acceleration);
-      glm::vec4 aDir = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+      const float accelLenght = simd::length(acceleration);
+      simd::vec4 aDir = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
       if (accelLenght > EPSILON) aDir = acceleration / accelLenght;
 
-      const glm::vec4 additionalForce = externalDatas->at(externalDataIndex).additionalForce;
+      const simd::vec4 additionalForce = externalDatas->at(externalDataIndex).additionalForce;
       const float maxSpeed = externalDatas->at(externalDataIndex).maxSpeed;
       const float accelerationScalar = externalDatas->at(externalDataIndex).acceleration;
 
-      const glm::vec4 oldVel = glm::vec4(current.velocity, 0.0f);
-      float scalar = glm::length(oldVel);
-      glm::vec4 vel = oldVel;
+      const simd::vec4 oldVel = simd::vec4(current.velocity.x, current.velocity.y, current.velocity.z, 0.0f);
+      float scalar = simd::length(oldVel);
+      simd::vec4 vel = oldVel;
 
 //       std::cout << "index " << index << " scalar " << scalar << "\n";
 
@@ -758,8 +760,8 @@ void CPUPhysicsParallel::updateVelocities() {
 
 //         const float dt1 = MCS_TO_SEC(gravityBuffer.data()->time);
 //
-//         const glm::vec4 finalAcceleretionDir = aDir * accelerationScalar;
-//         const glm::vec4 a = finalAcceleretionDir + additionalForce;
+//         const simd::vec4 finalAcceleretionDir = aDir * accelerationScalar;
+//         const simd::vec4 a = finalAcceleretionDir + additionalForce;
 //
 //         const float stopspeed = scalar < STOP_SPEED ? STOP_SPEED : scalar;
 //         // фриктион? additionalData.y
@@ -773,15 +775,15 @@ void CPUPhysicsParallel::updateVelocities() {
 //
 //         const float jumpKoef = (4.0f / dt1);
 //         const float jumpAcceleration = jumpKoef * float(currentInput.moves.y);
-//         const glm::vec4 jumpAccelerationDir = -gravityBuffer.data()->gravityNormal * jumpAcceleration;
+//         const simd::vec4 jumpAccelerationDir = -gravityBuffer.data()->gravityNormal * jumpAcceleration;
 //
 //         if (newSpeed <= EPSILON) {
-//           vel = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) + jumpAccelerationDir*dt1;
+//           vel = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f) + jumpAccelerationDir*dt1;
 //           scalar = jumpAcceleration*dt1;
 //           return;
 //         }
 //
-//         const glm::vec4 newVelNorm = vel / newSpeed;
+//         const simd::vec4 newVelNorm = vel / newSpeed;
 //
 //         newSpeed = glm::min(newSpeed, maxSpeed);
 //
@@ -798,19 +800,22 @@ void CPUPhysicsParallel::updateVelocities() {
 
         const float dt1 = MCS_TO_SEC(gravityBuffer.data()->time);
 
-        const glm::vec4 vn = scalar > EPSILON ? oldVel / scalar : glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+        const simd::vec4 vn = scalar > EPSILON ? oldVel / scalar : simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 
         const float airFriction = 0.0f;
-        const glm::vec4 a = -vn*airFriction + additionalForce + gravity + AIR_ACCELERATION_DIR*aDir*AIR_ACCELERATION;
+        const simd::vec4 a = -simd::vec4(vn)*airFriction + additionalForce + gravity + AIR_ACCELERATION_DIR*aDir*AIR_ACCELERATION;
 
         vel = oldVel + a * dt1;
-        scalar = glm::length(vel);
+        scalar = simd::length(vel);
 
         physicsDatas[index].groundIndex = UINT32_MAX;
       }
 
       physicsDatas[index].scalar = scalar;
-      physicsDatas[index].velocity = glm::vec3(vel);
+      //physicsDatas[index].velocity = glm::vec3(vel);
+      float arr[4];
+      vel.store(arr);
+      physicsDatas[index].velocity = glm::vec3(arr[0], arr[1], arr[2]);
 
       physicsDatas[index].onGroundBits = bool(physicsDatas[index].onGroundBits & 0x1) && currentInput.moves.y > 0.0f ? 0 : physicsDatas[index].onGroundBits;
       if (!bool(physicsDatas[index].onGroundBits & 0x1)) physicsDatas[index].groundIndex = UINT32_MAX;
@@ -821,8 +826,9 @@ void CPUPhysicsParallel::updateVelocities() {
   static const auto calcPos = [&] (const uint32_t &start, const uint32_t &count, std::atomic<uint32_t> &counter) {
     for (uint32_t index = start; index < start+count; ++index) {
       if (physicsDatas[index].objectIndex == UINT32_MAX) return;
-
-      glm::vec4 velocity = glm::vec4(physicsDatas[index].velocity, 0.0f);
+      
+      const glm::vec3 &vel = physicsDatas[index].velocity;
+      simd::vec4 velocity = simd::vec4(vel.x, vel.y, vel.z, 0.0f);
 
       uint32_t groundIndex = physicsDatas[index].groundIndex;
       while (groundIndex != UINT32_MAX) {
@@ -830,14 +836,15 @@ void CPUPhysicsParallel::updateVelocities() {
 
         if (physDataIndex != UINT32_MAX) {
           const PhysData2 &data = physicsDatas[physDataIndex];
-          velocity += glm::vec4(data.velocity, 0.0f);
+          const glm::vec3 &vel = data.velocity;
+          velocity += simd::vec4(vel.x, vel.y, vel.z, 0.0f);
           groundIndex = data.groundIndex;
         } else {
           groundIndex = UINT32_MAX;
         }
       }
 
-      const float globalScalar = glm::length(velocity);
+      const float globalScalar = simd::length(velocity);
 
       const uint32_t &transIndex = physicsDatas[index].transformIndex;
 
@@ -904,7 +911,7 @@ void CPUPhysicsParallel::updateRotationDatas() {
 // //     rotationDatas->at(index).currentAngle = glm::min(rotationDatas->at(index).currentAngle, rotationDatas->at(index).maxAngle);
 // //     rotationDatas->at(index).currentAngle = glm::max(rotationDatas->at(index).currentAngle, 0.0f);
 // //
-// //     const glm::vec4 &anchorDir = glm::vec4(rotationDatas->at(index).anchorDir, 0.0f);
+// //     const simd::vec4 &anchorDir = simd::vec4(rotationDatas->at(index).anchorDir, 0.0f);
 // //     const float &anchorDist = rotationDatas->at(index).anchorDist;
 // //
 // //     rotationDatas->at(index).matrix = glm::translate(glm::mat4(1.0f), glm::vec3(anchorDir * anchorDist));
@@ -915,7 +922,7 @@ void CPUPhysicsParallel::updateRotationDatas() {
 //     data[index].currentAngle = glm::min(data[index].currentAngle, data[index].maxAngle);
 //     data[index].currentAngle = glm::max(data[index].currentAngle, 0.0f);
 //
-//     const glm::vec4 &anchorDir = glm::vec4(data[index].anchorDir, 0.0f);
+//     const simd::vec4 &anchorDir = simd::vec4(data[index].anchorDir, 0.0f);
 //     const float &anchorDist = data[index].anchorDist;
 //
 //     data[index].matrix = glm::translate(glm::mat4(1.0f), glm::vec3(anchorDir * anchorDist));
@@ -943,12 +950,12 @@ void CPUPhysicsParallel::interpolate(const float &alpha) {
     for (size_t index = start; index < start+count; ++index) {
       if (physicsDatas[index].objectIndex == UINT32_MAX) return;
 
-//       const glm::vec4 vel = globalVel[index];
+//       const simd::vec4 vel = globalVel[index];
 
 //       const size_t sixteeFrames = 16667;
       const uint32_t &transIndex = physicsDatas[index].transformIndex;
       //transforms->at(transIndex).pos = transforms->at(transIndex).pos + vel*alpha*MCS_TO_SEC(sixteeFrames);
-      transforms->at(transIndex).pos = glm::mix(prevState[transIndex].pos, currState[transIndex].pos, alpha);
+      transforms->at(transIndex).pos = simd::mix(prevState[transIndex].pos, currState[transIndex].pos, alpha);
       // потом добавится кватернион который мы будем slerp'ать
     }
   };

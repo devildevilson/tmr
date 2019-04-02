@@ -12,22 +12,22 @@
 #define POLYGON_TYPE 2
 
 struct FastAABB {
-  glm::vec4 center;
-  glm::vec4 extent;
+  simd::vec4 center;
+  simd::vec4 extent;
 };
 
 struct RayData {
-  glm::vec4 pos;
-  glm::vec4 dir;
+  simd::vec4 pos;
+  simd::vec4 dir;
 };
 
 struct FrustumStruct {
-  glm::vec4 planes[6];
+  simd::vec4 planes[6];
 
   FrustumStruct();
-  FrustumStruct(const glm::mat4 &matrix);
+  FrustumStruct(const simd::mat4 &matrix);
 
-  void calcFrustum(const glm::mat4 &matrix);
+  void calcFrustum(const simd::mat4 &matrix);
 };
 
 struct OverlappingData {
@@ -132,15 +132,15 @@ struct Object {
 // все константы все же необходимо держать в одном месте (stairHeight, groundFriction и overbounce)
 // скорее всего динамические/нет можно определять по наличию скорости
 struct PhysicData {
-  glm::vec4 velocity;
+  simd::vec4 velocity;
 //   uint32_t objectIndex;//isOnGround;
 //   uint32_t inputIndex;
 //   uint32_t groundIndex;
 //   uint32_t blockingIndex;
-  glm::vec4 additionalForce;
-  glm::vec4 oldPos;
+  simd::vec4 additionalForce;
+  simd::vec4 oldPos;
   
-  //glm::vec4 constants;
+  //simd::vec4 constants;
   float maxSpeed;
   //float groundFriction;
   //float airFriction;
@@ -166,7 +166,7 @@ struct PhysicData {
 };
 
 struct ExternalData {
-  glm::vec4 additionalForce;
+  simd::vec4 additionalForce;
   float maxSpeed;
   float acceleration;
   float dummy1;
@@ -192,7 +192,7 @@ struct Constants {
 struct PhysData2 {
   glm::vec3 velocity;
   float scalar;
-  glm::vec4 oldPos;
+  simd::vec4 oldPos;
 
   uint32_t objectIndex;
   uint32_t inputIndex;
@@ -263,24 +263,24 @@ struct StaticPhysicData {
 //   float rotationSpeed;
 //   uint32_t stepTime; // нужно ли?
 
-//   glm::mat4 matrix;
+//   simd::mat4 matrix;
 // };
 
 // struct Transform {
-//   glm::vec4 pos;
-//   glm::mat4 orn;
+//   simd::vec4 pos;
+//   simd::mat4 orn;
 // };
 
 // struct InputData {
-//   glm::vec4 right;
-//   glm::vec4 up;
-//   glm::vec4 front;
-//   glm::vec4 moves;
+//   simd::vec4 right;
+//   simd::vec4 up;
+//   simd::vec4 front;
+//   simd::vec4 moves;
 // };
 
 struct Gravity {
-  glm::vec4 gravity;
-  glm::vec4 gravityNormal;
+  simd::vec4 gravity;
+  simd::vec4 gravityNormal;
   
   float length;
   float length2;
@@ -297,6 +297,6 @@ bool testAABB(const FastAABB &first, const FastAABB &second);
 // second contain first
 bool AABBcontain(const FastAABB &first, const FastAABB &second);
 
-glm::vec4 getVertex(const glm::vec4 &pos, const glm::vec4 &ext, const glm::mat4 &orn, const uint32_t &index);
+simd::vec4 getVertex(const simd::vec4 &pos, const simd::vec4 &ext, const simd::mat4 &orn, const uint32_t &index);
 
 #endif

@@ -880,21 +880,26 @@ namespace simd {
     const vec4 a(normalize(axis));
     const vec4 temp(a * (1.0f - c));
     //const float temp = angle * (1.0f - c);
+    
+    // здесь может быть ошибка
 
     float arr[4];
     axis.store(arr);
+    float tmpArr[4];
+    temp.store(tmpArr);
+    
     mat4 rotate;
-    rotate[0][0] = c + temp[0] * arr[0];
-    rotate[0][1] = temp[0] * arr[1] + s * arr[2];
-    rotate[0][2] = temp[0] * arr[2] - s * arr[1];
+    rotate[0][0] = c + tmpArr[0] * arr[0];
+    rotate[0][1] = tmpArr[0] * arr[1] + s * arr[2];
+    rotate[0][2] = tmpArr[0] * arr[2] - s * arr[1];
 
-    rotate[1][0] = temp[1] * arr[0] - s * arr[2];
-    rotate[1][1] = c + temp[1] * axis[1];
-    rotate[1][2] = temp[1] * arr[2] + s * arr[0];
+    rotate[1][0] = tmpArr[1] * arr[0] - s * arr[2];
+    rotate[1][1] = c + tmpArr[1] * arr[1];
+    rotate[1][2] = tmpArr[1] * arr[2] + s * arr[0];
 
-    rotate[2][0] = temp[2] * arr[0] + s * arr[1];
-    rotate[2][1] = temp[2] * arr[1] - s * arr[0];
-    rotate[2][2] = c + temp[2] * axis[2];
+    rotate[2][0] = tmpArr[2] * arr[0] + s * arr[1];
+    rotate[2][1] = tmpArr[2] * arr[1] - s * arr[0];
+    rotate[2][2] = c + tmpArr[2] * arr[2];
 
     mat4 result;
     result[0] = mat[0] * rotate[0][0] + mat[1] * rotate[0][1] + mat[2] * rotate[0][2];

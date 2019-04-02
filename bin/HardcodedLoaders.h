@@ -83,7 +83,7 @@ public:
     Container<Transform>* transforms;
     Container<InputData>* inputs;
     Container<RotationData>* rotationDatas;
-    Container<glm::mat4>* matrices;
+    Container<simd::mat4>* matrices;
     Container<ExternalData>* externalDatas;
     Container<TextureData>* textureContainer;
     Container<uint32_t>* stateContainer;

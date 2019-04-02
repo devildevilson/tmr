@@ -64,6 +64,6 @@ simd::vec4 projectVectorOnPlane(const simd::vec4 &normal, const simd::vec4 &orig
 
 float atan2Approximation(float y, float x);
 
-void cartesianToSpherical(const glm::vec3 &vec, float &theta, float &phi);
+void cartesianToSpherical(const simd::vec4 &vec, float &theta, float &phi);
 
 #endif

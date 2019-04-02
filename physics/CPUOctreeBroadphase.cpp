@@ -4,7 +4,7 @@
 #include <cstring>
 #include <chrono>
 
-#include <glm/gtx/norm.hpp>
+//#include <glm/gtx/norm.hpp>
 
 #define PRINT_VAR(name, var) std::cout << name << ": " << var << "\n";
 #define PRINT_VEC4(name, var) std::cout << name << " x: " << var.x << " y: " << var.y << " z: " << var.z << " w: " << var.w << "\n";
@@ -17,8 +17,8 @@
 
 #include "HelperFunctions.h"
 
-// FastAABB recalcAABB(const glm::vec4 &pos, const glm::vec4 &ext, const glm::mat4 &orn);
-// FastAABB recalcAABB(const ArrayInterface<glm::vec4>* verticies, const glm::vec4 &pos, const uint32_t &vertexOffset, const uint32_t &vertexSize, const glm::mat4 &orn);
+// FastAABB recalcAABB(const simd::vec4 &pos, const simd::vec4 &ext, const glm::mat4 &orn);
+// FastAABB recalcAABB(const ArrayInterface<simd::vec4>* verticies, const simd::vec4 &pos, const uint32_t &vertexOffset, const uint32_t &vertexSize, const glm::mat4 &orn);
 // //bool AABBcontain(const FastAABB &first, const FastAABB &second);
 // 
 // //bool testAABB(const FastAABB &first, const FastAABB &second);
@@ -131,8 +131,8 @@ CPUOctreeBroadphase::CPUOctreeBroadphase(const OctreeCreateInfo &octreeInfo) {
         nodes[index].offset = 0;
         nodes[index].count = 0;
 
-        glm::vec4 extent = proxies[parentProxyIndex].getAABB().extent / 2.0f;
-        glm::vec4 center;
+        simd::vec4 extent = proxies[parentProxyIndex].getAABB().extent / 2.0f;
+        simd::vec4 center;
         center.x = xMask & k ? proxies[parentProxyIndex].getAABB().center.x + extent.x : proxies[parentProxyIndex].getAABB().center.x - extent.x;
         center.y = yMask & k ? proxies[parentProxyIndex].getAABB().center.y + extent.y : proxies[parentProxyIndex].getAABB().center.y - extent.y;
         center.z = zMask & k ? proxies[parentProxyIndex].getAABB().center.z + extent.z : proxies[parentProxyIndex].getAABB().center.z - extent.z;
@@ -299,24 +299,26 @@ void CPUOctreeBroadphase::update() {
     const uint32_t &proxyIndex = obj.proxyIndex;
 
     if (obj.objType.getObjType() == BBOX_TYPE) {
-      const glm::vec4 &pos = transforms->at(obj.transformIndex).pos;
-      const glm::vec4 &ext = verticies->at(obj.vertexOffset);
-      const glm::mat4 &orn = systems->at(obj.coordinateSystemIndex);
+      const simd::vec4 &pos = transforms->at(obj.transformIndex).pos;
+      const simd::vec4 &ext = verticies->at(obj.vertexOffset);
+      const simd::mat4 &orn = systems->at(obj.coordinateSystemIndex);
 
       proxies[proxyIndex].setAABB(recalcAABB(pos, ext, orn));
     } else if (obj.objType.getObjType() == SPHERE_TYPE) {
-      const glm::vec4 &sphere = transforms->at(obj.transformIndex).pos;
+      const simd::vec4 &sphere = transforms->at(obj.transformIndex).pos;
+      float arr[4];
+      sphere.store(arr);
 
-      const FastAABB box = {glm::vec4(sphere.x, sphere.y, sphere.z, 1.0f), glm::vec4(sphere.w, sphere.w, sphere.w, 0.0f)};
+      const FastAABB box = {simd::vec4(arr[0], arr[1], arr[2], 1.0f), simd::vec4(arr[3], arr[3], arr[3], 0.0f)};
       proxies[proxyIndex].setAABB(box);
     } else {
-      const glm::vec4 pos = obj.transformIndex != UINT32_MAX ? transforms->at(obj.transformIndex).pos : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-      glm::mat4 orn = systems->at(obj.coordinateSystemIndex);
+      const simd::vec4 pos = obj.transformIndex != UINT32_MAX ? transforms->at(obj.transformIndex).pos : simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+      simd::mat4 orn = systems->at(obj.coordinateSystemIndex);
 
       if (obj.rotationDataIndex != UINT32_MAX) {
         const RotationData &data = rotationDatas->at(obj.rotationDataIndex);
 
-        const glm::mat4 &anchorMatrix = data.matrix;
+        const simd::mat4 &anchorMatrix = data.matrix;
 
         orn = anchorMatrix * orn;
       }
@@ -852,7 +854,7 @@ void CPUOctreeBroadphase::calculateFrustumTests() {
     const uint32_t frustumIndex = i;
 
     const FrustumStruct &frustum = frustums->at(frustumIndex);
-    const glm::vec4 &pos = frustumPoses->at(frustumIndex);
+    const simd::vec4 &pos = frustumPoses->at(frustumIndex);
 
     for (uint32_t j = 0; j < frustumIterativeNodeCount; ++j) {
       objCount += nodes[j].count;
@@ -898,7 +900,7 @@ void CPUOctreeBroadphase::calculateFrustumTests() {
       const uint32_t nodeIndex = frustumIterativeNodeCount + k;
 
       const FrustumStruct &frustum = frustums->at(frustumIndex);
-      const glm::vec4 &pos = frustumPoses->at(frustumIndex);
+      const simd::vec4 &pos = frustumPoses->at(frustumIndex);
 
       uint32_t memOffset = 1;
       stack[0] = nodeIndex;
@@ -988,7 +990,7 @@ void CPUOctreeBroadphase::calculateFrustumTests() {
 
           frustumTestsResult->at(id+1).firstIndex = frustumIndex;
           frustumTestsResult->at(id+1).secondIndex = proxy.getObjectIndex();
-          const float dist = glm::distance2(pos, proxy.getAABB().center);
+          const float dist = simd::distance2(pos, proxy.getAABB().center);
           frustumTestsResult->at(id+1).dist = dist;
           frustumTestsResult->at(id+1).islandIndex = frustumIndex;
         }
@@ -1207,8 +1209,8 @@ void CPUOctreeBroadphase::printStats() {
   // std::cout << '\n';
 }
 
-// glm::vec4 getVertex(const glm::vec4 &pos, const glm::vec4 &ext, const glm::mat4 &orn, const uint32_t &index) {
-//   glm::vec4 p = pos;
+// simd::vec4 getVertex(const simd::vec4 &pos, const simd::vec4 &ext, const glm::mat4 &orn, const uint32_t &index) {
+//   simd::vec4 p = pos;
 //   p = (index & 1) > 0 ? p + orn[0]*ext.x : p - orn[0]*ext.x;
 //   p = (index & 2) > 0 ? p + orn[1]*ext.y : p - orn[1]*ext.y;
 //   p = (index & 4) > 0 ? p + orn[2]*ext.z : p - orn[2]*ext.z;
@@ -1217,45 +1219,45 @@ void CPUOctreeBroadphase::printStats() {
 //   return p;
 // }
 
-// FastAABB recalcAABB(const glm::vec4 &pos, const glm::vec4 &ext, const glm::mat4 &orn) {
-//   glm::vec4 mx = getVertex(pos, ext, orn, 0), mn = getVertex(pos, ext, orn, 0);
+// FastAABB recalcAABB(const simd::vec4 &pos, const simd::vec4 &ext, const glm::mat4 &orn) {
+//   simd::vec4 mx = getVertex(pos, ext, orn, 0), mn = getVertex(pos, ext, orn, 0);
 // 
 //   for (uint32_t i = 1; i < 8; ++i) {
 //     mx = glm::max(mx, getVertex(pos, ext, orn, i));
 //     mn = glm::min(mn, getVertex(pos, ext, orn, i));
 //   }
 // 
-//   const glm::vec4 boxPos =         (mn + mx) / 2.0f;
-//   const glm::vec4 boxExt = glm::abs(mn - mx) / 2.0f;
+//   const simd::vec4 boxPos =         (mn + mx) / 2.0f;
+//   const simd::vec4 boxExt = glm::abs(mn - mx) / 2.0f;
 // 
 //   return {boxPos, boxExt};
 // }
 // 
-// FastAABB recalcAABB(const ArrayInterface<glm::vec4>* verticies, const glm::vec4 &pos, const uint32_t &vertexOffset, const uint32_t &vertexSize, const glm::mat4 &orn) {
-//   const glm::vec4 dir = glm::vec4(pos.x, pos.y, pos.z, 0.0f);
-//   glm::vec4 mx = orn * (dir + verticies->at(vertexOffset)), mn = orn * (dir + verticies->at(vertexOffset));
+// FastAABB recalcAABB(const ArrayInterface<simd::vec4>* verticies, const simd::vec4 &pos, const uint32_t &vertexOffset, const uint32_t &vertexSize, const glm::mat4 &orn) {
+//   const simd::vec4 dir = simd::vec4(pos.x, pos.y, pos.z, 0.0f);
+//   simd::vec4 mx = orn * (dir + verticies->at(vertexOffset)), mn = orn * (dir + verticies->at(vertexOffset));
 // 
 //   for (uint32_t i = 1; i < vertexSize; ++i) {
 //     mx = glm::max(mx, orn * (dir + verticies->at(vertexOffset + i)));
 //     mn = glm::min(mn, orn * (dir + verticies->at(vertexOffset + i)));
 //   }
 // 
-//   const glm::vec4 boxPos =         (mn + mx) / 2.0f;
-//   const glm::vec4 boxExt = glm::abs(mn - mx) / 2.0f;
+//   const simd::vec4 boxPos =         (mn + mx) / 2.0f;
+//   const simd::vec4 boxExt = glm::abs(mn - mx) / 2.0f;
 // 
 //   return {boxPos, boxExt};
 // }
 // 
 // // bool testAABB(const FastAABB &first, const FastAABB &second) {
-// //   const glm::vec4 center = glm::abs(first.center - second.center);
-// //   const glm::vec4 extent =          first.extent + second.extent;
+// //   const simd::vec4 center = glm::abs(first.center - second.center);
+// //   const simd::vec4 extent =          first.extent + second.extent;
 // 
 // //   return extent.x > center.x && extent.y > center.y && extent.z > center.z;
 // // }
 // 
 // bool intersection(const FastAABB &box, const RayData &ray) {
-//   const glm::vec4 boxMin = box.center - box.extent;
-//   const glm::vec4 boxMax = box.center + box.extent;
+//   const simd::vec4 boxMin = box.center - box.extent;
+//   const simd::vec4 boxMax = box.center + box.extent;
 // 
 //   float t1 = (boxMin[0] - ray.dir[0]) / ray.dir[0];
 //   float t2 = (boxMax[0] - ray.dir[0]) / ray.dir[0];
@@ -1277,11 +1279,11 @@ void CPUOctreeBroadphase::printStats() {
 // uint32_t testFrustumAABB(const FrustumStruct &frustum, const FastAABB &box) {
 //   uint32_t result = INSIDE; // Assume that the aabb will be inside the frustum
 //   for(uint32_t i = 0; i < 6; ++i) {
-//     const glm::vec4 frustumPlane = frustum.planes[i];
+//     const simd::vec4 frustumPlane = frustum.planes[i];
 // 
-//     const float d = glm::dot(box.center,          glm::vec4(frustumPlane.x, frustumPlane.y, frustumPlane.z, 0.0f));
+//     const float d = glm::dot(box.center,          simd::vec4(frustumPlane.x, frustumPlane.y, frustumPlane.z, 0.0f));
 // 
-//     const float r = glm::dot(box.extent, glm::abs(glm::vec4(frustumPlane.x, frustumPlane.y, frustumPlane.z, 0.0f)));
+//     const float r = glm::dot(box.extent, glm::abs(simd::vec4(frustumPlane.x, frustumPlane.y, frustumPlane.z, 0.0f)));
 // 
 //     const float d_p_r = d + r;
 //     const float d_m_r = d - r;
@@ -1295,7 +1297,7 @@ void CPUOctreeBroadphase::printStats() {
 //   return result;
 // }
 
-void CPUOctreeBroadphase::addEveryObj(const uint32_t &mainNodeIndex, const uint32_t &depth, const uint32_t &frustumIndex, const glm::vec4 &frustumPos) {
+void CPUOctreeBroadphase::addEveryObj(const uint32_t &mainNodeIndex, const uint32_t &depth, const uint32_t &frustumIndex, const simd::vec4 &frustumPos) {
   uint32_t nodeCount = 1;
   for (uint32_t i = 0; i < depth; ++i) {
     for (uint32_t j = 0; j < nodeCount; ++j) {
@@ -1319,7 +1321,7 @@ void CPUOctreeBroadphase::addEveryObj(const uint32_t &mainNodeIndex, const uint3
 
         frustumTestsResult->at(id+1).firstIndex = frustumIndex;
         frustumTestsResult->at(id+1).secondIndex = proxy.getObjectIndex();
-        const float dist = glm::distance2(frustumPos, proxy.getAABB().center);
+        const float dist = simd::distance2(frustumPos, proxy.getAABB().center);
         frustumTestsResult->at(id+1).dist = dist;
         frustumTestsResult->at(id+1).islandIndex = frustumIndex;
       }
@@ -1329,7 +1331,7 @@ void CPUOctreeBroadphase::addEveryObj(const uint32_t &mainNodeIndex, const uint3
   }
 }
 
-void CPUOctreeBroadphase::addEveryObjIterative(const uint32_t &mainNodeIndex, const uint32_t &depth, const uint32_t &frustumIndex, const glm::vec4 &frustumPos) {
+void CPUOctreeBroadphase::addEveryObjIterative(const uint32_t &mainNodeIndex, const uint32_t &depth, const uint32_t &frustumIndex, const simd::vec4 &frustumPos) {
   uint32_t nodeCount = 1;
 
   for (uint32_t i = 0; i < depth; ++i) {
@@ -1352,7 +1354,7 @@ void CPUOctreeBroadphase::addEveryObjIterative(const uint32_t &mainNodeIndex, co
 
         frustumTestsResult->at(id+1).firstIndex = frustumIndex;
         frustumTestsResult->at(id+1).secondIndex = proxy.getObjectIndex();
-        const float dist = glm::distance2(frustumPos, proxy.getAABB().center);
+        const float dist = simd::distance2(frustumPos, proxy.getAABB().center);
         frustumTestsResult->at(id+1).dist = dist;
         frustumTestsResult->at(id+1).islandIndex = frustumIndex;
       }
