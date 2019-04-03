@@ -31,7 +31,7 @@ namespace simd {
 //     native = _mm_set1_ps(f1);
   }
 
-  inline vec4::vec4(const float* ptr) : native(_mm_load_ps(ptr)) {
+  inline vec4::vec4(const float* ptr) : native(_mm_loadu_ps(ptr)) {
 //     native = _mm_load_ps(ptr);
   }
 
@@ -106,6 +106,14 @@ namespace simd {
 
   inline void vec4::store(float* p) const {
     _mm_store_ps(p, native);
+  }
+  
+  inline void vec4::loadu(const float* p) {
+    native = _mm_loadu_ps(p);
+  }
+  
+  inline void vec4::storeu(float* p) const {
+    _mm_storeu_ps(p, native);
   }
 
 //   inline vec4 & vec4::operator-() {
@@ -640,7 +648,7 @@ namespace simd {
   }
 
   inline quat::quat(const float* ptr) {
-    native = _mm_load_ps(ptr);
+    native = _mm_loadu_ps(ptr);
   }
 
   inline quat::quat(__m128 native) : native(native) {
@@ -657,6 +665,14 @@ namespace simd {
 
   inline void quat::store(float* p) const {
     _mm_store_ps(p, native);
+  }
+  
+  inline void quat::loadu(const float* p) {
+    native = _mm_loadu_ps(p);
+  }
+  
+  inline void quat::storeu(float* p) const {
+    _mm_storeu_ps(p, native);
   }
 
 //   static const vec4 conjConst = vec4(1.0f, -1.0f, -1.0f, -1.0f);
@@ -1168,6 +1184,10 @@ namespace simd {
   inline ivec4::ivec4(const int32_t &x) {
     native = _mm_set1_epi32(x);
   }
+  
+//   inline ivec4::ivec4(const void* p) {
+//     native = _mm_loadu_epi32(p);
+//   }
 
   inline ivec4::ivec4(const ivec4 &vec) {
     native = vec.native;
@@ -1187,6 +1207,22 @@ namespace simd {
 //     return 4;
 //   }
 
+//   inline void ivec4::load(const void* p) {
+//     native = _mm_load_epi32(p);
+//   }
+//   
+//   inline void ivec4::store(void* p) const {
+//     _mm_store_epi32(p, native);
+//   }
+//   
+//   inline void ivec4::loadu(const void* p) {
+//     native = _mm_loadu_epi32(p);
+//   }
+//   
+//   inline void ivec4::storeu(void* p) const {
+//     _mm_storeu_epi32(p, native);
+//   }
+
 #ifdef __SSSE3__
   inline ivec4 & ivec4::hadd(const ivec4 &vec) {
     native = _mm_hadd_epi32(native, vec);
@@ -1204,10 +1240,10 @@ namespace simd {
   }
 #endif
 
-  inline ivec4 & ivec4::operator-() {
-    native = _mm_sub_epi32(_mm_setzero_si128(), native);
-    return *this;
-  }
+//   inline ivec4 & ivec4::operator-() {
+//     native = _mm_sub_epi32(_mm_setzero_si128(), native);
+//     return *this;
+//   }
 
   inline ivec4 & ivec4::operator-=(const ivec4 &rhs) {
     native = _mm_sub_epi32(native, rhs.native);
@@ -1287,10 +1323,10 @@ namespace simd {
     return tmp;
   }
 
-  inline ivec4 & ivec4::operator~() {
-    native = _mm_xor_si128(native, _mm_set1_epi32(0xffffffff));
-    return *this;
-  }
+//   inline ivec4 & ivec4::operator~() {
+//     native = _mm_xor_si128(native, _mm_set1_epi32(0xffffffff));
+//     return *this;
+//   }
 
   inline ivec4 & ivec4::operator|=(const ivec4 &vec) {
     native = _mm_or_si128(native, vec);
@@ -1342,6 +1378,10 @@ namespace simd {
 
   inline const int32_t & ivec4::operator[](const uint32_t &index) const {
     return arr[index];
+  }
+  
+  inline ivec4 operator-(const ivec4 &vec) {
+    return ivec4(_mm_sub_epi32(_mm_setzero_si128(), vec));
   }
 
   inline ivec4 operator-(const ivec4 &vec1, const ivec4 &vec2) {
@@ -1408,6 +1448,10 @@ namespace simd {
   inline ivec4 div(const ivec4 &vec, const int32_t &value) {
     return ivec4(vec4(vec) / float(value));
   }
+  
+  inline ivec4 div(const int32_t &value, const ivec4 &vec) {
+    return ivec4(float(value) / vec4(vec));
+  }
 
   inline ivec4 div(const ivec4 &vec1, const ivec4 &vec2) {
     return ivec4(vec4(vec1) / vec4(vec2));
@@ -1417,6 +1461,10 @@ namespace simd {
 //     inline ivec4 operator/(const int32_t &value) const {
 //       return _mm_div_ps(native, _mm_set1_epi32(value));
 //     }
+
+  inline ivec4 operator~(const ivec4 &vec) {
+    return _mm_xor_si128(vec, _mm_set1_epi32(0xffffffff));
+  }
 
   inline ivec4 operator|(const ivec4 &vec1, const ivec4 &vec2) {
     return _mm_or_si128(vec1, vec2);
@@ -2315,7 +2363,7 @@ namespace simd {
     mat4 mat;
     for (uint32_t i = 0; i < 4; ++i) {
       float arr[4];
-      mat2[i].store(arr);
+      mat2[i].storeu(arr);
 
       const vec4 ARx = vec4(arr[0]);
       const vec4 ARy = vec4(arr[1]);
@@ -2394,7 +2442,7 @@ namespace simd {
   inline mat4 translate(const mat4 &mat, const vec4 &vec) {
     mat4 r(mat);
     float arr[4];
-    vec.store(arr);
+    vec.storeu(arr);
     r[3] = mat[0] * arr[0] + mat[1] * arr[1] + mat[2] * arr[2] + mat[3];
     return r;
   }
@@ -2430,7 +2478,7 @@ namespace simd {
   inline mat4 scale(const mat4 &mat, const vec4 &vec) {
     mat4 result(mat);
     float arr[4];
-    vec.store(arr);
+    vec.storeu(arr);
     result[0] *= arr[0];
     result[1] *= arr[1];
     result[2] *= arr[2];
@@ -2495,6 +2543,48 @@ namespace simd {
 
     return result;
   }
+  
+  inline mat4 perspective(const float &fovy, const float &aspect, const float &oneTwoNear, const float &oneTwoFar)  {
+    const float tanHalfFovy = std::tan(fovy / 2.0f);
+  
+	  const float far1 = oneTwoFar;
+	  const float near1 = oneTwoNear;
+  
+    mat4 result(
+      1.0f / (aspect * tanHalfFovy), 0.0f, 0.0f, 0.0f,
+      0.0f, 1.0f / (tanHalfFovy),          0.0f, 0.0f,
+      0.0f, 0.0f, far1 / (near1 - far1),        -1.0f,
+      0.0f, 0.0f, -(far1 * near1) / (far1 - near1), 0.0f
+    );
+//     result[0][0] = 1.0f / (aspect * tanHalfFovy);
+//     result[1][1] = 1.0f / (tanHalfFovy);
+//     result[2][3] = -1.0f;
+//     result[2][2] = far1 / (near1 - far1);
+//     result[3][2] = -(far1 * near1) / (far1 - near1);
+  
+    return result;
+  }
+  
+  inline mat4 perspectiveFov(const float &fov, const float &width, const float &height, const float &oneTwoNear, const float &oneTwoFar)  {
+    const float rad = fov;
+    const float h = ::cos(0.5f * rad) / ::sin(0.5f * rad);
+    //const float w = h * height / width;
+    const float w = h * std::max(width, height) / std::min(width, height);
+  
+    mat4 result(
+      w, 0.0f, 0.0f, 0.0f,
+      0.0f, h, 0.0f, 0.0f,
+      0.0f, 0.0f, oneTwoFar / (oneTwoNear - oneTwoFar), -1.0f,
+      0.0f, 0.0f, -(oneTwoFar * oneTwoNear) / (oneTwoFar - oneTwoNear), 0.0f
+    );
+//     result[0][0] = w;
+//     result[1][1] = h;
+//     result[2][3] = -1.0f;
+//     result[2][2] = oneTwoFar / (oneTwoNear - oneTwoFar);
+//     result[3][2] = -(oneTwoFar * oneTwoNear) / (oneTwoFar - oneTwoNear);
+  
+    return result;
+  }
 
 //   inline mat4 perspective(const float &fovy, const float &aspect, const float &near, const float &far) {
 //     const float tanHalfFovy = std::tan(fovy / 2.0f);
@@ -2544,34 +2634,57 @@ namespace simd {
     tmp = model * tmp;
     tmp = proj * tmp;
 
-    tmp /= tmp.w;
+    float arr[4];
+    tmp.storeu(arr);
+    tmp /= arr[3];
+    tmp.storeu(arr);
 
 //#if GLM_DEPTH_CLIP_SPACE == GLM_DEPTH_ZERO_TO_ONE
-      tmp.x = tmp.x * 0.5f + 0.5f;
-      tmp.y = tmp.y * 0.5f + 0.5f;
+//       tmp.x = tmp.x * 0.5f + 0.5f;
+//       tmp.y = tmp.y * 0.5f + 0.5f;
+    arr[0] = arr[0] * 0.5f + 0.5f;
+    arr[1] = arr[1] * 0.5f + 0.5f;
 //#else
 //      tmp = tmp * 0.5 + 0.5;
 //#endif
 
-    tmp[0] = tmp[0] * float(viewport[2]) + float(viewport[0]);
-    tmp[1] = tmp[1] * float(viewport[3]) + float(viewport[1]);
+//     tmp[0] = tmp[0] * float(viewport[2]) + float(viewport[0]);
+//     tmp[1] = tmp[1] * float(viewport[3]) + float(viewport[1]);
+    float viewp[4];
+    viewport.storeu(viewp);
+    arr[0] = arr[0] * viewp[2] + viewp[0];
+    arr[1] = arr[1] * viewp[3] + viewp[1];
+    
+    tmp.loadu(arr);
 
     return tmp;
   }
 
   inline vec4 unProject(const vec4 &win, const mat4 &model, const mat4 &proj, const vec4 &viewport) {
     const mat4 inverseMat = inverse(proj * model);
-
-    vec4 tmp = vec4(win.x, win.y, win.y, 1.0f);
-    tmp.x = (tmp.x - float(viewport[0])) / float(viewport[2]);
-    tmp.y = (tmp.y - float(viewport[1])) / float(viewport[3]);
+    
+    float arr[4];
+    win.storeu(arr);
+    float viewp[4];
+    viewport.storeu(viewp);
+    
+    arr[0] = (arr[0] - viewp[0]) / viewp[2];
+    arr[1] = (arr[1] - viewp[1]) / viewp[3];
+    arr[0] = arr[0] * 2.0f - 1.0f;
+    arr[1] = arr[1] * 2.0f - 1.0f;
+    arr[3] = 1.0f;
+    
+//     vec4 tmp = vec4(win.x, win.y, win.z, 1.0f);
+//     tmp.x = (tmp.x - float(viewport[0])) / float(viewport[2]);
+//     tmp.y = (tmp.y - float(viewport[1])) / float(viewport[3]);
 //#if GLM_DEPTH_CLIP_SPACE == GLM_DEPTH_ZERO_TO_ONE
-      tmp.x = tmp.x * 2.0f - 1.0f;
-      tmp.y = tmp.y * 2.0f - 1.0f;
+//       tmp.x = tmp.x * 2.0f - 1.0f;
+//       tmp.y = tmp.y * 2.0f - 1.0f;
 //#else
 //      tmp = tmp * 2.0f - 1.0f;
 //#endif
-
+    
+    vec4 tmp(arr);
     vec4 obj = inverseMat * tmp;
     obj /= obj.w;
 
@@ -2583,16 +2696,20 @@ namespace simd {
     mat4 result(1.0f);
 
     if (!(deltaX > 0.0f && deltaY > 0.0f)) return result; // Error
+    
+    float viewp[4];
+    viewport.storeu(viewp);
 
     const vec4 temp(
-      (viewport[2] - 2.0f * (centerX - viewport[0])) / deltaX,
-      (viewport[3] - 2.0f * (centerY - viewport[1])) / deltaY,
-      0.0f, 0.0f
+      (viewp[2] - 2.0f * (centerX - viewp[0])) / deltaX,
+      (viewp[3] - 2.0f * (centerY - viewp[1])) / deltaY,
+      0.0f, 
+      0.0f
     );
 
     // Translate and scale the picked region to the entire window
     result = translate(result, temp);
-    return scale(result, vec4(viewport[2] / deltaY, viewport[3] / deltaY, 1.0f, 1.0f));
+    return scale(result, vec4(viewp[2] / deltaY, viewp[3] / deltaY, 1.0f, 1.0f));
   }
 
 //   mat4 lookAt(const vec4 &eye, const vec4 &center, const vec4 &up) {

@@ -433,23 +433,30 @@ void Window::present() {
 //     nullptr
 //   };
 
-  const VkSwapchainKHR s = swapchain.swapchain;
+  VkResult res;
+  {
+    RegionLog rl("vkQueuePresent");
+    
+    const VkSwapchainKHR s = swapchain.swapchain;
 
-  const VkPresentInfoKHR info{
-    VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-    nullptr,
-    1,
-    &frames[currentVirtualFrame].finishedRenderingSemaphore,
-    1,
-    &s,
-    &imageIndex,
-    nullptr
-  };
+    const VkPresentInfoKHR info{
+      VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+      nullptr,
+      1,
+      &frames[currentVirtualFrame].finishedRenderingSemaphore,
+      1,
+      &s,
+      &imageIndex,
+      nullptr
+    };
 
-  auto queue = device->getQueue(family);
+    auto queue = device->getQueue(family);
 
-  VkResult res = vkQueuePresentKHR(queue.handle, &info);
+    res = vkQueuePresentKHR(queue.handle, &info);
+  }
 
+  RegionLog rl("switch(res)");
+  
   switch(res) {
     case VK_SUCCESS:
       break;

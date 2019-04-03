@@ -257,10 +257,17 @@ GraphicsContainer::GraphicsContainer() : dev(nullptr), task(nullptr), task1(null
   const yavf::Instance::CreateInfo info{
     nullptr,
     &appInfo,
+#ifdef _DEBUG
     instanceLayers,
+#else
+    {},
+#endif
     extensions,
+#ifdef _DEBUG
     true,
-    //false,
+#else
+    false,
+#endif
     false,
     false
   };
@@ -329,7 +336,7 @@ void GraphicsContainer::construct(CreateInfo &info) {
 
 void GraphicsContainer::update(const uint64_t &time) {
   {
-//     RegionLog rl("window->nextFrame()");
+    RegionLog rl("window->nextFrame()");
   
     windows->nextFrame();
   }
@@ -366,9 +373,14 @@ void GraphicsContainer::update(const uint64_t &time) {
   }
   
   {
-//     RegionLog rl("render->start()");
+    RegionLog rl("render->start()");
     
     render->start();
+  }
+  
+  {
+    RegionLog rl("windows->present()");
+    
     windows->present(); // по идее нет никакой разницы где это стоит
   }
 }

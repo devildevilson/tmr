@@ -121,7 +121,7 @@ namespace simd {
 
   mat4 cast(const quat &q) {
     float arr[4];
-    q.store(arr);
+    q.storeu(arr);
 
     const float qxx = arr[1] * arr[1]; // q.x * q.x;
     const float qyy = arr[2] * arr[2]; // q.y * q.y;
@@ -155,10 +155,10 @@ namespace simd {
 
   quat cast(const mat4 &mat) {
     float arr[16];
-    mat[0].store(&arr[0*4]);
-    mat[1].store(&arr[1*4]);
-    mat[2].store(&arr[2*4]);
-    mat[3].store(&arr[3*4]);
+    mat[0].storeu(&arr[0*4]);
+    mat[1].storeu(&arr[1*4]);
+    mat[2].storeu(&arr[2*4]);
+    mat[3].storeu(&arr[3*4]);
 
     // взятие одного числа из __m128 компилируется в очень плохой код
 
@@ -884,49 +884,76 @@ namespace simd {
     // здесь может быть ошибка
 
     float arr[4];
-    axis.store(arr);
+    axis.storeu(arr);
     float tmpArr[4];
-    temp.store(tmpArr);
+    temp.storeu(tmpArr);
     
-    mat4 rotate;
-    rotate[0][0] = c + tmpArr[0] * arr[0];
-    rotate[0][1] = tmpArr[0] * arr[1] + s * arr[2];
-    rotate[0][2] = tmpArr[0] * arr[2] - s * arr[1];
+    float rot[3][3];
+    
+//     mat4 rotate(
+//       c + tmpArr[0] * arr[0],          tmpArr[0] * arr[1] + s * arr[2], tmpArr[0] * arr[2] - s * arr[1], 0.0f,
+//       tmpArr[1] * arr[0] - s * arr[2], c + tmpArr[1] * arr[1],          tmpArr[1] * arr[2] + s * arr[0], 0.0f,
+//       tmpArr[2] * arr[0] + s * arr[1], tmpArr[2] * arr[1] - s * arr[0], c + tmpArr[2] * arr[2],          0.0f,
+//       0.0f, 0.0f, 0.0f, 0.0f
+//     );
+    rot[0][0] = c + tmpArr[0] * arr[0];
+    rot[0][1] = tmpArr[0] * arr[1] + s * arr[2];
+    rot[0][2] = tmpArr[0] * arr[2] - s * arr[1];
 
-    rotate[1][0] = tmpArr[1] * arr[0] - s * arr[2];
-    rotate[1][1] = c + tmpArr[1] * arr[1];
-    rotate[1][2] = tmpArr[1] * arr[2] + s * arr[0];
+    rot[1][0] = tmpArr[1] * arr[0] - s * arr[2];
+    rot[1][1] = c + tmpArr[1] * arr[1];
+    rot[1][2] = tmpArr[1] * arr[2] + s * arr[0];
 
-    rotate[2][0] = tmpArr[2] * arr[0] + s * arr[1];
-    rotate[2][1] = tmpArr[2] * arr[1] - s * arr[0];
-    rotate[2][2] = c + tmpArr[2] * arr[2];
+    rot[2][0] = tmpArr[2] * arr[0] + s * arr[1];
+    rot[2][1] = tmpArr[2] * arr[1] - s * arr[0];
+    rot[2][2] = c + tmpArr[2] * arr[2];
 
     mat4 result;
-    result[0] = mat[0] * rotate[0][0] + mat[1] * rotate[0][1] + mat[2] * rotate[0][2];
-    result[1] = mat[0] * rotate[1][0] + mat[1] * rotate[1][1] + mat[2] * rotate[1][2];
-    result[2] = mat[0] * rotate[2][0] + mat[1] * rotate[2][1] + mat[2] * rotate[2][2];
+    result[0] = mat[0] * rot[0][0] + mat[1] * rot[0][1] + mat[2] * rot[0][2];
+    result[1] = mat[0] * rot[1][0] + mat[1] * rot[1][1] + mat[2] * rot[1][2];
+    result[2] = mat[0] * rot[2][0] + mat[1] * rot[2][1] + mat[2] * rot[2][2];
     result[3] = mat[3];
     return result;
   }
 
+  // в этом нет необходимости если приходят верные вектора (x, y, z, 1) и (x, y, z, 0) для точки и направления соответственно
+  //const vec4 zeroW = vec4(1.0f, 1.0f, 1.0f, 0.0f);
+  
   mat4 lookAt(const vec4 &eye, const vec4 &center, const vec4 &up) {
-    const vec4 f(normalize(center - eye));
-    const vec4 s(normalize(cross(f, up)));
-    const vec4 u(cross(s, f));
+    const vec4 ftmp = normalize(center - eye);
+    const vec4 stmp = normalize(cross(ftmp, up));
+    const vec4 utmp = cross(stmp, ftmp);
+    
+    const vec4 f = -ftmp + vec4(0.0f, 0.0f, 0.0f,  dot(ftmp, eye));
+    const vec4 s =  stmp + vec4(0.0f, 0.0f, 0.0f, -dot(stmp, eye));
+    const vec4 u =  utmp + vec4(0.0f, 0.0f, 0.0f, -dot(utmp, eye));
+    const vec4 lastColumn = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    
+    mat4 res(
+//        s.x,  u.x, -f.x, 0.0f,
+//        s.y,  u.y, -f.z, 0.0f,
+//        s.z,  u.z, -f.z, 0.0f,
+//       -dot(s, eye), -dot(vec4(u.x, u.y, u.z, 0.0f), eye), dot(f, eye), 1.0f
+      s, 
+      u, 
+      f, 
+      lastColumn
+    );
 
-    mat4 result(1.0f);
-    result[0][0] = s.x;
-    result[1][0] = s.y;
-    result[2][0] = s.z;
-    result[0][1] = u.x;
-    result[1][1] = u.y;
-    result[2][1] = u.z;
-    result[0][2] =-f.x;
-    result[1][2] =-f.y;
-    result[2][2] =-f.z;
-    result[3][0] =-dot(s, eye);
-    result[3][1] =-dot(vec4(u.x, u.y, u.z, 0.0f), eye);
-    result[3][2] = dot(f, eye);
-    return result;
+//     mat4 result(1.0f);
+//     result[0][0] = s.x;
+//     result[1][0] = s.y;
+//     result[2][0] = s.z;
+//     result[0][1] = u.x;
+//     result[1][1] = u.y;
+//     result[2][1] = u.z;
+//     result[0][2] =-f.x;
+//     result[1][2] =-f.y;
+//     result[2][2] =-f.z;
+//     result[3][0] =-dot(s, eye);
+//     result[3][1] =-dot(vec4(u.x, u.y, u.z, 0.0f), eye);
+//     result[3][2] = dot(f, eye);
+//     return result;
+    return transpose(res);
   }
 }

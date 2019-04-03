@@ -62,6 +62,8 @@ namespace simd {
     inline vec4 & abs();
     inline void load(const float* p);
     inline void store(float* p) const;
+    inline void loadu(const float* p);
+    inline void storeu(float* p) const;
     inline vec4 & operator-= (const vec4 &rhs);
     inline vec4 & operator+= (const vec4 &rhs);
     inline vec4 & operator*= (const vec4 &rhs);
@@ -242,6 +244,8 @@ namespace simd {
 
     inline void load(const float* p);
     inline void store(float* p) const;
+    inline void loadu(const float* p);
+    inline void storeu(float* p) const;
 
     inline quat & operator-=(const quat &rhs);
     inline quat & operator+=(const quat &rhs);
@@ -337,12 +341,19 @@ namespace simd {
     inline ivec4();
     inline ivec4(const int32_t &x, const int32_t &y, const int32_t &z, const int32_t &w);
     inline ivec4(const int32_t &x);
+//     inline ivec4(const void* p);
     inline ivec4(const ivec4 &vec);
     inline ivec4(const vec4 &vec);
     inline ivec4(__m128i native);
     inline ~ivec4();
 
     inline constexpr uint32_t length() const { return 4; }
+    
+    // эти операции определены в avx512
+//     inline void load(const void* p);
+//     inline void store(void* p) const;
+//     inline void loadu(const void* p);
+//     inline void storeu(void* p) const;
 
 #ifdef __SSSE3__
     inline ivec4 & hadd(const ivec4 &vec);
@@ -350,7 +361,6 @@ namespace simd {
     inline ivec4 & abs();
 #endif
 
-    inline ivec4 & operator-();
     inline ivec4 & operator-=(const ivec4 &rhs);
     inline ivec4 & operator+=(const ivec4 &rhs);
     inline ivec4 & operator*=(const ivec4 &rhs);
@@ -369,7 +379,6 @@ namespace simd {
     inline ivec4 & operator++();
     inline ivec4 operator--(int);
     inline ivec4 operator++(int);
-    inline ivec4 & operator~();
     inline ivec4 & operator|=(const ivec4 &vec);
     inline ivec4 & operator^=(const ivec4 &vec);
     inline ivec4 & operator&=(const ivec4 &vec);
@@ -383,6 +392,7 @@ namespace simd {
     inline const int32_t & operator[](const uint32_t &index) const;
   };
 
+  inline ivec4 operator-(const ivec4 &vec);
   inline ivec4 operator-(const ivec4 &vec1, const ivec4 &vec2);
   inline ivec4 operator+(const ivec4 &vec1, const ivec4 &vec2);
   inline ivec4 operator*(const ivec4 &vec1, const ivec4 &vec2);
@@ -397,10 +407,12 @@ namespace simd {
   inline ivec4 operator*(const int32_t &value, const ivec4 &vec);
 
   inline ivec4 div(const ivec4 &vec, const int32_t &value);
+  inline ivec4 div(const int32_t &value, const ivec4 &vec);
   inline ivec4 div(const ivec4 &vec1, const ivec4 &vec2);
 
   // деления целых чисел нет :(
 //     inline ivec4 operator/(const int32_t &value) const;
+  inline ivec4 operator~(const ivec4 &vec);
   inline ivec4 operator|(const ivec4 &vec1, const ivec4 &vec2);
   inline ivec4 operator>(const ivec4 &vec1, const ivec4 &vec2);
   inline ivec4 operator>=(const ivec4 &vec1, const ivec4 &vec2);
@@ -517,37 +529,9 @@ namespace simd {
 //   mat4 frustumLH(const float &left, const float &right, const float &bottom, const float &top, const float &zNear, const float &zFar);
 //   mat4 frustumRH(const float &left, const float &right, const float &bottom, const float &top, const float &zNear, const float &zFar);
 
-  // TODO: bug with 'far' and 'near' on windows g++
-  inline mat4 perspective(const float &fovy, const float &aspect, const float &near, const float &far) {
-    const float tanHalfFovy = std::tan(fovy / 2.0f);
-  
-	  const float far1 = far;
-	  const float near1 = near;
-  
-    mat4 result(0.0f);
-    result[0][0] = 1.0f / (aspect * tanHalfFovy);
-    result[1][1] = 1.0f / (tanHalfFovy);
-    result[2][3] = -1.0f;
-    result[2][2] = far1 / (near1 - far1);
-    result[3][2] = -(far1 * near1) / (far1 - near1);
-  
-    return result;
-  }
-  
-  inline mat4 perspectiveFov(const float &fov, const float &width, const float &height, const float &near, const float &far) {
-    const float rad = fov;
-    const float h = ::cos(0.5f * rad) / ::sin(0.5f * rad);
-    const float w = h * height / width; ///todo max(width , Height) / min(width , Height)?
-  
-    mat4 result(0.0f);
-    result[0][0] = w;
-    result[1][1] = h;
-    result[2][3] = -1.0f;
-    result[2][2] = far / (near - far);
-    result[3][2] = -(far * near) / (far - near);
-  
-    return result;
-  }
+  // TODO: bug with 'far' and 'near' on windows g++, oneTwoNear & oneTwoFar is workaround
+  inline mat4 perspective(const float &fovy, const float &aspect, const float &oneTwoNear, const float &oneTwoFar);
+  inline mat4 perspectiveFov(const float &fov, const float &width, const float &height, const float &oneTwoNear, const float &oneTwoFar);
 
   inline vec4 project(const vec4 &obj, const mat4 &model, const mat4 &proj, const vec4 &viewport);
   inline vec4 unProject(const vec4 &win, const mat4 &model, const mat4 &proj, const vec4 &viewport);

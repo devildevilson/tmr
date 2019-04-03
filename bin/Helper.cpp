@@ -1330,10 +1330,22 @@ void mouseInput(UserInputComponent* input, const uint64_t &time) {
 
   double xpos, ypos;
   int32_t width, height;
-  glfwGetCursorPos(Global::window()->handle(), &xpos, &ypos);
-  glfwGetWindowSize(Global::window()->handle(), &width, &height);
-  double centerX = double(width) / 2.0, centerY = double(height) / 2.0;
-  glfwSetCursorPos(Global::window()->handle(), centerX, centerY);
+  {
+    RegionLog rl("glfwGetCursorPos");
+    glfwGetCursorPos(Global::window()->handle(), &xpos, &ypos);
+    
+  }
+  
+  {
+    RegionLog rl("glfwGetFramebufferSize");
+    glfwGetFramebufferSize(Global::window()->handle(), &width, &height);
+  }
+  
+  {
+    RegionLog rl("glfwSetCursorPos");
+    double centerX = double(width) / 2.0, centerY = double(height) / 2.0;
+    glfwSetCursorPos(Global::window()->handle(), centerX, centerY);
+  }
 
   // играя с +, - можно делать такие штуки как инверися по осям
   // чувствительность мыши это mouseSpeed

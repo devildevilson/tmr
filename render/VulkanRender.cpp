@@ -202,7 +202,7 @@ void VulkanRender::update(const uint64_t &time) {
   (void)time;
   
   {
-//     RegionLog rl("stages->update()");
+    RegionLog rl("stages->update()");
     
     for(uint32_t i = 0; i < stages.size(); ++i) {
       stages[i]->begin();
@@ -214,7 +214,7 @@ void VulkanRender::update(const uint64_t &time) {
 //   }
   
   {
-//     RegionLog rl("stages->doWork()");
+    RegionLog rl("stages->doWork()");
     
     for(uint32_t i = 0; i < stages.size(); ++i) {
       stages[i]->doWork(currentIndex);

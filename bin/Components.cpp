@@ -1221,62 +1221,94 @@ void UserInputComponent::init(void* userData) {
 }
 
 void UserInputComponent::mouseMove(const float &horisontalAngle, const float &verticalAngle) {
-  static bool first = true;
-  if (first) {
-//     std::cout << "horisontalAngleSum " << horisontalAngleSum << " verticalAngleSum " << verticalAngleSum << "\n";
-//     cartesianToSpherical(startingDir, horisontalAngleSum, verticalAngleSum);
+//   static bool first = true;
+//   if (first) {
+// //     std::cout << "horisontalAngleSum " << horisontalAngleSum << " verticalAngleSum " << verticalAngleSum << "\n";
+// //     cartesianToSpherical(startingDir, horisontalAngleSum, verticalAngleSum);
+//     
+// //     horisontalAngleSum = glm::degrees(horisontalAngleSum);
+// //     verticalAngleSum = glm::degrees(verticalAngleSum);
+//     
+//     first = false;
+//   }
+  
+  float x, y;
+  {
+    RegionLog rl("angle compute");
     
-//     horisontalAngleSum = glm::degrees(horisontalAngleSum);
-//     verticalAngleSum = glm::degrees(verticalAngleSum);
+    horisontalAngleSum += horisontalAngle;
+    verticalAngleSum += verticalAngle;
     
-    first = false;
+    if (horisontalAngleSum > 360.0f) horisontalAngleSum = horisontalAngleSum - 360.0f;
+    if (horisontalAngleSum < 0.0f)   horisontalAngleSum = horisontalAngleSum + 360.0f;
+    
+    if (verticalAngleSum > 180.0f - 0.01f) verticalAngleSum = 180.0f - 0.01f;
+    if (verticalAngleSum < 0.0f   + 0.01f) verticalAngleSum = 0.0f   + 0.01f;
+    
+    x = -glm::radians(horisontalAngleSum); // азимут
+    y = -glm::radians(verticalAngleSum); // зенит
+    
+    rotation.y = x; // yaw 
+    rotation.x = y; // pitch
   }
   
-  horisontalAngleSum += horisontalAngle;
-  verticalAngleSum += verticalAngle;
-  
-  if (horisontalAngleSum > 360.0f) horisontalAngleSum = horisontalAngleSum - 360.0f;
-  if (horisontalAngleSum < 0.0f)   horisontalAngleSum = horisontalAngleSum + 360.0f;
-  
-  if (verticalAngleSum > 180.0f - 0.01f) verticalAngleSum = 180.0f - 0.01f;
-  if (verticalAngleSum < 0.0f   + 0.01f) verticalAngleSum = 0.0f   + 0.01f;
-  
-  float x = -glm::radians(horisontalAngleSum); // азимут
-  float y = -glm::radians(verticalAngleSum); // зенит
-  
-  rotation.y = x; // yaw 
-  rotation.x = y; // pitch
-  
   simd::vec4 front;
-  front.x = glm::sin(y) * glm::cos(x); // r = 1.0f
-  front.y = -glm::cos(y);
-  front.z = glm::sin(y) * glm::sin(x);
-  front.w = 0.0f;
-  
-  front = simd::normalize(front);
+  {
+    RegionLog rl("front");
+    
+    front = simd::vec4(
+      glm::sin(y) * glm::cos(x), // r = 1.0f
+      -glm::cos(y),
+      glm::sin(y) * glm::sin(x),
+      0.0f
+    );
+  //   front.x = glm::sin(y) * glm::cos(x); // r = 1.0f
+  //   front.y = -glm::cos(y);
+  //   front.z = glm::sin(y) * glm::sin(x);
+  //   front.w = 0.0f;
+    
+    front = simd::normalize(front);
+  }
   
   simd::vec4 right;
-  right.x = glm::cos(x - glm::half_pi<float>());
-  right.y = 0.0f;
-  right.z = glm::sin(x - glm::half_pi<float>());
-  right.w = 0.0f;
-  
-  right = simd::normalize(right);
-  
-  simd::vec4 up = simd::normalize(simd::cross(right, front));
-  
-  // transform я должен получать из вне
-  const simd::mat4 &transform = Global::physics()->getOrientation();
-  front = transform * front;
-  right = transform * right;
-  up = transform * up;
-  this->front() = front;
-  this->InputComponent::right() = right;
-  this->up() = up;
-  playerRotation = rotation;
   {
-    Global g;
-    g.setPlayerRot(glm::vec4(rotation, 0.0f));
+    RegionLog rl("right");
+    
+    right = simd::vec4(
+      glm::cos(x - glm::half_pi<float>()),
+      0.0f,
+      glm::sin(x - glm::half_pi<float>()),
+      0.0f
+    );
+  //   right.x = glm::cos(x - glm::half_pi<float>());
+  //   right.y = 0.0f;
+  //   right.z = glm::sin(x - glm::half_pi<float>());
+  //   right.w = 0.0f;
+    
+    right = simd::normalize(right);
+  }
+  
+  simd::vec4 up;
+  {
+    RegionLog rl("up");
+    up = simd::normalize(simd::cross(right, front));
+  }
+  
+  {
+    RegionLog rl("transform");
+    // transform я должен получать из вне
+    const simd::mat4 &transform = Global::physics()->getOrientation();
+    front = transform * front;
+    right = transform * right;
+    up = transform * up;
+    this->front() = front;
+    this->InputComponent::right() = right;
+    this->up() = up;
+    playerRotation = rotation;
+    {
+      Global g;
+      g.setPlayerRot(glm::vec4(rotation, 0.0f));
+    }
   }
   
   trans->rot() = front;
