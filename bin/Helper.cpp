@@ -467,7 +467,7 @@ void nkOverlay(const SimpleOverlayData &data, nk_context* ctx) {
       const simd::vec4 &pos = data.pos;
       float arr[4];
       pos.store(arr);
-      
+
       const auto &str = fmt::sprintf("Camera pos: (%.2f,%.2f,%.2f,%.2f)", arr[0], arr[1], arr[2], arr[3]);
 
       nk_layout_row_static(ctx, 30.0f, 300, 1); // ряд высотой 30, каждый элемент шириной 300, 1 столбец
@@ -478,7 +478,7 @@ void nkOverlay(const SimpleOverlayData &data, nk_context* ctx) {
       const simd::vec4 &dir = data.rot;
       float arr[4];
       dir.store(arr);
-      
+
       const auto &str = fmt::sprintf("Camera dir: (%.2f,%.2f,%.2f)", arr[0], arr[1], arr[2]);
 
       nk_layout_row_static(ctx, 30.0f, 300, 1);
@@ -1331,18 +1331,18 @@ void mouseInput(UserInputComponent* input, const uint64_t &time) {
   double xpos, ypos;
   int32_t width, height;
   {
-    RegionLog rl("glfwGetCursorPos");
+    // RegionLog rl("glfwGetCursorPos");
     glfwGetCursorPos(Global::window()->handle(), &xpos, &ypos);
-    
+
   }
-  
+
   {
-    RegionLog rl("glfwGetFramebufferSize");
+    // RegionLog rl("glfwGetFramebufferSize");
     glfwGetFramebufferSize(Global::window()->handle(), &width, &height);
   }
-  
+
   {
-    RegionLog rl("glfwSetCursorPos");
+    // RegionLog rl("glfwSetCursorPos");
     double centerX = double(width) / 2.0, centerY = double(height) / 2.0;
     glfwSetCursorPos(Global::window()->handle(), centerX, centerY);
   }

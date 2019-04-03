@@ -435,8 +435,8 @@ void Window::present() {
 
   VkResult res;
   {
-    RegionLog rl("vkQueuePresent");
-    
+    // RegionLog rl("vkQueuePresent");
+
     const VkSwapchainKHR s = swapchain.swapchain;
 
     const VkPresentInfoKHR info{
@@ -455,8 +455,8 @@ void Window::present() {
     res = vkQueuePresentKHR(queue.handle, &info);
   }
 
-  RegionLog rl("switch(res)");
-  
+  // RegionLog rl("switch(res)");
+
   switch(res) {
     case VK_SUCCESS:
       break;
@@ -654,12 +654,12 @@ void Window::setRender(VulkanRender* render) {
 
   const simd::mat4 &perspective = simd::perspective(glm::radians(fov), float(surface.extent.width) / float(surface.extent.height), 0.1f, FAR_CLIPPING);
   const simd::mat4 &ortho = simd::ortho(0.0f, float(surface.extent.width) / float(surface.extent.height), 0.0f, 1.0f, 0.1f, FAR_CLIPPING);
-  
+
 //   PRINT_VEC("view ", perspective[0])
 //   PRINT_VEC("     ", perspective[1])
 //   PRINT_VEC("     ", perspective[2])
 //   PRINT_VEC("     ", perspective[3])
-  
+
   //throw std::runtime_error("no more");
 
   render->setPersp(perspective);

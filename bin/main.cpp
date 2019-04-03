@@ -373,16 +373,16 @@ int main(int argc, char** argv) {
   Global::physics()->setGravity(simd::vec4(0.0f, -9.8f, 0.0f, 0.0f));
 
   Global::window()->show();
-  Global::window()->toggleVsync();
+  //Global::window()->toggleVsync();
 
   TimeMeter tm(1000000);
   while (!Global::window()->shouldClose()) {
     tm.start();
     glfwPollEvents();
 
-    std::cout << "\n";
-    
-    RegionLog rl("everything", true);
+    // std::cout << "\n";
+
+    // RegionLog rl("everything", true);
 
     // чекаем время
     const uint64_t time = tm.getTime();
@@ -397,15 +397,15 @@ int main(int argc, char** argv) {
 
     {
 //       RegionLog rl("input + camera", true);
-      
+
       {
         {
-          RegionLog rl("mouse input");
+          // RegionLog rl("mouse input");
           mouseInput(input, time);
         }
-          
+
         {
-          RegionLog rl("key input");
+          // RegionLog rl("key input");
           keysCallbacks(&keyConfig, time);
         }
 
@@ -419,7 +419,7 @@ int main(int argc, char** argv) {
     //ai->update(time);
 
     {
-      RegionLog rl("physics region");
+      // RegionLog rl("physics region");
 
       {
         // можно переместить в камеру
@@ -440,7 +440,7 @@ int main(int argc, char** argv) {
     }
 
     {
-      RegionLog rl("animation region", true);
+      // RegionLog rl("animation region", true);
 
       // мне же еще нужно изменить глобал переменную с позицией игрока
       Global::animations()->update(time);
@@ -475,7 +475,7 @@ int main(int argc, char** argv) {
     // и прочее
 
     {
-      RegionLog rl("graphics region");
+      // RegionLog rl("graphics region");
 
       graphicsContainer.update(time);
 
@@ -489,7 +489,8 @@ int main(int argc, char** argv) {
     }
 
     // здесь же у нас должна быть настройка: тип какую частоту обновления экрана использовать?
-    const size_t syncTime = Global::window()->isVsync() ? (Global::window()->isFullscreen() ? Global::window()->refreshTime() : 16666) : 0; //16667
+    //(Global::window()->isFullscreen() ?  : 16666)
+    const size_t syncTime = Global::window()->isVsync() ? Global::window()->refreshTime() : 0; //16667
     //std::cout << "syncTime " << syncTime << "\n";
     sync(tm, syncTime);
 
