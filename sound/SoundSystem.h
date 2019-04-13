@@ -3,36 +3,18 @@
 
 #include "Engine.h"
 #include "Utility.h"
+#include "MemoryPool.h"
 
 #include <vector>
 #include <string>
 #include <map>
 #include <unordered_map>
 
-class SoundID {
-public:
-  static SoundID get(const std::string &name);
-  static bool has(const std::string &name);
-  
-  SoundID(const std::string &name);
-  
-  size_t id() const;
-  
-  bool operator== (const SoundID &other) const;
-private:
-  size_t soundId;
-  
-  static std::unordered_map<std::string, size_t> idx;
-};
+#include "Source.h"
+#include "Buffer.h"
 
-namespace std {
-  template<>
-  struct hash<SoundID> {
-    size_t operator() (const SoundID &soundId) const {
-      return hash<size_t>()(soundId.id());
-    }
-  };
-}
+#include "ResourceID.h"
+#include "SoundData.h"
 
 // я чет не могу понять как это все у меня будет выглядеть в итоге
 // то есть мне нужно будет связать сорс с непосредственно данными
@@ -43,12 +25,15 @@ namespace std {
 // вопрос возник с тем, как хранить многоканальные данные
 // проще их всех хранить в multimap'е
 
-class Source;
-class Buffer;
+// class Source;
+// class Buffer;
 class BufferAllocator;
 
-class ALCdevice;
-class ALCcontext;
+
+struct ALCdevice_struct;
+typedef struct ALCdevice_struct ALCdevice;
+struct ALCcontext_struct;
+typedef struct ALCcontext_struct ALCcontext;
 
 // а как загружать данные из зип архива
 // придется же его постоянно держать включенным для того чтобы грузить по кускам
@@ -80,262 +65,157 @@ class ALCcontext;
 // я не очень понимаю что делать со звуками которые выбиваются по приоритету, ну то есть паузить их? (не выйдет)
 // думаю что их просто надо выкидывать и резетить
 
-class SoundChannelData;
+// class SoundChannelData;
+// class SoundData;
 
-// имя?
-class SoundData {
-public:
-  struct CreateInfo {
-    SoundID id;
-    // также информация о том как найти этот файл (в будущем скорее всего будет неким хендлом)
-    // + метаинформация (размер например), может быть даже метаинфа самого аудиофайла
-    std::string path;
-    
-    size_t pcmSize; // скорее всего точно пригодится
-    
-    uint32_t channelCount;
-    SoundChannelData* channel; // первый канал
-  };
-  
-  SoundData(const CreateInfo &info);
-  ~SoundData();
-  
-  void update(); // время? скорее всего здесь не нужно, так как решение о перезагрузке буферов мы делаем исходя из того что уже обработано
-  
-  size_t id() const;
-  std::string path() const;
-  size_t pcmSize() const;
-  size_t loadedPcmSize() const;
-  uint32_t channelCount() const;
-private:
-  SoundID soundId;
-  
-  std::string pathStr;
-  
-  size_t pcmSizeVar;
-  size_t loadedPcmSizeVar; // для того чтобы верно подгрузить следующий кусок
-  // нужна ли переменная для того чтобы определить сколько подружать каждый раз?
-  
-  // чаще всего у меня будет либо 1 канал либо 2 (в крайне редких случаях их будет 3 и более)
-  // вектор мне бы использовать не хотелось (много лишней фигни)
-  // нужно разместить все каналы в одном большом буфере и здесь хранить только указатель на первый и количество
-  uint32_t channelCountVar;
-  SoundChannelData* channel;
+struct ListenerData {
+  simd::vec4 pos;
+  simd::vec4 velocity;
+  simd::vec4 forward;
+  simd::vec4 up;
 };
 
-class SoundChannelData {
-public:
-  enum Type {
-    DATA_CACHED            = (1<<0),
-    DATA_MONO              = (1<<1),
-    DATA_FORCE_MONO        = (1<<2),
-    DATA_LAZY_PRELOADED    = (1<<3),
-    DATA_CLEARED_AFTER_USE = (1<<4),
-    DATA_LOOPED            = (1<<5),
-  };
+struct Buffers {
+  Buffers() : buffers{UINT32_MAX, UINT32_MAX} {}
+  Buffers(const Buffer &b1, const Buffer &b2) : buffers{b1, b2} {}
+  ~Buffers() {}
   
-  struct Settings {
-    bool cache;
-    bool lazyPreload; // nothing atually loaded from start
-    bool forceMono;
-    bool clearAfterUse;
-    bool looped;
-    uint32_t channelIndex;
-  };
-  SoundChannelData(SoundData* relatedSound, const Settings &settings);
-  ~SoundChannelData();
+  Buffers & operator=(const Buffers &buffers) {
+    this->buffers[0] = buffers.buffers[0];
+    this->buffers[1] = buffers.buffers[1];
+    return *this;
+  }
   
-  void loadSoundData(); // loads full data if cached, otherwise only several buffers (usable only with DATA_LAZY_PRELOADED)
-  void clearSoundData(); // deletes data from buffers
-  bool isSoundDataPrepared();
-  
-  void attachToSource(Source* source);
-  void deattach();
-  bool isAttached() const;
-  
-//   std::string name() const;
-//   std::string path() const;
-  SoundData* sound() const;
-  size_t offset() const;
-  size_t count() const;
-  
-  bool isCached() const;
-  bool isMono() const;
-  bool isForcedMono() const;
-  bool isClearedAfterUse() const;
-  bool isLooped() const;
-private:
-//   std::string nameStr;
-  // переменной с путем у нас здесь наверное не будет
-  // вместо этого указатель на абстрактный хендл, либо ничего
-//   std::string pathStr;
-  
-  SoundData* relatedSound;
-  
-  uint32_t channelIndex;
-  uint32_t type;
-  
-  // у всех звуков должны быть приоритеты по которым мы принимаем решение проигрывать их сейчас или может быть в какой то другой момент
-  // скорее не у каждого звука должен быть приоритет, а он должен вычисляться на основе расстояния
-  // может ли возникнуть ситуация, когда важный звук не может "вернуться" из-за того что дохрена других?
-  // во-первых вряд ли, если у звука маленький приоритет, то он нахрен не нужен, если у звука нормальный приоритет, то он вернется в очередь
-  
-  // для буфферов
-  size_t offsetVar;
-  size_t countVar;
-  
-  Source* source;
-  BufferAllocator* allocator;
-};
-
-class Source {
-public:
-  enum class State {
-    playing,
-    paused,
-    stopped,
-    initial
-  };
-
-  enum class Type {
-    undetermined,
-    statict,
-    streaming
-  };
-  
-  struct CreateInfo {
-    float pitch;
-    float gain;
-    float maxDist;
-    float rolloff;
-    float refDist;
-    float minGain;
-    float maxGain;
-    bool looping;
-    bool relative;
-  };
-  
-  Source();
-  Source(const CreateInfo &info);
-  Source(Source &source);
-  ~Source();
-  
-  void play();
-  void pause();
-  void stop();
-  void rewind();
-  // буду ли я хранить указатели на буферы в сорсе?
-  void queueBuffers(const int32_t &size, uint32_t* buffers);
-  void unqueueBuffers(const int32_t &size, uint32_t* buffers);
-  
-  void setPitch(const float &data);
-  void setGain(const float &data);
-  void setMaxDist(const float &data);
-  void setRolloff(const float &data);
-  void setRefDist(const float &data);
-  void setMinGain(const float &data);
-  void setMaxGain(const float &data);
-  void setConeOuterGain(const float &data);
-  void setConeInnerAngle(const float &data);
-  void setConeOuterAngle(const float &data);
-  
-  void setPos(const glm::vec3 &data);
-  void setVel(const glm::vec3 &data);
-  void setDir(const glm::vec3 &data);
-  
-//   // в спеках чет нигде это не указано
-//   void setSecOffset(const float &data);
-//   void setSampleOffset(const float &data);
-//   void setByteOffset(const float &data);
-  
-  void buffer(const uint32_t &data);
-  void relative(const bool &data);
-  void looping(const bool &data);
-  
-  float getPitch() const;
-  float getGain() const;
-  float getMaxDist() const;
-  float getRolloff() const;
-  float getRefDist() const;
-  float getMinGain() const;
-  float getMaxGain() const;
-  float getConeOuterGain() const;
-  float getConeInnerAngle() const;
-  float getConeOuterAngle() const;
-  
-  glm::vec3 getPos() const;
-  glm::vec3 getVel() const;
-  glm::vec3 getDir() const;
-  
-  uint32_t getBuffer() const;
-  
-  int32_t queueBuffers() const;
-  int32_t processedBuffers() const;
-  
-  Type type() const;
-  State state() const;
-  
-  bool isRelative() const;
-  bool isLooping() const;
-  
-//   void setSecOffset(const float &data);
-//   void setSampleOffset(const float &data);
-//   void setByteOffset(const float &data);
-  
-  uint32_t id() const;
-  
-  Source & operator= (Source &other);
-private:
-  uint32_t alId;
-  
-  // указатели на буферы (нужны ли?)
-  // указатель на то что сейчас играет
-};
-
-class Buffer {
-public:
-  static void setBufferDataStatic(const bool &data);
-  static bool isBufferDataStaticPresent();
-  
-  Buffer();
-  Buffer(Buffer &other);
-  ~Buffer();
-  
-  void bufferData(const int32_t &format, void* data, const int32_t &size, const int32_t &freq);
-  void bufferDataStatic(const int32_t &format, void* data, const int32_t &size, const int32_t &freq);
-  
-  int32_t frequency() const;
-  int32_t bits() const;
-  int32_t channels() const;
-  int32_t size() const;
-  
-  uint32_t id() const;
-  
-  Buffer & operator= (Buffer &other);
-private:
-  uint32_t alId;
-  
-  // судя по спекам данные в буфер КОПИРУЮТСЯ
-  // с alBufferDataStatic данные не копируются, а значит нужно использовать свое хранилище
-  static bool bufferDataStaticEnabled;
-  // походу нет у меня этого расширения
+  Buffer buffers[2];
 };
 
 struct SoundOutput {
-  Source* source;
-  SoundChannelData* data;
+  ResourceID id;
+  SoundData* sound;
   
-  float priority; // вычисляется исходя из дальности до звука
+  Source source;
+  Buffers buffers;
+  float gain;
+  size_t loadedSize;
 };
 
-struct ListenerData {
-  glm::vec3 pos;
-  glm::vec3 velocity;
-  glm::vec3 forward;
-  glm::vec3 up;
+struct QueueSoundType {
+  uint32_t container;
+  
+  QueueSoundType();
+  QueueSoundType(const bool relative, const bool deleteAfterPlayed, const bool playAnyway);
+  
+  void makeType(const bool relative, const bool deleteAfterPlayed, const bool playAnyway);
+  
+  bool isRelative() const;
+  bool deleteAfterPlayed() const;
+  bool playAnyway() const; // это в основном нужно чтобы проиграть хотя бы раз (супер редко)
+  // повтор?
+  // запустить звук с какого нибудь определенного места
+  // для этого скорее всего достаточно будет одного байта
+  
+  void setRelative(const bool enable);
+  void setDeleteAfterPlayed(const bool enable);
+  void setPlayAnyway(const bool enable);
+};
+
+struct QueueSoundData {
+  ResourceID id;
+  
+  size_t loadedSize;
+//   size_t time;
+  
+  float pitch;
+  float gain;
+  float maxDist;
+  float maxGain;
+  
+  float pos[4];
+  float vel[4];
+  float dir[4];
+  
+  QueueSoundType type;
+  
+  SoundData* data;
+  
+  float priority;
+  Source source;
+  Buffers buffers;
+  
+  QueueSoundData() :
+    loadedSize(0), 
+    pitch(1.0f), 
+    gain(0.1f), 
+    maxDist(1.0f), 
+    maxGain(1.0f), 
+    pos{0.0f, 0.0f, 0.0f, 1.0f}, 
+    vel{0.0f, 0.0f, 0.0f, 0.0f}, 
+    dir{0.0f, 0.0f, 0.0f, 0.0f}, 
+    type(false, true, false), 
+    data(nullptr), 
+    priority(100000.0f), 
+    source(UINT32_MAX), 
+    buffers(UINT32_MAX, UINT32_MAX) {}
+  
+  QueueSoundData(const ResourceID &id) : 
+    id(id), 
+    loadedSize(0), 
+    pitch(1.0f), 
+    gain(0.1f), 
+    maxDist(1.0f), 
+    maxGain(1.0f), 
+    pos{0.0f, 0.0f, 0.0f, 1.0f}, 
+    vel{0.0f, 0.0f, 0.0f, 0.0f}, 
+    dir{0.0f, 0.0f, 0.0f, 0.0f}, 
+    type(false, true, false), 
+    data(nullptr), 
+    priority(100000.0f), 
+    source(UINT32_MAX), 
+    buffers(UINT32_MAX, UINT32_MAX) {}
+  
+  ~QueueSoundData() {}
+  
+  void updateSource() {
+    if (!source.isValid()) return;
+    
+    source.relative(type.isRelative());
+    source.setPitch(pitch);
+    source.setGain(gain);
+    source.setMaxDist(maxDist);
+    source.setMaxGain(maxGain);
+    
+    source.setPos(pos);
+    source.setDir(dir);
+    source.setVel(vel);
+  }
+  
+  void queueBuffers() {
+    if (!source.isValid()) return;
+    
+    source.queueBuffers(2, buffers.buffers);
+  }
+  
+  // может быть пригодится еще тип звука
+  // приоритет посчитаем на основе позиции
+  // так же нужно присылать звуки от игрока, то есть относительно слушателя
+  // передать примерное начало звука
 };
 
 // звук удобнее всего будет доделать после того как у меня появятся зачатки игровой логики
+struct SoundLoadingData {
+  std::string path;
+  
+  // настройки
+  SupportedSoundType type; // по идее мы это легко определим из пути
+  bool cache;
+  bool lazyPreload; // грузим звук только в тот момент когда мы пытаемся его проиграть
+  bool forceMono;
+  bool clearAfterUse; // не используется
+  bool looped;        // не используется
+//   uint32_t forceSoundChannel; // грузим звук только из конкретного канала
+};
+
+class SoundComponent;
 
 // тут нужно бы мультитрединг запилить
 class SoundSystem : public Engine {
@@ -347,25 +227,65 @@ public:
   
   void update(const uint64_t &time) override;
   
+  // нужно еще узнать сколько звук проиграл
+  // playedSize / pcmSize, как то так. как узнать playedSize?
+  void playBackgroundSound(const ResourceID &id = ResourceID());
+  void pauseBackgroundSound();
+  void stopBackgroundSound(); // стоп = возвращаем к 0 секунде
+  Source::State getBackgroundSoundState() const;
+  size_t getBackgroundSoundDuration() const; // микросекунды
+  float getBackgroundSoundPosition() const;
+  void setBackgroundSoundPosition(const float &pos);
   // тут еще будут методы для того чтобы поставить звук в очередь, для этого нам потребуется 
   // позиция, скорость, направление, максимальная дистанция и прочее
   // и нам еще потребуется обновить местоположение звука, как это сделать?
   // передавать какой-нибудь уникальный индентификатор именно звука в очереди???
   // это несложно по идее
+  QueueSoundData* queueSound(const ResourceID &id);
+  void unqueueSound(QueueSoundData* ptr);
+  // нам нужно еще менять свойства звука, мы можем просто еще раз засовывать в эту функцию
+  // потом искать по id звуки и менять свойства источника
   
   // методы для загрузки и удаления звуков
+  // теперь если звук не isLazyPreloaded, то мне сложно его удалить
+  void loadSound(const ResourceID &id, const SoundLoadingData &data);
+  void unloadSound(const ResourceID &id);
+  SoundData* getSound(const ResourceID &id) const;
+  
+  void addComponent(SoundComponent* ptr);
+  void removeComponent(SoundComponent* ptr);
+  
+  size_t sourcesCount() const;
+  size_t activeSourcesCount() const;
 private:
+  struct ContainerData {
+    size_t offset;
+    size_t size1; // это по идее в байтах должно быть 
+    size_t size2;
+  };
+  
   ALCdevice* device;
   ALCcontext* ctx;
   
-  // суть в том что у меня будет ограниченное количество источников
-  //std::vector<Source*> sources;
-  std::vector<SoundOutput> sources;
-//   std::vector<SoundOutput*> currentSounds;
+  size_t sourcesCountVar;
+  
+  // один стерео канал для фоновых звуков, нужно сделать панель управления ими
+  // скорее всего нужно явно указать какой звук саундтрек а какой нет
+  SoundOutput soundtrack;
+  
+  std::vector<QueueSoundData*> soundQueue;
+  std::vector<SoundComponent*> components;
+  
+  std::vector<Source> freeSources;
+  std::vector<Buffers> sourceBuffers;
+  
+  std::vector<char> container; // данные подгруженных заранее звуков
   
   // тут наверное нужно использовать хеш названия
-//   std::multimap<std::string, SoundChannelData*> soundDatas;
-  std::unordered_map<SoundID, SoundData*> datas;
+  std::unordered_map<ResourceID, SoundData*> datas;
+  std::unordered_map<ResourceID, ContainerData> cachedBuffers;
+  MemoryPool<SoundData, sizeof(SoundData)*50> soundsPool;
+  MemoryPool<QueueSoundData, sizeof(QueueSoundData)*50> queueDataPool;
 };
 
 #endif
