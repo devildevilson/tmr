@@ -1,6 +1,6 @@
 #include "Helper.h"
 
-// #include "../sound/SoundSystem.h"
+#include "../sound/SoundSystem.h"
 
 int main(int argc, char** argv) {
   for (int32_t i = 0; i < argc; ++i) {
@@ -51,7 +51,64 @@ int main(int argc, char** argv) {
   // если в настройках определено не использовать треад пул
   // то нам его создавать ни к чему
   //std::cout << "std::thread::hardware_concurrency() " << std::thread::hardware_concurrency() << "\n";
-  //throw std::runtime_error("no more");
+  
+  SoundSystem system;
+  
+  {
+    const ListenerData data{
+      simd::vec4(0.0f, 0.0f, 0.0f, 1.0f),
+      simd::vec4(0.0f, 0.0f, 0.0f, 0.0f),
+      simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
+      simd::vec4(0.0f, 1.0f, 0.0f, 0.0f)
+    };
+    system.updateListener(data);
+  }
+  
+  {
+    const SoundLoadingData sound{
+      Global::getGameDir() + "tmrdata/sound/jenny.wav",
+      SOUND_TYPE_WAV,
+      false,
+      false,
+      true,
+      //false,
+      false,
+      false
+    };
+    system.loadSound(ResourceID::get("test_sound"), sound);
+  }
+  
+  std::cout << "sources count " << system.sourcesCount() << "\n";
+  
+//   QueueSoundData* queueData = system.queueSound(ResourceID::get("test_sound"));
+//   queueData->gain = 0.6f;
+//   queueData->maxGain = 1.0f;
+//   queueData->maxDist = 10.0f;
+  
+  system.playBackgroundSound(ResourceID::get("test_sound"));
+  
+  for (size_t i = 0; i < 20000; ++i) {
+//     std::cout << '\n';
+//     std::cout << "update #" << i << '\n';
+    
+    system.update(16667);
+    std::this_thread::sleep_for(std::chrono::microseconds(1000));
+    
+//     const float sample = queueData->source.sampleOffset();
+    //std::cout << "byte " << sample << "\n";
+    
+    //std::this_thread::sleep_for(std::chrono::seconds(1));
+    
+    //break;
+//     if (queueData->source.isValid() && queueData->source.state() != Source::State::playing) break;
+  }
+  
+//   const float sample = queueData->source.sampleOffset();
+//   const size_t bufferSize = bytesToPCMFrames(queueData->buffers.buffers[0].size(), queueData->data);
+//   //const size_t bufferSize = queueData->buffers.buffers[0].size();
+//   std::cout << "byte " << sample << " buffer size " << bufferSize << "\n";
+  
+  throw std::runtime_error("no more");
   dt::thread_pool threadPool(std::max(std::thread::hardware_concurrency()-1, uint32_t(1))); // как там его правильно создать?
 
   initGLFW();
