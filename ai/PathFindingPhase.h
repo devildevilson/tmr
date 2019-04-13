@@ -10,13 +10,22 @@
 class vertex_t;
 class edge_t;
 
+struct RawPathPiece {
+  const vertex_t* vertex;
+  const edge_t* toNextVertex;
+  // что тут может еще добавиться?
+};
+
 class RawPath {
 public:
+  RawPath();
   
+  std::vector<RawPathPiece> & data();
+  const std::vector<RawPathPiece> & data() const;
 private:
   // что то еще потребуется?
   
-  std::vector<std::pair<vertex_t*, edge_t*>> rawPath;
+  std::vector<RawPathPiece> rawPath;
 };
 
 struct PathfindingType {
@@ -52,7 +61,7 @@ public:
   // тут наверное помимо поиска пути должна быть еще работа с графом
   // получить вершину, получить все объекты в радиусе, и прочее
   
-  
+  // работа с графом будет тут опосредованная
 };
 
 #endif

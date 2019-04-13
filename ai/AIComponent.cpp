@@ -76,7 +76,22 @@ void AIComponent::init(void* userData) {
   physics = getEntity()->get<PhysicsComponent2>().get();
   trans = getEntity()->get<TransformComponent>().get();
   
+  localEvents = getEntity()->get<EventComponent>().get();
+  if (localEvents == nullptr) {
+    Global::console()->printE("Initializing AIComponent without EventComponent");
+    throw std::runtime_error("Initializing AIComponent without EventComponent");
+  }
+  
   Global::ai()->registerComponent(this);
+  
+  localEvents->registerEvent(Type::get("move_to_target"), [&] (const Type & type, const EventData &data) {
+    if (target() == nullptr) return failure;
+    
+    // добавляем в очередь на поиск, нужно как то запомнить что мы добавили уже
+    // так же можно поискать среди уже существующих путей
+    // нужно ли разделить move_to_target от непосредственно поиска?
+    // возможно это будет неплохой идеей
+  });
 }
  
 void AIComponent::updateAIData() {

@@ -3,6 +3,8 @@
 
 #include "EventComponent.h"
 
+#include "Utility.h"
+
 class AIGroup;
 class vertex_t;
 class edge_t;
@@ -42,9 +44,9 @@ public:
   const EntityAI* target() const;
   bool hasTarget() const;
   
-  glm::vec4 position() const;
-  glm::vec4 direction() const;
-  glm::vec4 velocity() const;
+  simd::vec4 position() const;
+  simd::vec4 direction() const;
+  simd::vec4 velocity() const;
   float raduis() const;
   
   bool hasGroup() const;
@@ -59,9 +61,9 @@ protected:
   // первостепенной необходимости в этом нет, но это поможет обеспечить локальность данных
   // вообще это пригодится еще для группового ии
   
-  glm::vec4 pos;
-  glm::vec4 dir;
-  glm::vec4 vel;
+  simd::vec4 pos;
+  simd::vec4 dir;
+  simd::vec4 vel;
 //   float r;
 // //   uint32_t vertexId;
 // //   uint32_t lastVertexId;
@@ -143,9 +145,9 @@ public:
   const EntityAI* chief() const; // в основном это формальный глава, но мне нужно как то сделать так чтобы он лично мог выполнять какие-нибудь действия
   size_t size() const;
   
-  glm::vec4 position() const;
-  glm::vec4 direction() const;
-  glm::vec4 extents() const;
+  simd::vec4 position() const;
+  simd::vec4 direction() const;
+  simd::vec4 extents() const;
   
   // у нас должен быть метод который проверит находится ли вся группа внутри блока группы
   // есть некий боундинг бокс группы, если позиции внутри него, то вернем труе
