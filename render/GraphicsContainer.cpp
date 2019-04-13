@@ -36,7 +36,7 @@ void createGLFWwindow(yavf::Instance* inst, WindowData &data) {
   GLFWmonitor* monitor = nullptr;
   GLFWwindow* glfwWindow = nullptr;
   VkSurfaceKHR surface = VK_NULL_HANDLE;
-  
+
 //   int32_t count;
 //   auto monitors = glfwGetMonitors(&count);
 //   for (int32_t i = 0; i < count; ++i) {
@@ -47,21 +47,21 @@ void createGLFWwindow(yavf::Instance* inst, WindowData &data) {
 //     glfwGetMonitorPos(monitors[i], &x, &y);
 //     std::cout << "Monitor pos: x " << x << " y " << y << "\n";
 //   }
-  
+
   if (fullscreen) {
     monitor = glfwGetPrimaryMonitor();
-    
+
     const auto data = glfwGetVideoMode(monitor);
     width = data->width;
     height = data->height;
-    
+
     Global::settings()->get<int64_t>("game.graphics.width") = data->width;
     Global::settings()->get<int64_t>("game.graphics.height") = data->height;
-    
+
     // в какой то момент мне может потребоваться даунсэмплить изображение чтоб зернистость появилась
     // возможно это делается другим способом
   }
-  
+
   glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_FALSE);
@@ -71,13 +71,13 @@ void createGLFWwindow(yavf::Instance* inst, WindowData &data) {
   } else {
     glfwWindow = glfwCreateWindow(width, height, APPLICATION_NAME, nullptr, nullptr);
   }
-  
+
 //   glfwMakeContextCurrent(glfwWindow);
 //   glfwSwapInterval(0);
-  
-  yavf::vkCheckError("glfwCreateWindowSurface", nullptr, 
+
+  yavf::vkCheckError("glfwCreateWindowSurface", nullptr,
   glfwCreateWindowSurface(inst->handle(), glfwWindow, nullptr, &surface));
-  
+
   data.fullscreen = fullscreen;
   data.width = width;
   data.height = height;
@@ -91,14 +91,14 @@ void createDevice(yavf::Instance* inst, const WindowData &data, yavf::Device** d
   const std::vector<const char*> deviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
   };
-  
+
   VkSurfaceKHR s = data.surface;
-  
+
   auto physDevices = inst->getPhysicalDevices();
-  
-  // как выбирать устройство? 
+
+  // как выбирать устройство?
   size_t maxMem = 0;
-  
+
   yavf::PhysicalDevice choosen = VK_NULL_HANDLE;
   for (size_t i = 0; i < physDevices.size(); ++i) {
     VkPhysicalDeviceProperties deviceProperties;
@@ -107,7 +107,7 @@ void createDevice(yavf::Instance* inst, const WindowData &data, yavf::Device** d
     physDevices[i].getProperties(&deviceProperties);
     physDevices[i].getFeatures(&deviceFeatures);
     physDevices[i].getMemoryProperties(&memProp);
-    
+
     size_t a = 0;
     for (uint32_t j = 0; j < memProp.memoryHeapCount; ++j) {
       if ((memProp.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) == VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
@@ -116,7 +116,7 @@ void createDevice(yavf::Instance* inst, const WindowData &data, yavf::Device** d
     }
 
     std::cout << "Device name: " << deviceProperties.deviceName << "\n";
-    
+
 
     bool extSupp = yavf::checkDeviceExtensions(physDevices[i], instanceLayers, deviceExtensions);
 
@@ -140,36 +140,36 @@ void createDevice(yavf::Instance* inst, const WindowData &data, yavf::Device** d
       //break;
     }
   }
-  
+
 //   auto devices = inst->getDevices([s, deviceExtensions] (VkPhysicalDevice physDevice) -> bool {
 //     VkPhysicalDeviceProperties deviceProperties;
 //     VkPhysicalDeviceFeatures deviceFeatures;
 //     vkGetPhysicalDeviceProperties(physDevice, &deviceProperties);
 //     vkGetPhysicalDeviceFeatures(physDevice, &deviceFeatures);
-// 
+//
 //     std::cout << "Device name: " << deviceProperties.deviceName << "\n";
-// 
+//
 //     bool extSupp = yavf::checkDeviceExtensions(physDevice, yavf::Instance::getLayers(), deviceExtensions);
-// 
+//
 //     uint32_t count = 0;
 //     vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &count, nullptr);
-// 
+//
 //     bool presentOk = false;
 //     for (uint32_t i = 0; i < count; ++i) {
 //       VkBool32 present;
 //       vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, s, &present);
-// 
+//
 //       if (present) {
 //         presentOk = true;
 //         break;
 //       }
 //     }
-// 
+//
 //     return //deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
 //            extSupp &&
 //            presentOk;
 //   });
-  
+
   yavf::DeviceMaker dm(inst);
 //   yavf::DeviceMaker::setExtensions(deviceExtensions);
   VkPhysicalDeviceFeatures f = {};
@@ -192,23 +192,23 @@ void createWindow(yavf::Instance* inst, yavf::Device* device, const WindowData &
     data.fullscreen
   };
   *window = new Window(info);
-  
+
   //window.create(info);
 }
 
-void createRender(yavf::Instance* inst, 
-                  yavf::Device* device, 
-                  const uint32_t &frameCount, 
-                  const size_t &stageContainerSize, 
-                  GameSystemContainer* container, 
-                  VulkanRender** render, 
+void createRender(yavf::Instance* inst,
+                  yavf::Device* device,
+                  const uint32_t &frameCount,
+                  const size_t &stageContainerSize,
+                  GameSystemContainer* container,
+                  VulkanRender** render,
                   yavf::CombinedTask** task) {
   for (uint32_t i = 0; i < frameCount; ++i) {
     task[i] = device->allocateCombinedTask(frameCount);
-    
+
 //     std::cout << "task " << i << " family " << task[i]->getFamily() << "\n";
   }
-  
+
   //const size_t stageContainerSize = sizeof(BeginTaskStage) + sizeof(EndTaskStage) + sizeof(GBufferStage) + sizeof(DefferedLightStage);
 //   yavf::TaskInterface* i = task[0];
   const VulkanRender::CreateInfo info{
@@ -217,9 +217,9 @@ void createRender(yavf::Instance* inst,
     task, //reinterpret_cast<yavf::TaskInterface**>(task),// &i,
     stageContainerSize
   };
-  
+
   *render = container->addSystem<VulkanRender>(info);
-  
+
 //   yavf::TaskInterface** tasks = reinterpret_cast<yavf::TaskInterface**>(task);
 //   for (uint32_t i = 0; i < frameCount; ++i) {
 //     std::cout << "task " << i << " family " << task[i]->getFamily() << "\n";
@@ -233,19 +233,19 @@ GraphicsContainer::GraphicsContainer() : dev(nullptr), task(nullptr), task1(null
     Global::console()->print("Found no extensions\n");
     throw std::runtime_error("Extensions not founded!");
   }
-  
+
   std::vector<const char*> extensions;
   for (uint32_t i = 0; i < count; ++i) {
     extensions.push_back(ext[i]);
   }
-  
+
 //   yavf::Instance::setExtensions(extensions);
 //   yavf::Instance::setLayers({
 //     "VK_LAYER_LUNARG_standard_validation",
 //     "VK_LAYER_LUNARG_api_dump",
 //     "VK_LAYER_LUNARG_assistant_layer"
 //   });
-  
+
   const yavf::Instance::ApplicationInfo appInfo{
     APPLICATION_NAME,
     APP_VERSION,
@@ -253,7 +253,7 @@ GraphicsContainer::GraphicsContainer() : dev(nullptr), task(nullptr), task1(null
     EGINE_VERSION,
     VK_API_VERSION_1_0
   };
-  
+
   const yavf::Instance::CreateInfo info{
     nullptr,
     &appInfo,
@@ -271,7 +271,7 @@ GraphicsContainer::GraphicsContainer() : dev(nullptr), task(nullptr), task1(null
     false,
     false
   };
-  
+
   inst.construct(info);
 }
 
@@ -281,7 +281,7 @@ GraphicsContainer::~GraphicsContainer() {
       dev->deallocate(task[i]);
     }
   }
-  
+
   if (task != nullptr) delete [] task;
   if (task1 != nullptr) delete [] task1;
   if (task2 != nullptr) delete [] task2;
@@ -292,42 +292,42 @@ GraphicsContainer::~GraphicsContainer() {
 void GraphicsContainer::construct(CreateInfo &info) {
   WindowData data;
   createGLFWwindow(instance(), data);
-  
+
   createDevice(instance(), data, &dev);
-  
+
   Window* window;
   createWindow(instance(), dev, data, &window);
-  
+
   windows = window;
-  
+
   const uint32_t count = window->getFrameCount();
   task  = new yavf::CombinedTask*[count];
   task1 = new yavf::ComputeTask*[count];
   task2 = new yavf::GraphicTask*[count];
   task3 = new yavf::TaskInterface*[count];
   createRender(instance(), dev, count, info.containerSize, info.systemContainer, &render, task);
-  
+
   for (uint32_t i = 0; i < count; ++i) {
 //     std::cout << "command buffer " << task[i]->getCommandBuffer() << "\n";
     task1[i] = task[i];
     task2[i] = task[i];
     task3[i] = task[i];
   }
-  
+
 //   throw std::runtime_error("no more");
-  
+
 //   for (uint32_t i = 0; i < 3; ++i) {
 //     std::cout << "task pointer " << i << " " << task[i] << "\n";
 //   }
 //   std::cout << "pointer to pointer " << task << "\n";
-  
+
   for (uint32_t i = 0; i < count; ++i) {
     task[i]->pushWaitSemaphore(window->at(i).imageAvailableSemaphore, window->at(i).flags);
     task[i]->pushSignalSemaphore(window->at(i).finishedRenderingSemaphore);
   }
-  
+
   window->setRender(render);
-    
+
   //Global::renderPtr = render;
   Global g;
   g.setRender(render);
@@ -336,8 +336,8 @@ void GraphicsContainer::construct(CreateInfo &info) {
 
 void GraphicsContainer::update(const uint64_t &time) {
   {
-    RegionLog rl("window->nextFrame()");
-  
+    // RegionLog rl("window->nextFrame()");
+
     windows->nextFrame();
   }
 //   Global::render()->update(time);
@@ -353,34 +353,34 @@ void GraphicsContainer::update(const uint64_t &time) {
   // санитизеры молчат, правда иногда все же что-то говорят
   // но не могут сказать точно где у меня проблема
   // что мне делать?
-  
+
   // опять вечер и опять теже симптомы =(
   // хотя соседний скомпилированный файл работает нормально
   // я так и знал что проблема где то в другом месте
   // я более чем уверен что проблема где то с указателями
   // то есть я что то изменяю на соседнем участке из-за чего его начинает ломать
-  
+
   // после перезагрузки все встало на свои места
   // я переписал raii, так как он был очень не безопасным
   // на момент 30 марта этих дурацких лагов нет
 
   {
 //     RegionLog rl("render->update()");
-    
+
     uint32_t index = windows->currentFrame();
     render->setContextIndex(index);
     render->update(time);
   }
-  
+
   {
-    RegionLog rl("render->start()");
-    
+    // RegionLog rl("render->start()");
+
     render->start();
   }
-  
+
   {
-    RegionLog rl("windows->present()");
-    
+    // RegionLog rl("windows->present()");
+
     windows->present(); // по идее нет никакой разницы где это стоит
   }
 }
