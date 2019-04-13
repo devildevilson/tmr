@@ -27,6 +27,7 @@ class Settings;
 class PhysicsEngine;
 class AnimationSystem;
 class Window;
+class SoundSystem;
 
 namespace yavf {
   class Buffer;
@@ -83,6 +84,7 @@ public:
   static Settings* settings();
   static AnimationSystem* animations();
   static Window* window();
+  static SoundSystem* sound();
   
   static GlobalData* data();
   
@@ -101,6 +103,7 @@ public:
   void setSettings(Settings* settings);
   void setAnimations(AnimationSystem* anims);
   void setWindow(Window* window);
+  void setSound(SoundSystem* sound);
   
   void setGameDir(const std::string &dir);
   
@@ -121,6 +124,7 @@ private:
   static Settings* settingsPtr;
   static AnimationSystem* anim;
   static Window* windowPtr;
+  static SoundSystem* soundPtr;
   
   static GlobalData globalData;
   

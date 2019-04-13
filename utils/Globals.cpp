@@ -42,6 +42,7 @@ Random* Global::randomPtr = nullptr;
 Settings* Global::settingsPtr = nullptr;
 AnimationSystem* Global::anim = nullptr;
 Window* Global::windowPtr = nullptr;
+SoundSystem* Global::soundPtr = nullptr;
 
 GlobalData Global::globalData = {
   false,
@@ -152,6 +153,10 @@ Window* Global::window() {
   return windowPtr;
 }
 
+SoundSystem* Global::sound() {
+  return soundPtr;
+}
+
 GlobalData* Global::data() {
   return &globalData;
 }
@@ -206,6 +211,10 @@ void Global::setAnimations(AnimationSystem* anims) {
 
 void Global::setWindow(Window* window) {
   this->windowPtr = window;
+}
+
+void Global::setSound(SoundSystem* sound) {
+  this->soundPtr = sound;
 }
 
 void Global::setGameDir(const std::string &dir) {
