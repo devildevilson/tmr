@@ -4,6 +4,8 @@
 #include "ArrayInterface.h"
 #include "PhysicsUtils.h"
 
+#include "Frustum.h"
+
 class BroadphaseProxy {
 public:
   BroadphaseProxy(const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter);
@@ -41,7 +43,7 @@ public:
     ArrayInterface<RotationData>* rotationDatas;
 
     ArrayInterface<RayData>* rays;
-    ArrayInterface<FrustumStruct>* frustums;
+    ArrayInterface<Frustum>* frustums;
     ArrayInterface<simd::vec4>* frustumPoses;
   };
   

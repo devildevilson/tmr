@@ -736,7 +736,7 @@ void CPUOctreeBroadphaseParallel::calculateRayTests() {
 void CPUOctreeBroadphaseParallel::calculateFrustumTests() {
   static const std::function<void(const CPUParallelOctreeNode*, const uint32_t &, std::atomic<uint32_t> &)> addObjInNode =
   [&] (const CPUParallelOctreeNode* node, const uint32_t &index, std::atomic<uint32_t> &counter) {
-    //const FrustumStruct &frustum = frustums->at(index);
+    //const Frustum &frustum = frustums->at(index);
     const simd::vec4 &pos = frustumPoses->at(index);
 
     for (uint32_t i = 0; i < node->proxies.size(); ++i) {
@@ -768,7 +768,7 @@ void CPUOctreeBroadphaseParallel::calculateFrustumTests() {
 
   static const std::function<void(const CPUParallelOctreeNode*, const uint32_t &, std::atomic<uint32_t> &)> calcFrustumPairsReq =
   [&] (const CPUParallelOctreeNode* node, const uint32_t &index, std::atomic<uint32_t> &counter) {
-    const FrustumStruct &frustum = frustums->at(index);
+    const Frustum &frustum = frustums->at(index);
     const simd::vec4 &pos = frustumPoses->at(index);
     
 //     std::cout << "childNode index " << node->nodeIndex << " childNode size  " << node->proxies.size() << "\n";
@@ -813,7 +813,7 @@ void CPUOctreeBroadphaseParallel::calculateFrustumTests() {
 
   static const auto calcFrustumPairs = [&] (const size_t &start, const size_t &count, dt::thread_pool* pool, std::atomic<uint32_t> &counter) {
     for (size_t index = start; index < start+count; ++index) {
-      const FrustumStruct &frustum = frustums->at(index);
+      const Frustum &frustum = frustums->at(index);
       const simd::vec4 &pos = frustumPoses->at(index);
 
       const FastAABB &nodeBox = nodeBoxes[0];
@@ -1124,7 +1124,7 @@ void CPUOctreeBroadphaseParallel::printStats() {
 //   return tmax > glm::max(tmin, 0.0f);
 // }
 //
-// uint32_t testFrustumAABB(const FrustumStruct &frustum, const FastAABB &box) {
+// uint32_t testFrustumAABB(const Frustum &frustum, const FastAABB &box) {
 //   uint32_t result = INSIDE; // Assume that the aabb will be inside the frustum
 //   for(uint32_t i = 0; i < 6; ++i) {
 //     const simd::vec4 frustumPlane = frustum.planes[i];

@@ -21,14 +21,14 @@ struct RayData {
   simd::vec4 dir;
 };
 
-struct FrustumStruct {
-  simd::vec4 planes[6];
-
-  FrustumStruct();
-  FrustumStruct(const simd::mat4 &matrix);
-
-  void calcFrustum(const simd::mat4 &matrix);
-};
+// struct FrustumStruct {
+//   simd::vec4 planes[6];
+// 
+//   FrustumStruct();
+//   FrustumStruct(const simd::mat4 &matrix);
+// 
+//   void calcFrustum(const simd::mat4 &matrix);
+// };
 
 struct OverlappingData {
   uint32_t firstIndex;

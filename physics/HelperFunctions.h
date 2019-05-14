@@ -5,6 +5,8 @@
 
 #include "ArrayInterface.h"
 
+#include "Frustum.h"
+
 float getAngle(const simd::vec4 &first, const simd::vec4 &second);
 void clipVelocity(const simd::vec4 &clipNormal, const float &bounce, simd::vec4 &vel);
 simd::vec4 transform(const simd::vec4 &p, const simd::vec4 &translation, const simd::mat4 &orientation);
@@ -21,7 +23,7 @@ bool overlap(const float &treshold, const float &min1, const float &max1, const 
 FastAABB recalcAABB(const simd::vec4 &pos, const simd::vec4 &ext, const simd::mat4 &orn);
 FastAABB recalcAABB(const ArrayInterface<simd::vec4>* verticies, const simd::vec4 &pos, const uint32_t &vertexOffset, const uint32_t &vertexSize, const simd::mat4 &orn);
 bool intersection(const FastAABB &box, const RayData &ray);
-uint32_t testFrustumAABB(const FrustumStruct &frustum, const FastAABB &box);
+uint32_t testFrustumAABB(const Frustum &frustum, const FastAABB &box);
 uint32_t nextPowerOfTwo(const uint32_t &number);
 
 #endif

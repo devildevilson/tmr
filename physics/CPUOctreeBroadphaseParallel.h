@@ -112,7 +112,7 @@ protected:
   ArrayInterface<RotationData>* rotationDatas = nullptr;
 
   ArrayInterface<RayData>* rays = nullptr;
-  ArrayInterface<FrustumStruct>* frustums = nullptr;
+  ArrayInterface<Frustum>* frustums = nullptr;
   ArrayInterface<simd::vec4>* frustumPoses = nullptr;
 
 //   CPUArray<BroadphasePair> objPairs;

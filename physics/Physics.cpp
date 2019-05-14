@@ -1,7 +1,8 @@
 #include "Physics.h"
 
+PhysicsEngine::PhysicsEngine() : overlappingDataSize(0), triggerPairsIndicesSize(0), rayTracingSize(0), frustumTestSize(0) {}
 PhysicsEngine::~PhysicsEngine() {}
-  
+
 simd::vec4 PhysicsEngine::getGravity() {
   return gravity;
 }

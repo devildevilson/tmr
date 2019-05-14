@@ -164,9 +164,9 @@ void CPUPhysicsParallel::setBuffers(const PhysicsExternalBuffers &buffers) {
   this->externalDatas = buffers.externalDatas;
 }
 
-void CPUPhysicsParallel::registerShape(const std::string &name, const uint32_t shapeType, const RegisterNewShapeInfo &info) {
-  auto itr = shapes.find(name);
-  if (itr != shapes.end()) throw std::runtime_error("Shape type " + name + " is already exist!");
+void CPUPhysicsParallel::registerShape(const Type &type, const uint32_t shapeType, const RegisterNewShapeInfo &info) {
+  auto itr = shapes.find(type);
+  if (itr != shapes.end()) throw std::runtime_error("Shape type " + type.getName() + " is already exist!");
 
   if (shapeType == SPHERE_TYPE) throw std::runtime_error("Dont need to register sphere");
   if (!(shapeType == BBOX_TYPE || shapeType == POLYGON_TYPE)) throw std::runtime_error("This type is not supported yet");
@@ -223,11 +223,6 @@ void CPUPhysicsParallel::registerShape(const std::string &name, const uint32_t s
 
     localCenter += info.points[i];
   }
-//   localCenter.x /= float(info.points.size());
-//   localCenter.y /= float(info.points.size());
-//   localCenter.z /= float(info.points.size());
-//   localCenter.w = 1.0f;
-
   localCenter /= float(info.points.size());
 
   verts[s.offset + s.pointCount] = localCenter;
@@ -237,7 +232,14 @@ void CPUPhysicsParallel::registerShape(const std::string &name, const uint32_t s
     //if (info.faces[i].w == 6.0f) throw std::runtime_error("bad normal");
   }
 
-  shapes[name] = s;
+  shapes[type] = s;
+}
+
+void CPUPhysicsParallel::removeShape(const Type &type) {
+  auto itr = shapes.find(type);
+  if (itr == shapes.end()) return;
+  
+  shapes.erase(itr);
 }
 
 void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexContainer* container) {
@@ -358,8 +360,8 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
     physicsDatas[container->physicDataIndex] = data;
   }
 
-  auto itr = shapes.find(info.shapeName);
-  if (itr == shapes.end()) throw std::runtime_error("Shape " + info.shapeName + " was not registered");
+  auto itr = shapes.find(info.shapeType);
+  if (itr == shapes.end()) throw std::runtime_error("Shape " + info.shapeType.getName() + " was not registered");
   if (itr->second.shapeType != info.type.getObjType()) throw std::runtime_error("Wrong shape for object");
 
   objects[container->objectDataIndex].vertexOffset = itr->second.offset;
@@ -397,6 +399,13 @@ void CPUPhysicsParallel::remove(PhysicsIndexContainer* comp) {
     physicsDatas[comp->physicDataIndex].objectIndex = 0xFFFFFFFF;
     freePhys = comp->physicDataIndex;
   }
+  
+  comp->inputIndex = UINT32_MAX;
+  comp->internalIndex = UINT32_MAX;
+  comp->objectDataIndex = UINT32_MAX;
+  comp->physicDataIndex = UINT32_MAX;
+  comp->rotationIndex = UINT32_MAX;
+  comp->transformIndex = UINT32_MAX;
 }
 
 // нужно добавлять заново кадый кадр
@@ -423,25 +432,74 @@ uint32_t CPUPhysicsParallel::add(const simd::mat4 &frustum, const simd::vec4 &po
   return index;
 }
 
-Object & CPUPhysicsParallel::getObjectData(const uint32_t &index) {
-  return objects[index];
+Object & CPUPhysicsParallel::getObjectData(const PhysicsIndexContainer* container) {
+  return objects[container->objectDataIndex];
 }
 
-const Object & CPUPhysicsParallel::getObjectData(const uint32_t &index) const {
-  return objects[index];
+const Object & CPUPhysicsParallel::getObjectData(const PhysicsIndexContainer* container) const {
+  return objects[container->objectDataIndex];
 }
 
-PhysData2 & CPUPhysicsParallel::getPhysicData(const uint32_t &index) {
-  return physicsDatas[index];
+PhysData2 & CPUPhysicsParallel::getPhysicData(const PhysicsIndexContainer* container) {
+  return physicsDatas[container->physicDataIndex];
 }
 
-const PhysData2 & CPUPhysicsParallel::getPhysicData(const uint32_t &index) const {
-  return physicsDatas[index];
+const PhysData2 & CPUPhysicsParallel::getPhysicData(const PhysicsIndexContainer* container) const {
+  return physicsDatas[container->physicDataIndex];
+}
+
+simd::vec4 CPUPhysicsParallel::getGlobalVelocity(const PhysicsIndexContainer* container) const {
+  return globalVel[container->physicDataIndex];
+}
+
+uint32_t CPUPhysicsParallel::getObjectShapePointsSize(const PhysicsIndexContainer* container) const {
+  const Object &obj = objects[container->objectDataIndex];
+  return obj.vertexCount;
+}
+
+const simd::vec4* CPUPhysicsParallel::getObjectShapePoints(const PhysicsIndexContainer* container) const {
+  const Object &obj = objects[container->objectDataIndex];
+  return &verts[obj.vertexOffset];
+}
+
+uint32_t CPUPhysicsParallel::getObjectShapeFacesSize(const PhysicsIndexContainer* container) const {
+  const Object &obj = objects[container->objectDataIndex];
+  return obj.faceCount;
+}
+
+const simd::vec4* CPUPhysicsParallel::getObjectShapeFaces(const PhysicsIndexContainer* container) const {
+  const Object &obj = objects[container->objectDataIndex];
+  return &verts[obj.vertexOffset+obj.vertexCount+1];
+}
+
+uint32_t CPUPhysicsParallel::getTransformIndex(const PhysicsIndexContainer* container) const {
+  
+}
+
+uint32_t CPUPhysicsParallel::getRotationDataIndex(const PhysicsIndexContainer* container) const {
+  
+}
+
+uint32_t CPUPhysicsParallel::getMatrixIndex(const PhysicsIndexContainer* container) const {
+  
+}
+
+uint32_t CPUPhysicsParallel::getExternalDataIndex(const PhysicsIndexContainer* container) const {
+  
+}
+
+uint32_t CPUPhysicsParallel::getInputDataIndex(const PhysicsIndexContainer* container) const {
+  
 }
 
 void* CPUPhysicsParallel::getUserData(const uint32_t &objIndex) const {
   const Object &obj = objects[objIndex];
   return components[obj.objectId]->userData;
+}
+
+PhysicsIndexContainer* CPUPhysicsParallel::getIndexContainer(const uint32_t &objIndex) const {
+  const Object &obj = objects[objIndex];
+  return components[obj.objectId];
 }
 
 void CPUPhysicsParallel::setGravity(const simd::vec4 &g) {

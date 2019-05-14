@@ -1,77 +1,77 @@
 #include "PhysicsUtils.h"
 
-FrustumStruct::FrustumStruct() {}
-FrustumStruct::FrustumStruct(const simd::mat4 &matrix) {
-  calcFrustum(matrix);
-}
-
-#include <iostream>
-
-#define PRINT_VEC(name, vec) std::cout << name << "(" << vec.x << ", " << vec.y << ", " << vec.z << ", " << vec.w << ")\n";
-
-void FrustumStruct::calcFrustum(const simd::mat4 &matrix) {
-  const simd::mat4 mat = simd::transpose(matrix);
-  
-  this->planes[0] = mat[3] + mat[0];
-  this->planes[1] = mat[3] - mat[0];
-  this->planes[2] = mat[3] - mat[1];
-  this->planes[3] = mat[3] + mat[1];
-  this->planes[4] = mat[3] + mat[2];
-  this->planes[5] = mat[3] - mat[2];
-  
-//   this->planes[0].x = matrix[0][3] + matrix[0][0]; // left
-//   this->planes[0].y = matrix[1][3] + matrix[1][0];
-//   this->planes[0].z = matrix[2][3] + matrix[2][0];
-//   this->planes[0].w = matrix[3][3] + matrix[3][0];
+// FrustumStruct::FrustumStruct() {}
+// FrustumStruct::FrustumStruct(const simd::mat4 &matrix) {
+//   calcFrustum(matrix);
+// }
 // 
-//   this->planes[1].x = matrix[0][3] - matrix[0][0]; // right
-//   this->planes[1].y = matrix[1][3] - matrix[1][0];
-//   this->planes[1].z = matrix[2][3] - matrix[2][0];
-//   this->planes[1].w = matrix[3][3] - matrix[3][0];
+// // #include <iostream>
 // 
-//   this->planes[2].x = matrix[0][3] - matrix[0][1]; // top
-//   this->planes[2].y = matrix[1][3] - matrix[1][1];
-//   this->planes[2].z = matrix[2][3] - matrix[2][1];
-//   this->planes[2].w = matrix[3][3] - matrix[3][1];
+// // #define PRINT_VEC(name, vec) std::cout << name << "(" << vec.x << ", " << vec.y << ", " << vec.z << ", " << vec.w << ")\n";
 // 
-//   this->planes[3].x = matrix[0][3] + matrix[0][1]; // bottom
-//   this->planes[3].y = matrix[1][3] + matrix[1][1];
-//   this->planes[3].z = matrix[2][3] + matrix[2][1];
-//   this->planes[3].w = matrix[3][3] + matrix[3][1];
+// void FrustumStruct::calcFrustum(const simd::mat4 &matrix) {
+//   const simd::mat4 mat = simd::transpose(matrix);
 //   
-// //   this->planes[3].x = matrix[0][3] - matrix[0][1]; // top
-// //   this->planes[3].y = matrix[1][3] - matrix[1][1];
-// //   this->planes[3].z = matrix[2][3] - matrix[2][1];
-// //   this->planes[3].w = matrix[3][3] - matrix[3][1];
+//   this->planes[0] = mat[3] + mat[0];
+//   this->planes[1] = mat[3] - mat[0];
+//   this->planes[2] = mat[3] - mat[1];
+//   this->planes[3] = mat[3] + mat[1];
+//   this->planes[4] = mat[3] + mat[2];
+//   this->planes[5] = mat[3] - mat[2];
+//   
+// //   this->planes[0].x = matrix[0][3] + matrix[0][0]; // left
+// //   this->planes[0].y = matrix[1][3] + matrix[1][0];
+// //   this->planes[0].z = matrix[2][3] + matrix[2][0];
+// //   this->planes[0].w = matrix[3][3] + matrix[3][0];
 // // 
-// //   this->planes[2].x = matrix[0][3] + matrix[0][1]; // bottom
-// //   this->planes[2].y = matrix[1][3] + matrix[1][1];
-// //   this->planes[2].z = matrix[2][3] + matrix[2][1];
-// //   this->planes[2].w = matrix[3][3] + matrix[3][1];
+// //   this->planes[1].x = matrix[0][3] - matrix[0][0]; // right
+// //   this->planes[1].y = matrix[1][3] - matrix[1][0];
+// //   this->planes[1].z = matrix[2][3] - matrix[2][0];
+// //   this->planes[1].w = matrix[3][3] - matrix[3][0];
+// // 
+// //   this->planes[2].x = matrix[0][3] - matrix[0][1]; // top
+// //   this->planes[2].y = matrix[1][3] - matrix[1][1];
+// //   this->planes[2].z = matrix[2][3] - matrix[2][1];
+// //   this->planes[2].w = matrix[3][3] - matrix[3][1];
+// // 
+// //   this->planes[3].x = matrix[0][3] + matrix[0][1]; // bottom
+// //   this->planes[3].y = matrix[1][3] + matrix[1][1];
+// //   this->planes[3].z = matrix[2][3] + matrix[2][1];
+// //   this->planes[3].w = matrix[3][3] + matrix[3][1];
+// //   
+// // //   this->planes[3].x = matrix[0][3] - matrix[0][1]; // top
+// // //   this->planes[3].y = matrix[1][3] - matrix[1][1];
+// // //   this->planes[3].z = matrix[2][3] - matrix[2][1];
+// // //   this->planes[3].w = matrix[3][3] - matrix[3][1];
+// // // 
+// // //   this->planes[2].x = matrix[0][3] + matrix[0][1]; // bottom
+// // //   this->planes[2].y = matrix[1][3] + matrix[1][1];
+// // //   this->planes[2].z = matrix[2][3] + matrix[2][1];
+// // //   this->planes[2].w = matrix[3][3] + matrix[3][1];
+// // 
+// //   this->planes[4].x = matrix[0][3] + matrix[0][2]; // front
+// //   this->planes[4].y = matrix[1][3] + matrix[1][2];
+// //   this->planes[4].z = matrix[2][3] + matrix[2][2];
+// //   this->planes[4].w = matrix[3][3] + matrix[3][2];
+// // 
+// //   this->planes[5].x = matrix[0][3] - matrix[0][2]; // back
+// //   this->planes[5].y = matrix[1][3] - matrix[1][2];
+// //   this->planes[5].z = matrix[2][3] - matrix[2][2];
+// //   this->planes[5].w = matrix[3][3] - matrix[3][2];
 // 
-//   this->planes[4].x = matrix[0][3] + matrix[0][2]; // front
-//   this->planes[4].y = matrix[1][3] + matrix[1][2];
-//   this->planes[4].z = matrix[2][3] + matrix[2][2];
-//   this->planes[4].w = matrix[3][3] + matrix[3][2];
-// 
-//   this->planes[5].x = matrix[0][3] - matrix[0][2]; // back
-//   this->planes[5].y = matrix[1][3] - matrix[1][2];
-//   this->planes[5].z = matrix[2][3] - matrix[2][2];
-//   this->planes[5].w = matrix[3][3] - matrix[3][2];
-
-  for (uint32_t i = 0; i < 6; ++i) {
-    //PRINT_VEC("planes[" + std::to_string(i) + "] ", planes[i])
-    
-    float arr[4];
-    planes[i].store(arr);
-    const float mag = simd::length(simd::vec4(arr[0], arr[1], arr[2], 0.0f));
-    planes[i] /= mag;
-    
-    //PRINT_VEC("planes[" + std::to_string(i) + "] ", planes[i])
-  }
-  
-  //throw std::runtime_error("no more");
-}
+//   for (uint32_t i = 0; i < 6; ++i) {
+//     //PRINT_VEC("planes[" + std::to_string(i) + "] ", planes[i])
+//     
+//     float arr[4];
+//     planes[i].storeu(arr);
+//     const float mag = simd::length(simd::vec4(arr[0], arr[1], arr[2], 0.0f));
+//     planes[i] /= mag;
+//     
+//     //PRINT_VEC("planes[" + std::to_string(i) + "] ", planes[i])
+//   }
+//   
+//   //throw std::runtime_error("no more");
+// }
 
 // должно быть синхронизованно с тем что в шейдерах
 #define DYNAMIC_BIT_PLACEMENT   0
@@ -172,7 +172,7 @@ bool PhysicsType::isVisible() const {
 
 simd::vec4 getVertex(const simd::vec4 &pos, const simd::vec4 &ext, const simd::mat4 &orn, const uint32_t &index) {
   float arr[4];
-  ext.store(arr);
+  ext.storeu(arr);
   
   simd::vec4 p = pos;
 //   p = (index & 1) == 1 ? p + orn[0]*ext.x : p - orn[0]*ext.x;

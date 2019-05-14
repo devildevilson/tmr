@@ -4,11 +4,14 @@
 #include <vector>
 #include <string>
 
-#include "glm/glm.hpp"
+//#include "glm/glm.hpp"
+#include "Utility.h"
 
 #include "Engine.h"
 #include "PhysicsUtils.h"
 #include "ArrayInterface.h"
+
+#include "Type.h"
 
 struct PhysicsIndexContainer {
   uint32_t objectDataIndex;
@@ -29,29 +32,25 @@ struct PhysicsObjectCreateInfo {
   uint32_t collisionFilter;
 
   float stairHeight;
-  //float acceleration;
   float overbounce;
   float groundFricion;
   
   float radius;
-  //simd::vec4 pos;
 
   uint32_t inputIndex;
   uint32_t transformIndex;
   uint32_t externalDataIndex;
   uint32_t matrixIndex;
   uint32_t rotationIndex;
-  
-  //PhysicsIndexContainer* comp;
-  // std::vector<simd::vec4> points;
-  // std::vector<simd::vec4> faces;
-  std::string shapeName;
+
+  Type shapeType;
 };
 
+// кажется последний поинт это центральная точка объекта
+// первая сторона - это нормаль плоскости (то есть если объект, например, стена то faces[0] будет нормалью)
 struct RegisterNewShapeInfo {
   std::vector<simd::vec4> points;
   std::vector<simd::vec4> faces;
-  // нужно ли тут что то еще?
 };
 
 struct ShapeInfo {
@@ -76,11 +75,11 @@ struct PhysicsExternalBuffers {
   ArrayInterface<ExternalData>* externalDatas;
 };
 
-struct PhysicsOutputBuffers {
-  ArrayInterface<OverlappingData>* overlappingData;
-  ArrayInterface<OverlappingData>* rayTracingData;
-  ArrayInterface<BroadphasePair>* frustumPairs;
-};
+// struct PhysicsOutputBuffers {
+//   ArrayInterface<OverlappingData>* overlappingData;
+//   ArrayInterface<OverlappingData>* rayTracingData;
+//   ArrayInterface<BroadphasePair>* frustumPairs;
+// };
 
 // короч со всеми этими внешними массивами с данными возникает проблема
 // усложняется создание дескрипторов и прочего связанного с пайплайном
@@ -117,8 +116,14 @@ struct PhysicsOutputBuffers {
 // но также имеет смысл попробовать константный шаг (например, тех же 10 раз (точнее 1/60), по которым у меня вычисляется солвер)
 // возможно мне удастся переделать тогда солвер на более приличный
 // впрочем солвер скорее всего все равно переделывать
+
+// константный шаг сделал, нужно ли иметь возможность вычислять солвер потихоньку?
+// это может пригодиться для очень быстрых объектов, хотя быстрые объекты могут проскочить и на стадии броадфазы
+// я бы даже сказал что скорее они проскочат в броадфазе чем в солвере
+// мне такой солвер кажется нужен был чтобы верно обработать ситуацию когда у меня несколько объектов соприкасаются друг друга последовательно
 class PhysicsEngine : public Engine {
 public:
+  PhysicsEngine();
   virtual ~PhysicsEngine();
   
   static simd::vec4 getGravity();
@@ -134,10 +139,11 @@ public:
 
   virtual void setBuffers(const PhysicsExternalBuffers &buffers) = 0;
   
-  virtual void registerShape(const std::string &name, const uint32_t shapeType, const RegisterNewShapeInfo &info) = 0;
+  virtual void registerShape(const Type &type, const uint32_t shapeType, const RegisterNewShapeInfo &info) = 0;
+  virtual void removeShape(const Type &type);
 
   virtual void add(const PhysicsObjectCreateInfo &info, PhysicsIndexContainer* container) = 0;
-  virtual void remove(PhysicsIndexContainer* comp) = 0;
+  virtual void remove(PhysicsIndexContainer* container) = 0;
 
   // нужно наверное также переделать класс с сортировками
   // тип обозвать его как-нибудь физиксУтилс, и он будет сортировать разные массивы
@@ -145,25 +151,29 @@ public:
   virtual uint32_t add(const RayData &ray) = 0; // лучи и фрустумы нужно передобавлять каждый кадр
   virtual uint32_t add(const simd::mat4 &frustum, const simd::vec4 &pos = simd::vec4(10000.0f)) = 0; // так добавить фрустум, или вычислить его вне?
   
-  virtual Object & getObjectData(const uint32_t &index) = 0;
-  virtual const Object & getObjectData(const uint32_t &index) const = 0;
+  virtual Object & getObjectData(const PhysicsIndexContainer* container) = 0;
+  virtual const Object & getObjectData(const PhysicsIndexContainer* container) const = 0;
   
-  virtual PhysData2 & getPhysicData(const uint32_t &index) = 0;
-  virtual const PhysData2 & getPhysicData(const uint32_t &index) const = 0;
+  virtual PhysData2 & getPhysicData(const PhysicsIndexContainer* container) = 0;
+  virtual const PhysData2 & getPhysicData(const PhysicsIndexContainer* container) const = 0;
   
-  // virtual Transform & getTransform(const uint32_t &index) = 0;
-  // virtual const Transform & getTransform(const uint32_t &index) const = 0;
-
-  // virtual RotationData & getRotationData(const uint32_t &index) = 0;
-  // virtual const RotationData & getRotationData(const uint32_t &index) const = 0;
+  virtual simd::vec4 getGlobalVelocity(const PhysicsIndexContainer* container) const = 0;
+  
+  virtual uint32_t getObjectShapePointsSize(const PhysicsIndexContainer* container) const = 0;
+  virtual const simd::vec4* getObjectShapePoints(const PhysicsIndexContainer* container) const = 0;
+  virtual uint32_t getObjectShapeFacesSize(const PhysicsIndexContainer* container) const = 0;
+  virtual const simd::vec4* getObjectShapeFaces(const PhysicsIndexContainer* container) const = 0;
+  
+  virtual uint32_t getTransformIndex(const PhysicsIndexContainer* container) const = 0;
+  virtual uint32_t getRotationDataIndex(const PhysicsIndexContainer* container) const = 0;
+  virtual uint32_t getMatrixIndex(const PhysicsIndexContainer* container) const = 0;
+  virtual uint32_t getExternalDataIndex(const PhysicsIndexContainer* container) const = 0;
+  virtual uint32_t getInputDataIndex(const PhysicsIndexContainer* container) const = 0;
   
   virtual void* getUserData(const uint32_t &objIndex) const = 0;
+  virtual PhysicsIndexContainer* getIndexContainer(const uint32_t &objIndex) const = 0;
   
   virtual void setGravity(const simd::vec4 &g) = 0;
-  
-  virtual void updateMaxSpeed(const uint32_t &physicDataIndex, const float &maxSpeed) = 0;
-  //virtual void setInput(const uint32_t &index, const InputData &input) = 0;
-  virtual uint32_t setShapePointsAndFaces(const uint32_t &objectDataIndex, const std::vector<simd::vec4> &points, const std::vector<simd::vec4> &faces) = 0;
 
   // мы еще должны здесь получать данные пересечия, причем пересечения на предыдущем кадре тоже должны быть проверены
   // и в итоге должен быть массив, в котором поддерживаются результаты пересечения
@@ -200,10 +210,10 @@ protected:
   
   static simd::mat4 orientation;
 
-  uint32_t overlappingDataSize = 0;
-  uint32_t triggerPairsIndicesSize = 0;
-  uint32_t rayTracingSize = 0;
-  uint32_t frustumTestSize = 0;
+  uint32_t overlappingDataSize;
+  uint32_t triggerPairsIndicesSize;
+  uint32_t rayTracingSize;
+  uint32_t frustumTestSize;
 };
 
 #endif

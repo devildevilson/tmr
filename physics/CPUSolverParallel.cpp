@@ -753,7 +753,7 @@ bool CPUSolverParallel::BoxSphereSAT(const float &treshold, const Object &first,
     if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
   }
 
-  if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
+  if (simd::dot(-delta, mtv) > 0.0f) mtv = -mtv;
 
   return true;
 }

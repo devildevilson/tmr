@@ -249,9 +249,9 @@ bool intersection(const FastAABB &box, const RayData &ray) {
 //   return true;     /* ray hits box */
 // }
 
-uint32_t testFrustumAABB(const FrustumStruct &frustum, const FastAABB &box) {
+uint32_t testFrustumAABB(const Frustum &frustum, const FastAABB &box) {
   uint32_t result = INSIDE; // Assume that the aabb will be inside the frustum
-  for(uint32_t i = 0; i < 6; ++i) {
+  for (uint32_t i = 0; i < 6; ++i) {
     float arr[4];
     frustum.planes[i].store(arr);
     const simd::vec4 frustumPlane = simd::vec4(arr[0], arr[1], arr[2], 0.0f); //frustum.planes[i] * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f);

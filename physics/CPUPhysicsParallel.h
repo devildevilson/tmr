@@ -36,7 +36,8 @@ public:
   
   void setBuffers(const PhysicsExternalBuffers &buffers) override;
   
-  void registerShape(const std::string &name, const uint32_t shapeType, const RegisterNewShapeInfo &info) override;
+  void registerShape(const Type &type, const uint32_t shapeType, const RegisterNewShapeInfo &info) override;
+  void removeShape(const Type &type) override;
 
   void add(const PhysicsObjectCreateInfo &info, PhysicsIndexContainer* container) override;
   void remove(PhysicsIndexContainer* comp) override;
@@ -44,18 +45,29 @@ public:
   uint32_t add(const RayData &ray) override; // лучи и фрустумы нужно передобавлять каждый кадр
   uint32_t add(const simd::mat4 &frustum, const simd::vec4 &pos = simd::vec4(10000.0f)) override; // так добавить фрустум, или вычислить его вне?
   
-  Object & getObjectData(const uint32_t &index) override;
-  const Object & getObjectData(const uint32_t &index) const override;
+  Object & getObjectData(const PhysicsIndexContainer* container) override;
+  const Object & getObjectData(const PhysicsIndexContainer* container) const override;
   
-  PhysData2 & getPhysicData(const uint32_t &index) override;
-  const PhysData2 & getPhysicData(const uint32_t &index) const override;
+  PhysData2 & getPhysicData(const PhysicsIndexContainer* container) override;
+  const PhysData2 & getPhysicData(const PhysicsIndexContainer* container) const override;
+  
+  simd::vec4 getGlobalVelocity(const PhysicsIndexContainer* container) const override;
+  
+  uint32_t getObjectShapePointsSize(const PhysicsIndexContainer* container) const override;
+  const simd::vec4* getObjectShapePoints(const PhysicsIndexContainer* container) const override;
+  uint32_t getObjectShapeFacesSize(const PhysicsIndexContainer* container) const override;
+  const simd::vec4* getObjectShapeFaces(const PhysicsIndexContainer* container) const override;
+  
+  uint32_t getTransformIndex(const PhysicsIndexContainer* container) const override;
+  uint32_t getRotationDataIndex(const PhysicsIndexContainer* container) const override;
+  uint32_t getMatrixIndex(const PhysicsIndexContainer* container) const override;
+  uint32_t getExternalDataIndex(const PhysicsIndexContainer* container) const override;
+  uint32_t getInputDataIndex(const PhysicsIndexContainer* container) const override;
   
   void* getUserData(const uint32_t &objIndex) const override;
+  PhysicsIndexContainer* getIndexContainer(const uint32_t &objIndex) const override;
   
   void setGravity(const simd::vec4 &g) override;
-  
-  void updateMaxSpeed(const uint32_t &physicDataIndex, const float &maxSpeed) override;
-  uint32_t setShapePointsAndFaces(const uint32_t &objectDataIndex, const std::vector<simd::vec4> &points, const std::vector<simd::vec4> &faces) override;
 
   ArrayInterface<OverlappingData>* getOverlappingPairsData() override;
   const ArrayInterface<OverlappingData>* getOverlappingPairsData() const override;
@@ -81,7 +93,7 @@ protected:
   size_t accumulator;
 
   std::vector<PhysicsIndexContainer*> components;
-  std::unordered_map<std::string, ShapeInfo> shapes;
+  std::unordered_map<Type, ShapeInfo> shapes;
   
   uint32_t defaultStaticMatrixIndex = UINT32_MAX;
   uint32_t defaultDynamicMatrixIndex = UINT32_MAX;
@@ -98,10 +110,10 @@ protected:
   uint32_t freeVert  = UINT32_MAX;
   uint32_t freeObj   = UINT32_MAX;
   uint32_t freePhys  = UINT32_MAX;
-  uint32_t freeTrans = UINT32_MAX;
-  uint32_t freeInput = UINT32_MAX;
-  //uint32_t freeStaticPhys = UINT32_MAX;
-  uint32_t freeRotation = UINT32_MAX;
+//   uint32_t freeTrans = UINT32_MAX;
+//   uint32_t freeInput = UINT32_MAX;
+//   uint32_t freeStaticPhys = UINT32_MAX;
+//   uint32_t freeRotation = UINT32_MAX;
 
   CPUBuffer<Gravity> gravityBuffer;
 
