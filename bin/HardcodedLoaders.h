@@ -125,7 +125,7 @@ public:
   void create();
   void createWall(const CreateWallInfo &info);
   
-    yacs::Entity* getPlayer() const;
+  yacs::Entity* getPlayer() const;
   TransformComponent* getPlayerTransform() const;
   CameraComponent* getCamera() const;
   UserInputComponent* getInput() const;
@@ -133,14 +133,14 @@ private:
   size_t state;
   std::atomic<size_t> accumulatedState;
   
-    yacs::Entity* player;
+  yacs::Entity* player;
   TransformComponent* playerTransform;
   CameraComponent* camera;
   UserInputComponent* input;
   
   TextureLoader* textureLoader;
   
-    yacs::World world;
+  yacs::World world;
 };
 
 class HardcodedMapLoader : public Loader, public ResourceParser {

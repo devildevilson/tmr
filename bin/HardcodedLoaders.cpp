@@ -149,6 +149,9 @@ HardcodedEntityLoader::HardcodedEntityLoader(const InitData &data) {
 
 HardcodedEntityLoader::HardcodedEntityLoader(TextureLoader* textureLoader) : player(nullptr), playerTransform(nullptr), camera(nullptr), input(nullptr), textureLoader(textureLoader) {
   state = 5504;
+  
+  Global g;
+  g.setWorld(&world);
 }
 
 HardcodedEntityLoader::~HardcodedEntityLoader() {
