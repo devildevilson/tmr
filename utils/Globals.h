@@ -28,6 +28,11 @@ class PhysicsEngine;
 class AnimationSystem;
 class Window;
 class SoundSystem;
+class ParticleSystem;
+
+namespace yacs {
+  class World;
+}
 
 namespace yavf {
   class Buffer;
@@ -85,6 +90,8 @@ public:
   static AnimationSystem* animations();
   static Window* window();
   static SoundSystem* sound();
+  static ParticleSystem* particles();
+  static yacs::World* world();
   
   static GlobalData* data();
   
@@ -104,6 +111,8 @@ public:
   void setAnimations(AnimationSystem* anims);
   void setWindow(Window* window);
   void setSound(SoundSystem* sound);
+  void setParticles(ParticleSystem* particles);
+  void setWorld(yacs::World* world);
   
   void setGameDir(const std::string &dir);
   
@@ -125,6 +134,8 @@ private:
   static AnimationSystem* anim;
   static Window* windowPtr;
   static SoundSystem* soundPtr;
+  static ParticleSystem* particlesPtr;
+  static yacs::World* worldPtr;
   
   static GlobalData globalData;
   

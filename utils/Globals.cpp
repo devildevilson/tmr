@@ -43,6 +43,8 @@ Settings* Global::settingsPtr = nullptr;
 AnimationSystem* Global::anim = nullptr;
 Window* Global::windowPtr = nullptr;
 SoundSystem* Global::soundPtr = nullptr;
+ParticleSystem* Global::particlesPtr = nullptr;
+yacs::World* Global::worldPtr = nullptr;
 
 GlobalData Global::globalData = {
   false,
@@ -157,6 +159,14 @@ SoundSystem* Global::sound() {
   return soundPtr;
 }
 
+ParticleSystem* Global::particles() {
+  return particlesPtr;
+}
+
+yacs::World* Global::world() {
+  return worldPtr;
+}
+
 GlobalData* Global::data() {
   return &globalData;
 }
@@ -215,6 +225,14 @@ void Global::setWindow(Window* window) {
 
 void Global::setSound(SoundSystem* sound) {
   this->soundPtr = sound;
+}
+
+void Global::setParticles(ParticleSystem* particles) {
+  this->particlesPtr = particles;
+}
+
+void Global::setWorld(yacs::World* world) {
+  this->worldPtr = world;
 }
 
 void Global::setGameDir(const std::string &dir) {
