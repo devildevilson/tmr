@@ -421,22 +421,22 @@ namespace simd {
   }
 
   // 33 инструкции (ох уж этот _MM_TRANSPOSE4_PS)
-  inline vec4 dot4(vec4 vec11, vec4 vec12, vec4 vec13, vec4 vec14,
-                   vec4 vec21, vec4 vec22, vec4 vec23, vec4 vec24) {
-    _MM_TRANSPOSE4_PS(vec11, vec12, vec13, vec14);
-    _MM_TRANSPOSE4_PS(vec21, vec22, vec23, vec24);
-
-    vec21 = _mm_mul_ps(vec11, vec21);
-    vec22 = _mm_mul_ps(vec12, vec22);
-    vec23 = _mm_mul_ps(vec13, vec23);
-    vec24 = _mm_mul_ps(vec14, vec24);
-
-    vec21 = _mm_add_ps(vec21, vec22);
-    vec21 = _mm_add_ps(vec21, vec23);
-    vec21 = _mm_add_ps(vec21, vec24);
-
-    return vec21;
-  }
+//   inline vec4 dot4(vec4 vec11, vec4 vec12, vec4 vec13, vec4 vec14,
+//                    vec4 vec21, vec4 vec22, vec4 vec23, vec4 vec24) {
+//     _MM_TRANSPOSE4_PS(vec11, vec12, vec13, vec14);
+//     _MM_TRANSPOSE4_PS(vec21, vec22, vec23, vec24);
+// 
+//     vec21 = _mm_mul_ps(vec11, vec21);
+//     vec22 = _mm_mul_ps(vec12, vec22);
+//     vec23 = _mm_mul_ps(vec13, vec23);
+//     vec24 = _mm_mul_ps(vec14, vec24);
+// 
+//     vec21 = _mm_add_ps(vec21, vec22);
+//     vec21 = _mm_add_ps(vec21, vec23);
+//     vec21 = _mm_add_ps(vec21, vec24);
+// 
+//     return vec21;
+//   }
 
   inline vec4 dot4(const vec4 &xxxx1, const vec4 &yyyy1, const vec4 &zzzz1,
                    const vec4 &xxxx2, const vec4 &yyyy2, const vec4 &zzzz2) {
@@ -448,17 +448,17 @@ namespace simd {
   }
 
   // 8 инструкций
-  inline vec4 dot4_no_transpose(const vec4 &mat11, const vec4 &mat12, const vec4 &mat13, const vec4 &mat14,
-                                const vec4 &mat21, const vec4 &mat22, const vec4 &mat23, const vec4 &mat24) {
-    __m128 vec[4];
-    vec[0] = _mm_mul_ps(mat11, mat21);
-    vec[1] = _mm_mul_ps(mat12, mat22);
-    vec[2] = _mm_mul_ps(mat13, mat23);
-    vec[3] = _mm_mul_ps(mat14, mat24);
+  inline vec4 dot4(const vec4 &x41, const vec4 &y41, const vec4 &z41, const vec4 &w41,
+                   const vec4 &x42, const vec4 &y42, const vec4 &z42, const vec4 &w42) {
+    vec4 vec[4];
+    vec[0] = x41 * x42;
+    vec[1] = y41 * y42;
+    vec[2] = z41 * z42;
+    vec[3] = w41 * w42;
 
-    vec[0] = _mm_add_ps(vec[0], vec[1]);
-    vec[0] = _mm_add_ps(vec[0], vec[2]);
-    vec[0] = _mm_add_ps(vec[0], vec[3]);
+    vec[0] = vec[0] + vec[1] + vec[2] + vec[3];
+//     vec[0] = _mm_add_ps(vec[0], vec[2]);
+//     vec[0] = _mm_add_ps(vec[0], vec[3]);
 
     return vec[0];
 

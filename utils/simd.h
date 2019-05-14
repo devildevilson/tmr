@@ -139,15 +139,15 @@ namespace simd {
   inline float dot(const vec4 &vec1, const vec4 &vec2);
 
   // 33 инструкции (ох уж этот _MM_TRANSPOSE4_PS)
-  inline vec4 dot4(vec4 &vec11, vec4 &vec12, vec4 &vec13, vec4 &vec14,
-                   vec4 &vec21, vec4 &vec22, vec4 &vec23, vec4 &vec24);
+//   inline vec4 dot4(vec4 &vec11, vec4 &vec12, vec4 &vec13, vec4 &vec14,
+//                    vec4 &vec21, vec4 &vec22, vec4 &vec23, vec4 &vec24);
 
   inline vec4 dot4(const vec4 &xxxx1, const vec4 &yyyy1, const vec4 &zzzz1,
                    const vec4 &xxxx2, const vec4 &yyyy2, const vec4 &zzzz2);
 
   // 8 инструкций
-  inline vec4 dot4_no_transpose(const vec4 &mat11, const vec4 &mat12, const vec4 &mat13, const vec4 &mat14,
-                                const vec4 &mat21, const vec4 &mat22, const vec4 &mat23, const vec4 &mat24);
+  inline vec4 dot4(const vec4 &x41, const vec4 &y41, const vec4 &z41, const vec4 &w41,
+                   const vec4 &x42, const vec4 &y42, const vec4 &z42, const vec4 &w42);
   // 8 инструкций
   inline float length(const vec4 &vec);
   // 9 инструкций
