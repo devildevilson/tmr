@@ -159,6 +159,8 @@ file(GLOB_RECURSE GLSL_SOURCE_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/searchAndAddPair.comp
     ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/calcOverlappingData.comp
     ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/calcRayIntersect.comp
+    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/particles.comp
+    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/particlesSorting.comp
     )
 
 foreach(GLSL ${GLSL_SOURCE_FILES})
@@ -250,6 +252,7 @@ set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/utils/CmdMgr.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Utility.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Event.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Type.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/ResourceID.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/EntityComponentSystem.cpp
 #              ${CMAKE_CURRENT_SOURCE_DIR}/utils/JobSystem.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Random.cpp
@@ -268,6 +271,7 @@ set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/utils/CmdMgr.h
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Utility.h
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Event.h
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Type.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/ResourceID.h
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/EntityComponentSystem.h
 #              ${CMAKE_CURRENT_SOURCE_DIR}/utils/JobSystem.h
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Random.h
@@ -383,7 +387,11 @@ set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/bin/Components.cpp
 #              bin/main.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/EventComponent.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/AnimationComponent.cpp
-             #${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/sound/alHelpers.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/sound/Buffer.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/sound/Source.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundData.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/HardcodedLoaders.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/TextureLoader.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/CPUAnimationSystem.cpp
@@ -398,7 +406,11 @@ set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/bin/Components.h
 #              model/Animation.h
 #              bin/AISystem.h
 #              bin/Game.h
-             #${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/sound/alHelpers.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/sound/Buffer.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/sound/Source.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundData.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.h
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/EventComponent.h
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/AnimationComponent.h
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/HardcodedLoaders.h
@@ -409,5 +421,5 @@ set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/bin/Components.h
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/Helper.h
              )
 add_executable(${TARGET_NAME} ${SRC_LIST} ${HDR_LIST})
-target_link_libraries(${TARGET_NAME} render physics utils cppfs)
+target_link_libraries(${TARGET_NAME} render physics utils cppfs openal)
 add_dependencies(${TARGET_NAME} shaders resources)
