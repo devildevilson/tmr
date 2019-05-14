@@ -322,15 +322,9 @@ namespace yacs {
 
     template<typename T>
     void createAllocator(const size_t &allocatorSize) {
-      //if (T::yacsType.get() != SIZE_MAX) return;
-
       assert(T::yacsType.get() == SIZE_MAX && "This type is already registered");
       const size_t index = createNewComponentType(allocatorSize);
       T::yacsType.set(index);
-      
-//       components.emplace_back();
-//       allocators.push_back(new Allocator<T, allocatorSize>());
-//       T::yacsType.set(components.size()-1);
     }
 
     Entity* createEntity() {
@@ -367,16 +361,11 @@ namespace yacs {
 
     void cleanup() {
       for (auto* ent : toDelete) {
-//           ent->clean();
         entitiesPool.deleteElement(ent);
       }
 
       toDelete.clear();
     }
-
-    // void initEntity(const size_t &id) {
-    //     entities[id]->init();
-    // }
 
     template<typename T>
     void init(void* initData) {
@@ -514,38 +503,11 @@ namespace yacs {
       }
       entities.clear();
       
-//       for (auto& container : components) {
-//         for (auto* comp : container) {
-//           allocators[comp->allocatorId]->deleteComponent(comp);
-//         }
-//       }
       components.clear();
 
-//       for (auto &allocator : allocators) {
-//         delete allocator;
-//       }
       allocators.clear();
     }
   private:
-//     class ComponentAlloc {
-//     public:
-//       ComponentAlloc() {}
-//       virtual ~ComponentAlloc() {}
-// 
-//       virtual void deleteComponent(Component* comp) = 0;
-//     };
-// 
-//     template<typename T, size_t allocSize = 8192>
-//     class Allocator : public ComponentAlloc {
-//       friend World;
-//     public:
-//       MemoryPool<T, allocSize> pool;
-//     
-//       void deleteComponent(Component* comp) override {
-//           pool.deleteElement((T*)comp);
-//       }  
-//     };
-    
     size_t allocateAllocator(const size_t &poolSize) {
       size_t index = allocators.size();
       allocators.emplace_back(index, poolSize);
@@ -561,26 +523,9 @@ namespace yacs {
 
     template<typename T, typename ...Args>
     T* allocateComponent(Args&&... args) {
-//       if (T::yacsType.get() >= allocators.size()) {
-//         allocators.push_back(new Allocator<T, sizeof(T)*YACS_DEFAULT_COMPONENTS_COUNT>());
-//         components.emplace_back();
-//         T::yacsType.set(allocators.size()-1);
-//       }
-      
       if (T::yacsType.get() >= allocators.size()) {
         T::yacsType.set(createNewComponentType(sizeof(T)*YACS_DEFAULT_COMPONENTS_COUNT));
       }
-      
-//       if (allocators[T::yacsType.get()] == nullptr) {
-//         allocators[T::yacsType.get()] = new Allocator<T, sizeof(T)*YACS_DEFAULT_COMPONENTS_COUNT>();
-//       }
-      
-//       auto* alloc = (Allocator<T, sizeof(T)*YACS_DEFAULT_COMPONENTS_COUNT>*)allocators[T::yacsType.get()];
-//       T* ret = alloc->pool.newElement(std::forward<Args>(args)...);
-//       components[T::yacsType.get()].push_back(ret);
-//       ret->id = components[T::yacsType.get()].size()-1;
-//       ret->containerId = T::yacsType.get();
-//       ret->allocatorId = T::yacsType.get();
       
       const size_t typeId = T::yacsType.get();
       T* ret = allocators[typeId].newElement<T>(std::forward<Args>(args)...);
@@ -594,29 +539,6 @@ namespace yacs {
 
     template<typename T, typename Parent, typename ...Args>
     T* allocateComponent(Args&&... args) {
-//       if (Parent::yacsType.get() >= components.size()) {
-//         allocators.push_back(nullptr);
-//         components.emplace_back();
-//         Parent::yacsType.set(components.size()-1);
-//       }
-//       
-//       if (T::yacsType.get() >= allocators.size()) {
-//         allocators.push_back(new Allocator<T, sizeof(T)*YACS_DEFAULT_COMPONENTS_COUNT>());
-//         components.emplace_back();
-//         T::yacsType.set(allocators.size()-1);
-//       }
-//       
-//       if (allocators[T::yacsType.get()] == nullptr) {
-//         allocators[T::yacsType.get()] = new Allocator<T, sizeof(T)*YACS_DEFAULT_COMPONENTS_COUNT>();
-//       }
-//       
-//       auto* alloc = (Allocator<T, sizeof(T)*YACS_DEFAULT_COMPONENTS_COUNT>*)allocators[T::yacsType.get()];
-//       T* ret = alloc->pool.newElement(std::forward<Args>(args)...);
-//       components[Parent::yacsType.get()].push_back(ret);
-//       ret->id = components[Parent::yacsType.get()].size()-1;
-//       ret->containerId = Parent::yacsType.get();
-//       ret->allocatorId = T::yacsType.get();
-      
       if (T::yacsType.get() >= allocators.size()) {
         T::yacsType.set(createNewComponentType(sizeof(T)*YACS_DEFAULT_COMPONENTS_COUNT));
       }
@@ -641,10 +563,10 @@ namespace yacs {
       if (T::yacsType.get() >= allocators.size()) return;
 
       if (component->id != SIZE_MAX) {
-          std::vector<Component*> &container = components[component->containerId];
-          container.back()->id = component->id;
-          std::swap(container[component->id], container.back());
-          container.pop_back();
+        std::vector<Component*> &container = components[component->containerId];
+        container.back()->id = component->id;
+        std::swap(container[component->id], container.back());
+        container.pop_back();
       }
 
       allocators[T::yacsType.get()].deleteElement(component);
