@@ -6,6 +6,7 @@
 #include "RenderStage.h"
 #include "GPUArray.h"
 #include "Optimizers.h"
+#include "DecalOptimizer.h"
 #include "StageContainer.h"
 
 #include "Deferred.h"
@@ -101,7 +102,7 @@ public:
 //   };
   
   GBufferStage(const size_t &containerSize, const CreateInfo &info);
-  virtual ~GBufferStage();
+  ~GBufferStage();
   
   // инициализация
   //void create(const CreateInfo &info);
@@ -249,9 +250,65 @@ private:
 // а прозрачные объекты мы в гбуфер добавить не можем, так как у нас будет неправильная глубина
 // в кваке частицы непрозрачные, ну и там нет дефферед шейдинга
 // мне бы еще хотелось сделать качественное затуманивание, для этого скорее всего придется добавить прозрачные частицы
+// для частиц у меня будет два стейджа, 1 - считаем данные частиц в компут шейдере, 2 - рисуем их
+
+// ЭТО КОСТЫЛЬ, ОТ НЕГО НУЖНО БУДЕТ ИЗБАВИТЬСЯ
+// TODO: избавиться от костыля
+class ComputeParticleGBufferStage : public GBufferPart {
+public:
+  struct StageCreateInfo {
+    yavf::CombinedTask** task;
+    
+//     yavf::Buffer* uniformBuffer;
+    yavf::Buffer* particlesUniformBuffer;
+    yavf::Buffer* particles;
+    yavf::Buffer* particlesCount;
+    yavf::Buffer* matrixes;
+    
+    yavf::DescriptorSet* gbuffer;
+    yavf::DescriptorSetLayout gbufferLayout;
+  };
+  ComputeParticleGBufferStage(const StageCreateInfo &info);
+  ~ComputeParticleGBufferStage();
+  
+  void create(const CreateInfo &info) override;
+  
+  void recreatePipelines(ImageResourceContainer* data) override;
+  
+  void begin() override;
+  bool doWork(const uint32_t &index) override;
+  
+  // тут мы также должны получить индирект буфер
+private:
+  yavf::Device* device;
+  yavf::Pipeline particlesPipe;
+  yavf::Pipeline sortPipe;
+  
+  yavf::CombinedTask** task;
+  
+  yavf::Buffer* uniformBuffer;
+  yavf::Buffer* particlesUniformBuffer;
+  yavf::Buffer* particles;
+  yavf::Buffer* particlesCount;
+  yavf::Buffer* matrixes;
+  
+  yavf::RenderTarget* target;
+  
+  yavf::DescriptorSet* gbuffer;
+  yavf::DescriptorSetLayout gbufferLayout;
+  
+  //yavf::DescriptorSet* particles;
+};
+
+// тут все стандартно
 class ParticleGBufferStage : public GBufferPart {
 public:
-  ParticleGBufferStage();
+  struct StageCreateInfo {
+    yavf::Buffer* particlesUniformBuffer;
+    yavf::Buffer* particles;
+    yavf::Buffer* particlesCount;
+  };
+  ParticleGBufferStage(const StageCreateInfo &info);
   ~ParticleGBufferStage();
   
   void create(const CreateInfo &info) override;
@@ -261,18 +318,25 @@ public:
   void begin() override;
   bool doWork(const uint32_t &index) override;
 private:
+  yavf::Device* device;
+  yavf::Pipeline pipe;
   
+  yavf::Buffer* uniformBuffer;
+  yavf::Buffer* particlesUniformBuffer;
+  yavf::Buffer* particles;
+  yavf::Buffer* particlesCount;
+  yavf::RenderTarget* target;
+  
+  yavf::DescriptorSet* images;
+  yavf::DescriptorSet* samplers;
 };
 
-struct DecalData {
-  TextureData texture;
-  // точки
-};
-// с декалями все более менее просто, мне необходимо передать сюда 
-// положение (несколько для ломаной декали) и тектурку для каждого положения
+#define DECALS_PIPELINE_LAYOUT_NAME "decals_layout"
+#define DECALS_PIPELINE_NAME "decals_pipeline"
+
 class DecalsGBufferStage : public GBufferPart {
 public:
-  DecalsGBufferStage();
+  DecalsGBufferStage(DecalOptimizer* optimizer);
   ~DecalsGBufferStage();
   
   void create(const CreateInfo &info) override;
@@ -287,6 +351,11 @@ private:
   
   // оптимизер декалей? по идее декаль должна вычисляться лишь единожды
   // здесь нужен просто доступ к системе скорее всего
+  DecalOptimizer* optimizer;
+  
+  GPUArray<Vertex> vertices;
+  GPUArray<uint32_t> indices;
+  GPUArray<DecalOptimizer::InstanceData> instances;
   
   yavf::Buffer* uniformBuffer;
   yavf::RenderTarget* target;
