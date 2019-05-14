@@ -10,29 +10,34 @@ namespace dt {
 
     for (size_t i = 0; i < size; ++i) {
       workers.emplace_back([this] () {
-        // тут предлагается использовать бесконечный цикл
-        // с другой стороны как возвращаться на исходную позицию?
         while (true) {
           std::function<void()> task;
 
           {
             std::unique_lock<std::mutex> lock(this->mutex);
-            // могу ли я прочитать эту переменную
-            --this->busyWorkersCount;
-            finish.notify_one();
+            --busyWorkersCount;
+            if (tasks.empty()) finish.notify_one();
+            
+            if (!barriers.empty() && barriers.front().taskCount == 0 && busyWorkersCount == 0) {
+              barriers.pop();
+              condition.notify_all();
+            }
 
             // condition_variable освобождает мьютекс пока ждет
-            this->condition.wait(lock, [this] () {
-              return this->stop || !this->tasks.empty();
+            condition.wait(lock, [this] () {
+              const bool barrierExist = !barriers.empty();
+              return stop || (!tasks.empty() && ((barrierExist && barriers.front().taskCount != 0) || !barrierExist));
             });
 
-            if (this->stop && this->tasks.empty()) return; // это гарантирует что мы выйдем когда закончим выполнение всех задач
+            if (stop && tasks.empty()) return; // это гарантирует что мы выйдем когда закончим выполнение всех задач
 
-            task = std::move(this->tasks.front());
-            this->tasks.pop();
+            task = std::move(tasks.front());
+            tasks.pop();
+            
+            if (!barriers.empty()) --barriers.front().taskCount;
 
-            ++this->busyWorkersCount;
-            --this->tasksCount;
+            ++busyWorkersCount;
+            --tasksCount;
           }
 
           task();
@@ -45,13 +50,17 @@ namespace dt {
     {
       std::unique_lock<std::mutex> lock(this->mutex);
       stop = true;
+      condition.notify_all();
     }
-
-    condition.notify_all();
 
     for(std::thread &worker : workers) {
       if (worker.joinable()) worker.join();
     }
+  }
+  
+  void thread_pool::barrier() {
+    std::unique_lock<std::mutex> lock(this->mutex);
+    barriers.push({tasks.size()});
   }
 
   void thread_pool::compute() {
@@ -77,11 +86,11 @@ namespace dt {
       std::function<void()> task;
 
       {
-        std::unique_lock<std::mutex> lock(this->mutex);
-        if (this->tasks.empty()) return; // это гарантирует что мы выйдем когда закончим выполнение всех задач
+        std::unique_lock<std::mutex> lock(mutex);
+        if (tasks.empty()) return; // это гарантирует что мы выйдем когда закончим выполнение всех задач
 
-        task = std::move(this->tasks.front());
-        this->tasks.pop();
+        task = std::move(tasks.front());
+        tasks.pop();
       }
 
       task();
@@ -93,12 +102,12 @@ namespace dt {
     // но по идее оверхед от атомарных переменных был бы больше
     if (is_dependent(std::this_thread::get_id())) return;
 
-    std::unique_lock<std::mutex> lock(this->mutex);
+    std::unique_lock<std::mutex> lock(mutex);
     //std::cout << "wait " << this->tasks.empty() << " " << busyWorkersCount << '\n';
     //if (this->tasks.empty() && busyWorkersCount == 0) return;
 
-    this->finish.wait(lock, [this] () {
-      return this->tasks.empty() && (busyWorkersCount == 0);
+    finish.wait(lock, [this] () {
+      return tasks.empty() && (busyWorkersCount == 0);
     });
   }
 

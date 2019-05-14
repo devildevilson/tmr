@@ -12,16 +12,10 @@
 
 #include <iostream>
 
-// безопасная очередь необходима? и как она должна выглядеть?
-// template <typename T>
-// class thread_queue {
-// public:
-//
-// private:
-//   std::mutex m;
-//   std::queue<T> queue;
-//   std::atomic_bool emptyness;
-// };
+// барьер у меня все равно кислый
+// он не учитывает те задачи, которые добавляются в самих задачах
+// в этом случае либо запоминать выполнение последней задачи с добавлением
+// либо самому делить на большее количество задач
 
 namespace dt {
   // нужно еще придумать что делать с чтением переменных? mutable mutex ?
@@ -54,13 +48,13 @@ namespace dt {
       {
         std::unique_lock<std::mutex> lock(mutex);
         if (stop) throw std::runtime_error("Could not submit new task");
-        //tasks.emplace([task] () { task(); });
         tasks.emplace(task);
 
         condition.notify_one();
       }
     }
 
+    void barrier();
     void compute();
     void compute(const size_t &count);
     void wait(); // просто ждет всех
@@ -71,10 +65,16 @@ namespace dt {
     size_t tasks_count() const;
     size_t working_count() const;
   private:
+    struct BarrierData {
+      size_t taskCount;
+      // думаю что ничего тут дополнитульно не нужно
+    };
+    
     bool stop;
 
     std::vector<std::thread> workers;
     std::queue<std::function<void()>> tasks;
+    std::queue<BarrierData> barriers;
 
     std::mutex mutex;
     std::condition_variable condition;
