@@ -75,7 +75,7 @@ int32_t Random::range (int32_t min, int32_t max) {
   if (min == max) return min;
   else if (min > max) std::swap(min, max);
   
-  int32_t delta = max - min + 1;
+  const int32_t delta = max - min + 1;
   
   return get() % delta + min;
 }
@@ -84,7 +84,7 @@ uint32_t Random::rangeU(uint32_t min, uint32_t max) {
   if (min == max) return min;
   else if (min > max) std::swap(min, max);
   
-  uint32_t delta = max - min + 1;
+  const uint32_t delta = max - min + 1;
   
   return get() % delta + min;
 }
@@ -93,7 +93,7 @@ float Random::rangeF(float min, float max) {
   if (min == max) return min;
   else if (min > max) std::swap(min, max);
   
-  float delta = max - min + 1;
+  const float delta = max - min + 1;
   
   return float(get()) * rand_div * delta + min;
 }
