@@ -34,21 +34,14 @@ GraphicComponent::GraphicComponent() {
 
 GraphicComponent::~GraphicComponent() {
   textureContainer->erase(textureContainerIndex);
-  if (optimiserIndex != UINT32_MAX) {
-    optimizer->remove(optimiserIndex);
-    optimiserIndex = UINT32_MAX;
-  }
+//   if (optimiserIndex != UINT32_MAX) {
+//     optimizer->remove(optimiserIndex);
+//     optimiserIndex = UINT32_MAX;
+//   }
 }
 
 void GraphicComponent::update(const uint64_t &time) {
   (void)time;
-  
-  optimizer->markAsVisible(optimiserIndex);
-}
-
-void GraphicComponent::init(void* userData) {
-  (void)userData;
-  auto trans = getEntity()->get<TransformComponent>();
   
   const MonsterOptimizer::GraphicsIndices info{
     trans->transformIndex,
@@ -56,8 +49,16 @@ void GraphicComponent::init(void* userData) {
     rotationDataIndex,     // и это
     textureContainerIndex
   };
+  optimizer->add(info);
+}
+
+void GraphicComponent::init(void* userData) {
+  (void)userData;
+  trans = getEntity()->get<TransformComponent>().get();
   
-  optimiserIndex = optimizer->add(info);
+  
+  
+//   optimiserIndex = optimizer->add(info);
 }
 
 void GraphicComponent::uiDraw() {
@@ -65,7 +66,7 @@ void GraphicComponent::uiDraw() {
 }
 
 void GraphicComponent::drawBoundingShape(const simd::vec4 &color) const {
-  auto trans = getEntity()->get<TransformComponent>();
+//   auto trans = getEntity()->get<TransformComponent>();
   
   debugOptimizer->setDebugColor(trans->transformIndex, color);
 }
@@ -114,10 +115,10 @@ GraphicComponentIndexes::GraphicComponentIndexes(const size_t &offset, const siz
 
 GraphicComponentIndexes::~GraphicComponentIndexes() {
 //   textureContainer->erase(textureContainerIndex);
-  if (optimiserIndex != UINT32_MAX) {
-    optimizer->remove(optimiserIndex);
-    optimiserIndex = UINT32_MAX;
-  }
+//   if (optimiserIndex != UINT32_MAX) {
+//     optimizer->remove(optimiserIndex);
+//     optimiserIndex = UINT32_MAX;
+//   }
 }
 
 void GraphicComponentIndexes::setOptimizer(GeometryOptimizer* geo) {
@@ -131,13 +132,6 @@ void GraphicComponentIndexes::setDebugOptimizer(GeometryDebugOptimizer* debugOpt
 void GraphicComponentIndexes::update(const uint64_t &time) {
   (void)time;
   
-  optimizer->markAsVisible(optimiserIndex);
-}
-
-void GraphicComponentIndexes::init(void* userData) {
-  (void)userData;
-//   auto trans = getEntity()->get<TransformComponent>();
-  
   const GeometryOptimizer::GraphicsIndices info{
 //     trans->transformIndex,
     matrixIndex,
@@ -148,8 +142,16 @@ void GraphicComponentIndexes::init(void* userData) {
     static_cast<uint32_t>(elemCount),
     faceIndex
   };
+  optimizer->add(info);
+}
+
+void GraphicComponentIndexes::init(void* userData) {
+  (void)userData;
+//   auto trans = getEntity()->get<TransformComponent>();
   
-  optimiserIndex = optimizer->add(info);
+  
+  
+//   optimiserIndex = optimizer->add(info);
 }
 
 void GraphicComponentIndexes::uiDraw() {

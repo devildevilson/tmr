@@ -10,14 +10,6 @@
 
 class VulkanRender;
 
-enum RenderType : uint32_t {
-  RENDER_TYPE_GEOMETRY = 0,
-  RENDER_TYPE_MONSTER,
-  RENDER_TYPE_LIGHT,
-  RENDER_TYPE_DEBUG,
-  RENDER_TYPE_MAX
-};
-
 // че делать с текстурами? то есть понятное дело что должен быть какой то механизм 
 // который нам обновляет все текстурки + вычисляет верный спрайт от положения
 // нам даже в принципе для этого только трансформу поменять
@@ -94,21 +86,19 @@ public:
     uint32_t texture; // ?
   };
   
-  static const RenderType renderType;
-  
   MonsterOptimizer();
-  virtual ~MonsterOptimizer();
+  ~MonsterOptimizer();
   
-  uint32_t add(const GraphicsIndices &idx);
-  void remove(const uint32_t &index);
-  void markAsVisible(const uint32_t &index);
+//   uint32_t add(const GraphicsIndices &idx);
+//   void remove(const uint32_t &index);
+//   void markAsVisible(const uint32_t &index);
+  void add(const GraphicsIndices &idx);
   
   void setInputBuffers(const InputBuffers &buffers);
   void setOutputBuffers(const OutputBuffers &buffers);
   
   uint32_t getInstanceCount() const;
   
-  void prepare() override;
   // еще было бы неплохо добавить сортировку по индексам используемых картинок
   void optimize() override;
   void clear() override;
@@ -125,10 +115,10 @@ private:
   
   ArrayInterface<InstanceData>* instDatas = nullptr;
   
-  uint32_t objCount = 0;
-  uint32_t freeIndex = UINT32_MAX;
+//   uint32_t objCount = 0;
+//   uint32_t freeIndex = UINT32_MAX;
   std::vector<GraphicsIndices> objs;
-  std::vector<uint32_t> visible;
+//   std::vector<uint32_t> visible;
   
   // данные для оклюжен куллинга
   // для него еще нужно передать оффсет
@@ -172,21 +162,19 @@ public:
     uint32_t faceIndex;
   };
   
-  static const RenderType renderType;
-  
   GeometryOptimizer();
-  virtual ~GeometryOptimizer();
+  ~GeometryOptimizer();
   
-  uint32_t add(const GraphicsIndices &idx);
-  void remove(const uint32_t &index);
-  void markAsVisible(const uint32_t &index);
+//   uint32_t add(const GraphicsIndices &idx);
+//   void remove(const uint32_t &index);
+//   void markAsVisible(const uint32_t &index);
+  void add(const GraphicsIndices &idx);
   
   void setInputBuffers(const InputBuffers &buffers);
   void setOutputBuffers(const OutputBuffers &buffers);
   
   uint32_t getIndicesCount() const;
   
-  void prepare() override;
   void optimize() override;
   void clear() override;
   size_t size() const override;
@@ -205,10 +193,10 @@ private:
   
   uint32_t faceCount;
   uint32_t indicesCount;
-  uint32_t objCount = 0;
-  uint32_t freeIndex = UINT32_MAX;
+//   uint32_t objCount = 0;
+//   uint32_t freeIndex = UINT32_MAX;
   std::vector<GraphicsIndices> objs;
-  std::vector<uint32_t> visible;
+//   std::vector<uint32_t> visible;
 };
 
 class LightOptimizer : public Optimizer {
@@ -255,7 +243,6 @@ public:
   // тут тоже должен быть механизм похожий на markAsVisible
   // после прохождения проверки на фрустум, мы должны собирать весь видимый свет
   
-  void prepare() override;
   void optimize() override;
   void clear() override;
   size_t size() const override;
@@ -301,7 +288,6 @@ public:
   void setInputBuffers(const InputBuffers &buffers);
   void setOutputBuffers(const OutputBuffers &buffers);
   
-  void prepare() override;
   void optimize() override;
   void clear() override;
   size_t size() const override;
@@ -340,7 +326,6 @@ public:
   void setInputBuffers(const InputBuffers &buffers);
   void setOutputBuffers(const OutputBuffers &buffers);
   
-  void prepare() override;
   void optimize() override;
   void clear() override;
   size_t size() const override;

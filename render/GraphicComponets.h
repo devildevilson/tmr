@@ -7,6 +7,8 @@
 
 #include "Editable.h"
 
+class TransformComponent;
+
 // короче RotationData нужно обновлять где-то здесь
 // иначе получается какая то херня, для этого, конечно,
 // нужно бы как нибудь это использовать
@@ -46,7 +48,9 @@ protected:
   uint32_t matrixIndex = UINT32_MAX;
   uint32_t rotationDataIndex = UINT32_MAX;
   uint32_t textureContainerIndex = UINT32_MAX;
-  uint32_t optimiserIndex = UINT32_MAX;
+//   uint32_t optimiserIndex = UINT32_MAX;
+  
+  TransformComponent* trans;
   
   // эти контейнеры будут использованы скорее всего только в одном потомке (тот что будет отвечать за отрисовку сложных объектов)
   // должны ли быть здесь матрицы или все же они должны быть в другом месте? (и данные о повороте тоже?)

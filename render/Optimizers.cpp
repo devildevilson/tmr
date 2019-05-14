@@ -14,82 +14,52 @@
 #define MONSTER_PIPELINE_NAME "monster_pipeline"
 #define MAP_PIPELINE_NAME "map_pipeline"
 #define DESCRIPTOR_POOL_NAME "default_descriptor_pool"
+  
+MonsterOptimizer::MonsterOptimizer() : objCount(0) {}
 
-const RenderType MonsterOptimizer::renderType = RENDER_TYPE_MONSTER;
-  
-MonsterOptimizer::MonsterOptimizer() : objCount(0) {
-  // ?
-}
+MonsterOptimizer::~MonsterOptimizer() {}
 
-MonsterOptimizer::~MonsterOptimizer() {
-//   device->destroy(instanceBuffer);
-//   device->destroy(pipe);
-}
-
-uint32_t MonsterOptimizer::add(const GraphicsIndices &idx) {
-  uint32_t index;
-  
-  if (freeIndex == UINT32_MAX) {
-    index = objs.size();
-    objs.push_back(idx);
-  } else {
-    index = freeIndex;
-    freeIndex = objs[freeIndex].transform;
-    objs[index] = idx;
-  }
-  
-  ++objCount;
-  
-//   std::cout << "objCount " << objCount << "\n";
-  
-  return index;
-}
-
-void MonsterOptimizer::remove(const uint32_t &index) {
-//   std::cout << "Index " << index << "\n";
-  
-  ASSERT(objCount != 0);
-  ASSERT(index != UINT32_MAX);
-  
-  objs[index].transform = freeIndex;
-  objs[index].texture = UINT32_MAX;
-  freeIndex = index;
-  --objCount;
-}
-
-void MonsterOptimizer::markAsVisible(const uint32_t &index) {
-  ASSERT(index < objs.size());
-  ASSERT(objs[index].texture != UINT32_MAX);
-  
-  visible.push_back(index);
-}
-
-// void MonsterOptimizer::setup(const SetupInfo &info) {
-//   this->render = info.render;
-//   this->device = info.render->getDevice();
+// uint32_t MonsterOptimizer::add(const GraphicsIndices &idx) {
+//   uint32_t index;
 //   
-//   uniformBuffer = render->getUniformBuffer();
-//   images = render->getImageDescriptor();
-//   samplers = render->getSamplerDescriptor();
-//   pipe = render->getDeferredPipe();
-//   
-// //   occludee = render->occludeePipe();
-// //   visibles = render->visiblesBuffer();
-//   
-//   {
-//     const yavf::BufferCreateInfo info{
-//       0,
-//       100 * (sizeof(Texture) + sizeof(simd::mat4)),
-//       VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-//       100,
-//       VMA_MEMORY_USAGE_CPU_ONLY
-//     };
-// 
-//     instanceBuffer = device->createBuffer(info);
-//     
-//     memset(instanceBuffer->ptr(), 0, instanceBuffer->param().size);
+//   if (freeIndex == UINT32_MAX) {
+//     index = objs.size();
+//     objs.push_back(idx);
+//   } else {
+//     index = freeIndex;
+//     freeIndex = objs[freeIndex].transform;
+//     objs[index] = idx;
 //   }
+//   
+//   ++objCount;
+//   
+// //   std::cout << "objCount " << objCount << "\n";
+//   
+//   return index;
 // }
+// 
+// void MonsterOptimizer::remove(const uint32_t &index) {
+// //   std::cout << "Index " << index << "\n";
+//   
+//   ASSERT(objCount != 0);
+//   ASSERT(index != UINT32_MAX);
+//   
+//   objs[index].transform = freeIndex;
+//   objs[index].texture = UINT32_MAX;
+//   freeIndex = index;
+//   --objCount;
+// }
+// 
+// void MonsterOptimizer::markAsVisible(const uint32_t &index) {
+//   ASSERT(index < objs.size());
+//   ASSERT(objs[index].texture != UINT32_MAX);
+//   
+//   visible.push_back(index);
+// }
+
+void MonsterOptimizer::add(const GraphicsIndices &idx) {
+  objs.push_back(idx);
+}
 
 void MonsterOptimizer::setInputBuffers(const InputBuffers &buffers) {
   transforms = buffers.transforms;
@@ -106,44 +76,23 @@ void MonsterOptimizer::setOutputBuffers(const OutputBuffers &buffers) {
 }
 
 uint32_t MonsterOptimizer::getInstanceCount() const {
-  return visible.size();
+//   return visible.size();
+  return objs.size();
 }
-
-// void MonsterOptimizer::setRenderTarget(yavf::RenderTarget* target) {
-//   if (localTask != nullptr) {
-//     localTask->setRenderTarget(target, false);
-//   }
-// }
-
-void MonsterOptimizer::prepare() {
-  throw std::runtime_error("Occlusion culling not implemented yet");
-}
-
-// void MonsterOptimizer::populateSecondaryOcclusionTask() {
-//   throw std::runtime_error("Occlusion culling not implemented yet");
-// }
-// 
-// void MonsterOptimizer::occlusionTest(yavf::GraphicTask* task) {
-//   throw std::runtime_error("Occlusion culling not implemented yet");
-// }
-// 
-// yavf::TaskInterface* MonsterOptimizer::secondaryOcclusionTask() {
-//   throw std::runtime_error("Occlusion culling not implemented yet");
-// }
 
 //#define PRINT_VEC(name, vec) std::cout << name << " (" << vec.x << ", " << vec.y << ", " << vec.z << ", " << vec.w << ")" << "\n";
 
 void MonsterOptimizer::optimize() {
-  if (visible.empty()) return;
+  if (objs.empty()) return;
   
 //   std::cout << "Optimizing " << visible.size() << " objects" << "\n";
 
-  if (visible.size() > instDatas->size()) instDatas->resize(visible.size());
+  if (objs.size() > instDatas->size()) instDatas->resize(objs.size());
 
   // тут еще нужно будет учесть матрицы
   const glm::vec3 &rot = Global::getPlayerRot();
-  for (size_t i = 0; i < visible.size(); ++i) {
-    const uint32_t objIndex = visible[i];
+  for (size_t i = 0; i < objs.size(); ++i) {
+    const uint32_t objIndex = i;
     const uint32_t textureIndex = objs[objIndex].texture;
     ASSERT(textures->size() > textureIndex);
     ASSERT(instDatas->size() > i);
@@ -172,175 +121,61 @@ void MonsterOptimizer::optimize() {
   }
 }
 
-// void MonsterOptimizer::populateSecondaryDrawTask() {
-//   if (localTask == nullptr) throw std::runtime_error("Secondary draw task was not created");
-// }
-// 
-// void MonsterOptimizer::draw(yavf::GraphicTask* task) {
-//   if (visible.empty()) return;
-//   //if (visibleCount == 0) return;
-//   
-//   //std::cout << "Drawing " << visibleCount << " monsters!" << "\n";
-//   
-//   task->setPipeline(pipe);
-//   task->setDescriptor(uniformBuffer, 0);
-//   task->setDescriptor(samplers, 1);
-//   task->setDescriptor(images, 2);
-//   task->setInstanceBuffer(instanceBuffer, 0);
-//   task->setVertexBuffer(monsterDefault, 1);
-//   task->draw();
-// }
-// 
-// yavf::TaskInterface* MonsterOptimizer::secondaryDrawTask() {
-//   return localTask;
-// }
-
 void MonsterOptimizer::clear() {
-  visible.clear();
+  objs.clear();
   
 //   objCount = 0;
 }
 
 size_t MonsterOptimizer::size() const {
-  return objCount;
-  //return visible.size();
+  return objs.size();
 }
-
-// void MonsterOptimizer::setMonsterDefault(yavf::Buffer* buffer) {
-//   monsterDefault = buffer;
-// }
-
-const RenderType GeometryOptimizer::renderType = RENDER_TYPE_GEOMETRY;
   
-GeometryOptimizer::GeometryOptimizer() : faceCount(0), indicesCount(0), objCount(0) {
-  // ?
-}
+GeometryOptimizer::GeometryOptimizer() : faceCount(0), indicesCount(0), objCount(0) {}
+GeometryOptimizer::~GeometryOptimizer() {}
 
-GeometryOptimizer::~GeometryOptimizer() {
-//   device->destroy(worldMapImageIndices);
-//   device->destroy(worldMapIndex);
-}
-
-uint32_t GeometryOptimizer::add(const GraphicsIndices &idx) {
-  uint32_t index;
-  
-  if (freeIndex == UINT32_MAX) {
-    index = objs.size();
-    objs.push_back(idx);
-  } else {
-    index = freeIndex;
-    freeIndex = objs[freeIndex].vertexOffset;
-    objs[index] = idx;
-  }
-  
-  ++objCount;
-  
-  return index;
-}
-
-void GeometryOptimizer::remove(const uint32_t &index) {
-  ASSERT(objCount != 0);
-  
-  objs[index].vertexOffset = freeIndex;
-  objs[index].texture = UINT32_MAX;
-  freeIndex = index;
-  --objCount;
-}
-
-void GeometryOptimizer::markAsVisible(const uint32_t &index) {
-  ASSERT(index < objs.size());
-  ASSERT(objs[index].texture != UINT32_MAX);
-  
-  visible.push_back(index);
-  
-  faceCount = glm::max(objs[index].faceIndex, faceCount);
-  indicesCount += objs[index].vertexCount + 1;
-}
-
-// void GeometryOptimizer::setup(const SetupInfo &info) {
-//   this->render = info.render;
-//   this->device = info.render->getDevice();// device;
-// 
-//   //pipe = device->pipeline(MAP_PIPELINE_NAME);
-//   pipe = render->getDeferredPipe();
-//   images = render->getImageDescriptor();
-//   samplers = render->getSamplerDescriptor();
+// uint32_t GeometryOptimizer::add(const GraphicsIndices &idx) {
+//   uint32_t index;
 //   
-//   uniformBuffer = render->getUniformBuffer();
-//   
-// //   occluder = render->occluderPipe();
-// //   visibles = render->visiblesBuffer();
-// 
-// //   {
-// //     yavf::BufferCreateInfo info{
-// //       0,
-// //       100 * sizeof(VkDrawIndexedIndirectCommand),
-// //       VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
-// //       100,
-// //       VMA_MEMORY_USAGE_CPU_ONLY
-// //     };
-// // 
-// //     helperBuffer = device->createBuffer(info);
-// //     
-// //     memset(helperBuffer->ptr(), 0, helperBuffer->param().size);
-// //   }
-// 
-//   {
-//     yavf::BufferCreateInfo info{
-//       0,
-//       100 * sizeof(Texture),
-//       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, //VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
-//       100,
-//       VMA_MEMORY_USAGE_CPU_ONLY
-//     };
-// 
-//     worldMapImageIndices = device->createBuffer(info);
-//     
-//     memset(worldMapImageIndices->ptr(), 0, worldMapImageIndices->param().size);
-//     
-//     yavf::DescriptorSetLayout layout = device->setLayout("storage_layout");
-//     yavf::DescriptorPool pool = device->descriptorPool(DESCRIPTOR_POOL_NAME);
-//     
-//     yavf::DescriptorMaker dm(device);
-//     //auto descs = dm.layout(layout).data(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER).create(pool);
-//     auto descs = dm.layout(layout).create(pool);
-//     
-//     const yavf::DescriptorUpdate du{
-//       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-//       0,
-//       0,
-//       descs[0]
-//     };
-//     worldMapImageIndices->setDescriptorData(du);
-//     
-//     worldMapImageIndices->updateDescriptor();
+//   if (freeIndex == UINT32_MAX) {
+//     index = objs.size();
+//     objs.push_back(idx);
+//   } else {
+//     index = freeIndex;
+//     freeIndex = objs[freeIndex].vertexOffset;
+//     objs[index] = idx;
 //   }
 //   
-//   {
-//     yavf::BufferCreateInfo info{
-//       0,
-//       100 * sizeof(uint32_t),
-//       VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-//       100,
-//       VMA_MEMORY_USAGE_CPU_ONLY
-//     };
-//     
-//     worldMapIndex = device->createBuffer(info);
-//     memset(worldMapIndex->ptr(), 0, worldMapIndex->param().size);
-//   }
+//   ++objCount;
 //   
-//   // должно ли здесь быть создание пайплайна?
-//   // прикол в том что у меня пайплайн нужно пересоздавать каждый раз как сменяется уровень
-//   // вообще я еще не до конца все это продумал
-//   // но если я хочу здесь создавать пайплайн, то по крайней мере мне нобходимо создать отдельную функцию
-//   // где я буду принимать разные вещи для пайплайна
-//   // пока наверное оставлю как было
-// //   {
-// //     yavf::PipelineMaker pm(device);
-// //     
-// //     
-// //   }
+//   return index;
 // }
+// 
+// void GeometryOptimizer::remove(const uint32_t &index) {
+//   ASSERT(objCount != 0);
+//   
+//   objs[index].vertexOffset = freeIndex;
+//   objs[index].texture = UINT32_MAX;
+//   freeIndex = index;
+//   --objCount;
+// }
+// 
+// void GeometryOptimizer::markAsVisible(const uint32_t &index) {
+//   ASSERT(index < objs.size());
+//   ASSERT(objs[index].texture != UINT32_MAX);
+//   
+//   visible.push_back(index);
+//   
+//   faceCount = glm::max(objs[index].faceIndex, faceCount);
+//   indicesCount += objs[index].vertexCount + 1;
+// }
+
+void GeometryOptimizer::add(const GraphicsIndices &idx) {
+  objs.push_back(idx);
+  
+  faceCount = glm::max(idx.faceIndex, faceCount);
+  indicesCount += idx.vertexCount + 1;
+}
 
 void GeometryOptimizer::setInputBuffers(const InputBuffers &buffers) {
   transforms = buffers.transforms;
@@ -357,34 +192,12 @@ void GeometryOptimizer::setOutputBuffers(const OutputBuffers &buffers) {
   instanceDatas = buffers.instanceDatas;
 }
 
-// void GeometryOptimizer::setRenderTarget(yavf::RenderTarget* target) {
-//   if (localTask != nullptr) {
-//     localTask->setRenderTarget(target, false);
-//   }
-// }
-
 uint32_t GeometryOptimizer::getIndicesCount() const {
   return indicesCount;
 }
 
-void GeometryOptimizer::prepare() {
-  throw std::runtime_error("Occlusion culling not implemented yet");
-}
-
-// void GeometryOptimizer::populateSecondaryOcclusionTask() {
-//   throw std::runtime_error("Occlusion culling not implemented yet");
-// }
-// 
-// void GeometryOptimizer::occlusionTest(yavf::GraphicTask* task) {
-//   throw std::runtime_error("Occlusion culling not implemented yet");
-// }
-// 
-// yavf::TaskInterface* GeometryOptimizer::secondaryOcclusionTask() {
-//   throw std::runtime_error("Occlusion culling not implemented yet");
-// }
-
 void GeometryOptimizer::optimize() {
-  if (visible.empty()) return;
+  if (objs.empty()) return;
   
   if (indicesCount > indices->size()) indices->resize(indicesCount);
   //std::cout << "faceCount+1 " << faceCount+1 << '\n';
@@ -397,8 +210,8 @@ void GeometryOptimizer::optimize() {
   size_t index = 0;
 //   glm::uvec4* textureData = (glm::uvec4*)worldMapImageIndices->ptr();
 //   uint32_t* indices = (uint32_t*)worldMapIndex->ptr();
-  for (size_t i = 0; i < visible.size(); ++i) {
-    const uint32_t visIndex = visible[i];
+  for (size_t i = 0; i < objs.size(); ++i) {
+    const uint32_t visIndex = i;
     
     for (size_t j = 0; j < objs[visIndex].vertexCount; ++j) {
       indices->at(index) = j + objs[visIndex].vertexOffset;
@@ -422,45 +235,17 @@ void GeometryOptimizer::optimize() {
   }
 }
 
-// void GeometryOptimizer::populateSecondaryDrawTask() {
-//   if (localTask == nullptr) throw std::runtime_error("Secondary draw task was not created");
-// }
-// 
-// void GeometryOptimizer::draw(yavf::GraphicTask* task) {
-//   if (visible.empty()) return;
-//   
-//   task->setPipeline(pipe);
-//   task->setDescriptor({uniformBuffer->descriptor(), samplers, images, worldMapImageIndices->descriptor()}, 0);
-// //   task->setDescriptor(uniformBuffer, 0);
-// //   task->setDescriptor(samplers, 1);
-// //   task->setDescriptor(images, 2);
-// //   task->setDescriptor(worldMapImageIndices, 3);
-//   task->setVertexBuffer(worldMapVertex, 0);
-//   task->setIndexBuffer(worldMapIndex);
-//   task->drawIndexed();
-// }
-// 
-// yavf::TaskInterface* GeometryOptimizer::secondaryDrawTask() {
-//   return localTask;
-// }
-
 void GeometryOptimizer::clear() {
-  visible.clear();
+  objs.clear();
   
   indicesCount = 0;
 }
 
 size_t GeometryOptimizer::size() const {
-  return objCount;
+  return objs.size();
 }
 
-// void GeometryOptimizer::setWorldMap(yavf::Buffer* vertex, yavf::Buffer* index) {
-//   worldMapVertex = vertex;
-//   //worldMapIndex = index;
-// }
-
 LightOptimizer::LightOptimizer() : objCount(0), freeIndex(UINT32_MAX) {}
-
 LightOptimizer::~LightOptimizer() {}
 
 uint32_t LightOptimizer::add(const LightRegisterInfo &info) {
@@ -497,10 +282,6 @@ void LightOptimizer::setOutputBuffers(const OutputBuffers &buffers) {
 
 // тут тоже должен быть механизм похожий на markAsVisible
 // после прохождения проверки на фрустум, мы должны собирать весь видимый свет
-
-void LightOptimizer::prepare() {
-  throw std::runtime_error("Not implemented yet");
-}
 
 void LightOptimizer::optimize() {
 //   if (visible.empty()) return;
@@ -574,10 +355,6 @@ void MonsterDebugOptimizer::setOutputBuffers(const OutputBuffers &buffers) {
   instDatas->resize(1000);
 }
 
-void MonsterDebugOptimizer::prepare() {
-  throw std::runtime_error("remove prepare");
-}
-
 void MonsterDebugOptimizer::optimize() {
   // тут наверное ничего (все происходит в setDebugColor)
 }
@@ -616,10 +393,6 @@ void GeometryDebugOptimizer::setInputBuffers(const InputBuffers &buffers) {
 
 void GeometryDebugOptimizer::setOutputBuffers(const OutputBuffers &buffers) {
   instDatas = buffers.instDatas;
-}
-
-void GeometryDebugOptimizer::prepare() {
-  throw std::runtime_error("remove prepare");
 }
 
 void GeometryDebugOptimizer::optimize() {
