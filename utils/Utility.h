@@ -47,6 +47,8 @@ float sideOf(const glm::vec3 &a, const glm::vec3 &b, const glm::vec3 &point, con
 float sideOf(const glm::vec4 &a, const glm::vec4 &b, const glm::vec4 &point, const glm::vec4 &normal);
 float sideOf(const simd::vec4 &a, const simd::vec4 &b, const simd::vec4 &point, const simd::vec4 &normal);
 
+bool intersect(const simd::vec4 &planePoint, const simd::vec4 &planeNormal, const simd::vec4 &a, const simd::vec4 &b, simd::vec4 &point);
+
 glm::vec3 closestPointOnPlane(const glm::vec3 &normal, const float &dist, const glm::vec3 &point);
 glm::vec4 closestPointOnPlane(const glm::vec4 &normal, const float &dist, const glm::vec4 &point);
 simd::vec4 closestPointOnPlane(const simd::vec4 &normal, const float &dist, const simd::vec4 &point);
@@ -65,5 +67,7 @@ simd::vec4 projectVectorOnPlane(const simd::vec4 &normal, const simd::vec4 &orig
 float atan2Approximation(float y, float x);
 
 void cartesianToSpherical(const simd::vec4 &vec, float &theta, float &phi);
+
+uint32_t nextPowerOfTwo(const uint32_t &x);
 
 #endif

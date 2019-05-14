@@ -30,6 +30,21 @@ float sideOf(const simd::vec4 &a, const simd::vec4 &b, const simd::vec4 &point, 
   return simd::dot(vec, point - a);
 }
 
+bool intersect(const simd::vec4 &planePoint, const simd::vec4 &planeNormal, const simd::vec4 &a, const simd::vec4 &b, simd::vec4 &point) {
+  const simd::vec4 lineDir = b-a;
+  const simd::vec4 lineDirNorm = simd::normalize(lineDir);
+  const float normDir = simd::dot(planeNormal, lineDirNorm);
+  if (fast_fabsf(normDir) < EPSILON) return false;
+  
+  float t = (simd::dot(planeNormal, planePoint) - simd::dot(planeNormal, a)) / normDir;
+  
+  if (t < 0.0f || t > 1.0f) return false;
+  
+  t = std::min(std::max(t, 0.0f), 1.0f);
+  point = a + lineDir*t;
+  return true;
+}
+
 glm::vec3 closestPointOnPlane(const glm::vec3 &normal, const float &dist, const glm::vec3 &point) {
   float distance = glm::dot(normal, point) - dist;
   return point - distance*normal;
@@ -120,4 +135,17 @@ float atan2Approximation(float y, float x) {
 void cartesianToSpherical(const simd::vec4 &vec, float &theta, float &phi) {
   theta = glm::acos(vec.y / 1.0f);
   phi = glm::atan(vec.z, vec.x);
+}
+
+uint32_t nextPowerOfTwo(const uint32_t &x) {
+  uint32_t v = x;
+  v--;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  v++;
+  
+  return v;
 }
