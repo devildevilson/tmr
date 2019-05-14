@@ -1,0 +1,196 @@
+// https://github.com/ref2401/oems/blob/master/data/oems.compute.hlsl
+// сортирует без дополнительного расхода памяти, что в общем то замечательно
+// теперь осталось продумать как должна выглядеть структура с парами
+
+#version 450
+
+struct Particle {
+  vec4 cur;
+  vec4 pos;
+  vec4 vel;
+  vec4 col;
+  uvec4 uData;
+  vec4 fData;
+};
+
+struct ParticlesCount {
+  uint count;
+  uint dummy1;
+  uint dummy2;
+  uint dummy3;
+  uint powerOfTwo;
+};
+
+struct SortingNetworkColumn {
+  // индекс первого элемента в  index of the first element in column
+  uint firstElementIndex;
+  // group desc ---
+  uint groupStride;
+  uint groupCount;
+  // row desc ---
+  uint rowStride;
+  uint rowCount;
+  uint comparisonsPerRow;
+  //
+  uint leftFactor;
+  uint rightOffset;
+};
+
+layout(std140, set = 0, binding = 0) buffer Particles {
+  Particle particles[];
+};
+
+layout(std430, set = 1, binding = 0) readonly buffer BufferCount {
+  ParticlesCount particlesCount;
+};
+
+void compareAndSwap(const uint l, const uint r);
+void processColumn(const uint threadId, const SortingNetworkColumn column);
+void processFirstColumn(const uint threadId, const uint count, const uint powerOfTwo);
+void processIntermediateColumns(const uint threadId, const uint count, const uint powerOfTwo, const uint columnCount);
+void processLastColumn(const uint threadId, const uint count, const uint powerOfTwo);
+void sort4(const uint threadId, const uint count);
+
+//layout(constant_id = 1) const uint workGroupSize = 256;
+#define workGroupSize 256
+layout (local_size_x = workGroupSize, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+  const uint threadId = gl_LocalInvocationIndex;
+
+  // здесь у нас лежит степень двойки, следующая за количеством объектов
+  // при большом количестве пар может вызвать неконтролируемое увелические массива
+  // что делать? либо использовать другую сортировку либо выделять больше памяти видимо
+  // с сортировками у меня всегда были дикие провалы =(
+  const uint itemCount = particlesCount.powerOfTwo;
+
+  sort4(threadId, itemCount);
+  barrier();
+
+  uint power = 3;
+  uint powerOfTwo = 8;
+
+  while (powerOfTwo <= itemCount) {
+    processFirstColumn(threadId, itemCount, powerOfTwo);
+    processIntermediateColumns(threadId, itemCount, powerOfTwo, power - 2);
+    processLastColumn(threadId, itemCount, powerOfTwo);
+
+    ++power;
+    powerOfTwo <<= 1;
+  }
+}
+
+void compareAndSwap(const uint l, const uint r) {
+  const Particle x = particles[l];
+  const Particle y = particles[r];
+
+  if (x.uData.x < y.uData.x) return;
+
+  particles[l] = y;
+  particles[r] = x;
+}
+
+void processColumn(const uint threadId, const SortingNetworkColumn column) {
+  const uint comparisonsPerGroup  = column.rowCount * column.comparisonsPerRow;
+  const uint comparisonCount      = column.groupCount * comparisonsPerGroup;
+  const uint comparisonsPerThread = max(1, comparisonCount / workGroupSize);
+  const uint requiredThreadCount  = uint(ceil(float(comparisonCount) / comparisonsPerThread));
+
+  if (threadId >= requiredThreadCount) return;
+
+  // иногда бывает что осталось меньшее количество проверок
+  // последний поток должен правильно их обработать
+  const uint remainedComparisonCount = comparisonCount - comparisonsPerThread * workGroupSize;
+  const uint cmptFirstIndex = threadId * comparisonsPerThread;
+  const uint cmptCount = comparisonsPerThread + ((threadId + 1) / workGroupSize) * remainedComparisonCount;
+
+  for (uint i = 0; i < cmptCount; ++i) {
+    const uint ci = cmptFirstIndex + i;       // текущий индекс внутри потока
+    const uint gi = ci / comparisonsPerGroup; // текущий индекс группы
+    const uint ri = (ci % comparisonsPerGroup) / column.comparisonsPerRow; // индекс строки в группе gi
+    // индекс первого элемента в строке ri внутри группы gi
+    const uint startIndex = column.firstElementIndex + gi * column.groupStride + ri * column.rowStride;
+
+    const uint l = startIndex + column.leftFactor * (ci % column.comparisonsPerRow);
+    const uint r = l + column.rightOffset;
+    compareAndSwap(l, r);
+  }
+}
+
+void processFirstColumn(const uint threadId, const uint count, const uint powerOfTwo) {
+  const SortingNetworkColumn column = {
+    /* firstElementIndex */ 0,
+    /* groupStride */       0,
+    /* groupCount */        1,
+    /* rowStride */         powerOfTwo,
+    /* rowCount */          count / powerOfTwo,
+    /* comparisonsPerRow */ powerOfTwo >> 1,
+    /* leftFactor */        1,
+    /* rightOffset */       powerOfTwo >> 1
+  };
+
+  processColumn(threadId, column);
+  barrier();
+}
+
+void processIntermediateColumns(const uint threadId, const uint count, const uint powerOfTwo, const uint columnCount) {
+  SortingNetworkColumn column = {
+    /* firstElementIndex */ powerOfTwo >> 2,
+    /* groupStride */       powerOfTwo,
+    /* groupCount */        count / powerOfTwo, // почему теперь это здесь?
+    /* rowStride */         powerOfTwo >> 1,
+    /* rowCount */          1,
+    /* comparisonsPerRow */ powerOfTwo >> 2,
+    /* leftFactor */        1,
+    /* rightOffset */       powerOfTwo >> 2
+  };
+
+  for (uint i = 0; i < columnCount; ++i) {
+    processColumn(threadId, column);
+    barrier();
+
+    column.firstElementIndex >>= 1;
+    column.rowStride >>= 1;
+    column.rowCount = 2 * column.rowCount + 1;
+    column.comparisonsPerRow >>= 1;
+    column.rightOffset >>= 1;
+  }
+}
+
+void processLastColumn(const uint threadId, const uint count, const uint powerOfTwo) {
+  const SortingNetworkColumn column = {
+    /* firstElementIndex */ 1,
+    /* groupStride */       0,
+    /* groupCount */        1,
+    /* rowStride */         powerOfTwo,
+    /* rowCount */          count / powerOfTwo,
+    /* comparisonsPerRow */ (powerOfTwo >> 1) - 1,
+    /* leftFactor */        2,
+    /* rightOffset */       1
+  };
+
+  processColumn(threadId, column);
+  barrier();
+}
+
+void sort4(const uint threadId, const uint count) {
+  const uint tupleCount = count >> 2; // по 4 элемента на кортеж (это мы так изящно делим на 4)
+  if (threadId >= tupleCount) return;
+
+  const uint tuplesPerThread = max(1, tupleCount / workGroupSize);
+  const uint origin = 4 * threadId * tuplesPerThread;
+
+  for (uint t = 0; t < tuplesPerThread; ++t) {
+    const uint idx0 = origin + 4 * t;
+    const uint idx1 = idx0 + 1;
+    const uint idx2 = idx1 + 1;
+    const uint idx3 = idx2 + 1;
+
+    // compare and swap: (0, 1) (2, 3) (0, 2) (1, 3) (1, 2) ---
+    compareAndSwap(idx0, idx1);
+    compareAndSwap(idx2, idx3);
+    compareAndSwap(idx0, idx2);
+    compareAndSwap(idx1, idx3);
+    compareAndSwap(idx1, idx2);
+  }
+}
