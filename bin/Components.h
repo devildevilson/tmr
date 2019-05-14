@@ -24,6 +24,8 @@
 
 #include "Editable.h"
 
+#include "UserData.h"
+
 // #include "Pathway.h"
 
 // static const float quarterPI = glm::pi<float>() / 4.0f;
@@ -266,10 +268,6 @@ public:
   static Container<InputData>* container;
 };
 
-struct PhysUserData {
-    yacs::Entity* ent;
-};
-
 class PhysicsComponent2 : public yacs::Component {
 public:
   CLASS_TYPE_DECLARE
@@ -285,6 +283,11 @@ public:
   const PhysicsIndexContainer & getIndexContainer() const;
   
   simd::vec4 getVelocity() const;
+  
+  uint32_t getObjectShapePointsSize() const;
+  const simd::vec4* getObjectShapePoints() const;
+  uint32_t getObjectShapeFacesSize() const;
+  const simd::vec4* getObjectShapeFaces() const;
 
   // сюда приходит input
   // + здесь должна обновляться всякая дополнительная информация

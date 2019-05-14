@@ -10,8 +10,9 @@
 #include "Optimizers.h"
 
 #include "EventComponent.h"
+#include "DecalComponent.h"
 
-#include <glm/gtx/rotate_vector.hpp>
+// #include <glm/gtx/rotate_vector.hpp>
 // #define YACS_DEFINE_EVENT_TYPE
 // #include "YACS.h"
 
@@ -419,9 +420,11 @@ void PhysicsComponent2::init(void* userData) {
   const uint32_t matrixIndex = graphic == nullptr ? UINT32_MAX : graphic->getMatrixIndex();
   const uint32_t rotationIndex = graphic == nullptr ? UINT32_MAX : graphic->getRotationDataIndex();
 
-  InitComponents* initData = (InitComponents*)userData;
+  InitComponents* initData = reinterpret_cast<InitComponents*>(userData);
 
   this->userData.ent = getEntity();
+  this->userData.decalContainer = getEntity()->get<DecalContainerComponent>().get();
+  this->userData.graphicComponent = graphic;
 
   // физику я буду создавать здесь полюбому
   // так как мне требуется доступ к индексам некоторых вещей
@@ -459,8 +462,24 @@ const PhysicsIndexContainer & PhysicsComponent2::getIndexContainer() const {
 }
 
 simd::vec4 PhysicsComponent2::getVelocity() const {
-  const glm::vec3 &vel = Global::physics()->getPhysicData(container.physicDataIndex).velocity;
+  const glm::vec3 &vel = Global::physics()->getPhysicData(&container).velocity;
   return simd::vec4(vel.x, vel.y, vel.z, 0.0f);
+}
+
+uint32_t PhysicsComponent2::getObjectShapePointsSize() const {
+  return Global::physics()->getObjectShapePointsSize(&container);
+}
+
+const simd::vec4* PhysicsComponent2::getObjectShapePoints() const {
+  return Global::physics()->getObjectShapePoints(&container);
+}
+
+uint32_t PhysicsComponent2::getObjectShapeFacesSize() const {
+  return Global::physics()->getObjectShapeFacesSize(&container);
+}
+
+const simd::vec4* PhysicsComponent2::getObjectShapeFaces() const {
+  return Global::physics()->getObjectShapeFaces(&container);
 }
 
 Container<ExternalData>* PhysicsComponent2::externalDatas = nullptr;
