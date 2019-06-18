@@ -162,7 +162,7 @@ namespace simd {
   inline vec4 length4(const vec4 &xxxx, const vec4 &yyyy, const vec4 &zzzz);
 
   inline vec4 length24(const vec4 &vec1, const vec4 &vec2, const vec4 &vec3, const vec4 &vec4);
-  inline vec4 length24_no_transpose(const vec4 &vec1, const vec4 &vec2, const vec4 &vec3, const vec4 &vec4);
+//   inline vec4 length24_no_transpose(const vec4 &vec1, const vec4 &vec2, const vec4 &vec3, const vec4 &vec4);
   inline vec4 length24(const vec4 &xxxx, const vec4 &yyyy, const vec4 &zzzz);
 
   inline vec4 normalize(const vec4 &vec);

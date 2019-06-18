@@ -535,9 +535,9 @@ namespace simd {
     return dot4(vec1, vec2, vec3, vec4, vec1, vec2, vec3, vec4);
   }
 
-  inline vec4 length24_no_transpose(const vec4 &vec1, const vec4 &vec2, const vec4 &vec3, const vec4 &vec4) {
-    return dot4_no_transpose(vec1, vec2, vec3, vec4, vec1, vec2, vec3, vec4);
-  }
+//   inline vec4 length24_no_transpose(const vec4 &vec1, const vec4 &vec2, const vec4 &vec3, const vec4 &vec4) {
+//     return dot4_no_transpose(vec1, vec2, vec3, vec4, vec1, vec2, vec3, vec4);
+//   }
 
   inline vec4 length24(const vec4 &xxxx, const vec4 &yyyy, const vec4 &zzzz) {
     return dot4(xxxx, yyyy, zzzz, xxxx, yyyy, zzzz);

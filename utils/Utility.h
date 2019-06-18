@@ -40,6 +40,9 @@
 
 #define EPSILON 0.000001f
 #define MCS_TO_SEC(dt) (float(dt) / 1000000.0f)
+#define ACCUMULATOR_MAX_CONSTANT 200000
+
+#define PRINT_VEC4(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << " w: " << vec.w << "\n";
 
 float fast_fabsf(const float &f);
 
