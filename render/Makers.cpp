@@ -469,9 +469,7 @@ namespace yavf {
     return sl;
   }
   
-  PipelineLayoutMaker::PipelineLayoutMaker(Device* device) {
-    this->device = device;
-  }
+  PipelineLayoutMaker::PipelineLayoutMaker(Device* device) : device(device) {}
   
   PipelineLayoutMaker & PipelineLayoutMaker::addDescriptorLayout(VkDescriptorSetLayout setLayout) {
     setLayouts.push_back(setLayout);
@@ -504,9 +502,11 @@ namespace yavf {
     
     PipelineLayout l = device->create(info, name);
 
-    // VkPipelineLayout l = VK_NULL_HANDLE;
-    // vkCheckError("vkCreatePipelineLayout", name.c_str(), 
-    // vkCreatePipelineLayout(device->handle(), &info, nullptr, &l));
+//     std::cout << name << " " << l << "\n";
+//     for (size_t i = 0; i < setLayouts.size(); ++i) {
+//       std::cout << "layout " << i << " " << setLayouts[i] << "\n";
+//     }
+//     std::cout << "\n";
     
     setLayouts.clear();
     ranges.clear();

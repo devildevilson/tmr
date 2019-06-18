@@ -16,18 +16,6 @@
 #include "RenderTarget.h"
 #include "Tasks.h"
 #include "Types.h"
-//#include "Makers.h"
-
-// #ifndef YAVF_DEBUG_REPORT_EXTENSION
-// #define YAVF_DEBUG_REPORT_EXTENSION 0
-// #endif
-
-// // ПЕРЕДЕЛАТЬ!!!
-// #ifdef YAVF_DEBUG_REPORT_EXTENSION
-// const bool debugReportExtension = true;
-// #else
-// const bool debugReportExtension = false;
-// #endif
 
 #ifndef YAVF_IMAGE_POOL_SIZE
 #define YAVF_IMAGE_POOL_SIZE 100
@@ -51,6 +39,9 @@ std::to_string((ver >> 12) & 0x3ff) + "." + \
 std::to_string(ver & 0xfff)
 
 #define YAVF_ANY_QUEUE VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT | VK_QUEUE_SPARSE_BINDING_BIT
+
+// TODO: нужно запилить синхронизацию к yavf, нужно ли пользоваться mem alloc синхронизацией?
+// сейчас она мне нужна чтобы пересоздавать массивы в разных GPUOptimizer'ах
 
 namespace yavf {
   class Instance;
@@ -200,16 +191,6 @@ namespace yavf {
   class Instance;
   
   class Device {
-//     friend class DeviceMaker;
-    // friend class DescriptorPoolMaker;
-    // friend class DescriptorMaker;
-    // friend class SamplerMaker;
-    // friend class DescriptorLayoutMaker;
-    // friend class PipelineLayoutMaker;
-    // friend class PipelineMaker;
-    // friend class RenderPassMaker;
-    // friend class ComputePipelineMaker;
-//     friend class FramebufferMaker;
   public:
     struct CreateInfo {
       Instance* inst;

@@ -1,0 +1,95 @@
+#version 450
+
+layout(set = 0, binding = 0) uniform Camera {
+  mat4 viewproj;
+  mat4 view;
+  vec4 pos;
+  vec4 dir;
+  uvec2 dim;
+} camera;
+
+layout(set = 1, binding = 0) buffer OptimizerData {
+  uvec4 count;
+};
+
+struct GraphicsIndicesData {
+  uvec4 indices;
+  uvec4 vertexData;
+};
+
+layout(std140, set = 1, binding = 1) readonly buffer GraphicsIndices {
+  GraphicsIndicesData graphicsIndices[];
+};
+
+struct Transform {
+  vec4 pos;
+  vec4 dir;
+  vec4 scale;
+};
+
+layout(std140, set = 2, binding = 0) readonly buffer Transforms {
+  Transform transforms[];
+};
+
+layout(std140, set = 3, binding = 0) readonly buffer Matrices {
+  mat4 matrices[];
+};
+
+layout(std140, set = 4, binding = 0) readonly buffer RotationDatas {
+  uint rotationDatas[];
+};
+
+struct Texture {
+  uint imageArrayIndex;
+  uint imageArrayLayer;
+  uint samplerIndex;
+};
+
+struct TextureData {
+  Texture t;
+  //uint32_t sampler;
+  float movementU;
+  float movementV;
+};
+
+layout(std430, set = 5, binding = 0) readonly buffer Textures {
+  TextureData textures[];
+};
+
+struct InstanceData {
+  //mat4 matrix;
+  TextureData texture;
+};
+
+layout(std430, set = 6, binding = 0) buffer InstanceDatas {
+  InstanceData instanceDatas[];
+};
+
+layout(std430, set = 6, binding = 1) buffer Indices {
+  uint indices[];
+};
+
+#define WORKGROUP_SIZE 256
+layout (local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+  const uint index = gl_GlobalInvocationID.x;
+  if (index >= count.x) return;
+
+  const uint vertexOffset = graphicsIndices[index].vertexData.x;
+  const uint vertexCount = graphicsIndices[index].vertexData.y;
+  const uint indicesStart = atomicAdd(count.y, vertexCount+1);
+
+  for (uint i = 0; i < vertexCount; ++i) {
+    indices[indicesStart+i] = vertexOffset + i;
+  }
+
+  indices[indicesStart+vertexCount] = 0xFFFFFFFF;
+
+  const uint textureIndex = graphicsIndices[index].indices.w;
+  const uint faceIndex = graphicsIndices[index].vertexData.z;
+
+  instanceDatas[faceIndex].texture = textures[textureIndex];
+
+  // тут еще добавится вычисление матрицы
+}

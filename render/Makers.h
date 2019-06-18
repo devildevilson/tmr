@@ -154,7 +154,7 @@ namespace yavf {
 
     PipelineLayout create(const std::string &name);
   protected:
-    Device* device = nullptr;
+    Device* device;
     std::vector<DescriptorSetLayout> setLayouts;
     std::vector<VkPushConstantRange> ranges;
   };

@@ -16,7 +16,11 @@ void GraphicComponent::setContainer(Container<TextureData>* textureContainer) {
   GraphicComponent::textureContainer = textureContainer;
 }
 
-void GraphicComponent::setOptimizer(MonsterOptimizer* mon) {
+// void GraphicComponent::setOptimizer(MonsterOptimizer* mon) {
+//   GraphicComponent::optimizer = mon;
+// }
+
+void GraphicComponent::setOptimizer(MonsterGPUOptimizer* mon) {
   GraphicComponent::optimizer = mon;
 }
 
@@ -43,7 +47,7 @@ GraphicComponent::~GraphicComponent() {
 void GraphicComponent::update(const uint64_t &time) {
   (void)time;
   
-  const MonsterOptimizer::GraphicsIndices info{
+  const MonsterGPUOptimizer::GraphicsIndices info{
     trans->transformIndex,
     matrixIndex,           // для монстров это поди не нужно
     rotationDataIndex,     // и это
@@ -100,28 +104,15 @@ uint32_t GraphicComponent::getTextureContainerIndex() const {
 Container<simd::mat4>* GraphicComponent::matrices = nullptr;
 Container<RotationData>* GraphicComponent::rotationDatas = nullptr;
 Container<TextureData>* GraphicComponent::textureContainer = nullptr;
-MonsterOptimizer* GraphicComponent::optimizer = nullptr;
+MonsterGPUOptimizer* GraphicComponent::optimizer = nullptr;
 MonsterDebugOptimizer* GraphicComponent::debugOptimizer = nullptr;
 
 CLASS_TYPE_DEFINE_WITH_NAME(GraphicComponentIndexes, "GraphicComponentIndexes")
 
-GraphicComponentIndexes::GraphicComponentIndexes(const size_t &offset, const size_t &elemCount, const uint32_t &faceIndex) {
-  this->faceIndex = faceIndex;
-  this->offset = offset;
-  this->elemCount = elemCount;
-  
-//   textureContainerIndex = textureContainer->insert({UINT32_MAX, UINT32_MAX, UINT32_MAX});
-}
+GraphicComponentIndexes::GraphicComponentIndexes(const size_t &offset, const size_t &elemCount, const uint32_t &faceIndex) : faceIndex(faceIndex), offset(offset), elemCount(elemCount) {}
+GraphicComponentIndexes::~GraphicComponentIndexes() {}
 
-GraphicComponentIndexes::~GraphicComponentIndexes() {
-//   textureContainer->erase(textureContainerIndex);
-//   if (optimiserIndex != UINT32_MAX) {
-//     optimizer->remove(optimiserIndex);
-//     optimiserIndex = UINT32_MAX;
-//   }
-}
-
-void GraphicComponentIndexes::setOptimizer(GeometryOptimizer* geo) {
+void GraphicComponentIndexes::setOptimizer(GeometryGPUOptimizer* geo) {
   GraphicComponentIndexes::optimizer = geo;
 }
 
@@ -132,26 +123,22 @@ void GraphicComponentIndexes::setDebugOptimizer(GeometryDebugOptimizer* debugOpt
 void GraphicComponentIndexes::update(const uint64_t &time) {
   (void)time;
   
-  const GeometryOptimizer::GraphicsIndices info{
-//     trans->transformIndex,
+  const GeometryGPUOptimizer::GraphicsIndices info{
+    UINT32_MAX,
     matrixIndex,
     rotationDataIndex,
     textureContainerIndex,
     
     static_cast<uint32_t>(offset),
     static_cast<uint32_t>(elemCount),
-    faceIndex
+    faceIndex,
+    0
   };
   optimizer->add(info);
 }
 
 void GraphicComponentIndexes::init(void* userData) {
   (void)userData;
-//   auto trans = getEntity()->get<TransformComponent>();
-  
-  
-  
-//   optimiserIndex = optimizer->add(info);
 }
 
 void GraphicComponentIndexes::uiDraw() {
@@ -159,8 +146,8 @@ void GraphicComponentIndexes::uiDraw() {
 }
 
 void GraphicComponentIndexes::drawBoundingShape(const simd::vec4 &color) const {
-  debugOptimizer->setDebugColor(optimiserIndex, color);
+  debugOptimizer->setDebugColor(trans->transformIndex, color);
 }
 
-GeometryOptimizer* GraphicComponentIndexes::optimizer = nullptr;
+GeometryGPUOptimizer* GraphicComponentIndexes::optimizer = nullptr;
 GeometryDebugOptimizer* GraphicComponentIndexes::debugOptimizer = nullptr;

@@ -2,6 +2,7 @@
 #define GRAPHIC_COMPONENTS_H
 
 #include "Optimizers.h"
+#include "GPUOptimizers.h"
 
 #include "EntityComponentSystem.h"
 
@@ -23,7 +24,7 @@ public:
   static void setContainer(Container<TextureData>* textureContainer);
   
   // тут по идее мы тем же макаром добавляем оптимизер
-  static void setOptimizer(MonsterOptimizer* mon);
+  static void setOptimizer(MonsterGPUOptimizer* mon);
   static void setDebugOptimizer(MonsterDebugOptimizer* debugOptimizer);
 
 //   GraphicComponent(const uint32_t &pipelineIndex);
@@ -61,7 +62,7 @@ protected:
   static Container<RotationData>* rotationDatas;
   static Container<TextureData>* textureContainer;
   
-  static MonsterOptimizer* optimizer;
+  static MonsterGPUOptimizer* optimizer;
   static MonsterDebugOptimizer* debugOptimizer;
 };
 
@@ -69,11 +70,11 @@ class GraphicComponentIndexes : public GraphicComponent {
 public:
   CLASS_TYPE_DECLARE
 
-  static void setOptimizer(GeometryOptimizer* geo);
+  static void setOptimizer(GeometryGPUOptimizer* geo);
   static void setDebugOptimizer(GeometryDebugOptimizer* debugOptimizer);
   
   GraphicComponentIndexes(const size_t &offset, const size_t &elemCount, const uint32_t &faceIndex);
-  virtual ~GraphicComponentIndexes();
+  ~GraphicComponentIndexes();
   
   void update(const uint64_t &time = 0) override;
   void init(void* userData) override;
@@ -87,7 +88,7 @@ protected:
   size_t offset;
   size_t elemCount;
   
-  static GeometryOptimizer* optimizer;
+  static GeometryGPUOptimizer* optimizer;
   static GeometryDebugOptimizer* debugOptimizer;
 };
 
