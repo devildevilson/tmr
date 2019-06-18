@@ -32,9 +32,9 @@ public:
     
     if (dataSize + sizeof(T) > bufferSize) createBuffer();
     
-    T* ptr = reinterpret_cast<T*>(buffer + sizeof(char*) + dataSize);
-    new (ptr) T(std::forward<Args>(args)...);
-//     T* ptr = new T(std::forward<Args>(args)...);
+//     T* ptr = reinterpret_cast<T*>(buffer + sizeof(char*) + dataSize);
+//     new (ptr) T(std::forward<Args>(args)...);
+    T* ptr = new T(std::forward<Args>(args)...);
     
     const size_t newSize = dataSize + sizeof(T);
     dataSize = newSize;
@@ -53,8 +53,8 @@ public:
   // но тут скорее всего просто вызов деструктора и ничего более
   template<typename T>
   void destroyStage(T* stage) {
-    stage->~T();
-//     delete stage;
+//     stage->~T();
+    delete stage;
   }
   
   constexpr size_t size() const {

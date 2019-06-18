@@ -15,7 +15,7 @@
 #define MAP_PIPELINE_NAME "map_pipeline"
 #define DESCRIPTOR_POOL_NAME "default_descriptor_pool"
   
-MonsterOptimizer::MonsterOptimizer() : objCount(0) {}
+MonsterOptimizer::MonsterOptimizer() {}
 
 MonsterOptimizer::~MonsterOptimizer() {}
 
@@ -68,7 +68,7 @@ void MonsterOptimizer::setInputBuffers(const InputBuffers &buffers) {
   rotationDatas = buffers.rotationDatas;
   textures = buffers.textures;
   
-  frustumPairs = buffers.frustumPairs;
+//   frustumPairs = buffers.frustumPairs;
 }
 
 void MonsterOptimizer::setOutputBuffers(const OutputBuffers &buffers) {
@@ -98,6 +98,10 @@ void MonsterOptimizer::optimize() {
     ASSERT(instDatas->size() > i);
     const TextureData &text = textures->at(textureIndex);
     instDatas->at(i).textureData = text;
+    
+//     std::cout << "textureIndex " << textureIndex << "\n";
+//     std::cout << "image index  " << text.t.imageArrayIndex << "\n";
+//     std::cout << "layer index  " << text.t.imageArrayLayer << "\n";
     
 //     instDatas->at(i).imageIndex = text.imageArrayIndex;
 //     instDatas->at(i).imageLayer = text.imageArrayLayer;
@@ -131,7 +135,7 @@ size_t MonsterOptimizer::size() const {
   return objs.size();
 }
   
-GeometryOptimizer::GeometryOptimizer() : faceCount(0), indicesCount(0), objCount(0) {}
+GeometryOptimizer::GeometryOptimizer() : faceCount(0), indicesCount(0) {}
 GeometryOptimizer::~GeometryOptimizer() {}
 
 // uint32_t GeometryOptimizer::add(const GraphicsIndices &idx) {
@@ -184,7 +188,7 @@ void GeometryOptimizer::setInputBuffers(const InputBuffers &buffers) {
   rotationDatas = buffers.rotationDatas;
   textures = buffers.textures;
   
-  frustumPairs = buffers.frustumPairs;
+//   frustumPairs = buffers.frustumPairs;
 }
 
 void GeometryOptimizer::setOutputBuffers(const OutputBuffers &buffers) {
@@ -406,3 +410,4 @@ void GeometryDebugOptimizer::clear() {
 size_t GeometryDebugOptimizer::size() const {
   return count;
 }
+

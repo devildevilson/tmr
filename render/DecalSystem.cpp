@@ -90,6 +90,8 @@ void DecalSystem::update(const uint64_t &time) {
       const simd::vec4 normals[2] = {decalData.orn[0], decalData.orn[1]};
       // по идее даже вычислять не нужно
       
+      // нужно еще скейл учесть
+      
       // инвертированный базис для того чтобы привести точки в пространство декали
       const uint32_t matrixIndex = Global::physics()->getMatrixIndex(objPtr);
       const uint32_t transformIndex = Global::physics()->getTransformIndex(objPtr);

@@ -63,7 +63,7 @@ public:
     //ArrayInterface<Texture>* textures;
     ArrayInterface<TextureData>* textures;
     
-    ArrayInterface<BroadphasePair>* frustumPairs; // тут скорее всего это все же ненужно
+//     ArrayInterface<BroadphasePair>* frustumPairs; // тут скорее всего это все же ненужно
   };
   
   struct InstanceData {
@@ -111,7 +111,7 @@ private:
 //   ArrayInterface<glm::uvec4>* textures = nullptr;
   ArrayInterface<TextureData>* textures = nullptr;
   
-  ArrayInterface<BroadphasePair>* frustumPairs = nullptr; 
+//   ArrayInterface<BroadphasePair>* frustumPairs = nullptr; 
   
   ArrayInterface<InstanceData>* instDatas = nullptr;
   
@@ -136,7 +136,7 @@ public:
     //ArrayInterface<Texture>* textures;
     ArrayInterface<TextureData>* textures;
     
-    ArrayInterface<BroadphasePair>* frustumPairs; // тут скорее всего это все же ненужно
+//     ArrayInterface<BroadphasePair>* frustumPairs; // тут скорее всего это все же ненужно
   };
   
   struct InstanceData {
@@ -186,7 +186,7 @@ private:
   //ArrayInterface<Texture>* textures = nullptr;
   ArrayInterface<TextureData>* textures = nullptr;
   
-  ArrayInterface<BroadphasePair>* frustumPairs = nullptr; 
+//   ArrayInterface<BroadphasePair>* frustumPairs = nullptr; 
   
   ArrayInterface<uint32_t>* indices = nullptr;
   ArrayInterface<InstanceData>* instanceDatas = nullptr;

@@ -10,6 +10,9 @@
 
 static const std::vector<const char*> instanceLayers = {
   "VK_LAYER_LUNARG_standard_validation",
+//   "VK_LAYER_LUNARG_object_tracker",
+//   "VK_LAYER_GOOGLE_unique_objects",
+//   "VK_LAYER_LUNARG_parameter_validation",
 //   "VK_LAYER_LUNARG_api_dump",
 //   "VK_LAYER_LUNARG_assistant_layer"
 };
@@ -239,13 +242,6 @@ GraphicsContainer::GraphicsContainer() : dev(nullptr), task(nullptr), task1(null
     extensions.push_back(ext[i]);
   }
 
-//   yavf::Instance::setExtensions(extensions);
-//   yavf::Instance::setLayers({
-//     "VK_LAYER_LUNARG_standard_validation",
-//     "VK_LAYER_LUNARG_api_dump",
-//     "VK_LAYER_LUNARG_assistant_layer"
-//   });
-
   const yavf::Instance::ApplicationInfo appInfo{
     APPLICATION_NAME,
     APP_VERSION,
@@ -271,6 +267,16 @@ GraphicsContainer::GraphicsContainer() : dev(nullptr), task(nullptr), task1(null
     false,
     false
   };
+  
+//   const yavf::Instance::CreateInfo info{
+//     nullptr,
+//     &appInfo,
+//     {},
+//     extensions,
+//     false,
+//     false,
+//     false
+//   };
 
   inst.construct(info);
 }

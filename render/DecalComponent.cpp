@@ -46,7 +46,7 @@ void DecalContainerComponent::init(void* userData) {
 
 UniqueID DecalContainerComponent::addDecal(const std::vector<Vertex> &vertices, const uint32_t &faceIndex, const uint32_t &textureContainerIndex) {
   UniqueID id;
-  decals.emplace_back(vertices, faceIndex, textureContainerIndex, id);
+  decals.push_back({vertices, faceIndex, textureContainerIndex, id});
   return id;
 }
 
@@ -109,3 +109,5 @@ uint32_t DecalComponent::textureContainerIndex() const {
 void DecalComponent::setTexture(const TextureData &texture) {
   textureContainer->at(textureIndex) = texture;
 }
+
+Container<TextureData>* DecalComponent::textureContainer = nullptr;

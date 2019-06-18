@@ -159,7 +159,7 @@ yavf::Image* GBufferStage::getDepthBuffer() const {
   return target.get().depth;
 }
 
-MonsterGBufferStage::MonsterGBufferStage(MonsterOptimizer* monsterOptimiser) : pipe(VK_NULL_HANDLE, VK_NULL_HANDLE) {
+MonsterGBufferStage::MonsterGBufferStage(MonsterGPUOptimizer* monsterOptimiser) : pipe(VK_NULL_HANDLE, VK_NULL_HANDLE) {
   //this->monsterDefault = monsterDefault;
   this->monsterOptimiser = monsterOptimiser;
 }
@@ -184,7 +184,17 @@ void MonsterGBufferStage::create(const CreateInfo &info) {
 //   localTask->setRenderTarget(info.target, false);
   this->localTask = info.task;
   
-  instanceData.construct(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 100);
+  instanceData.construct(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 100);
+  yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
+  yavf::DescriptorSetLayout storage_layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
+  
+  {
+    yavf::DescriptorMaker dm(device);
+    
+    auto desc = dm.layout(storage_layout).create(pool)[0];
+    const size_t i = desc->add({instanceData.vector().handle(), 0, instanceData.vector().buffer_size(), 0, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER});
+    instanceData.vector().setDescriptor(desc, i);
+  }
   
   // я забыл переделать буферы хранящие данные карты, поэтому вот эти буферы у меня просто перезаписывались
   {
@@ -293,7 +303,7 @@ void MonsterGBufferStage::recreatePipelines(ImageResourceContainer* data) {
 void MonsterGBufferStage::begin() {
 //   RegionLog rl("MonsterGBufferStage::begin()");
   
-  monsterOptimiser->optimize();
+//   monsterOptimiser->optimize();
 }
 
 bool MonsterGBufferStage::doWork(const uint32_t &index) {
@@ -330,11 +340,11 @@ bool MonsterGBufferStage::doWork(const uint32_t &index) {
   return true;
 }
 
-GPUArray<MonsterOptimizer::InstanceData>* MonsterGBufferStage::getInstanceData() {
+GPUArray<MonsterGPUOptimizer::InstanceData>* MonsterGBufferStage::getInstanceData() {
   return &instanceData;
 }
 
-GeometryGBufferStage::GeometryGBufferStage(yavf::Buffer* worldMapVertex, GeometryOptimizer* opt) : pipe(VK_NULL_HANDLE, VK_NULL_HANDLE) {
+GeometryGBufferStage::GeometryGBufferStage(yavf::Buffer* worldMapVertex, GeometryGPUOptimizer* opt) : pipe(VK_NULL_HANDLE, VK_NULL_HANDLE) {
   this->worldMapVertex = worldMapVertex;
   this->opt = opt;
 }
@@ -357,10 +367,30 @@ void GeometryGBufferStage::create(const CreateInfo &info) {
 //   localTask->setRenderTarget(info.target, false);
   this->localTask = info.task;
   
-  indices.construct(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 100);
-  instances.construct(device, 100);
-  
+  indices.construct(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 100);
+  instances.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 100);
   yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
+  yavf::DescriptorSetLayout instances_layout = device->setLayout("geometry_rendering_data");
+  
+  {
+    yavf::DescriptorLayoutMaker dlm(device);
+    
+    if (instances_layout == VK_NULL_HANDLE) {
+      instances_layout = dlm.binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT).
+                             binding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT).
+                             create("geometry_rendering_data");
+    }
+    
+    yavf::DescriptorMaker dm(device);
+    
+    auto desc = dm.layout(instances_layout).create(pool)[0];
+    size_t i = desc->add({instances.vector().handle(), 0, instances.vector().buffer_size(), 0, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER});
+    instances.vector().setDescriptor(desc, i);
+    
+    i = desc->add({indices.vector().handle(), 0, indices.vector().buffer_size(), 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER});
+    indices.vector().setDescriptor(desc, i);
+  }
+  
   yavf::DescriptorSetLayout layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
   {
     yavf::DescriptorMaker dm(device);
@@ -438,7 +468,7 @@ void GeometryGBufferStage::recreatePipelines(ImageResourceContainer* data) {
 
 void GeometryGBufferStage::begin() {
 //   RegionLog rl("GeometryGBufferStage::begin()");
-  opt->optimize();
+//   opt->optimize();
 }
 
 bool GeometryGBufferStage::doWork(const uint32_t &index) {
@@ -483,7 +513,7 @@ GPUArray<uint32_t>* GeometryGBufferStage::getIndicesArray() {
   return &indices;
 }
 
-GPUArray<GeometryOptimizer::InstanceData>* GeometryGBufferStage::getInstanceData() {
+GPUArray<GeometryGPUOptimizer::InstanceData>* GeometryGBufferStage::getInstanceData() {
   return &instances;
 }
 
@@ -807,7 +837,10 @@ DefferedLightStage::DefferedLightStage(const CreateInfo &info) : lightArray(info
   this->gbuffer = info.gbuffer;
   this->gbufferLayout = info.gbufferLayout;
   
-  output = device->create(yavf::ImageCreateInfo::texture2D({info.width, info.height}, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
+  output = device->create(yavf::ImageCreateInfo::texture2D({info.width, info.height}, 
+                                                           VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, 
+                                                           VK_FORMAT_R32G32B32A32_SFLOAT), 
+                          VMA_MEMORY_USAGE_GPU_ONLY);
   yavf::ImageView* view = output->createView(VK_IMAGE_VIEW_TYPE_2D, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
   
   auto task = device->allocateTransferTask();
@@ -864,7 +897,7 @@ DefferedLightStage::DefferedLightStage(const CreateInfo &info) : lightArray(info
   
   {
     yavf::ComputePipelineMaker cpm(device);
-    yavf::raii::ShaderModule compute(device, (Global::getGameDir() + "shaders/tiling.comp.spv").c_str());
+    yavf::raii::ShaderModule compute(device, Global::getGameDir() + "shaders/tiling.comp.spv");
     
     pipe = cpm.shader(compute).create("compute_pipeline", pipelineLayout);
   }

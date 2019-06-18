@@ -6,6 +6,7 @@
 #include "RenderStage.h"
 #include "GPUArray.h"
 #include "Optimizers.h"
+#include "GPUOptimizers.h"
 #include "DecalOptimizer.h"
 #include "StageContainer.h"
 
@@ -176,7 +177,7 @@ public:
   // + передать сюда буфер monsterDefault
   // + дескрипторы
   
-  MonsterGBufferStage(MonsterOptimizer* monsterOptimiser);
+  MonsterGBufferStage(MonsterGPUOptimizer* monsterOptimiser);
   ~MonsterGBufferStage();
   
   void create(const CreateInfo &info) override;
@@ -186,13 +187,13 @@ public:
   void begin() override;
   bool doWork(const uint32_t &index) override;
   
-  GPUArray<MonsterOptimizer::InstanceData>* getInstanceData();
+  GPUArray<MonsterGPUOptimizer::InstanceData>* getInstanceData();
 private:
   // тут у нас все данные для монстров
   yavf::Device* device = nullptr;
   
-  GPUArray<MonsterOptimizer::InstanceData> instanceData;
-  MonsterOptimizer* monsterOptimiser = nullptr;
+  GPUArray<MonsterGPUOptimizer::InstanceData> instanceData;
+  MonsterGPUOptimizer* monsterOptimiser = nullptr;
   
   yavf::Pipeline pipe;
   yavf::Buffer* monsterDefault = nullptr;
@@ -208,7 +209,7 @@ private:
 
 class GeometryGBufferStage : public GBufferPart {
 public:
-  GeometryGBufferStage(yavf::Buffer* worldMapVertex, GeometryOptimizer* opt);
+  GeometryGBufferStage(yavf::Buffer* worldMapVertex, GeometryGPUOptimizer* opt);
   ~GeometryGBufferStage();
   
   void create(const CreateInfo &info) override;
@@ -219,14 +220,14 @@ public:
   bool doWork(const uint32_t &index) override;
   
   GPUArray<uint32_t>* getIndicesArray();
-  GPUArray<GeometryOptimizer::InstanceData>* getInstanceData();
+  GPUArray<GeometryGPUOptimizer::InstanceData>* getInstanceData();
 private:
   yavf::Device* device = nullptr;
   yavf::Pipeline pipe;
   
   GPUArray<uint32_t> indices;
-  GPUArray<GeometryOptimizer::InstanceData> instances;
-  GeometryOptimizer* opt = nullptr;
+  GPUArray<GeometryGPUOptimizer::InstanceData> instances;
+  GeometryGPUOptimizer* opt = nullptr;
   
   yavf::Buffer* uniformBuffer = nullptr;
   yavf::RenderTarget* target = nullptr;

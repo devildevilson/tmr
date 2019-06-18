@@ -83,7 +83,7 @@ private:
   ArrayInterface<uint32_t>* indices;
   ArrayInterface<InstanceData>* instances;
   
-  std::vector<Indices> &datas;
+  std::vector<Indices> datas;
   
   size_t vertSize;
   size_t idxSize;

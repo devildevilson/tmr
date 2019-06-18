@@ -695,12 +695,9 @@ namespace yavf {
     return buffer != another.buffer;
   }
   
-  Pipeline::Pipeline() {}
+  Pipeline::Pipeline() : h(VK_NULL_HANDLE), layoutH(VK_NULL_HANDLE) {}
   
-  Pipeline::Pipeline(VkPipeline h, VkPipelineLayout l) {
-    this->h = h;
-    layoutH = l;
-  }
+  Pipeline::Pipeline(VkPipeline h, VkPipelineLayout l) : h(h), layoutH(l) {}
 
   VkPipeline Pipeline::handle() const {
     return h;
