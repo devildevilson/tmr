@@ -5,9 +5,11 @@
 #include "Components.h"
 #include "Globals.h"
 
+CLASS_TYPE_DEFINE_WITH_NAME(SoundComponent, "SoundComponent")
+
 SoundComponent::SoundComponent() {}
 SoundComponent::~SoundComponent() {
-  Globals::sound()->removeComponent(this);
+  Global::sound()->removeComponent(this);
 }
 
 void SoundComponent::update(const size_t &time) {

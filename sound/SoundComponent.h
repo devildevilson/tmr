@@ -13,6 +13,8 @@ class PhysicsComponent2;
 
 class SoundComponent : public yacs::Component {
 public:
+  CLASS_TYPE_DECLARE
+  
   SoundComponent();
   ~SoundComponent();
   

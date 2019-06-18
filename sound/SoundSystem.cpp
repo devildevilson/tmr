@@ -424,159 +424,6 @@ SoundSystem::SoundSystem() : device(nullptr), ctx(nullptr) {
   Listener::setVel(glm::vec3(0.0f, 0.0f, 0.0f));
   Listener::setOrientation(front, up);
   Listener::setGain(1.0f);
-
-//   
-//   Source source;
-//   source.setPitch(1.0f);
-//   source.setGain(0.1f);
-//   source.setMaxDist(100.0f);
-//   source.setRefDist(1.0f);
-//   source.setRolloff(1.0f);
-//   source.setMinGain(0.0f);
-//   source.setMaxGain(1.0f);
-//   source.setPos(glm::vec3(0.0f, 0.0f, 25.0f));
-//   source.setVel(glm::vec3(0.0f, 0.0f, 0.0f));
-//   source.looping(false);
-//   
-//   float var = 50.0f;
-//   Source source2;
-//   source2.setPitch(1.0f);
-//   source2.setGain(0.1f);
-//   source2.setMaxDist(100.0f);
-//   source2.setRefDist(1.0f);
-//   source2.setRolloff(1.0f);
-//   source2.setMinGain(0.0f);
-//   source2.setMaxGain(1.0f);
-//   source2.setPos(glm::vec3(var, 0.0f, 0.0f));
-//   source2.setVel(glm::vec3(0.0f, 0.0f, 0.0f));
-//   source2.looping(false);
-//   
-//   Buffer buffer;
-//   Buffer buffer2;
-//   
-//   drmp3 mp3;
-//   if (!drmp3_init_file(&mp3, "/home/mikuhatsune/Music/15.02.2019/Ephixa & Bossfight - Subside.mp3", NULL)) {
-//     throw std::runtime_error("Failed to open file");
-//   }
-//                                
-//   std::cout << "channels " << mp3.channels << " sampleRate " << mp3.sampleRate << "\n";
-//   
-//   uint64_t pcmFramesCount = drmp3_get_pcm_frame_count(&mp3);
-//   uint64_t mp3FramesCount = drmp3_get_mp3_frame_count(&mp3);
-//   
-// //   openalError("Could not buffer data");
-//   
-//   std::cout << "pcm frames count " << pcmFramesCount << " mp3 frames count " << mp3FramesCount << "\n";
-//   
-//   uint64_t framesToRead = 200000;
-//   float* pFrames = new float[mp3.channels*framesToRead];
-//   size_t size = mp3.channels*framesToRead*sizeof(float);
-//   
-//   size_t size1 = (mp3.channels*framesToRead/2+1)*sizeof(float);
-//   float* pFrames1 = new float[mp3.channels*framesToRead/2+1];
-//   
-//   size_t size2 = (mp3.channels*framesToRead/2+1)*sizeof(float);
-//   float* pFrames2 = new float[mp3.channels*framesToRead/2+1];
-//   
-//   uint64_t framesRead = drmp3_read_pcm_frames_f32(&mp3, framesToRead, pFrames);
-//   if (framesRead == 0) {
-//     throw std::runtime_error("Failed to read file");
-//   }
-//   
-//   for (size_t i = 0; i < mp3.channels*framesToRead; ++i) {
-//     if (i % 2 == 0) {
-//       pFrames1[i/2] = pFrames[i];
-//     } else {
-//       pFrames2[i/2+1] = pFrames[i];
-//     }
-//   }
-//   
-//   ALenum format = to_al_format(mp3.channels, 16);
-// //   const char* formatStr = alGetString(format);
-//   
-// //   openalError("Could not buffer data");
-//   
-//   std::cout << " ptr: " << pFrames << " size: " << size << " freq: " << mp3.sampleRate << " readed " << framesRead << " frames" << "\n";
-//   //alBufferData(buffer, AL_FORMAT_STEREO_FLOAT32, pFrames, size, mp3.sampleRate); //AL_FORMAT_MONO_FLOAT32
-//   //openalError("Could not buffer data");
-//   
-//   buffer.bufferDataStatic(AL_FORMAT_MONO_FLOAT32, pFrames1, size1, mp3.sampleRate);
-//   buffer2.bufferDataStatic(AL_FORMAT_MONO_FLOAT32, pFrames2, size2, mp3.sampleRate);
-//   
-// //   drwav wav;
-// //   if (!drwav_init_file(&wav, "/home/mikuhatsune/Downloads/SBDEAD.WAV")) {
-// //     throw std::runtime_error("Failed to open file");
-// //   }
-// //   
-// //   std::cout << "channels " << wav.channels << " sampleRate " << wav.sampleRate << " bits per sample " << wav.bitsPerSample << "\n";
-// //   
-// //   uint64_t pcmFramesCount = wav.totalPCMFrameCount;
-// //   std::cout << "pcm frames count " << pcmFramesCount << "\n";
-// //   
-// //   uint64_t framesToRead = pcmFramesCount;
-// //   short* pFrames = new short[wav.channels*framesToRead];
-// //   size_t size = wav.channels*framesToRead*sizeof(short);
-// //   
-// //   //uint64_t framesRead = drwav_read_pcm_frames_f32(&wav, framesToRead, pFrames);
-// //   uint64_t framesRead = drwav_read_pcm_frames_s16(&wav, framesToRead, pFrames);
-// //   //uint64_t framesRead = drwav_read_raw(&wav, framesToRead, pFrames);
-// //   if (framesRead == 0) {
-// //     throw std::runtime_error("Failed to read file");
-// //   }
-// //   
-// //   ALenum format = to_al_format(wav.channels, wav.bitsPerSample);
-// // //   const char* formatStr = alGetString(format);
-// //   
-// // //   openalError("Could not buffer data");
-// //   
-// //   std::cout << " ptr: " << pFrames << " size: " << size << " freq: " << wav.sampleRate << " readed " << framesRead << " frames" << "\n";
-// //   alBufferData(buffer, format, pFrames, size, wav.sampleRate);
-// //   openalError("Could not buffer data");
-//   
-//   source.buffer(buffer.id());
-//   source2.buffer(buffer2.id());
-//   
-//   const ALuint sources[] = {source.id(), source2.id()};
-//   
-// //   alSourcePlay(source);
-// //   openalError("Could not play sound");
-// //   
-// //   
-// //   
-// //   alSourcePlay(source2);
-// //   openalError("Could not play sound");
-//   
-//   alSourcePlayv(2, sources);
-//   openalError("Could not play sound");
-//   
-//   Source::State source_state = source.state();
-//   Source::State source_state2 = source2.state();
-//   
-//   auto start = std::chrono::steady_clock::now();
-//   
-//   while (source_state == Source::State::playing || source_state2 == Source::State::playing) {
-//     source_state = source.state();
-//     source_state2 = source2.state();
-//   }
-//   
-//   auto end = std::chrono::steady_clock::now() - start;
-//   auto sec = std::chrono::duration_cast<std::chrono::seconds>(end).count();
-//   std::cout << "Seconds: " << sec << "\n";
-//   
-//   drmp3_uninit(&mp3);
-// //   drwav_uninit(&wav);
-//   
-//   source.~Source();
-//   source2.~Source();
-//   
-//   buffer.~Buffer();
-//   buffer2.~Buffer();
-//   
-//   delete [] pFrames;
-//   delete [] pFrames1;
-//   delete [] pFrames2;
-  
-//   device = alcGetContextsDevice(ctx);
   
   error = alGetError();
   openalError(error, "dwvvdwvwlvwvmdvlwvwvmdlmwvlwd");
@@ -640,41 +487,25 @@ SoundSystem::~SoundSystem() {
       soundQueue[i]->source.stop();
       soundQueue[i]->source.buffer(0);
       soundQueue[i]->source = Source(UINT32_MAX);
-    }
-    
-    if (!soundQueue[i]->data->isCached()) {
-      sourceBuffers.push_back(soundQueue[i]->buffers);
+      
+      if (!soundQueue[i]->data->isCached()) {
+        sourceBuffers.push_back(soundQueue[i]->buffers);
+      }
     }
     
     queueDataPool.deleteElement(soundQueue[i]);
   }
   
-//   for (auto &buffers : cachedBuffers) {
-//     if (buffers.second.buffers[0].isValid()) {
-//       uint32_t id = buffers.second.buffers[0].id();
-//       alDeleteBuffers(1, &id);
-//     }
-//     
-//     if (buffers.second.buffers[1].isValid()) {
-//       uint32_t id = buffers.second.buffers[1].id();
-//       alDeleteBuffers(1, &id);
-//     }
-//   }
-  
   openalError("Could not delete cached buffers");
   
+  alDeleteBuffers(2, reinterpret_cast<uint32_t*>(soundtrack.buffers.buffers));
+  
+  openalError("Could not delete soundtrack buffers");
+  
+//   std::cout << "sources size: " << freeSources.size() << " buffers size: " << sourceBuffers.size() << "\n";
+  
   for (size_t i = 0; i < sourceBuffers.size(); ++i) {
-//     if (sourceBuffers[i].first.isValid()) {
-//       uint32_t id = sourceBuffers[i].first.id();
-//       alDeleteBuffers(1, &id);
-//     }
-//     
-//     if (sourceBuffers[i].second.isValid()) {
-//       uint32_t id = sourceBuffers[i].second.id();
-//       alDeleteBuffers(1, &id);
-//     }
-    
-    alDeleteBuffers(2, reinterpret_cast<uint32_t*>(&sourceBuffers[i]));
+    alDeleteBuffers(2, reinterpret_cast<uint32_t*>(sourceBuffers[i].buffers));
   }
   
   openalError("Could not delete sources buffers");
