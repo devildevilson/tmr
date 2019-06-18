@@ -17,7 +17,7 @@ public:
     construct(device, flags, size);
   }
 
-  virtual ~GPUBuffer() {
+  ~GPUBuffer() {
     device->destroy(bufferPtr);
   }
 
@@ -41,11 +41,12 @@ public:
   }
   
   // тут надо бы вернуть буфер вместе с дескриптором
-  void descriptorPtr(void* ptr) const override {
+  void* gpu_buffer() const override {
 //     yavf::Descriptor* d = (yavf::Descriptor*)ptr;
 //     *d = bufferPtr->descriptor();
-    yavf::Buffer** buffer = reinterpret_cast<yavf::Buffer**>(ptr);
-    *buffer = bufferPtr;
+//     yavf::Buffer** buffer = reinterpret_cast<yavf::Buffer**>(ptr);
+//     *buffer = bufferPtr;
+    return bufferPtr;
   }
 
   void push_back(const T &value) override { (void)value; }

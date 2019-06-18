@@ -80,7 +80,6 @@ public:
 
   void updateBuffers(const uint32_t &objCount, const uint32_t &dynObjCount, const uint32_t &raysCount, const uint32_t &frustumsCount) override;
 
-  // запускает тесты (или наверное только добавляет их в командный буфер вулкана)
   void update() override;
   void calculateOverlappingPairs() override;
   void calculateRayTests() override;

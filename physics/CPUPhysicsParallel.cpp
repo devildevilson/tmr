@@ -1,9 +1,11 @@
 #include "CPUPhysicsParallel.h"
 
+#include "Globals.h"
+
 #include <stdexcept>
 
-#include <glm/gtx/norm.hpp>
-#include <glm/gtx/rotate_vector.hpp>
+// #include <glm/gtx/norm.hpp>
+// #include <glm/gtx/rotate_vector.hpp>
 
 #include <iostream>
 #include <cstring>
@@ -12,7 +14,7 @@
 #define PRINT_VEC4(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << " w: " << vec.w << "\n";
 #define PRINT_VEC3(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << "\n";
 
-CPUPhysicsParallel::CPUPhysicsParallel(const CreateInfo &info) : updateDelta(33333), accumulator(0) {
+CPUPhysicsParallel::CPUPhysicsParallel(const CreateInfo &info) : updateDelta(info.updateDelta), accumulator(0) {
   this->pool = info.pool;
   this->broad = info.b;
   this->narrow = info.n;
@@ -56,11 +58,13 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
   Gravity* data = gravityBuffer.data();
   data->objCount = physicsDatas.size();
   data->time = updateDelta;
+  //data->time = time;
   data->gravity = gravity;
   data->gravityNormal = gravityNorm;
   data->length2 = gravLength2;
   data->length = gravLength;
-
+  
+  // по идее обновление буферов бы тоже разнести, но думаю что можно их просто продублировать
   updateBuffers();
   broad->updateBuffers(objects.size(), physicsDatas.size(), rays.size(), frustums.size());
   narrow->updateBuffers(overlappingPairCache.size(), staticOverlappingPairCache.size());
@@ -70,11 +74,20 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
 
   // какое тут должно быть максимальное время? нафига оно вообще мне здесь?
   const size_t frameTime = std::min(time, size_t(250000));
-
   accumulator += frameTime;
+  
+  if (accumulator > ACCUMULATOR_MAX_CONSTANT) {
+    accumulator = accumulator % ACCUMULATOR_MAX_CONSTANT;
+    
+    Global::console()->printW("Physics lags detected. Check your PC suitability for the game minimal requirements or remove some reundant mods");
+  }
+  
   while (accumulator >= updateDelta) {
     memcpy(prevState.data(), currState.data(), currState.size()*sizeof(currState[0]));
-
+    
+    // тут наверное можно добавить еще цикл
+    // для большей точности вычислений
+    
     {
       // RegionLog rl("update velocities");
       updateVelocities();
@@ -104,6 +117,9 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
     narrow->postCalculation();
     solver->calculateData();
     solver->solve();
+    
+    overlappingDataSize = dataIndices.data()->count;
+    triggerPairsIndicesSize = dataIndices.data()->triggerIndicesCount;
 
     accumulator -= updateDelta;
   }
@@ -133,8 +149,8 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
   pool->compute();
   pool->wait();
 
-  overlappingDataSize = dataIndices.data()->count;
-  triggerPairsIndicesSize = dataIndices.data()->triggerIndicesCount;
+//   overlappingDataSize = dataIndices.data()->count;
+//   triggerPairsIndicesSize = dataIndices.data()->triggerIndicesCount;
   rayTracingSize = raysIndices.data()->temporaryCount;
   frustumTestSize = frustumTestsResult[0].firstIndex;
 
@@ -151,6 +167,50 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
   frustumPoses.vector().clear();
   frustumPoses.update();
 }
+
+// void CPUPhysicsParallel::decoupledUpdate(const uint64_t &time) {
+//   updateBuffers();
+//   broad->updateBuffers(objects.size(), physicsDatas.size(), rays.size(), frustums.size());
+//   narrow->updateBuffers(overlappingPairCache.size(), staticOverlappingPairCache.size());
+//   solver->updateBuffers(overlappingPairCache.size() + staticOverlappingPairCache.size(), rayPairCache.size());
+//   
+//   broad->update();
+//   broad->calculateRayTests();
+//   broad->calculateFrustumTests();
+// 
+//   solver->calculateRayData();
+// 
+//   pool->submitnr([&] () {
+//     sorter->sort(&frustumTestsResult);
+//   });
+// 
+//   pool->submitnr([&] () {
+//     sorter->sort(&overlappingData, &dataIndices, 0);
+//   });
+// 
+//   pool->submitnr([&] () {
+//     sorter->sort(&raysData, &raysIndices, 1);
+//   });
+// 
+//   pool->compute();
+//   pool->wait();
+// 
+//   rayTracingSize = raysIndices.data()->temporaryCount;
+//   frustumTestSize = frustumTestsResult[0].firstIndex;
+// 
+// //   memset(rays.data(), UINT32_MAX, sizeof(RayData));
+// //   memset(frustums.data(), UINT32_MAX, sizeof(FrustumStruct));
+//   memset(frustumTestsResult.data(), 0, sizeof(BroadphasePair));
+// 
+//   indices[0] = 0;
+// 
+//   rays.vector().clear();
+//   rays.update();
+//   frustums.vector().clear();
+//   frustums.update();
+//   frustumPoses.vector().clear();
+//   frustumPoses.update();
+// }
 
 void CPUPhysicsParallel::setBuffers(const PhysicsExternalBuffers &buffers) {
   this->defaultStaticMatrixIndex = buffers.defaultStaticMatrixIndex;
@@ -473,23 +533,23 @@ const simd::vec4* CPUPhysicsParallel::getObjectShapeFaces(const PhysicsIndexCont
 }
 
 uint32_t CPUPhysicsParallel::getTransformIndex(const PhysicsIndexContainer* container) const {
-  
+  return container->transformIndex;
 }
 
 uint32_t CPUPhysicsParallel::getRotationDataIndex(const PhysicsIndexContainer* container) const {
-  
+  return container->rotationIndex;
 }
 
 uint32_t CPUPhysicsParallel::getMatrixIndex(const PhysicsIndexContainer* container) const {
-  
+  return objects[container->objectDataIndex].coordinateSystemIndex;
 }
 
 uint32_t CPUPhysicsParallel::getExternalDataIndex(const PhysicsIndexContainer* container) const {
-  
+  return physicsDatas[container->physicDataIndex].externalDataIndex;
 }
 
 uint32_t CPUPhysicsParallel::getInputDataIndex(const PhysicsIndexContainer* container) const {
-  
+  return container->inputIndex;
 }
 
 void* CPUPhysicsParallel::getUserData(const uint32_t &objIndex) const {
@@ -512,19 +572,19 @@ void CPUPhysicsParallel::setGravity(const simd::vec4 &g) {
   matrices->at(defaultDynamicMatrixIndex) = orientation;
 }
 
-void CPUPhysicsParallel::updateMaxSpeed(const uint32_t &physicDataIndex, const float &maxSpeed) {
-  (void)physicDataIndex;
-  (void)maxSpeed;
-  throw std::runtime_error("must not be called");
-}
-
-
-uint32_t CPUPhysicsParallel::setShapePointsAndFaces(const uint32_t &objectDataIndex, const std::vector<simd::vec4> &points, const std::vector<simd::vec4> &faces) {
-  (void)objectDataIndex;
-  (void)points;
-  (void)faces;
-  throw std::runtime_error("not implemented yet");
-}
+// void CPUPhysicsParallel::updateMaxSpeed(const uint32_t &physicDataIndex, const float &maxSpeed) {
+//   (void)physicDataIndex;
+//   (void)maxSpeed;
+//   throw std::runtime_error("must not be called");
+// }
+// 
+// 
+// uint32_t CPUPhysicsParallel::setShapePointsAndFaces(const uint32_t &objectDataIndex, const std::vector<simd::vec4> &points, const std::vector<simd::vec4> &faces) {
+//   (void)objectDataIndex;
+//   (void)points;
+//   (void)faces;
+//   throw std::runtime_error("not implemented yet");
+// }
 
 ArrayInterface<OverlappingData>* CPUPhysicsParallel::getOverlappingPairsData() {
   return &overlappingData;
@@ -1004,6 +1064,8 @@ void CPUPhysicsParallel::updateRotationDatas() {
 }
 
 void CPUPhysicsParallel::interpolate(const float &alpha) {
+//   std::cout << "alpha " << alpha << "\n";
+  
   static const auto interpolateFunc = [&] (const size_t &start, const size_t &count, const float &alpha) {
     for (size_t index = start; index < start+count; ++index) {
       if (physicsDatas[index].objectIndex == UINT32_MAX) return;

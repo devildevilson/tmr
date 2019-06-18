@@ -163,6 +163,16 @@ void CPUSolverParallel::calculateData() {
 
       const uint32_t objIndex1 = data.firstIndex;
       const uint32_t objIndex2 = data.secondIndex;
+      
+      if (objIndex1 == UINT32_MAX || objIndex2 == UINT32_MAX) {
+        std::cout << "index 1 " << objIndex1 << "\n";
+        std::cout << "index 2 " << objIndex2 << "\n";
+        
+        std::cout << "start " << start << " count " << count << "\n";
+        std::cout << "counter " << counter << "\n";
+        
+        throw std::runtime_error("adsafafwfaw");
+      }
 
       const uint32_t transformIndex1 = objects->at(objIndex1).transformIndex;
       const uint32_t transformIndex2 = objects->at(objIndex2).transformIndex;

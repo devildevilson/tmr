@@ -51,6 +51,10 @@ uint32_t PhysicsEngine::getOverlappingDataSize() const {
   return overlappingDataSize;
 }
 
+uint32_t PhysicsEngine::getTriggerPairsIndicesSize() const {
+  return triggerPairsIndicesSize;
+}
+
 uint32_t PhysicsEngine::getRayTracingSize() const {
   return rayTracingSize;
 }

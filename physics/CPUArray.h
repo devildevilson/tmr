@@ -25,7 +25,7 @@ public:
     update();
   }
 
-  void descriptorPtr(void* ptr) const override { (void)ptr; }
+  void* gpu_buffer() const override { return nullptr; }
   void push_back(const T &value) override { 
     array.push_back(value);
     update();
@@ -52,8 +52,8 @@ class CPUContainer : public Container<T> {
 public:
   CPUContainer() {}
   
-  CPUContainer(const uint32_t &size) {
-    array.resize(size);
+  CPUContainer(const uint32_t &size) : array(size) {
+    update();
   }
   
   ~CPUContainer() {}
@@ -65,8 +65,8 @@ public:
   }
   
   // тут надо бы вернуть буфер вместе с дескриптором
-  void descriptorPtr(void* ptr) const override {
-    (void)ptr;
+  void* gpu_buffer() const override {
+    return nullptr;
   }
 
   void push_back(const T &value) override {
@@ -78,7 +78,8 @@ public:
     if (Container<T>::freeIndex != UINT32_MAX) {
       const uint32_t index = Container<T>::freeIndex;
       Container<T>::freeIndex = reinterpret_cast<Slot<T>*>(&array[Container<T>::freeIndex])->nextIndex;
-      reinterpret_cast<Slot<T>*>(&array[Container<T>::freeIndex])->value = value;
+      //reinterpret_cast<Slot<T>*>(&array[Container<T>::freeIndex])->value = value;
+      reinterpret_cast<Slot<T>*>(&array[index])->value = value;
       
 //       Container<T>::freeIndex = reinterpret_cast<Slot<T>&>(array[Container<T>::freeIndex]).nextIndex;
 //       reinterpret_cast<Slot<T>&>(array[Container<T>::freeIndex]).value = value;
@@ -95,9 +96,6 @@ public:
   void erase(const uint32_t &index) override {
     reinterpret_cast<Slot<T>*>(&array[index])->value.~T();
     reinterpret_cast<Slot<T>*>(&array[index])->nextIndex = Container<T>::freeIndex;
-    
-//     reinterpret_cast<Slot<T>&>(array[index]).value.~T();
-//     reinterpret_cast<Slot<T>&>(array[index]).nextIndex = Container<T>::freeIndex;
     Container<T>::freeIndex = index;
   }
   
@@ -111,7 +109,7 @@ public:
   
   void update() {
     ArrayInterface<T>::sizeVar = array.size();
-    ArrayInterface<T>::ptr = reinterpret_cast<T*>(array.data());
+    ArrayInterface<T>::ptr = array.data();
   }
 protected:
   std::vector<T> array;

@@ -27,12 +27,14 @@ public:
     
     dt::thread_pool* pool;
     const PhysicsExternalBuffers* buffers;
+    
+    size_t updateDelta;
   };
-  
   CPUPhysicsParallel(const CreateInfo &info);
-  virtual ~CPUPhysicsParallel();
+  ~CPUPhysicsParallel();
 
   void update(const uint64_t &time) override;
+//   void decoupledUpdate(const uint64_t &time) override;
   
   void setBuffers(const PhysicsExternalBuffers &buffers) override;
   
@@ -58,6 +60,7 @@ public:
   uint32_t getObjectShapeFacesSize(const PhysicsIndexContainer* container) const override;
   const simd::vec4* getObjectShapeFaces(const PhysicsIndexContainer* container) const override;
   
+//   uint32_t getObjectIndex(const PhysicsIndexContainer* container) const override;
   uint32_t getTransformIndex(const PhysicsIndexContainer* container) const override;
   uint32_t getRotationDataIndex(const PhysicsIndexContainer* container) const override;
   uint32_t getMatrixIndex(const PhysicsIndexContainer* container) const override;
@@ -131,7 +134,7 @@ protected:
   CPUArray<simd::vec4> globalVel;
 
   CPUArray<RayData> rays; // надо ли их нормализовывать? 
-  CPUArray<FrustumStruct> frustums;
+  CPUArray<Frustum> frustums;
   CPUArray<simd::vec4> frustumPoses;
   
   // было бы удобно создавать инпут и аутпут буферы вне этого класса

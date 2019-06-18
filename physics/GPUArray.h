@@ -11,43 +11,42 @@ public:
   
   GPUArray(yavf::Device* device) {
     construct(device);
+    update();
   }
   
   GPUArray(yavf::Device* device, const uint32_t &size) {
     construct(device, size);
+    update();
   }
   
-  virtual ~GPUArray() {}
+  ~GPUArray() {}
   
   void construct(yavf::Device* device) {
     array.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    
     update();
   }
   
   void construct(yavf::Device* device, const uint32_t &size) {
     array.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, size);
-    
     update();
   }
   
   void construct(yavf::Device* device, const uint32_t &usage, const uint32_t &size) {
     array.construct(device, usage, size);
-    
     update();
   }
   
   void resize(const uint32_t &size) override {
     array.resize(size);
-    
     update();
   }
   
   // тут надо бы вернуть буфер вместе с дескриптором
-  void descriptorPtr(void* ptr) const override {
+  void* gpu_buffer() const override {
 //     yavf::Descriptor* d = (yavf::Descriptor*)ptr;
-    yavf::Buffer** buffer = reinterpret_cast<yavf::Buffer**>(ptr);
-    *buffer = array.handle();
+//     yavf::Buffer** buffer = reinterpret_cast<yavf::Buffer**>(ptr);
+//     *buffer = array.handle();
+    return array.handle();
   }
 
   void push_back(const T &value) override {
@@ -76,40 +75,38 @@ class GPUContainer : public Container<T> {
 public:
   GPUContainer() {}
   
-  GPUContainer(yavf::Device* device) {
-    construct(device);
+  GPUContainer(yavf::Device* device) : array(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT) {
+    update();
   }
   
-  GPUContainer(yavf::Device* device, const uint32_t &size) {
-    construct(device, size);
+  GPUContainer(yavf::Device* device, const uint32_t &size) : array(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, size) {
+    update();
   }
   
-  virtual ~GPUContainer() {}
+  ~GPUContainer() {}
   
   void construct(yavf::Device* device) {
     array.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    
     update();
   }
   
   void construct(yavf::Device* device, const uint32_t &size) {
     array.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, size);
-    
     update();
   }
   
   void resize(const uint32_t &size) override {
     array.resize(size);
-    
     update();
   }
   
   // тут надо бы вернуть буфер вместе с дескриптором
-  void descriptorPtr(void* ptr) const override {
+  void* gpu_buffer() const override {
 //     yavf::Descriptor* d = (yavf::Descriptor*)ptr;
 //     *d = array.descriptor();
-    yavf::Buffer** buffer = reinterpret_cast<yavf::Buffer**>(ptr);
-    *buffer = array.handle();
+//     yavf::Buffer** buffer = reinterpret_cast<yavf::Buffer**>(ptr);
+//     *buffer = array.handle();
+    return array.handle();
   }
 
   void push_back(const T &value) override {
@@ -121,7 +118,7 @@ public:
     if (Container<T>::freeIndex != UINT32_MAX) {
       const uint32_t index = Container<T>::freeIndex;
       Container<T>::freeIndex = reinterpret_cast<Slot<T>&>(array[Container<T>::freeIndex]).nextIndex;
-      reinterpret_cast<Slot<T>&>(array[index]).value = value;
+      reinterpret_cast<Slot<T>*>(&array[index])->value = value;
       return index;
     }
 
@@ -131,9 +128,9 @@ public:
     return index;
   }
 
-  void erase(const uint32_t &index) {
-    reinterpret_cast<Slot<T>&>(array[index]).value.~T();
-    reinterpret_cast<Slot<T>&>(array[index]).nextIndex = Container<T>::freeIndex;
+  void erase(const uint32_t &index) override {
+    reinterpret_cast<Slot<T>*>(&array[index])->value.~T();
+    reinterpret_cast<Slot<T>*>(&array[index])->nextIndex = Container<T>::freeIndex;
     Container<T>::freeIndex = index;
   }
   

@@ -302,7 +302,7 @@ void CPUOctreeBroadphaseParallel::updateBuffers(const uint32_t &objCount, const 
 void CPUOctreeBroadphaseParallel::update() {
   static const auto updateAABB = [&] (const size_t &start, const size_t &count, std::atomic<uint32_t> &counter) {
     for (size_t index = start; index < start+count; ++index) {
-      const uint32_t &objIndex = indexBuffer->at(index);
+      const uint32_t &objIndex = indexBuffer->at(index+1);
       const Object &obj = objects->at(objIndex);
       const uint32_t &proxyIndex = obj.proxyIndex;
       
@@ -364,7 +364,7 @@ void CPUOctreeBroadphaseParallel::update() {
 
   static const auto changePlaceInOctree = [&] (const size_t &start, const size_t &count, std::atomic<uint32_t> &counter) {
     for (size_t index = start; index < start+count; ++index) {
-      const uint32_t &proxyIndex = proxyIndices[index];
+      const uint32_t &proxyIndex = proxyIndices[index+1];
       ASSERT(proxies.size() > proxyIndex);
       CPUOctreeProxyParallel* data = &proxies[proxyIndex];
       uint32_t currentIndex = 0;
@@ -426,12 +426,13 @@ void CPUOctreeBroadphaseParallel::update() {
   const uint32_t &objCount = indexBuffer->at(0);
 
   //if (objCount > 2) throw std::runtime_error("objCount > 2");
-
+  // objCount+1 ?
+  
   {
-    const size_t count = glm::ceil(float(objCount+1) / float(pool->size()+1));
-    size_t start = 1;
+    const size_t count = glm::ceil(float(objCount) / float(pool->size()+1));
+    size_t start = 0;
     for (uint32_t i = 0; i < pool->size()+1; ++i) {
-      const size_t jobCount = std::min(count, objCount+1-start);
+      const size_t jobCount = std::min(count, objCount-start);
       if (jobCount == 0) break;
 
       pool->submitnr(updateAABB, start, jobCount, std::ref(proxyCounter));
@@ -447,13 +448,15 @@ void CPUOctreeBroadphaseParallel::update() {
 
   proxyIndices[0] = proxyCounter;
   toPairsCalculate[0] = 0;
+  
+  // proxyIndices[0]+1 ?
 
   std::atomic<uint32_t> counter(0);
   {
-    const size_t count = glm::ceil(float(proxyIndices[0]+1) / float(pool->size()+1));
-    size_t start = 1;
+    const size_t count = glm::ceil(float(proxyIndices[0]) / float(pool->size()+1));
+    size_t start = 0;
     for (uint32_t i = 0; i < pool->size()+1; ++i) {
-      const size_t jobCount = std::min(count, proxyIndices[0]+1-start);
+      const size_t jobCount = std::min(count, proxyIndices[0]-start);
       if (jobCount == 0) break;
 
       pool->submitnr(changePlaceInOctree, start, jobCount, std::ref(counter));
@@ -555,7 +558,7 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
 
   static const auto calcPair = [&] (const size_t &start, const size_t &count, std::atomic<uint32_t> &pairsCounter, std::atomic<uint32_t> &staticPairsCounter) {
     for (size_t i = start; i < start+count; ++i) {
-      const uint32_t index = toPairsCalculate[i];
+      const uint32_t index = toPairsCalculate[i+1];
 //       std::cout << "index " << index << "\n";
       const CPUOctreeProxyParallel &current = proxies[index];
       const FastAABB &first = current.getAABB();
@@ -610,10 +613,10 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
   std::atomic<uint32_t> pairsCounter(0);
   std::atomic<uint32_t> staticPairsCounter(0);
 
-  const size_t count = glm::ceil(float(toPairsCalculate[0]+1) / float(pool->size()+1));
-  size_t start = 1;
+  const size_t count = glm::ceil(float(toPairsCalculate[0]) / float(pool->size()+1));
+  size_t start = 0;
   for (uint32_t i = 0; i < pool->size()+1; ++i) {
-    const size_t jobCount = std::min(count, toPairsCalculate[0]+1-start);
+    const size_t jobCount = std::min(count, toPairsCalculate[0]-start);
     if (jobCount == 0) break;
 
     pool->submitnr(calcPair, start, jobCount, std::ref(pairsCounter), std::ref(staticPairsCounter));

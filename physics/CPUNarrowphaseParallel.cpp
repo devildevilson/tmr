@@ -83,18 +83,21 @@ void CPUNarrowphaseParallel::checkIdenticalPairs() {
 
   uint32_t uniqueFirstIndex = UINT32_MAX;
   uint32_t uniqueSecondIndex = UINT32_MAX;
-  for (uint32_t i = 1; i < pairs->at(0).firstIndex+1; ++i) {
-
-    if (uniqueFirstIndex != pairs->at(i).firstIndex) {
-      uniqueFirstIndex = pairs->at(i).firstIndex;
-      uniqueSecondIndex = pairs->at(i).secondIndex;
+  
+  size_t pairsCount = pairs->at(0).firstIndex;
+  for (uint32_t i = 0; i < pairsCount; ++i) {
+    const uint32_t index = i+1;
+    
+    if (uniqueFirstIndex != pairs->at(index).firstIndex) {
+      uniqueFirstIndex = pairs->at(index).firstIndex;
+      uniqueSecondIndex = pairs->at(index).secondIndex;
     } else {
-      pairs->at(i).islandIndex = uniqueSecondIndex == pairs->at(i).secondIndex ? UINT32_MAX : pairs->at(i).islandIndex;
-      uniqueSecondIndex = uniqueSecondIndex == pairs->at(i).secondIndex ? uniqueSecondIndex : pairs->at(i).secondIndex;
+      pairs->at(index).islandIndex = uniqueSecondIndex == pairs->at(index).secondIndex ? UINT32_MAX : pairs->at(index).islandIndex;
+      uniqueSecondIndex = uniqueSecondIndex == pairs->at(index).secondIndex ? uniqueSecondIndex : pairs->at(index).secondIndex;
     }
 
-    if (pairs->at(i).islandIndex == ONLY_TRIGGER_ID) pairs->at(0).dist = glm::uintBitsToFloat(glm::floatBitsToUint(pairs->at(0).dist) + 1);
-    if (pairs->at(i).islandIndex <  ONLY_TRIGGER_ID) ++pairs->at(0).secondIndex;
+    if (pairs->at(index).islandIndex == ONLY_TRIGGER_ID) pairs->at(0).dist = glm::uintBitsToFloat(glm::floatBitsToUint(pairs->at(0).dist) + 1);
+    if (pairs->at(index).islandIndex <  ONLY_TRIGGER_ID) ++pairs->at(0).secondIndex;
   }
 }
 
@@ -102,21 +105,23 @@ void CPUNarrowphaseParallel::postCalculation() {
   static const auto calcIslandCount = [&] (const ArrayInterface<BroadphasePair>* constPairs, const uint32_t &valPairCount, bool dynamic, IslandAdditionalData* data, IslandData* islandsPtr) {
     uint32_t islandCountLocal = uint32_t(valPairCount > 0);
     uint32_t pairIslandIndex = constPairs->at(1).islandIndex;
-    for (uint32_t i = 1; i < valPairCount+1; ++i) {
-      if (constPairs->at(i).islandIndex == pairIslandIndex) {
+    for (uint32_t i = 0; i < valPairCount; ++i) {
+      const uint32_t index = i+1;
+      
+      if (constPairs->at(index).islandIndex == pairIslandIndex) {
         const uint32_t islandIndex = islandCountLocal-1;
 
         ++islandsPtr[islandIndex].size;
-        islandsPtr[islandIndex].islandIndex = constPairs->at(i).islandIndex;
+        islandsPtr[islandIndex].islandIndex = constPairs->at(index).islandIndex;
         continue;
       }
 
       ++islandCountLocal;
-      pairIslandIndex = constPairs->at(i).islandIndex;
+      pairIslandIndex = constPairs->at(index).islandIndex;
 
       const uint32_t islandIndex = islandCountLocal-1;
       ++islandsPtr[islandIndex].size;
-      islandsPtr[islandIndex].islandIndex = constPairs->at(i).islandIndex;
+      islandsPtr[islandIndex].islandIndex = constPairs->at(index).islandIndex;
     }
 
     data->islandCount.x = islandCountLocal;

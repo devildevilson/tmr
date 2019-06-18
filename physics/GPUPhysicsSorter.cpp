@@ -19,7 +19,7 @@ GPUPhysicsSorter::~GPUPhysicsSorter() {
 
 void GPUPhysicsSorter::sort(ArrayInterface<BroadphasePair>* pairs, const uint32_t &algorithmIndex) {
   yavf::Buffer* buffer;
-  pairs->descriptorPtr(&buffer);
+  pairs->gpu_buffer(&buffer);
 
   task->begin();
 
@@ -40,9 +40,9 @@ void GPUPhysicsSorter::sort(ArrayInterface<BroadphasePair>* pairs, const uint32_
 
 void GPUPhysicsSorter::sort(ArrayInterface<OverlappingData>* overlappingData, ArrayInterface<DataIndices>* dataIndixes, const uint32_t &algorithmIndex) {
   yavf::Buffer* buffer1;
-  overlappingData->descriptorPtr(&buffer1);
+  overlappingData->gpu_buffer(&buffer1);
   yavf::Buffer* buffer2;
-  dataIndixes->descriptorPtr(&buffer2);
+  dataIndixes->gpu_buffer(&buffer2);
 
   task->begin();
 
@@ -125,7 +125,7 @@ GPUPhysicsSorterDirectPipeline::~GPUPhysicsSorterDirectPipeline() {
 
 void GPUPhysicsSorterDirectPipeline::sort(ArrayInterface<BroadphasePair>* pairs, const uint32_t &algorithmIndex) {
   yavf::Buffer* buffer;
-  pairs->descriptorPtr(&buffer);
+  pairs->gpu_buffer(&buffer);
 
   task->setPipeline(pairAlgos[algorithmIndex]);
   task->setDescriptor(buffer->descriptorSet(), 0);
@@ -134,9 +134,9 @@ void GPUPhysicsSorterDirectPipeline::sort(ArrayInterface<BroadphasePair>* pairs,
 
 void GPUPhysicsSorterDirectPipeline::sort(ArrayInterface<OverlappingData>* overlappingData, ArrayInterface<DataIndices>* dataIndixes, const uint32_t &algorithmIndex) {
   yavf::Buffer* buffer1;
-  overlappingData->descriptorPtr(&buffer1);
+  overlappingData->gpu_buffer(&buffer1);
   yavf::Buffer* buffer2;
-  dataIndixes->descriptorPtr(&buffer2);
+  dataIndixes->gpu_buffer(&buffer2);
 
   task->setPipeline(overlappingAlgos[algorithmIndex]);
   task->setDescriptor({buffer1->descriptorSet()->handle(), buffer2->descriptorSet()->handle()}, 0);

@@ -136,11 +136,13 @@ public:
   static simd::vec4 applicat();
   //static glm::mat3 getTransform();
   static simd::mat4 getOrientation();
+  
+//   virtual void decoupledUpdate(const uint64_t &time) = 0;
 
   virtual void setBuffers(const PhysicsExternalBuffers &buffers) = 0;
   
   virtual void registerShape(const Type &type, const uint32_t shapeType, const RegisterNewShapeInfo &info) = 0;
-  virtual void removeShape(const Type &type);
+  virtual void removeShape(const Type &type) = 0;
 
   virtual void add(const PhysicsObjectCreateInfo &info, PhysicsIndexContainer* container) = 0;
   virtual void remove(PhysicsIndexContainer* container) = 0;

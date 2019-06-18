@@ -29,9 +29,9 @@ GPUNarrowphase::~GPUNarrowphase() {
 
 void GPUNarrowphase::setInputBuffers(const InputBuffers &inputs, void* indirectPairCount) {
   yavf::Buffer* buffer1;
-  inputs.dynPairs->descriptorPtr(&buffer1);
+  inputs.dynPairs->gpu_buffer(&buffer1);
   pairsDescriptor = buffer1->descriptorSet();
-  inputs.statPairs->descriptorPtr(&buffer1);
+  inputs.statPairs->gpu_buffer(&buffer1);
   staticPairsDescriptor = buffer1->descriptorSet();
   
   this->indirectPairCount = (yavf::Buffer*)indirectPairCount;

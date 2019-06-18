@@ -204,17 +204,17 @@ void GPUPhysics::setBuffers(const PhysicsExternalBuffers &buffers) {
   this->externalDatas = buffers.externalDatas;
 
   yavf::Buffer* buffer;
-  buffers.inputs->descriptorPtr(&buffer);
+  buffers.inputs->gpu_buffer(&buffer);
   inputDesc = buffer->descriptorSet();
-  buffers.transforms->descriptorPtr(&buffer);
+  buffers.transforms->gpu_buffer(&buffer);
   transformDesc = buffer->descriptorSet();
-  buffers.matrices->descriptorPtr(&buffer);
+  buffers.matrices->gpu_buffer(&buffer);
   matrixDesc = buffer->descriptorSet();
-  buffers.rotationDatasCount->descriptorPtr(&buffer);
+  buffers.rotationDatasCount->gpu_buffer(&buffer);
   rotationCountDesc = buffer->descriptorSet();
-  buffers.rotationDatas->descriptorPtr(&buffer);
+  buffers.rotationDatas->gpu_buffer(&buffer);
   rotationDesc = buffer->descriptorSet();
-  buffers.externalDatas->descriptorPtr(&buffer);
+  buffers.externalDatas->gpu_buffer(&buffer);
   externalsDesc = buffer->descriptorSet();
 }
 

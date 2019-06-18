@@ -17,7 +17,7 @@ public:
   }
 
   void resize(const uint32_t &size) override { (void)size; }
-  void descriptorPtr(void* ptr) const override { (void)ptr; }
+  void* gpu_buffer() const override { return nullptr; }
   void push_back(const T &value) override { (void)value; }
 private:
   T* dataBuf;

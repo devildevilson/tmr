@@ -69,15 +69,15 @@ GPUOctreeBroadphase::~GPUOctreeBroadphase() {
 // }
 
 void GPUOctreeBroadphase::setInputBuffers(const InputBuffers &buffers) {
-  buffers.indexBuffer->descriptorPtr(&indexBufferDesc);
-  buffers.objects->descriptorPtr(&objectsDataDesc);
-  buffers.systems->descriptorPtr(&matricesDesc);
-  buffers.transforms->descriptorPtr(&transformsDesc);
-  buffers.rotationDatas->descriptorPtr(&rotationDatasDesc);
+  buffers.indexBuffer->gpu_buffer(&indexBufferDesc);
+  buffers.objects->gpu_buffer(&objectsDataDesc);
+  buffers.systems->gpu_buffer(&matricesDesc);
+  buffers.transforms->gpu_buffer(&transformsDesc);
+  buffers.rotationDatas->gpu_buffer(&rotationDatasDesc);
 
-  buffers.rays->descriptorPtr(&rayDesc);
-  buffers.frustums->descriptorPtr(&frustumDesc);
-  buffers.frustumPoses->descriptorPtr(&frustumPosesDesc);
+  buffers.rays->gpu_buffer(&rayDesc);
+  buffers.frustums->gpu_buffer(&frustumDesc);
+  buffers.frustumPoses->gpu_buffer(&frustumPosesDesc);
 }
 
 void GPUOctreeBroadphase::setOutputBuffers(const OutputBuffers &buffers, void* indirectPairBuffer) {
@@ -89,13 +89,13 @@ void GPUOctreeBroadphase::setOutputBuffers(const OutputBuffers &buffers, void* i
   frustumTestsResult = buffers.frustumTestsResult;
   
   yavf::Buffer* buffer;
-  buffers.overlappingPairCache->descriptorPtr(&buffer);
+  buffers.overlappingPairCache->gpu_buffer(&buffer);
   overlappingPairCacheDesc = buffer->descriptorSet();
-  buffers.staticOverlappingPairCache->descriptorPtr(&buffer);
+  buffers.staticOverlappingPairCache->gpu_buffer(&buffer);
   staticOverlappingPairCacheDesc = buffer->descriptorSet();
-  buffers.rayPairCache->descriptorPtr(&buffer);
+  buffers.rayPairCache->gpu_buffer(&buffer);
   rayPairCacheDesc = buffer->descriptorSet();
-  buffers.frustumTestsResult->descriptorPtr(&buffer);
+  buffers.frustumTestsResult->gpu_buffer(&buffer);
   frustumTestsResultDesc = buffer->descriptorSet();
 }
 

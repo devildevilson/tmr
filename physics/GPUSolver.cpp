@@ -30,29 +30,29 @@ GPUSolver::~GPUSolver() {}
 
 void GPUSolver::setInputBuffers(const InputBuffers &buffers, void* indirectIslandCount, void* indirectPairCount) {
   yavf::Buffer* buffer;
-  buffers.objects->descriptorPtr(&buffer);
+  buffers.objects->gpu_buffer(&buffer);
   objData = buffer->descriptorSet();
   //buffers.datas->descriptorPtr(&physDatas);
-  buffers.systems->descriptorPtr(&buffer);
+  buffers.systems->gpu_buffer(&buffer);
   matrices = buffer->descriptorSet();
-  buffers.transforms->descriptorPtr(&buffer);
+  buffers.transforms->gpu_buffer(&buffer);
   transforms = buffer->descriptorSet();
   //buffers.staticPhysDatas->descriptorPtr(&staticPhysicDatas);
-  buffers.rotationDatas->descriptorPtr(&buffer);
+  buffers.rotationDatas->gpu_buffer(&buffer);
   rotationDatas = buffer->descriptorSet();
-  buffers.pairs->descriptorPtr(&buffer);
+  buffers.pairs->gpu_buffer(&buffer);
   pairs = buffer->descriptorSet();
-  buffers.islands->descriptorPtr(&buffer);
+  buffers.islands->gpu_buffer(&buffer);
   islands = buffer->descriptorSet();
-  buffers.indicies->descriptorPtr(&buffer);
+  buffers.indicies->gpu_buffer(&buffer);
   indicies = buffer->descriptorSet();
   //buffers.velocities->descriptorPtr(&velocities);
-  buffers.gravity->descriptorPtr(&buffer);
+  buffers.gravity->gpu_buffer(&buffer);
   gravity = buffer->descriptorSet();
 
-  buffers.rays->descriptorPtr(&buffer);
+  buffers.rays->gpu_buffer(&buffer);
   rays = buffer->descriptorSet();
-  buffers.rayPairs->descriptorPtr(&buffer);
+  buffers.rayPairs->gpu_buffer(&buffer);
   rayPairs = buffer->descriptorSet();
 
   this->indirectIslandCount = (yavf::Buffer*)indirectIslandCount;
@@ -67,15 +67,15 @@ void GPUSolver::setOutputBuffers(const OutputBuffers &buffers) {
   triggerIndices = buffers.triggerIndices;
   
   yavf::Buffer* buffer;
-  overlappingData->descriptorPtr(&buffer);
+  overlappingData->gpu_buffer(&buffer);
   overlappingDataDesc = buffer->descriptorSet();
-  dataIndices->descriptorPtr(&buffer);
+  dataIndices->gpu_buffer(&buffer);
   dataIndicesDesc = buffer->descriptorSet();
-  raysData->descriptorPtr(&buffer);
+  raysData->gpu_buffer(&buffer);
   raysDataDesc = buffer->descriptorSet();
-  raysIndices->descriptorPtr(&buffer);
+  raysIndices->gpu_buffer(&buffer);
   raysIndicesDesc = buffer->descriptorSet();
-  triggerIndices->descriptorPtr(&buffer);
+  triggerIndices->gpu_buffer(&buffer);
   triggerIndicesDesc = buffer->descriptorSet();
 }
 

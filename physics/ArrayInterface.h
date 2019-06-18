@@ -20,7 +20,7 @@ public:
 template <typename T>
 class ArrayInterface : public Destructable {
 public:
-  ArrayInterface() {}
+  ArrayInterface() : sizeVar(0), ptr(nullptr) {}
   //ArrayInterface(const uint32_t &size);
   virtual ~ArrayInterface() {}
   
@@ -60,7 +60,7 @@ public:
   const T& operator[] (const uint32_t &index) const { ASSERT(sizeVar > index); return ptr[index]; }
   
   virtual void resize(const uint32_t &size) = 0;
-  virtual void descriptorPtr(void* ptr) const = 0; // тут надо бы вернуть буфер вместе с дескриптором
+  virtual void* gpu_buffer() const = 0; // тут надо бы вернуть буфер вместе с дескриптором
   virtual void push_back(const T &value) = 0;
 protected:
   uint32_t sizeVar;
@@ -106,14 +106,14 @@ union Slot {
 template <typename T>
 class Container : public ArrayInterface<T> {
 public:
-  Container() {}
+  Container() : freeIndex(UINT32_MAX) {}
   virtual ~Container() {}
 
   // вставляет в произвольное место и возвращает индекс куда вставили
   virtual uint32_t insert(const T &value) = 0;
   virtual void erase(const uint32_t &index) = 0;
 protected:
-  uint32_t freeIndex = UINT32_MAX;
+  uint32_t freeIndex;
 };
 
 #endif
