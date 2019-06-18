@@ -10,6 +10,7 @@
 #include "AnimationComponent.h"
 #include "AnimationSystem.h"
 #include "EventComponent.h"
+#include "SoundComponent.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tinyobjloader/tiny_obj_loader.h>
@@ -68,11 +69,8 @@ void HardcodedAnimationLoader::end() {
   const auto &texture13 = textureLoader->getTextures("nw");
   
   const AnimationSystem::AnimationCreateInfoNewFrames animationInfo{
-    false,
-    false,
     true,
     400000,
-    "walking",
     {
       {
         { texture6[0], 0.0f, 0.0f },
@@ -116,7 +114,7 @@ void HardcodedAnimationLoader::end() {
       }
     }
   };
-  Global::animations()->createAnimation(animationInfo);
+  Global::animations()->createAnimation(ResourceID::get("walking"), animationInfo);
 }
 
 void HardcodedAnimationLoader::clear() {
@@ -240,11 +238,11 @@ void HardcodedEntityLoader::create() {
       {simd::vec4(0.5f, 0.5f, 0.5f, 0.0f)}
     };
     
-    Global::physics()->registerShape("boxShape", BBOX_TYPE, info);
+    Global::physics()->registerShape(Type::get("boxShape"), BBOX_TYPE, info);
   }
   
   InitComponents initData{
-    "boxShape",
+    Type::get("boxShape"),
     true,
     BBOX_TYPE
   };
@@ -316,6 +314,9 @@ void HardcodedEntityLoader::create() {
     auto anim = ent4->assign<AnimationComponent>();
     // тут должен быть AnimationComponent
     auto comp = ent4->assign<GraphicComponent>();
+    
+    auto sound = ent4->assign<SoundComponent>();
+    
 //     comp->setTexture(textureLoader->getTexture("n", 0));
 //     ai = ent4->assign<LoneAi>(tree, 1, 200000).get();
     ent4->init(&initData);
@@ -326,7 +327,8 @@ void HardcodedEntityLoader::create() {
     };
     
     const Type t = Type::get("walking");
-    anim->setAnimation(t, "walking");
+    sound->setSound(t, ResourceID::get("default_sound"), 100.0f);
+    anim->setAnimation(t, ResourceID::get("walking"));
     states->registerState(t, false, false, 400000);
     events->fireEvent(t, data);
 //     
@@ -396,7 +398,7 @@ void HardcodedEntityLoader::createWall(const CreateWallInfo &info) {
   auto comp = wall->assign<GraphicComponentIndexes, GraphicComponent>(info.indexOffset, info.faceVertices, info.faceIndex);
   
   InitComponents init{
-    info.shapeName,
+    Type::get(info.shapeName),
     false,
     POLYGON_TYPE
   };
@@ -640,7 +642,7 @@ void HardcodedMapLoader::end() {
       // так же нужно собрать граф, хотя возможно мы просто передаем какие нибудь данные создателю ии
       
       const std::string shapeName = "WallShape " + std::to_string(f);
-      Global::physics()->registerShape(shapeName, POLYGON_TYPE, shapeInfo);
+      Global::physics()->registerShape(Type::get(shapeName), POLYGON_TYPE, shapeInfo);
       
       const CreateWallInfo info{
         "Wall " + std::to_string(f),
