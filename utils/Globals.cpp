@@ -45,6 +45,7 @@ Window* Global::windowPtr = nullptr;
 SoundSystem* Global::soundPtr = nullptr;
 ParticleSystem* Global::particlesPtr = nullptr;
 yacs::World* Global::worldPtr = nullptr;
+size_t Global::currentFrameIndex = 0;
 
 GlobalData Global::globalData = {
   false,
@@ -167,6 +168,18 @@ yacs::World* Global::world() {
   return worldPtr;
 }
 
+size_t Global::frameIndex() {
+  return currentFrameIndex;
+}
+
+size_t Global::mcsSinceEpoch() {
+  auto now = std::chrono::steady_clock::now();
+  auto now_mcs = std::chrono::time_point_cast<std::chrono::microseconds>(now);
+
+  auto value = now_mcs.time_since_epoch();
+  return value.count();
+}
+
 GlobalData* Global::data() {
   return &globalData;
 }
@@ -233,6 +246,11 @@ void Global::setParticles(ParticleSystem* particles) {
 
 void Global::setWorld(yacs::World* world) {
   this->worldPtr = world;
+}
+
+void Global::incrementFrameIndex() {
+  ++currentFrameIndex;
+  if (currentFrameIndex == SIZE_MAX) currentFrameIndex = 0;
 }
 
 void Global::setGameDir(const std::string &dir) {

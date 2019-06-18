@@ -92,6 +92,8 @@ public:
   static SoundSystem* sound();
   static ParticleSystem* particles();
   static yacs::World* world();
+  static size_t frameIndex();
+  static size_t mcsSinceEpoch();
   
   static GlobalData* data();
   
@@ -113,6 +115,7 @@ public:
   void setSound(SoundSystem* sound);
   void setParticles(ParticleSystem* particles);
   void setWorld(yacs::World* world);
+  void incrementFrameIndex();
   
   void setGameDir(const std::string &dir);
   
@@ -136,6 +139,8 @@ private:
   static SoundSystem* soundPtr;
   static ParticleSystem* particlesPtr;
   static yacs::World* worldPtr;
+  
+  static size_t currentFrameIndex;
   
   static GlobalData globalData;
   
