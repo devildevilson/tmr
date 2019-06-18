@@ -13,57 +13,64 @@ void AnimationComponent::setStateContainer(Container<AnimationState>* stateConta
   AnimationComponent::stateContainer = stateContainer;
 }
 
-AnimationComponent::AnimationComponent() : animStateCurrentIndex(0) {
-  animStateCurrentIndex = stateContainer->insert(0);
+AnimationComponent::AnimationComponent() : currentAnimationIndex(UINT32_MAX), oldAnimationIndex(UINT32_MAX), accumulatedTime(0), localEvents(nullptr), trans(nullptr), graphics(nullptr) {
+  Global::animations()->registerAnimationUnit(this);
 }
 
 AnimationComponent::~AnimationComponent() {
-  stateContainer->erase(animStateCurrentIndex);
+  Global::animations()->removeAnimationUnit(this);
 }
 
 void AnimationComponent::update(const uint64_t &time) {
-  (void)time;
-  // здесь видимо ничего
-  // такая система с состояниями как у меня сейчас,
-  // требует чтобы я обратно стейт менял на какой-то дефолтный или следующий
+  // вычисляем прибавочное время
+  const size_t newTime = time;
   
-  // получается что должна быть какая то обратная связь
-  // то есть предположим у нас есть опять же анимация удара
-  // мы кликаем мышкой, и передаем нужный тип в стейт контроллер
-  // контроллер передает по чайлдам тип, который мы вычисляем 
-  // и по идее мы должны послать сигнал обратно что мы можем обрадотать стейт
-  // в контроллере мы увеличиваем счетчик, а когда у нас анимация (удар или звук)
-  // заканчивается мы запускаем обратную связь, которая уменьшает счетчик
-  // если счетчик == 0 то мы переходим в состояние по умолчанию, или в следующее по стеку
-  // если анимация не имеет конца (например бег), то что тогда? вообще ничего, то есть 
-  // я должен понимать какая анимация залупена (повторяется),
-  // и следовательно в этом стейте никуда не переключаться
-  // тип состояний? мне по идее нужно только узнать луп/не луп
-  // и тип мы возвращаемся в предыдущую повторяемую анимацию,
-  // с другой стороны вся эта запара может не иметь никакого смысла,
-  // так как мы должны передавать информацию о конце состояния в ии, 
-  // где мы скорее всего снова запустим бехавиор три, с этим особых проблем нет
-  // в принципе у нас и сейчас есть isFinished, вот только не понятно как определить 
-  // когда анимация повторяется, а когда она действительно закончилась
-  // то есть по идее нужно просто вести список тех состояний которые свободно повторяются
-  // то есть в этих состояниях нам пофиг закончилась ли анимация или нет
+  const Animation &anim = Global::animations()->getAnimationById(currentAnimationIndex);
+  const bool finished = anim.isFinished(accumulatedTime+newTime);
+  if (finished) accumulatedTime = 0; // по идее по разному нужно реагировать
   
-  // прерывания анимаций? неплохая идея сделать механизм прерывания анимаций, 
-  // то есть например противник получил большой урон, и должен постоять покричать
-}
+  accumulatedTime += newTime;
+  
+  const size_t textureOffset = anim.getCurrentFrameOffset(accumulatedTime);
+  const uint8_t frameSize = anim.frameSize();
+    
+  int a = 0;
+  if (trans != nullptr && frameSize > 1) {
+    // тут вычисляем поворот относительно игрока
+    // для этого нам потребуется еще один буфер с данными игрока
+    const simd::vec4 playerPos = Global::getPlayerPos();
+    
+    simd::vec4 dir = playerPos - trans->pos();
+    
+    const simd::vec4 dirOnGround = projectVectorOnPlane(-Global::physics()->getGravityNorm(), trans->pos(), dir);
+    
+    dir = simd::normalize(dirOnGround);
+    
+    float angle2 = glm::acos(simd::dot(trans->rot(), dir));
+    // проверим сторону
+    const bool side = sideOf(trans->pos(), trans->pos()+trans->rot(), playerPos, -Global::physics()->getGravityNorm()) > 0.0f;
+    angle2 = side ? -angle2 : angle2;
+    
+    #define PI_FRAME_SIZE (PI_2 / frameSize)
+    #define PI_HALF_FRAME_SIZE (PI_FRAME_SIZE / 2)
+    // поправка на 22.5 градусов (так как 0 принадлежит [-22.5, 22.5))
+    angle2 -= PI_HALF_FRAME_SIZE;
+    
+    angle2 = angle2 < 0.0f ? angle2 + PI_2 : angle2;
+    angle2 = angle2 > PI_2 ? angle2 - PI_2 : angle2;
+    a = glm::floor(angle2 / PI_FRAME_SIZE);
 
-// static const Type type1 = Type::get("Type1");
+    // я не понимаю почему (5 при 8 сторонах)
+    a = (a + (frameSize/2 + 1)) % frameSize;
+  }
+  
+  const size_t finalTextureIndex = textureOffset + a;
+  
+  graphics->setTexture(Global::animations()->getAnimationTextureData(finalTextureIndex));
+}
 
 void AnimationComponent::init(void* userData) {
   (void)userData;
-  
-//   throw std::runtime_error("AnimationComponent init");
-  
-  controller = getEntity()->get<StateController>().get();
-  if (controller == nullptr) {
-    Global::console()->printE("Initializing animation without state controller component");
-    throw std::runtime_error("Initializing animation without state controller component");
-  }
   
   localEvents = getEntity()->get<EventComponent>().get();
   if (localEvents == nullptr) {
@@ -71,92 +78,34 @@ void AnimationComponent::init(void* userData) {
     throw std::runtime_error("Initializing animation without event component");
   }
   
-//   controller->addChild(this);
+  trans = getEntity()->get<TransformComponent>().get();
   
-  TransformComponent* trans = getEntity()->get<TransformComponent>().get();
-  auto g = getEntity()->get<GraphicComponent>(); // что делать с интерфейсом игрока?
-  
-  const AnimationSystem::AnimationUnitCreateInfo info{
-    animStateCurrentIndex,
-    controller->getCustomTimeIndex(), //UINT32_MAX,
-    trans == nullptr ? UINT32_MAX : trans->transformIndex,
-    g->getTextureContainerIndex()
-  };
-  
-  animationUnitIndex = Global::animations()->registerAnimationUnit(info, this);
-  // тут нужно еще добавлять указатель на этот класс
+  graphics = getEntity()->get<GraphicComponent>().get();
+  if (graphics == nullptr) {
+    Global::console()->printE("Initializing animation without graphics");
+    throw std::runtime_error("Initializing animation without graphics");
+  }
 }
 
-// void AnimationComponent::addChild(Controller* c) {
-//   (void)c;
-//   throw std::runtime_error("Cannot use AnimationComponent's addChild");
-// }
-// 
-// ControllerChildData AnimationComponent::changeState(const Type &state) {
-//   auto itr = states.find(state);
-//   if (itr == states.end()) return ControllerChildData(false, false, false);
-//   
-//   stateContainer->at(animStateCurrentIndex) = itr->second;
-//   
-//   return ControllerChildData(true, isBlocking(), isBlockingMovement());
-// }
-// 
-// void AnimationComponent::reset() {
-//   // что здесь?
-// }
-// 
-// void AnimationComponent::finishCallback() {
-//   controller->finishCallback();
-// }
-// 
-// bool AnimationComponent::isFinished() const {
-//   // тут мне нужно получить анимацию и почекать у нее конец
-//   // AnimationUnitData мне скорее всего нахрен не нужен
-//   
-//   const uint32_t animationId = Global::animations()->getCurrentAnimationId(animationUnitIndex);
-//   return Global::animations()->getAnimationById(animationId).isFinished();
-// }
-// 
-// bool AnimationComponent::isBlocking() const {
-//   const uint32_t animationId = Global::animations()->getCurrentAnimationId(animationUnitIndex);
-//   return Global::animations()->getAnimationById(animationId).isBlocking();
-// }
-// 
-// bool AnimationComponent::isBlockingMovement() const {
-//   const uint32_t animationId = Global::animations()->getCurrentAnimationId(animationUnitIndex);
-//   return Global::animations()->getAnimationById(animationId).isBlockingMovement();
-// }
-
-// void AnimationComponent::precacheStateCount(const uint32_t &count) {
-//   Global::animations()->precacheStateCount(animationUnitIndex, count);
-// }
-
-void AnimationComponent::setAnimation(const Type &state, const std::string &animName) {
+void AnimationComponent::setAnimation(const Type &state, const ResourceID &id) {
   static const auto changeAnimId = [&] (const Type &type, const EventData &data, const uint32_t &index) {
     (void)data;
     (void)type;
-    stateContainer->at(animStateCurrentIndex) = index;
+    
+    currentAnimationIndex = index;
+    if (oldAnimationIndex != currentAnimationIndex) {
+      accumulatedTime = 0;
+      oldAnimationIndex = currentAnimationIndex;
+    }
+    
     return success;
   };
   
-//   localEvents->registerEvent(type1, [&] (const EventData &data) {
-//     stateContainer->at(animStateCurrentIndex) = states[type1];
-//     
-//     return success;
-//   });
-  
-  localEvents->registerEvent(state, std::bind(changeAnimId, std::placeholders::_1, std::placeholders::_2, Global::animations()->getAnimationId(animName)));
-  
-//   const uint32_t animIndex = Global::animations()->getAnimationId(animName);
-//   states[state] = animIndex;
-  
-//   auto itr = states.find(state);
-//   if (itr == states.end()) {
-//     itr = states.insert(std::make_pair(state, animStateCurrentIndex)).first;
-//     ++animStateCurrentIndex;
-//   }
-  
-//   Global::animations()->setAnimation(animationUnitIndex, itr->second, animName);
+  localEvents->registerEvent(state, std::bind(changeAnimId, std::placeholders::_1, std::placeholders::_2, Global::animations()->getAnimationId(id)));
+}
+
+size_t & AnimationComponent::getInternalIndex() {
+  return internalIndex;
 }
 
 Container<AnimationState>* AnimationComponent::stateContainer = nullptr;

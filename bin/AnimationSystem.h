@@ -10,6 +10,8 @@
 #include "RenderStructures.h"
 #include "PhysicsTemporary.h"
 
+#include "ResourceID.h"
+
 // этот класс по сути просто выставляет соответствие между состоянием энтити
 // и состоянием анимации, конкретно здесь будет большинство состояний задействовано
 // class AnimationComponent {
@@ -48,13 +50,11 @@ struct AnimType {
   uint32_t container;
   
   AnimType();
-  AnimType(const bool &repeated, const bool &blocking, const bool &blockingMovement, const uint8_t &frameCount, const bool &dependant);
+  AnimType(const bool &repeated, const uint8_t &frameCount, const bool &dependant);
   
-  void makeType(const bool &repeated, const bool &blocking, const bool &blockingMovement, const uint8_t &frameSize, const bool &dependant);
+  void makeType(const bool &repeated, const uint8_t &frameSize, const bool &dependant);
   
   bool isRepeated() const;
-  bool isBlocking() const;
-  bool isBlockingMovement() const;
   uint8_t frameSize() const;
   bool isDependant() const;
 };
@@ -63,27 +63,17 @@ struct AnimType {
 // с другой стороны возможно не нужно их получать из основного класса
 class Animation {
 public:
-  //Animation();
   Animation(const AnimType &type, const size_t &animTime, const size_t &textureOffset, const size_t &animSize);
   
-  void update(const uint64_t &time);
-  
-  bool isFinished() const;
+  bool isFinished(const size_t &time) const;
   bool isRepeated() const;
-  bool isBlocking() const;
-  bool isBlockingMovement() const;
   uint8_t frameSize() const;  // скорее всего один на всю анимацию
   uint32_t frameCount() const;
   
-  size_t getCurrentFrameOffset() const; // возвращаем старт фрейма, к которому прибавляем нужную сторону
-  
-  void stop();
+  size_t getCurrentFrameOffset(const size_t &time) const; // возвращаем старт фрейма, к которому прибавляем нужную сторону
 private:
   AnimType type;
-  uint32_t switchesTime;
-  uint32_t currentFrameIndex;
-  size_t accumulatedTime;
-  size_t animationTime;
+  size_t frameTime;
   
   size_t textureOffset;
   size_t animSize; // может ли быть что у анимации встречаются как и 8 фреймов так и 16 тиак и 1 (но эт бред какой то)
@@ -114,24 +104,24 @@ class AnimationComponent;
 
 class AnimationSystem : public Engine {
 public:
-  struct InputBuffers {
-//     ArrayInterface<AnimationState>* stateArray;  
-    ArrayInterface<uint32_t>* customTimeArray;  
-    ArrayInterface<Transform>* transforms;
-    //ArrayInterface<PlayerData>* playerData;
-  };
+//   struct InputBuffers {
+// //     ArrayInterface<AnimationState>* stateArray;  
+//     ArrayInterface<uint32_t>* customTimeArray;  
+//     ArrayInterface<Transform>* transforms;
+//     //ArrayInterface<PlayerData>* playerData;
+//   };
+//   
+//   struct OutputBuffers {
+//     //ArrayInterface<Texture>* textures;
+//     ArrayInterface<TextureData>* textures;
+//   };
   
-  struct OutputBuffers {
-    //ArrayInterface<Texture>* textures;
-    ArrayInterface<TextureData>* textures;
-  };
-  
-  struct AnimationUnitCreateInfo {
-    uint32_t stateIndex;
-    uint32_t timeIndex;
-    uint32_t transformIndex;
-    uint32_t textureIndex;
-  };
+//   struct AnimationUnitCreateInfo {
+//     uint32_t stateIndex;
+//     uint32_t timeIndex;
+//     uint32_t transformIndex;
+//     uint32_t textureIndex;
+//   };
   
 //   struct AnimationUnitData {
 //     uint32_t animationId;
@@ -139,37 +129,28 @@ public:
 //   };
   
   struct AnimationCreateInfoNewFrames {
-    //AnimType type;
-    bool blocking;
-    bool blockingMovement;
     bool repeated;
     uint32_t animationTime; // может size_t?
-    std::string name;
-    //std::vector<std::vector<Texture>> frames;
     std::vector<std::vector<TextureData>> frames;
   };
   
   struct AnimationCreateInfoFromExisting {
-    //AnimType type;
-    bool blocking;
-    bool blockingMovement;
     bool repeated;
     uint32_t animationTime; // может size_t?
-    std::string name;
     //uint32_t textureOffset;
-    uint32_t animId;
+    uint32_t existingId;
     uint32_t animSize;
   };
   
   //AnimationSystem();
   virtual ~AnimationSystem() {}
   
-  virtual void setInputBuffers(const InputBuffers &buffers) = 0;
-  virtual void setOutputBuffers(const OutputBuffers &buffers) = 0;
+//   virtual void setInputBuffers(const InputBuffers &buffers) = 0;
+//   virtual void setOutputBuffers(const OutputBuffers &buffers) = 0;
   
   // здесь я должен передать индексы для инпут и аутпут буферов AnimationUnitData* data
-  virtual uint32_t registerAnimationUnit(const AnimationUnitCreateInfo &info, AnimationComponent* component) = 0;
-  virtual void removeAnimationUnit(const uint32_t &unitIndex) = 0;
+  virtual void registerAnimationUnit(AnimationComponent* component) = 0;
+  virtual void removeAnimationUnit(AnimationComponent* component) = 0;
   
 //   virtual void precacheStateCount(const uint32_t &animationUnit, const uint32_t &stateCount) = 0;
 //   virtual void setAnimation(const uint32_t &animationUnit, const AnimationState &state, const uint32_t &animId) = 0;
@@ -179,18 +160,18 @@ public:
   
   // вообще мне кажется что такие вещи как анимации текстурки и прочее (то есть ресурсы игры с диска... как то так)
   // лучше бы создавать и получать по какому-нибудь интерфесу
-  virtual uint32_t createAnimation(const AnimationCreateInfoNewFrames &info) = 0;
-  virtual uint32_t createAnimation(const AnimationCreateInfoFromExisting &info) = 0;
+  virtual uint32_t createAnimation(const ResourceID &animId, const AnimationCreateInfoNewFrames &info) = 0;
+  virtual uint32_t createAnimation(const ResourceID &animId, const AnimationCreateInfoFromExisting &info) = 0;
   
-  virtual uint32_t getCurrentAnimationId(const uint32_t &unitIndex) const = 0;
-  
-  virtual uint32_t getAnimationId(const std::string &name) const = 0;
+  virtual uint32_t getAnimationId(const ResourceID &animId) const = 0;
   
   virtual Animation & getAnimationById(const uint32_t &id) = 0;
   virtual const Animation & getAnimationById(const uint32_t &id) const = 0;
   
-  virtual Animation & getAnimationByName(const std::string &name) = 0;
-  virtual const Animation & getAnimationByName(const std::string &name) const = 0;
+  virtual Animation & getAnimationByName(const ResourceID &animId) = 0;
+  virtual const Animation & getAnimationByName(const ResourceID &animId) const = 0;
+  
+  virtual TextureData getAnimationTextureData(const size_t &index) const = 0;
 };
 
 #endif

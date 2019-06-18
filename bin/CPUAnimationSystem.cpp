@@ -61,7 +61,7 @@ Animation::Animation(const AnimType &type, const size_t &animTime, const size_t 
   switchesTime(0), 
   currentFrameIndex(0), 
   accumulatedTime(0), 
-  animationTime(animTime), 
+      frameTime(animTime), 
   textureOffset(textureOffset), 
   animSize(animSize) {}
 
@@ -70,7 +70,7 @@ void Animation::update(const uint64_t &time) {
 //   assert(animSize != 0);
   const uint32_t frameCount = animSize / type.frameSize();
   
-  if (accumulatedTime + time >= animationTime) {
+  if (accumulatedTime + time >= frameTime) {
     if (type.isRepeated() || switchesTime < frameCount) {
 //       assert(frameCount != 0);
       currentFrameIndex = (currentFrameIndex+1) % frameCount;
@@ -78,7 +78,7 @@ void Animation::update(const uint64_t &time) {
     }
   }
   
-  accumulatedTime = (accumulatedTime+time) % animationTime;
+  accumulatedTime = (accumulatedTime+time) % frameTime;
 }
 
 bool Animation::isFinished() const {

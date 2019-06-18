@@ -7,6 +7,8 @@
 
 class StateController;
 class EventComponent;
+class TransformComponent;
+class GraphicComponent;
 
 class AnimationComponent : public yacs::Component/*, public Controller*/ {
 public:
@@ -30,17 +32,24 @@ public:
 //   bool isBlockingMovement() const override;
   
 //   void precacheStateCount(const uint32_t &count);
-  void setAnimation(const Type &state, const std::string &animName);
-private:
-  uint32_t animStateCurrentIndex;
-  uint32_t animationUnitIndex;
+  void setAnimation(const Type &state, const ResourceID &id);
   
-  StateController* controller;
+  size_t & getInternalIndex();
+private:
+  uint32_t currentAnimationIndex;
+  uint32_t oldAnimationIndex;
+  
+  size_t accumulatedTime;
+  size_t internalIndex;
+  
+//   StateController* controller;
   EventComponent* localEvents;
+  TransformComponent* trans;
+  GraphicComponent* graphics;
   
   //AnimationSystem::AnimationUnitData data;
   // нафига мне нужен AnimationState??????? я могу сюа просто id анимации добавить
-  std::unordered_map<Type, AnimationState> states;
+//   std::unordered_map<Type, AnimationState> states;
   
   static Container<AnimationState>* stateContainer;
   // это должно быть в стейт контроллере, время мы будем выставлять там
