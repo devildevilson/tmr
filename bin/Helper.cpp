@@ -1,6 +1,9 @@
 #include "Helper.h"
 
 #include <algorithm>
+// #include <lldb/Utility/Status.h>
+
+// GPUArray<MonsterGPUOptimizer::InstanceData> instanceData;
 
 static const std::vector<const char*> instanceLayers = {
   "VK_LAYER_LUNARG_standard_validation",
@@ -470,7 +473,7 @@ void nkOverlay(const SimpleOverlayData &data, nk_context* ctx) {
 
       const auto &str = fmt::sprintf("Camera pos: (%.2f,%.2f,%.2f,%.2f)", arr[0], arr[1], arr[2], arr[3]);
 
-      nk_layout_row_static(ctx, 30.0f, 300, 1); // ряд высотой 30, каждый элемент шириной 300, 1 столбец
+      nk_layout_row_static(ctx, 10.0f, 300, 1); // ряд высотой 30, каждый элемент шириной 300, 1 столбец
       nk_label(ctx, str.c_str(), NK_TEXT_LEFT); // nk_layout_row_static скорее всего нужно указывать каждый раз
     }
 
@@ -481,49 +484,49 @@ void nkOverlay(const SimpleOverlayData &data, nk_context* ctx) {
 
       const auto &str = fmt::sprintf("Camera dir: (%.2f,%.2f,%.2f)", arr[0], arr[1], arr[2]);
 
-      nk_layout_row_static(ctx, 30.0f, 300, 1);
+//       nk_layout_row_static(ctx, 30.0f, 300, 1);
       nk_label(ctx, str.c_str(), NK_TEXT_LEFT);
     }
 
     {
       const auto &str = fmt::sprintf("Frame rendered in %lu mcs (%.2f fps)", data.frameComputeTime, 1000000.0f/float(data.frameComputeTime));
 
-      nk_layout_row_static(ctx, 30.0f, 300, 1);
+//       nk_layout_row_static(ctx, 30.0f, 300, 1);
       nk_label(ctx, str.c_str(), NK_TEXT_LEFT);
     }
 
     {
       const auto &str = fmt::sprintf("Sleep between frames equals %lu mcs", data.frameSleepTime);
 
-      nk_layout_row_static(ctx, 30.0f, 300, 1);
+//       nk_layout_row_static(ctx, 30.0f, 300, 1);
       nk_label(ctx, str.c_str(), NK_TEXT_LEFT);
     }
 
     {
       const auto &str = fmt::sprintf("Final fps is %.2f", data.fps);
 
-      nk_layout_row_static(ctx, 30.0f, 300, 1);
+//       nk_layout_row_static(ctx, 30.0f, 300, 1);
       nk_label(ctx, str.c_str(), NK_TEXT_LEFT);
     }
 
     {
       const auto &str = fmt::sprintf("In frustum %zu objects", data.frustumObjCount);
 
-      nk_layout_row_static(ctx, 30.0f, 300, 1);
+//       nk_layout_row_static(ctx, 30.0f, 300, 1);
       nk_label(ctx, str.c_str(), NK_TEXT_LEFT);
     }
 
     {
       const auto &str = fmt::sprintf("Ray collide %zu objects", data.rayCollideCount);
 
-      nk_layout_row_static(ctx, 30.0f, 300, 1);
+//       nk_layout_row_static(ctx, 30.0f, 300, 1);
       nk_label(ctx, str.c_str(), NK_TEXT_LEFT);
     }
 
     {
       const auto &str = fmt::sprintf("Player see %zu objects", data.visibleObjCount);
 
-      nk_layout_row_static(ctx, 30.0f, 300, 1);
+//       nk_layout_row_static(ctx, 30.0f, 300, 1);
       nk_label(ctx, str.c_str(), NK_TEXT_LEFT);
     }
   }
@@ -930,19 +933,35 @@ void simpleOverlay(const SimpleOverlayData &data) {
 //   *render = container.addSystem<VulkanRender>(info);
 // }
 
-// нужно не забыть переделать под гпу буферы!!!
-void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, DataArrays &arrays) {
-  (void)device;
+void setDescriptor(yavf::Buffer* buffer, yavf::DescriptorSet* set) {
+  const size_t i = set->add({buffer, 0, buffer->info().size, 0, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER});
+  buffer->setDescriptor(set, i);
+}
 
-  arrays.externals = arraysContainer.add<CPUContainer<ExternalData>>();
-  arrays.inputs = arraysContainer.add<CPUContainer<InputData>>();
-  arrays.matrices = arraysContainer.add<CPUContainer<simd::mat4>>();
-  arrays.rotationCountBuffer = arraysContainer.add<CPUBuffer<uint32_t>>();
-  arrays.rotations = arraysContainer.add<CPUContainer<RotationData>>();
-  arrays.transforms = arraysContainer.add<CPUContainer<Transform>>();
-  arrays.textures = arraysContainer.add<CPUContainer<TextureData>>();
+void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, DataArrays &arrays) {
+  GPUContainer<ExternalData>* externals = arraysContainer.add<GPUContainer<ExternalData>>(device);
+  arrays.externals = externals;
+  
+  GPUContainer<InputData>* inputs = arraysContainer.add<GPUContainer<InputData>>(device);
+  arrays.inputs = inputs;
+  
+  GPUContainer<simd::mat4>* matrices = arraysContainer.add<GPUContainer<simd::mat4>>(device);
+  arrays.matrices = matrices;
+  
+  GPUBuffer<uint32_t>* rotationCountBuffer = arraysContainer.add<GPUBuffer<uint32_t>>(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+  arrays.rotationCountBuffer = rotationCountBuffer;
+  
+  GPUContainer<RotationData>* rotations = arraysContainer.add<GPUContainer<RotationData>>(device);
+  arrays.rotations = rotations;
+  
+  GPUContainer<Transform>* transforms = arraysContainer.add<GPUContainer<Transform>>(device);
+  arrays.transforms = transforms;
+  
+  GPUContainer<TextureData>* textures = arraysContainer.add<GPUContainer<TextureData>>(device);
+  arrays.textures = textures;
+  
   arrays.animStates = arraysContainer.add<CPUContainer<AnimationState>>();
-  arrays.broadphasePairs = arraysContainer.add<CPUArray<BroadphasePair>>();
+//   arrays.broadphasePairs = arraysContainer.add<GPUArray<BroadphasePair>>(device);
 
   TransformComponent::setContainer(arrays.transforms);
   InputComponent::setContainer(arrays.inputs);
@@ -951,6 +970,41 @@ void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, Da
   GraphicComponent::setContainer(arrays.textures);
   PhysicsComponent2::setContainer(arrays.externals);
   AnimationComponent::setStateContainer(arrays.animStates);
+  
+  yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
+  yavf::DescriptorSetLayout storage_layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
+  
+  std::cout << "storage_layout " << storage_layout << "\n";
+  {
+    yavf::DescriptorMaker dm(device);
+    
+//     for (uint32_t i = 0; i < sizeof(DataArrays)/sizeof(char*)-1; ++i) {
+//       dm.layout(storage_layout);
+//     }
+    
+    auto descs = dm.layout(storage_layout).create(pool);
+    setDescriptor(externals->vector().handle(), descs[0]);
+    
+    descs = dm.layout(storage_layout).create(pool);
+    setDescriptor(inputs->vector().handle(), descs[0]);
+    
+    descs = dm.layout(storage_layout).create(pool);
+    setDescriptor(matrices->vector().handle(), descs[0]);
+    
+    descs = dm.layout(storage_layout).create(pool);
+    setDescriptor(rotationCountBuffer->buffer(), descs[0]);
+    
+    descs = dm.layout(storage_layout).create(pool);
+    setDescriptor(rotations->vector().handle(), descs[0]);
+    
+    descs = dm.layout(storage_layout).create(pool);
+    setDescriptor(textures->vector().handle(), descs[0]);
+    
+    descs = dm.layout(storage_layout).create(pool);
+    setDescriptor(transforms->vector().handle(), descs[0]);
+  }
+  
+//   std::cout << "transforms desc " << transforms->vector().descriptorSet()->handle() << '\n';
 }
 
 // void destroyDataArrays(StageContainer &arraysContainer, DataArrays &arrays) {
@@ -963,9 +1017,34 @@ void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, Da
 // }
 
 void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipelineStage*> &dynPipe) {
-//   yavf::TaskInterface* interface = data.task[0];
-  //data.render->addStage<BeginTaskStage>(reinterpret_cast<yavf::TaskInterface**>(data.task));
   data.render->addStage<BeginTaskStage>(data.container->tasks3());
+  
+  MonsterGPUOptimizer* monopt = nullptr;
+  {
+    const MonsterGPUOptimizer::CreateInfo info{
+      data.device,
+      data.container->tasks1(),
+      data.render->getCameraDataBuffer()
+    };
+    monopt = data.render->addStage<MonsterGPUOptimizer>(info);
+    
+    monopt->setInputBuffers({data.arrays->transforms, data.arrays->matrices, data.arrays->textures});
+  }
+  
+  GeometryGPUOptimizer* geoopt = nullptr;
+  {
+    const GeometryGPUOptimizer::CreateInfo info{
+      data.device,
+      data.container->tasks1(),
+      data.render->getCameraDataBuffer()
+    };
+    geoopt = data.render->addStage<GeometryGPUOptimizer>(info);
+    
+    geoopt->setInputBuffers({data.arrays->transforms, data.arrays->matrices, data.arrays->rotationCountBuffer, data.arrays->rotations, data.arrays->textures});
+  }
+  
+  GraphicComponent::setOptimizer(monopt);
+  GraphicComponentIndexes::setOptimizer(geoopt);
 
   // короч для того чтобы перенести оптимизеры на гпу
   // мне нужно добавить много новых стейджев, может быть немного пересмотреть концепцию?
@@ -989,11 +1068,11 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
   GBufferStage* gBuffer = data.render->addStage<GBufferStage>(gBufferStageContainerSize, info);
   dynPipe.push_back(gBuffer);
 
-  auto monGbuffer = gBuffer->addPart<MonsterGBufferStage>(data.mon);
-  auto geoGbuffer = gBuffer->addPart<GeometryGBufferStage>(data.mapLoader->mapVertices(), data.geo); // тут должен быть буфер карты, как его получить?
+  auto monGbuffer = gBuffer->addPart<MonsterGBufferStage>(monopt);
+  auto geoGbuffer = gBuffer->addPart<GeometryGBufferStage>(data.mapLoader->mapVertices(), geoopt); // тут должен быть буфер карты, как его получить?
 
 //   data.monDebugOpt->setInputBuffers({monGbuffer->getInstanceData()});
-  data.geoDebugOpt->setInputBuffers({geoGbuffer->getInstanceData()});
+//   data.geoDebugOpt->setInputBuffers({geoGbuffer->getInstanceData()});
 
 //     gBuffer->recreatePipelines(textureLoader); // не тут это должно быть
 
@@ -1058,30 +1137,30 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
   //GuiStage* gui = render->addStage<GuiStage>(gInfo);
   GuiStage* gui = postRender->addPart<GuiStage>(data.data);
 
-  const MonsterDebugStage::CreateInfo mdInfo{
-    data.monDebugOpt,
-    data.mon,
-    data.render->getCameraDataBuffer(),
-    monGbuffer->getInstanceData()
-  };
-  MonsterDebugStage* monDebug = postRender->addPart<MonsterDebugStage>(mdInfo);
-
-  const GeometryDebugStage::CreateInfo gdInfo{
-    data.geoDebugOpt,
-    data.geo,
-
-    data.render->getCameraDataBuffer(),
-
-    geoGbuffer->getIndicesArray(),
-    data.mapLoader->mapVertices()
-  };
-  GeometryDebugStage* geoDebug = postRender->addPart<GeometryDebugStage>(gdInfo);
+//   const MonsterDebugStage::CreateInfo mdInfo{
+//     data.monDebugOpt,
+//     data.mon,
+//     data.render->getCameraDataBuffer(),
+//     monGbuffer->getInstanceData()
+//   };
+//   MonsterDebugStage* monDebug = postRender->addPart<MonsterDebugStage>(mdInfo);
+// 
+//   const GeometryDebugStage::CreateInfo gdInfo{
+//     data.geoDebugOpt,
+//     data.geo,
+// 
+//     data.render->getCameraDataBuffer(),
+// 
+//     geoGbuffer->getIndicesArray(),
+//     data.mapLoader->mapVertices()
+//   };
+//   GeometryDebugStage* geoDebug = postRender->addPart<GeometryDebugStage>(gdInfo);
 
   //data.render->addStage<EndTaskStage>(reinterpret_cast<yavf::TaskInterface**>(data.task));
   data.render->addStage<EndTaskStage>(data.container->tasks3());
 }
 
-void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, PhysicsContainer &physicsContainer, PhysicsEngine** engine) {
+void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, const size_t &updateDelta, PhysicsContainer &physicsContainer, PhysicsEngine** engine) {
 // const GPUOctreeBroadphase::GPUOctreeBroadphaseCreateInfo octreeInfo{
   //   {simd::vec4(0.0f, 0.0f, 0.0f, 1.0f), simd::vec4(100.0f, 100.0f, 100.0f, 0.0f), 5},
   //   device,
@@ -1157,10 +1236,88 @@ void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, Physic
     sorter,
 
     threadPool,
-    &bufferInfo
+    &bufferInfo,
+    
+    updateDelta
   };
   //CPUPhysicsParallel phys(physInfo);
   *engine = physicsContainer.createPhysicsEngine<CPUPhysicsParallel>(physInfo);
+}
+
+void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystemContainer &container) {
+  const CPUAISystem::CreateInfo info {
+    threadPool,
+    updateDelta,
+    sizeof(CPUPathFindingPhaseParallel) + sizeof(Graph)
+  };
+  CPUAISystem* system = container.addSystem<CPUAISystem>(info);
+  
+  Graph* graph = system->createGraph<Graph>();
+  
+  const CPUPathFindingPhaseParallel::CreateInfo pathInfo {
+    threadPool,
+    graph,
+    [] (const vertex_t* vert, const vertex_t* neighbor, const edge_t* edge) -> float {
+      (void)vert;
+      (void)neighbor;
+      return edge->getDistance();
+    },
+    [] (const vertex_t* vert, const vertex_t* neighbor) -> float {
+      return vert->goalDistanceEstimate(neighbor);
+    }
+  };
+  system->createPathfindingSystem<CPUPathFindingPhaseParallel>(pathInfo);
+  
+  Global g;
+  g.setAISystem(system);
+}
+
+void createBehaviourTrees() {
+  tb::BehaviorTreeBuilder builder;
+  tb::BehaviorTree* tree;
+  tree = builder.sequence()
+                  .action([] (tb::Node* const& node, void* const& ptr) -> tb::Node::status {
+                    (void)node;
+                    EntityAI* ai = reinterpret_cast<EntityAI*>(ptr);
+                    
+                    if (ai->hasTarget()) return tb::Node::status::success;
+                          
+                    return tb::Node::status::failure;
+                  })
+                  .action([] (tb::Node* const& node, void* const& ptr) {
+                    (void)node;
+                    EntityAI* ai = reinterpret_cast<EntityAI*>(ptr);
+                    
+                    const event e = ai->pushEvent(Type::get("find_path"), nullptr);
+                    
+                    if (e == running) return tb::Node::status::running;
+                    if (e == success) return tb::Node::status::success;
+                    
+                    return tb::Node::status::failure;
+                  })
+                  .action([] (tb::Node* const& node, void* const& ptr) {
+                    (void)node;
+                    EntityAI* ai = reinterpret_cast<EntityAI*>(ptr);
+                    
+                    const event e = ai->pushEvent(Type::get("move_path"), nullptr);
+                    
+                    if (e == running) return tb::Node::status::running;
+                    if (e == success) return tb::Node::status::success;
+                          
+                    return tb::Node::status::failure;
+                  })
+                  .action([] (tb::Node* const& node, void* const& ptr) {
+                    (void)node;
+                    EntityAI* ai = reinterpret_cast<EntityAI*>(ptr);
+                    
+                    std::cout << "This is last node" << "\n";
+                    ai->setTarget(nullptr);
+                    return tb::Node::status::success;
+                  })
+                .end()
+              .build();
+              
+  Global::ai()->setBehaviourTreePointer(Type::get("simple_tree"), tree);
 }
 
 void nextGuiFrame() {
@@ -1263,6 +1420,12 @@ void createReactions(const ReactionsCreateInfo &info) {
   info.container->create("Jump", [input] () {
     input->jump();
   });
+  
+  auto menu = info.menuContainer;
+  info.container->create("Menu", [menu] {
+    menu->openMenu();
+    Global::data()->focusOnInterface = true;
+  });
 
   auto window = info.window;
   info.container->create("Interface focus", [window] () {
@@ -1323,6 +1486,11 @@ void setUpKeys(KeyContainer* container) {
     ActionKey* key = container->create(KeyConfiguration(GLFW_KEY_LEFT_ALT), {});
     key->setReaction(KEY_STATE_CLICK,        container->config->reactions["Interface focus"]);
   }
+  
+  {
+    ActionKey* key = container->create(KeyConfiguration(GLFW_KEY_ESCAPE), {});
+    key->setReaction(KEY_STATE_CLICK,        container->config->reactions["Menu"]);
+  }
 }
 
 void mouseInput(UserInputComponent* input, const uint64_t &time) {
@@ -1381,6 +1549,14 @@ void keysCallbacks(KeyConfig* config, const uint64_t &time) {
     }
 
     config->keys[i]->execute(state ? GLFW_PRESS : GLFW_RELEASE, time);
+  }
+}
+
+void menuKeysCallback(MenuStateMachine* menu) {
+  for (size_t i = 0; i < KEYS_COUNT; ++i) {
+    if (Global::data()->keys[i]) {
+      menu->feedback(PressingData{static_cast<uint32_t>(i), 0});
+    }
   }
 }
 

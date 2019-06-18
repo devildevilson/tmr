@@ -35,6 +35,8 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/render/
   ${CMAKE_CURRENT_SOURCE_DIR}/physics/
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/
+  ${CMAKE_CURRENT_SOURCE_DIR}/sound/
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/
   ${CMAKE_CURRENT_SOURCE_DIR}/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/include/json/include/
@@ -161,6 +163,11 @@ file(GLOB_RECURSE GLSL_SOURCE_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/calcRayIntersect.comp
     ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/particles.comp
     ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/particlesSorting.comp
+    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/particles.vert
+    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/particles.geom
+    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/particles.frag
+    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/monsterOptimizer.comp
+    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/geometryOptimizer.comp
     )
 
 foreach(GLSL ${GLSL_SOURCE_FILES})
@@ -251,7 +258,9 @@ set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/utils/CmdMgr.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Globals.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Utility.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Event.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/UniqueID.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Type.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Frustum.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/ResourceID.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/EntityComponentSystem.cpp
 #              ${CMAKE_CURRENT_SOURCE_DIR}/utils/JobSystem.cpp
@@ -270,7 +279,9 @@ set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/utils/CmdMgr.h
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Globals.h
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Utility.h
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Event.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/UniqueID.h
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/Type.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/utils/Frustum.h
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/ResourceID.h
              ${CMAKE_CURRENT_SOURCE_DIR}/utils/EntityComponentSystem.h
 #              ${CMAKE_CURRENT_SOURCE_DIR}/utils/JobSystem.h
@@ -335,6 +346,7 @@ target_link_libraries(physics render utils)
 # RENDER
 set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/render/VulkanRender.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/render/Optimizers.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/GPUOptimizers.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/render/RenderStages.cpp
              # ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicComponets.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/render/Window.cpp
@@ -347,12 +359,18 @@ set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/render/VulkanRender.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/render/Makers.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/render/Types.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/render/RAII.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/DecalSystem.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/DecalOptimizer.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/DecalComponent.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/ParticleSystem.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/ParticleEmitterComponent.cpp
 #              render/TextureManager.cpp
 #              render/stbi_image_impl.cpp
              )
 set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/render/Render.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/VulkanRender.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/Optimizer.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/GPUOptimizers.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/Optimizers.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/RenderStages.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/RenderStage.h
@@ -369,6 +387,12 @@ set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/render/Render.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/Makers.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/Types.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/RAII.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/DecalSystem.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/DecalOptimizer.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/DecalComponent.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/ParticleSystem.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/ParticleEmitterComponent.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/render/Emitter.h
 #              ${CMAKE_CURRENT_SOURCE_DIR}/render/vk_mem_alloc.h
              ${CMAKE_CURRENT_SOURCE_DIR}/include/VulkanMemoryAllocator/src/vk_mem_alloc.h
 #              render/TextureManager.h
@@ -377,49 +401,92 @@ set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/render/Render.h
 add_library(render ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(render utils ${VULKAN_LIB_NAME} ${GLFW3_LIBRARIES})
 
+# SOUND
+set(SRC_LIST 
+  ${CMAKE_CURRENT_SOURCE_DIR}/sound/alHelpers.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/sound/Buffer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/sound/Source.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundData.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundComponent.cpp
+)
+set(HDR_LIST 
+  ${CMAKE_CURRENT_SOURCE_DIR}/sound/alHelpers.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/sound/Buffer.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/sound/Source.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundData.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundComponent.h
+)
+
+add_library(sound ${SRC_LIST} ${HDR_LIST})
+target_link_libraries(sound utils openal)
+
+# AI
+set(SRC_LIST 
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/EntityAI.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/AIComponent.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/Graph.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/CPUPathFindingPhaseParallel.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/AISystem.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/AStarSearch.cpp
+)
+set(HDR_LIST 
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/EntityAI.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/AIComponent.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/Graph.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/CPUPathFindingPhaseParallel.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/AISystem.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/AStarSearch.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/MoveEventData.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/ai/PathFindingPhase.h
+)
+
+add_library(ai ${SRC_LIST} ${HDR_LIST})
+target_link_libraries(ai utils physics)
+
 # BINARY
 set(SRC_LIST ${CMAKE_CURRENT_SOURCE_DIR}/bin/Components.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicComponets.cpp
-#              bin/CombatComponent.cpp
-#              model/Animation.cpp
-#              bin/AISystem.cpp
-#              bin/Game.cpp
-#              bin/main.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/EventComponent.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/AnimationComponent.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/sound/alHelpers.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/sound/Buffer.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/sound/Source.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundData.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.cpp
+#              ${CMAKE_CURRENT_SOURCE_DIR}/sound/alHelpers.cpp
+#              ${CMAKE_CURRENT_SOURCE_DIR}/sound/Buffer.cpp
+#              ${CMAKE_CURRENT_SOURCE_DIR}/sound/Source.cpp
+#              ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundData.cpp
+#              ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/HardcodedLoaders.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/TextureLoader.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/bin/CPUAnimationSystem.cpp
+#              ${CMAKE_CURRENT_SOURCE_DIR}/bin/CPUAnimationSystem.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/bin/CPUAnimationSystemParallel.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/bin/AnimationSystem.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/PostPhysics.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/bin/MenuItems.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/bin/Menu.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/ResourceManager.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/Helper.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/main.cpp)
 
 set(HDR_LIST ${CMAKE_CURRENT_SOURCE_DIR}/bin/Components.h
              ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicComponets.h
-#              bin/CombatComponent.h
-#              model/Animation.h
-#              bin/AISystem.h
-#              bin/Game.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/sound/alHelpers.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/sound/Buffer.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/sound/Source.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundData.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.h
+#              ${CMAKE_CURRENT_SOURCE_DIR}/sound/alHelpers.h
+#              ${CMAKE_CURRENT_SOURCE_DIR}/sound/Buffer.h
+#              ${CMAKE_CURRENT_SOURCE_DIR}/sound/Source.h
+#              ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundData.h
+#              ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.h
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/EventComponent.h
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/AnimationComponent.h
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/HardcodedLoaders.h
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/TextureLoader.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/bin/CPUAnimationSystem.h
+#              ${CMAKE_CURRENT_SOURCE_DIR}/bin/CPUAnimationSystem.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/bin/CPUAnimationSystemParallel.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/bin/AnimationSystem.h
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/PostPhysics.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/bin/MenuItems.h
+             ${CMAKE_CURRENT_SOURCE_DIR}/bin/Menu.h
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/ResourceManager.h
              ${CMAKE_CURRENT_SOURCE_DIR}/bin/Helper.h
              )
 add_executable(${TARGET_NAME} ${SRC_LIST} ${HDR_LIST})
-target_link_libraries(${TARGET_NAME} render physics utils cppfs openal)
+target_link_libraries(${TARGET_NAME} ai sound render physics utils cppfs)
 add_dependencies(${TARGET_NAME} shaders resources)

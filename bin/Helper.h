@@ -11,13 +11,17 @@
 
 #include "CPUArray.h"
 #include "CPUBuffer.h"
+#include "GPUArray.h"
+#include "GPUBuffer.h"
 
 #include "Window.h"
 #include "VulkanRender.h"
 #include "RenderStages.h"
 #include "Optimizers.h"
+#include "GPUOptimizers.h"
 
-#include "CPUAnimationSystem.h"
+// #include "CPUAnimationSystem.h"
+#include "CPUAnimationSystemParallel.h"
 #include "AnimationComponent.h"
 
 #include "ResourceManager.h"
@@ -37,6 +41,20 @@
 
 #include "Components.h"
 #include "GraphicComponets.h"
+
+#include "ParticleSystem.h"
+#include "DecalSystem.h"
+#include "SoundSystem.h"
+
+#include "Menu.h"
+#include "MenuItems.h"
+
+#include "AISystem.h"
+#include "AIComponent.h"
+#include "CPUPathFindingPhaseParallel.h"
+#include "Graph.h"
+#define TINY_BEHAVIOUR_MULTITHREADING
+#include "tiny_behaviour/TinyBehavior.h"
 
 //#include <apathy/path.hpp>
 #include <cppfs/fs.h>
@@ -87,6 +105,8 @@
 
 // void initCommonSystems(StageContainer &cont);
 
+// extern GPUArray<MonsterGPUOptimizer::InstanceData> instanceData;
+
 struct WindowData {
   bool fullscreen;
   uint32_t width;
@@ -106,16 +126,16 @@ struct DataArrays {
   Container<ExternalData>* externals;
   Container<TextureData>* textures;
   Container<AnimationState>* animStates;
-  ArrayInterface<BroadphasePair>* broadphasePairs;
+//   ArrayInterface<BroadphasePair>* broadphasePairs;
 };
 
 struct RenderConstructData {
   yavf::Device* device;
   GraphicsContainer* container;
-//   yavf::CombinedTask** task;
   VulkanRender* render;
   Window* window;
   HardcodedMapLoader* mapLoader;
+  DataArrays* arrays;
 
   MonsterOptimizer* mon;
   GeometryOptimizer* geo;
@@ -216,7 +236,9 @@ void createRender(yavf::Instance* inst, yavf::Device* device, const uint32_t &fr
 void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, DataArrays &arrays);
 // void destroyDataArrays(StageContainer &arraysContainer, DataArrays &arrays);
 void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipelineStage*> &dynPipe);
-void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, PhysicsContainer &physicsContainer, PhysicsEngine** engine); // еще device поди пригодится
+void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, const size_t &updateDelta, PhysicsContainer &physicsContainer, PhysicsEngine** engine); // еще device поди пригодится
+void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystemContainer &container);
+void createBehaviourTrees();
 
 void initnk(yavf::Device* device, Window* window, nuklear_data &data);
 void deinitnk(nuklear_data &data);
@@ -247,6 +269,7 @@ struct ReactionsCreateInfo {
   KeyContainer* container;
   UserInputComponent* input;
   Window* window;
+  MenuStateMachine* menuContainer;
 };
 void createReactions(const ReactionsCreateInfo &info);
 void setUpKeys(KeyContainer* container);
@@ -258,6 +281,8 @@ struct MouseData {
 };
 void mouseInput(UserInputComponent* input, const uint64_t &time);
 void keysCallbacks(KeyConfig* config, const uint64_t &time);
+
+void menuKeysCallback(MenuStateMachine* menu);
 
 void callback(int error, const char* description);
 void scrollCallback(GLFWwindow*, double xoffset, double yoffset);

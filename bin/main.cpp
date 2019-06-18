@@ -1,6 +1,6 @@
 #include "Helper.h"
 
-#include "../sound/SoundSystem.h"
+// #include "../sound/SoundSystem.h"
 
 int main(int argc, char** argv) {
   for (int32_t i = 0; i < argc; ++i) {
@@ -51,64 +51,6 @@ int main(int argc, char** argv) {
   // если в настройках определено не использовать треад пул
   // то нам его создавать ни к чему
   //std::cout << "std::thread::hardware_concurrency() " << std::thread::hardware_concurrency() << "\n";
-  
-  SoundSystem system;
-  
-  {
-    const ListenerData data{
-      simd::vec4(0.0f, 0.0f, 0.0f, 1.0f),
-      simd::vec4(0.0f, 0.0f, 0.0f, 0.0f),
-      simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
-      simd::vec4(0.0f, 1.0f, 0.0f, 0.0f)
-    };
-    system.updateListener(data);
-  }
-  
-  {
-    const SoundLoadingData sound{
-      Global::getGameDir() + "tmrdata/sound/jenny.wav",
-      SOUND_TYPE_WAV,
-      false,
-      false,
-      true,
-      //false,
-      false,
-      false
-    };
-    system.loadSound(ResourceID::get("test_sound"), sound);
-  }
-  
-  std::cout << "sources count " << system.sourcesCount() << "\n";
-  
-//   QueueSoundData* queueData = system.queueSound(ResourceID::get("test_sound"));
-//   queueData->gain = 0.6f;
-//   queueData->maxGain = 1.0f;
-//   queueData->maxDist = 10.0f;
-  
-  system.playBackgroundSound(ResourceID::get("test_sound"));
-  
-  for (size_t i = 0; i < 20000; ++i) {
-//     std::cout << '\n';
-//     std::cout << "update #" << i << '\n';
-    
-    system.update(16667);
-    std::this_thread::sleep_for(std::chrono::microseconds(1000));
-    
-//     const float sample = queueData->source.sampleOffset();
-    //std::cout << "byte " << sample << "\n";
-    
-    //std::this_thread::sleep_for(std::chrono::seconds(1));
-    
-    //break;
-//     if (queueData->source.isValid() && queueData->source.state() != Source::State::playing) break;
-  }
-  
-//   const float sample = queueData->source.sampleOffset();
-//   const size_t bufferSize = bytesToPCMFrames(queueData->buffers.buffers[0].size(), queueData->data);
-//   //const size_t bufferSize = queueData->buffers.buffers[0].size();
-//   std::cout << "byte " << sample << " buffer size " << bufferSize << "\n";
-  
-  throw std::runtime_error("no more");
   dt::thread_pool threadPool(std::max(std::thread::hardware_concurrency()-1, uint32_t(1))); // как там его правильно создать?
 
   initGLFW();
@@ -123,12 +65,12 @@ int main(int argc, char** argv) {
   GraphicsContainer graphicsContainer;
 
   // теперь создаем контейнер
-  const size_t &systemsSize = sizeof(VulkanRender) + sizeof(PostPhysics) + sizeof(CPUAnimationSystem); // сайз
+  const size_t &systemsSize = sizeof(VulkanRender) + sizeof(PostPhysics) + sizeof(CPUAnimationSystemParallel) + sizeof(ParticleSystem) + sizeof(SoundSystem) + sizeof(DecalSystem) + sizeof(CPUAISystem);
   GameSystemContainer systemContainer(systemsSize);
 
   {
-    const size_t stageContainerSize = sizeof(BeginTaskStage) + sizeof(EndTaskStage) + sizeof(GBufferStage) +
-                                      sizeof(DefferedLightStage) + sizeof(ToneMappingStage) + sizeof(CopyStage) + sizeof(PostRenderStage);
+    const size_t stageContainerSize = sizeof(BeginTaskStage) + sizeof(EndTaskStage) + sizeof(MonsterGPUOptimizer) + sizeof(GeometryGPUOptimizer) + 
+                                      sizeof(GBufferStage) + sizeof(DefferedLightStage) + sizeof(ToneMappingStage) + sizeof(CopyStage) + sizeof(PostRenderStage);
 
     GraphicsContainer::CreateInfo info{
       stageContainerSize,
@@ -136,41 +78,6 @@ int main(int argc, char** argv) {
     };
     graphicsContainer.construct(info);
   }
-
-//   // здесь нам нужно создать непосредственно системы
-//   yavf::Device* device = nullptr;
-// //   Window* window = nullptr; // должен быть статиком по идее, чтобы можно было добавить в glfw функции
-//   Window window;
-//   VulkanRender* render = nullptr; // по идее здесь не нужен
-//   // нам нужно теперь создать 3 экземляра task'а
-//   // мы их должны переключать по ходу дела, скорее всего мы должны передать указатель на указатель просто
-//   // а в обновление
-//   //yavf::CombinedTask* task = nullptr;
-//   yavf::CombinedTask* task[3];
-//   {
-//     createInstance(&instance);
-//
-//     WindowData data;
-//     createGLFWwindow(&instance, data);
-//
-//     createDevice(&instance, data, &device);
-//
-//     createWindow(&instance, device, data, window);
-//
-//     const size_t stageContainerSize = sizeof(BeginTaskStage) + sizeof(EndTaskStage) + sizeof(GBufferStage) +
-//                                       sizeof(DefferedLightStage) + sizeof(ToneMappingStage) + sizeof(CopyStage) + sizeof(PostRenderStage);
-//     createRender(&instance, device, window.getFrameCount(), stageContainerSize, systemContainer, &render, &task);
-//
-// //     task->addWaitSemaphore(window->getSemaphoreProxy());
-// //     window->addSemaphoreProxy(task->createSignalSemaphore());
-//
-//     window.setRender(render);
-//
-//     //Global::renderPtr = render;
-//     Global g;
-//     g.setRender(render);
-//     g.setWindow(&window);
-//   }
 
   // так же нам нужно будет загрузить какие-нибудь ресурсы
   // загрузчик ресурсов поди будет и их менеджером
@@ -197,15 +104,15 @@ int main(int argc, char** argv) {
   // создать их здесь - будет куча лишних указателей (или не лишних??)
   // удаление я могу упрятать в отдельный контейнер, когда окончательно пойму сколько массивов мне нужно будет
   DataArrays arrays;
-  ArrayContainers arraysContainer(sizeof(CPUContainer<ExternalData>) +
-                                  sizeof(CPUContainer<InputData>) +
-                                  sizeof(CPUContainer<simd::mat4>) +
-                                  sizeof(CPUBuffer<uint32_t>) +
-                                  sizeof(CPUContainer<RotationData>) +
-                                  sizeof(CPUContainer<Transform>) +
-                                  sizeof(CPUContainer<TextureData>) +
-                                  sizeof(CPUContainer<AnimationState>) +
-                                  sizeof(CPUArray<BroadphasePair>));
+  ArrayContainers arraysContainer(sizeof(GPUContainer<ExternalData>) + //CPUContainer
+                                  sizeof(GPUContainer<InputData>) +
+                                  sizeof(GPUContainer<simd::mat4>) +
+                                  sizeof(GPUBuffer<uint32_t>) +
+                                  sizeof(GPUContainer<RotationData>) +
+                                  sizeof(GPUContainer<Transform>) +
+                                  sizeof(GPUContainer<TextureData>) +
+                                  sizeof(GPUContainer<AnimationState>));
+                                  //sizeof(GPUArray<BroadphasePair>));
   createDataArrays(graphicsContainer.device(), arraysContainer, arrays);
 
   // тут по идее мы должны создать оптимизеры
@@ -218,63 +125,90 @@ int main(int argc, char** argv) {
   {
     // тут мы задаем инпут буфферы
     // аутпут буферы по идее лежат в стейджах
-    mon = optContainer.add<MonsterOptimizer>();
-    geo = optContainer.add<GeometryOptimizer>();
+//     mon = optContainer.add<MonsterOptimizer>();
+//     geo = optContainer.add<GeometryOptimizer>();
     lights = optContainer.add<LightOptimizer>();
     monDebug = optContainer.add<MonsterDebugOptimizer>();
     geoDebug = optContainer.add<GeometryDebugOptimizer>();
 
-    mon->setInputBuffers({arrays.transforms, arrays.matrices, arrays.rotationCountBuffer, arrays.rotations, arrays.textures, arrays.broadphasePairs});
-    geo->setInputBuffers({arrays.transforms, arrays.matrices, arrays.rotationCountBuffer, arrays.rotations, arrays.textures, arrays.broadphasePairs});
+//     mon->setInputBuffers({arrays.transforms, arrays.matrices, arrays.rotationCountBuffer, arrays.rotations, arrays.textures});
+//     geo->setInputBuffers({arrays.transforms, arrays.matrices, arrays.rotationCountBuffer, arrays.rotations, arrays.textures});
     lights->setInputBuffers({arrays.transforms});
     monDebug->setInputBuffers({arrays.transforms});
 
-    GraphicComponent::setOptimizer(mon);
-    GraphicComponentIndexes::setOptimizer(geo);
+//     GraphicComponent::setOptimizer(mon);
+//     GraphicComponentIndexes::setOptimizer(geo);
     Light::setOptimizer(lights);
     GraphicComponent::setDebugOptimizer(monDebug);
     GraphicComponentIndexes::setDebugOptimizer(geoDebug);
   }
+  
+  const size_t updateDelta = 33333;
 
   // создадим физику (почти везде нужно собрать сайз для контейнера)
   PhysicsContainer physicsContainer(sizeof(CPUOctreeBroadphaseParallel) + sizeof(CPUNarrowphaseParallel) + sizeof(CPUSolverParallel) + sizeof(CPUPhysicsSorter) + sizeof(CPUPhysicsParallel));
   {
     PhysicsEngine* phys;
-    createPhysics(&threadPool, arrays, physicsContainer, &phys);
+    createPhysics(&threadPool, arrays, updateDelta, physicsContainer, &phys);
     //Global::phys2 = phys;
     Global g;
     g.setPhysics(phys);
   }
 
-  // создадим систему ии (пока не буду создавать)
-  {
-
-  }
+  // создадим систему ии
+  createAI(&threadPool, updateDelta, systemContainer);
+  createBehaviourTrees();
 
   // создадим еще какое то количество систем
   // и заодно парсеры для них
   // затем мы все это дело добавим в контейнер
+  DecalSystem* decalSystem = nullptr;
   {
-    CPUAnimationSystem* animSys = systemContainer.addSystem<CPUAnimationSystem>();
+    CPUAnimationSystemParallel* animSys = systemContainer.addSystem<CPUAnimationSystemParallel>(&threadPool);
 
     Global g;
     g.setAnimations(animSys);
 
-    const AnimationSystem::InputBuffers input{
-      nullptr,
-      arrays.transforms
-    };
-    animSys->setInputBuffers(input);
-
-    const AnimationSystem::OutputBuffers output{
-      arrays.textures
-    };
-    animSys->setOutputBuffers(output);
+//     const AnimationSystem::InputBuffers input{
+//       nullptr,
+//       arrays.transforms
+//     };
+//     animSys->setInputBuffers(input);
+// 
+//     const AnimationSystem::OutputBuffers output{
+//       arrays.textures
+//     };
+//     animSys->setOutputBuffers(output);
 
     // что тут еще надо создать?
     // еще будет боевая система (там нужно будет придумать быстрый и эффективный способ вычислить весь (почти) урон)
     // система эффектов, хотя может быть очень родствена боевой
     // что еще? частицы посчитать?
+    
+    ParticleSystem* particleSystem = systemContainer.addSystem<ParticleSystem>(graphicsContainer.device());
+    g.setParticles(particleSystem);
+    
+    DecalSystem::setContainer(arrays.matrices);
+    DecalSystem::setContainer(arrays.transforms);
+    
+    decalSystem = systemContainer.addSystem<DecalSystem>();
+    // глобальный указатель?
+    
+    SoundSystem* soundSystem = systemContainer.addSystem<SoundSystem>();
+    g.setSound(soundSystem);
+  }
+  
+  {
+    const SoundLoadingData data{
+      Global::getGameDir() + "tmrdata/sound/Omen - Kingdom Under Siege.mp3",
+      SOUND_TYPE_MP3,
+      false,
+      false,
+      true,
+      false,
+      false
+    };
+    Global::sound()->loadSound(ResourceID::get("default_sound"), data);
   }
 
   // создадим лоадер (лоадер бы лучше в контейнере создавать) sizeof(ParserHelper) +
@@ -326,6 +260,7 @@ int main(int argc, char** argv) {
       Global::render(),
       Global::window(),
       mapLoader,
+      &arrays,
       mon,
       geo,
       lights,
@@ -410,17 +345,28 @@ int main(int argc, char** argv) {
 
   PostPhysics* postPhysics = nullptr;
   {
-    postPhysics = systemContainer.addSystem<PostPhysics>(player, playerTransform);
+    postPhysics = systemContainer.addSystem<PostPhysics>(&threadPool, player, playerTransform);
   }
 
 //   std::cout << "input ptr " << input << "\n";
 
 //   initGui(device, window);
 
+//   bool drawMenu = false;
+  bool quit = false;
+  MenuStateMachine menuContainer(sizeof(MainMenu) + sizeof(ButtonItem) + sizeof(QuitGame));
+  {
+    MainMenu* menu = menuContainer.addMenuItem<MainMenu>(&data);
+    QuitGame* quitGame = menuContainer.addMenuItem<QuitGame>(&data, &quit, menu);
+    ButtonItem* button = menuContainer.addMenuItem<ButtonItem>(&data, "Quit game", quitGame, Extent{30, 200});
+    menu->addItem(button);
+    menuContainer.setDefaultItem(menu);
+  }
+
   KeyConfig keyConfig;
   KeyContainer keyContainer(&keyConfig);
 
-  createReactions({&keyContainer, input, Global::window()});
+  createReactions({&keyContainer, input, Global::window(), &menuContainer});
   setUpKeys(&keyContainer);
 
   for (size_t i = 0; i < dynPipe.size(); ++i) {
@@ -431,9 +377,13 @@ int main(int argc, char** argv) {
 
   Global::window()->show();
   //Global::window()->toggleVsync();
-
+  
+  // нужно сделать настраиваемым (нет, не нужно)
+//   const size_t updateDelta = 33333;
+//   size_t accumulator = 0;
+  
   TimeMeter tm(1000000);
-  while (!Global::window()->shouldClose()) {
+  while (!Global::window()->shouldClose() && !quit) {
     tm.start();
     glfwPollEvents();
 
@@ -463,7 +413,8 @@ int main(int argc, char** argv) {
 
         {
           // RegionLog rl("key input");
-          keysCallbacks(&keyConfig, time);
+          if (menuContainer.isOpened()) menuKeysCallback(&menuContainer);
+          else keysCallbacks(&keyConfig, time);
         }
 
         nextnkFrame(Global::window(), &data.ctx);
@@ -472,26 +423,12 @@ int main(int argc, char** argv) {
       camera->update(time);
     }
 
-    // здесь будет что-то вроде:
-    //ai->update(time);
+    Global::ai()->update(time);
 
     {
       // RegionLog rl("physics region");
-
-      {
-        // можно переместить в камеру
-        const RayData ray{
-          playerTransform->pos(),
-          playerTransform->rot()
-        };
-
-        Global::physics()->add(ray);
-
-        const simd::mat4 &frustum = Global::render()->getViewProj();
-        Global::physics()->add(frustum, playerTransform->pos());
-      }
-
-      Global::physics()->update(time);
+      
+      if (!menuContainer.isOpened()) Global::physics()->update(time);
 
       postPhysics->update(time);
     }
@@ -526,8 +463,12 @@ int main(int argc, char** argv) {
       };
       nkOverlay(overlayData, &data.ctx);
     }
+    
+//     Global::sound()->update(time);
 
     // гуи
+    menuContainer.draw();
+    
     // дебаг
     // и прочее
 
@@ -550,6 +491,22 @@ int main(int argc, char** argv) {
     const size_t syncTime = Global::window()->isVsync() ? Global::window()->refreshTime() : 0; //16667
     //std::cout << "syncTime " << syncTime << "\n";
     sync(tm, syncTime);
+    
+//     std::cout << "instanceData.size() " << instanceData.size() << "\n";
+//     for (size_t i = 0; i < std::min(instanceData.size(), uint32_t(5)); ++i) {
+//       PRINT_VEC4("inst "+std::to_string(i)+" mat[0] ", instanceData[i].mat[0])
+//       PRINT_VEC4("inst "+std::to_string(i)+" mat[1] ", instanceData[i].mat[1])
+//       PRINT_VEC4("inst "+std::to_string(i)+" mat[2] ", instanceData[i].mat[2])
+//       PRINT_VEC4("inst "+std::to_string(i)+" mat[3] ", instanceData[i].mat[3])
+//       
+//       std::cout << "inst " << i << " image index    " << instanceData[i].textureData.t.imageArrayIndex << "\n";
+//       std::cout << "inst " << i << " image layer    " << instanceData[i].textureData.t.imageArrayLayer << "\n";
+//       std::cout << "inst " << i << " image sampler  " << instanceData[i].textureData.t.samplerIndex << "\n";
+//       std::cout << "inst " << i << " image move U   " << instanceData[i].textureData.movementU << "\n";
+//       std::cout << "inst " << i << " image move V   " << instanceData[i].textureData.movementV << "\n";
+//     }
+//     
+//     throw std::runtime_error("end");
 
     // неплохо было бы подумать на счет того чтобы отрисовывать часть вещей не дожидаясь свопчейна
     // вообще это означает что мне нужно будет сделать два таск интерфейса и дополнительный семафор
