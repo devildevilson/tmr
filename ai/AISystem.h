@@ -9,12 +9,20 @@
 #include "EntityAI.h"
 #include "AIComponent.h"
 
+#include "ThreadPool.h"
+
+#include "StageContainer.h"
+
 #include <atomic>
 #include <unordered_map>
 
 class AIComponent;
 class AIBasicComponent;
 class AIGroup;
+class Graph;
+namespace tb {
+  class BehaviorTree;
+}
 
 // я уже достаточно долго думаю на счет ии
 // все же я решил что просто переключение состояний недостаточно для меня
@@ -125,154 +133,8 @@ private:
   std::unordered_map<Type, std::atomic<size_t>> board;
 };
 
-// enum ActionState {
-//   EVENT_STATE_FAILED,
-//   EVENT_STATE_RUNNING,
-//   EVENT_STATE_SUCCESS,
-//   EVENT_STATE_COUNT
-// };
-
-// // если использовать EntityAI константно, то нам не обязательно разделение на TargetAI
-// class TargetAI {
-// public:
-// //   virtual ~TargetAI() {}
-//   
-//   // по последним данным, это + таргет - возможно все что мне потребуется, для того чтобы
-//   // энтити принял како-либо решение + здесь наверное не будет этой функции (см. ниже)
-//   //EventState pushEvent(const Type &event, void* data);
-//   
-//   // по тому что я там нафантазировал это все что мне может пригодится
-//   // также мне нужны какие то функции для определения цели
-// //   virtual void changeState(const Type &name) = 0;
-//   
-//   // тут нужно предоставить набор функций для того чтобы как то реагировать на таргет
-//   // как они должны работать, то есть может быть не выставлять эти функции вот так?
-//   // + мне нужны еще дополнительные функции для специальных действий (например, как открывать двери с помощью кнопки?)
-//   // как раздавать задания энтити в одной группе?
-//   // как в принципе быть с особыми приказами (тип окружить, перестроится и прочее)
-//   // в принципе достаточно всего пару функций для движения
-// //   virtual void stop() = 0;
-// //   virtual void pursuit() = 0;
-// //   virtual void flee() = 0;
-// //   virtual void flocking() = 0;
-//   // функции движения не будет здесь
-//   
-//   // тут утилити функции
-// //   virtual float getDistanceSq() = 0;
-//   
-//   // что здесь должно быть
-//   // во первых концепция цели: какой-то таргет, относительно которого действует энтити
-//   // что это может быть? самый логичный вариант - это другой энтити, но скорее всего это EntityAI
-//   // здесь мы должны определять какое действие мы сделаем следующим, то есть видимо добавлять индексы этого энтити
-//   // в разные массивы, чтобы потом обработать его с однотипными? поведения которые я имею ввиду не всегда 
-//   // четко можно переложить на то что действительно нужно сделать, ко всему прочему тут должна быть возможность
-//   // каким-то образом провести атаку, как я уже ранее выяснил любое действие это у нас изменение состояния энтити
-//   
-//   // также у нас должны быть некие специальные действия тип открыть дверь с помощью кнопки
-//   
-//   // в общем вот что я выснил: как обычно любую задачу нужно разложить на состовляющие
-//   // составляющие у ии системы такие: 
-//   // восприятие - собираем данные вокруг энтити
-//   // планирование - какие то решения на основе полученной информации
-//   // действие - на основе предыдущих вещей делаем что то
-//   // возможно еще этап какого то обучения, но это врядли
-//   
-//   // скорее всего это все что мне потребуется в моей игре
-//   // что из себя представляют эти системы? 
-//   
-//   // восприятие - что я вижу, слышу, чувствую (локальное воприятие), возможно когда я выполню задачу
-//   // глобальное восприятие - что делают, где находятся (+ утилити) другие
-//   // тут по идее мы просто должны добавить энтити по интересам, по классам, по задачам
-//   // по идее это все что может потребоваться, а ну еще окружение (карта, предметы и прочее)
-//   
-//   // планирование - эта часть должна на основе данных собраных на предыдущем шаге что то прикидывать
-//   // то есть мы должны проверить кто чем занимается, какое состояние у игрока и на основе этого, например,
-//   // попытаться заблокировать доступ игрока к хилке (просто встав перед ней)
-//   // планирование будет реализовано с помощью бехавиор три (99%) + может потребоваться какая нибудь таблица вероятностей
-//   
-//   // действие - мы пытаемся че нибудь сделать, например найти путь и по нему следовать, ударить и прочее
-//   // здесь относительно несложно
-//   
-//   // на основе этого я думаю у нас должно быть два типа объектов: акцептор и донор
-//   // тип акцептор принимает какие то данные или приказы
-//   // а донор предоставляет данные для других
-//   // так как например для дверей нафиг ненужны приказы вроде pursuit, flee и прочее
-//   // но мы например должны узнать как ее открыть и можно ли ее открыть обычным способом
-//   // двери дверьми скорее всего это не самое важное, но как то определить как их открыть может быть полезно
-//   
-//   // самое наверное важное это определить какие объекты есть вокруг
-//   // как это сделать? более того как определить именно те объекты которые на небольшом расстоянии
-//   // все объекты должны быть прикреплены к какому нибудь навмешу (причем изменять его тоже должны наверное)
-//   // требуется собрать все объекты в округе
-//   
-//   // короче таргет должен быть все же не EntityAI, а что то другое что может быть таргетом в принципе
-//   // таргет это компонент? вообще идея может быть даже ничего, может быть таргет это родитель энтитиАи?
-//   // мне нужны рид онли контейнеры в которых будут помещены все эти вещи
-//   
-//   // лучше всего начать с локального восприятия!!!
-//   
-//   // КАКИЕ ТУТ ДОЛЖНЫ БЫТЬ МЕТОДЫ??????????????????????????????
-//   // скорее всего не очень много
-//   // в основном это дойти до цели, сменить состояние
-//   // но вообще наверное еще побродить
-//   
-//   // в донт старве есть доступ к компонентам, их использование производится в специальных функциях (поведения)
-//   // в моем случае нужно ввести несколько функции
-//   
-//   // как бы получить доступ к компонентам, хотя из них мне нужно будет всего несколько
-//   // атрибуты, атака, да и все (движение и анимации в этом классе)
-//   
-//   // когда я меняю стейт мне неплохо было бы контролировать направление взгляда
-//   // ну или куда мне нужно сделать действие
-// //   void changeState(const Type &state, const glm::vec4 &dir);
-//   
-//   // будет ли это верно работать и в с++ и в луа?
-//   // в плюсах лучше бы сделать отдельные функции
-// //   void* getComponent(const Type &type);
-//   
-//   // виртуал или нет?
-//   void setTarget(const TargetAI* target);
-//   const TargetAI* target() const;
-//   bool hasTarget() const;
-//   
-//   glm::vec4 position() const;
-//   glm::vec4 direction() const;
-//   glm::vec4 velocity() const;
-//   float raduis() const;
-//   
-//   // получаем аттрибуты
-// protected:
-//   glm::vec4 pos;
-//   glm::vec4 dir;
-//   glm::vec4 vel;
-//   float r;
-//   uint32_t vertexId;
-//   uint32_t lastVertexId;
-//   size_t timeThreshold;
-//   size_t currentTime;
-//   
-//   const TargetAI* targetPtr;
-//   
-//   // тут по идее также поведенческое дерево
-//   
-//   //StateController* states; // пригодится чтобы узнать текущее состояние
-//   //AttributeContainer* attributes; // атрибуты всегда могут потребоваться
-//   //Vertex* vertex; // вершина (ну точнее то на чем мы сейчас стоим)
-// };
-
-// : public virtual TargetAI
-
-// class GroupAI : public AIGroup {
-// public:
-//   
-//   
-//   void update(const uint64_t &time);
-//   void updateAIData();
-// };
-
-// примерно прикинули что у нас тут будет
-
 // если в компоненте уже будет указатель на дерево, то зачем мне это?
+// это внутри компонента
 class BehaviourTreePhase {
 public:
   virtual ~BehaviourTreePhase() {}
@@ -345,16 +207,29 @@ public:
   // инициализация и прочее
   // неплохо было бы чтобы и этот класс был интерфейсом для разных реализаций
   
+  virtual PathFindingPhase* pathfindingSystem() const = 0;
+  
   virtual void registerComponent(AIComponent* component) = 0;
   virtual void registerBasicComponent(AIBasicComponent* component) = 0;
   virtual void removeComponent(AIComponent* component) = 0;
   virtual void removeBasicComponent(AIBasicComponent* component) = 0;
+  
+  virtual size_t getUpdateDelta() const = 0;
+  
+  virtual void setBehaviourTreePointer(const Type &name, tb::BehaviorTree* tree) = 0;
+  virtual tb::BehaviorTree* getBehaviourTreePointer(const Type &name) const = 0;
 };
 
+
+// нам бы тут не помешал бы еще выход в граф
+// да и вообще нужно посильнее граф задействовать
 class CPUAISystem : public AISystem {
 public:
   struct CreateInfo {
-    PathFindingPhase* pathfinding;
+    dt::thread_pool* pool;
+//     PathFindingPhase* pathfinding;
+    size_t updateDelta;
+    size_t utilitySystemsSize;
   };
   CPUAISystem(const CreateInfo &info);
   ~CPUAISystem();
@@ -364,11 +239,36 @@ public:
   Blackboard & blackboard();
   const Blackboard & blackboard() const;
   
+  PathFindingPhase* pathfindingSystem() const override;
+  
   void registerComponent(AIComponent* component) override;
   void registerBasicComponent(AIBasicComponent* component) override;
   void removeComponent(AIComponent* component) override;
   void removeBasicComponent(AIBasicComponent* component) override;
+  
+  size_t getUpdateDelta() const override;
+  
+  void setBehaviourTreePointer(const Type &name, tb::BehaviorTree* tree) override;
+  tb::BehaviorTree* getBehaviourTreePointer(const Type &name) const override;
+  
+  template <typename T, typename... Args>
+  T* createPathfindingSystem(Args&&... args) {
+    T* ptr = container.addStage<T>(std::forward<Args>(args)...);
+    pathfinding = ptr;
+    return ptr;
+  }
+  
+  template <typename T, typename... Args>
+  T* createGraph(Args&&... args) {
+    T* ptr = container.addStage<T>(std::forward<Args>(args)...);
+    graph = ptr;
+    return ptr;
+  }
 private:
+  size_t updateDelta;
+  size_t accumulator;
+  
+  dt::thread_pool* pool;
   Blackboard board;
   
   std::vector<AIComponent*> aiEntities; // здесь мы обновляем дерево поведения
@@ -376,11 +276,16 @@ private:
   std::vector<AIComponent*> groupAI;
   std::vector<AIGroup*> groups; // с группами не все очевидно
   
+  std::unordered_map<Type, tb::BehaviorTree*> treesPtr;
+  
   // + здесь же фаза поиска пути, которая наступает после основного обновления
   PathFindingPhase* pathfinding;
+  Graph* graph;
+  
+  StageContainer container;
   
   MemoryPool<AIGroup, sizeof(AIGroup)*20> groupPool;
-  MemoryPool<AIComponent, sizeof(AIComponent)*20> groupAIPool;
+  MemoryPool<AIComponent, sizeof(AIComponent)*20> groupAIPool; // поторопился
 };
 
 // нам нужно еще сделать граф и А* алгоритм

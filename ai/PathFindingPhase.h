@@ -6,6 +6,8 @@
 #include <unordered_map>
 
 #include "Type.h"
+#include "UniqueID.h"
+#include "Utility.h"
 
 class vertex_t;
 class edge_t;
@@ -14,30 +16,63 @@ struct RawPathPiece {
   const vertex_t* vertex;
   const edge_t* toNextVertex;
   // что тут может еще добавиться?
+  // тут можно расположить данные от фуннел алгоритма
+  // нам потребуется: точка "начала" ребра, направление ребра ОТ точки, точка в котороую мы идем
+  simd::vec4 edgePoint;
+  simd::vec4 edgeDir;
+  simd::vec4 funnelPoint;
 };
 
 class RawPath {
 public:
-  RawPath();
+  RawPath() = default;
+  RawPath(const size_t &size);
+  ~RawPath() = default;
   
   std::vector<RawPathPiece> & data();
   const std::vector<RawPathPiece> & data() const;
+  
+  const vertex_t* start() const;
+  const vertex_t* goal() const;
+  
+  size_t getNearPathSegmentIndex(const simd::vec4 &pos, simd::vec4 &closest, float &dist) const;
+  
+  RawPath & operator=(const RawPath &path) = default;
 private:
   // что то еще потребуется?
   
   std::vector<RawPathPiece> rawPath;
 };
 
-struct PathfindingType {
-  std::function<bool(const vertex_t*, const vertex_t*, const edge_t*)> predicate;
-  
-  std::vector<std::pair<vertex_t*, vertex_t*>> buffer;
-  
-  vertex_t* currentStart;
-  vertex_t* currentGoal;
-  RawPath currentPath;
-  
-  std::unordered_map<std::pair<vertex_t*, vertex_t*>, std::pair<vertex_t*, edge_t*>> history;
+// struct PathfindingType {
+//   std::function<bool(const vertex_t*, const vertex_t*, const edge_t*)> predicate;
+//   
+//   std::vector<std::pair<vertex_t*, vertex_t*>> buffer;
+//   
+//   vertex_t* currentStart;
+//   vertex_t* currentGoal;
+//   RawPath currentPath;
+//   
+//   std::unordered_map<std::pair<vertex_t*, vertex_t*>, std::pair<vertex_t*, edge_t*>> history;
+// };
+
+struct FindRequest {
+  Type type; 
+  const vertex_t* start; 
+  const vertex_t* end;
+//   uint32_t intellegence;
+};
+
+enum class path_finding_state {
+  has_path,
+  path_not_exist,
+  delayed
+};
+
+struct PathFindingReturn {
+  path_finding_state state;
+  RawPath* path;
+  size_t pointerCount;
 };
 
 class PathFindingPhase {
@@ -45,9 +80,13 @@ public:
   virtual ~PathFindingPhase() {}
   
   virtual void registerPathType(const Type &type, const std::function<bool(const vertex_t*, const vertex_t*, const edge_t*)> &predicate) = 0;
-  virtual void queueRequest(const Type &type, vertex_t* start, vertex_t* end);
+  virtual void queueRequest(const FindRequest &request) = 0;
+//   virtual size_t requestCount() const = 0;
   
   virtual void update() = 0;
+  
+  virtual PathFindingReturn getPath(const FindRequest &req) = 0;
+  virtual void releasePath(const FindRequest &req) = 0;
   
   // здесь целиком и полностью будет поиск пути, нужно продумать 
   // как искать как можно меньше (объекты в группы в зависимости от стартовой и конечной позиций)

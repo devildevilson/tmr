@@ -13,11 +13,15 @@
 
 #include <unordered_map>
 
+#include <mutex>
+
 #define GRAPH_VERTEX_POOL_DEFAULT_SIZE 1000
 #define GRAPH_EDGE_POOL_DEFAULT_SIZE 3000
 
 class Graph;
 class vertex_t;
+
+class EntityAI;
 
 namespace std {
   template<>
@@ -37,7 +41,10 @@ struct LineSegment {
   
   float length() const;
   glm::vec4 dir() const;
+  simd::vec4 dir_simd() const;
   
+  simd::vec4 closestPoint(const simd::vec4 &p) const;
+  void leftRight(const simd::vec4 &point, const simd::vec4 &normal, simd::vec4 &left, simd::vec4 &right) const;
 };
 
 struct EdgeData {
@@ -51,7 +58,7 @@ struct EdgeData {
   LineSegment segment;
 };
 
-struct Vertex {
+struct GraphVertex {
   // тут по идее нужно указатель на физический компонент
   // для того чтобы быстро получать разные данные
   // но с другой стороны что мне реально может потребоваться?
@@ -72,7 +79,8 @@ struct Vertex {
   // думаю что не особо
   
   // сюда будут входить только ИИ компоненты? видимо да
-  std::vector<void*> objects;
+  // наверное только консты EntityAI
+  std::vector<const EntityAI*> objects;
 };
 
 // что делать с декоративными объектами, которые будут мешать пройти?
@@ -123,7 +131,7 @@ private:
 class vertex_t : public AStarState {
   friend Graph;
 public:
-  vertex_t(Graph* graph, size_t graphIndex, const Vertex &data);
+  vertex_t(Graph* graph, size_t graphIndex, const GraphVertex &data);
   ~vertex_t();
   
   size_t degree() const;
@@ -136,8 +144,13 @@ public:
   void addEdge(edge_t* edge);
   void removeEdge(edge_t* edge);
   
-  Vertex getVertexData() const;
+  const GraphVertex* getVertexData() const;
   float getAngle(const vertex_t* other) const;
+  
+  void addObject(const EntityAI* obj);
+  void removeObject(const EntityAI* obj);
+  size_t objCount() const;
+  const EntityAI* at(const size_t &index) const;
   
   float goalDistanceEstimate(const vertex_t* nodeGoal) const override;
   //bool isGoal(const vertex_t* nodeGoal) const override;
@@ -156,7 +169,8 @@ private:
   size_t graphIndex;
   std::vector<edge_t*> edges;
   
-  Vertex vertex;
+  GraphVertex vertex;
+  mutable std::mutex mutex;
 };
 
 class Graph {
@@ -177,7 +191,7 @@ public:
   const vertex_t* vertex(const size_t &index) const;
   size_t getIndex(const vertex_t* vert) const;
 
-  vertex_t* addVertex(const Vertex &data);
+  vertex_t* addVertex(const GraphVertex &data);
   void deleteVertex(vertex_t* vertex);
   void deleteAdjacent(const edge_t* edge, const vertex_t* vert);
 

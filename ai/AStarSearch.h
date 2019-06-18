@@ -99,10 +99,10 @@ public:
   virtual ~AStarState() {}
   
   virtual float goalDistanceEstimate(const vertex_t* nodeGoal) const = 0; // Heuristic function which computes the estimated cost to the goal node
-  virtual bool isGoal(const vertex_t* nodeGoal) const = 0; // Returns true if this node is the goal node
-  virtual bool getSuccessors(AStarSearch* astarSearch, const vertex_t* parentNode) const = 0; // Retrieves all successors to this node and adds them via astarsearch.addSuccessor()
+//   virtual bool isGoal(const vertex_t* nodeGoal) const = 0; // Returns true if this node is the goal node
+//   virtual bool getSuccessors(AStarSearch* astarSearch, const vertex_t* parentNode) const = 0; // Retrieves all successors to this node and adds them via astarsearch.addSuccessor()
   virtual float getCost(const vertex_t* successor) const = 0; // Computes the cost of travelling from this node to the successor node
-  virtual bool isSameState(const vertex_t* rhs) const = 0; // Returns true if this node is the same as the rhs node
+//   virtual bool isSameState(const vertex_t* rhs) const = 0; // Returns true if this node is the same as the rhs node
 };
 
 #endif

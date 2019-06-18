@@ -12,6 +12,10 @@
 #include "EventComponent.h"
 #include "DecalComponent.h"
 
+#include "SoundSystem.h"
+
+#include "PathFindingPhase.h"
+
 // #include <glm/gtx/rotate_vector.hpp>
 // #define YACS_DEFINE_EVENT_TYPE
 // #include "YACS.h"
@@ -58,7 +62,7 @@ InfoComponent::InfoComponent(const Type &type) : objType(type) {}
 InfoComponent::~InfoComponent() {}
 
 void InfoComponent::update(const size_t &time) {
-//   (void)time;
+  (void)time;
 //
 //   const auto &idxCont = phys2->getIndexContainer();
 //   const Object &obj = Global::physics()->getObjectData(idxCont.objectDataIndex);
@@ -166,7 +170,7 @@ void InputComponent::setContainer(Container<InputData>* container) {
   InputComponent::container = container;
 }
 
-InputComponent::InputComponent() : physics2(nullptr), trans(nullptr) {
+InputComponent::InputComponent() {
   inputIndex = container->insert({});
 }
 
@@ -183,17 +187,17 @@ void InputComponent::init(void* userData) {
 //     throw std::runtime_error("Entity " + std::to_string(getEntity()->getId()) + " does not have PhysicComponent!");
 //   }
 
-  trans = getEntity()->get<TransformComponent>().get();
-  if (trans == nullptr) {
-    Global::console()->printE("Entity " + std::to_string(getEntity()->getId()) + " does not have TransformComponent!");
-    throw std::runtime_error("Entity " + std::to_string(getEntity()->getId()) + " does not have TransformComponent!");
-  }
-
-  physics2 = getEntity()->get<PhysicsComponent2>().get();
-  if (physics2 == nullptr) {
-    Global::console()->printE("Entity " + std::to_string(getEntity()->getId()) + " does not have PhysicsComponent!");
-    throw std::runtime_error("Entity " + std::to_string(getEntity()->getId()) + " does not have PhysicsComponent!");
-  }
+//   trans = getEntity()->get<TransformComponent>().get();
+//   if (trans == nullptr) {
+//     Global::console()->printE("Entity " + std::to_string(getEntity()->getId()) + " does not have TransformComponent!");
+//     throw std::runtime_error("Entity " + std::to_string(getEntity()->getId()) + " does not have TransformComponent!");
+//   }
+// 
+//   physics2 = getEntity()->get<PhysicsComponent2>().get();
+//   if (physics2 == nullptr) {
+//     Global::console()->printE("Entity " + std::to_string(getEntity()->getId()) + " does not have PhysicsComponent!");
+//     throw std::runtime_error("Entity " + std::to_string(getEntity()->getId()) + " does not have PhysicsComponent!");
+//   }
 }
 
 // simd::vec4 InputComponent::predictPos(const size_t &predictionTime) const {
@@ -451,7 +455,7 @@ void PhysicsComponent2::init(void* userData) {
     rotationIndex,
 
     //"boxShape"
-    initData->shapeName
+    initData->shape
   };
 
   Global::physics()->add(i, &container);
@@ -462,6 +466,8 @@ const PhysicsIndexContainer & PhysicsComponent2::getIndexContainer() const {
 }
 
 simd::vec4 PhysicsComponent2::getVelocity() const {
+  if (container.physicDataIndex == UINT32_MAX) return simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+  
   const glm::vec3 &vel = Global::physics()->getPhysicData(&container).velocity;
   return simd::vec4(vel.x, vel.y, vel.z, 0.0f);
 }
@@ -480,6 +486,18 @@ uint32_t PhysicsComponent2::getObjectShapeFacesSize() const {
 
 const simd::vec4* PhysicsComponent2::getObjectShapeFaces() const {
   return Global::physics()->getObjectShapeFaces(&container);
+}
+
+PhysicsIndexContainer* PhysicsComponent2::getGround() const {
+  Object obj = Global::physics()->getObjectData(&container);
+  PhysicsIndexContainer* ret = nullptr;
+  
+  while (obj.groundObjIndex != UINT32_MAX) {
+    ret = Global::physics()->getIndexContainer(obj.groundObjIndex);
+    obj = Global::physics()->getObjectData(ret);
+  }
+  
+  return ret;
 }
 
 Container<ExternalData>* PhysicsComponent2::externalDatas = nullptr;
@@ -1370,6 +1388,77 @@ void UserInputComponent::jump() {
   movementData().y = 1.0f;
 }
 
+AIInputComponent::AIInputComponent() : physics2(nullptr), trans(nullptr) {}
+AIInputComponent::~AIInputComponent() {}
+
+void AIInputComponent::update(const size_t &time) { (void)time; }
+void AIInputComponent::init(void* userData) {
+  trans = getEntity()->get<TransformComponent>().get();
+  if (trans == nullptr) {
+    Global::console()->printE("Entity " + std::to_string(getEntity()->getId()) + " does not have TransformComponent!");
+    throw std::runtime_error("Entity " + std::to_string(getEntity()->getId()) + " does not have TransformComponent!");
+  }
+
+  physics2 = getEntity()->get<PhysicsComponent2>().get();
+  if (physics2 == nullptr) {
+    Global::console()->printE("Entity " + std::to_string(getEntity()->getId()) + " does not have PhysicsComponent!");
+    throw std::runtime_error("Entity " + std::to_string(getEntity()->getId()) + " does not have PhysicsComponent!");
+  }
+}
+
+simd::vec4 AIInputComponent::predictPos(const size_t &predictionTime) const {
+  return trans->pos() + physics2->getVelocity() * MCS_TO_SEC(predictionTime);
+}
+
+void AIInputComponent::seek(const simd::vec4 &target) {
+  front() = target - trans->pos();
+}
+
+void AIInputComponent::flee(const simd::vec4 &target) {
+  front() = trans->pos() - target;
+}
+
+// как избавиться от currentPathSegmentIndex?
+size_t AIInputComponent::followPath(const size_t &predictionTime, const RawPath* path) {
+  // предскажем нашу будущую позицию
+  const simd::vec4 &futurePos = predictPos(predictionTime);
+  
+  float dist;
+  simd::vec4 closest;
+  const size_t index1 = path->getNearPathSegmentIndex(trans->pos(), closest, dist);
+  float dist2;
+  simd::vec4 closest2;
+  const size_t index2 = path->getNearPathSegmentIndex(futurePos, closest2, dist2);
+  
+//   const RawPathPiece &pathSeg = path->data()[currentPathSegmentIndex];
+//   const RawPathPiece &nextPathSeg = path->data()[currentPathSegmentIndex+1];
+  const RawPathPiece &pathSeg = path->data()[index1];
+  const RawPathPiece &nextPathSeg = path->data()[index1+1];
+  
+  // это работало
+  const simd::vec4 &nextPoint = nextPathSeg.funnelPoint + nextPathSeg.edgeDir * trans->scale().x;
+  const simd::vec4 &prevPoint = pathSeg.funnelPoint + pathSeg.edgeDir * trans->scale().x;
+
+  // примерно так узнаем что мы двигаемся в правильную сторону
+  const bool rightWay2 = simd::dot(physics2->getVelocity(), nextPoint - prevPoint) > 0.0f;
+  
+  // вместо скейла должна быть наверное константа
+  if (dist2 < trans->scale().x && rightWay2) return index1;
+
+  if (dist < trans->scale().x && rightWay2) {
+    front() = nextPoint - prevPoint;
+    return index1;
+  }
+
+  seek(nextPoint);
+  
+  return index1;
+}
+
+void AIInputComponent::stayOnPath(const size_t &predictionTime, const RawPath* path) {
+  
+}
+
 CLASS_TYPE_DEFINE_WITH_NAME(CameraComponent, "CameraComponent")
 
 //#define PRINT_VEC(name, vec) std::cout << name << " (" << vec.x << ", " << vec.y << ", " << vec.z << ", " << vec.w << ")" << "\n";
@@ -1381,14 +1470,33 @@ void CameraComponent::update(const size_t &time) {
                                                      0.0f,-1.0f, 0.0f, 0.0f,
                                                      0.0f, 0.0f, 1.0f, 0.0f,
                                                      0.0f, 0.0f, 0.0f, 1.0f);
+  
+//   static const glm::mat4 toVulkanSpace1 =  glm::mat4(1.0f, 0.0f, 0.0f, 0.0f,
+//                                                      0.0f,-1.0f, 0.0f, 0.0f,
+//                                                      0.0f, 0.0f, 1.0f, 0.0f,
+//                                                      0.0f, 0.0f, 0.0f, 1.0f);
 
   //glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
   const simd::vec4 pos = trans->pos();
+  const simd::vec4 dir = trans->rot();
+  
+  glm::vec4 pos1;
+//   glm::vec4 dir1;
+  pos.storeu(&pos1.x);
+//   dir.storeu(&dir1.x);
+  
+//   PRINT_VEC4("pos", pos1)
+  
   //const glm::vec3 pos = trans->pos;
   //const simd::vec4 &changePos = trans->getPos();
   //TransformComponent::container->at(trans->transformIndex).pos = simd::vec4(trans->pos, 1.0f);
-  const simd::mat4 view = toVulkanSpace * simd::lookAt(pos, pos + input->front(), simd::vec4(0.0f, 1.0f, 0.0f, 0.0f)); // input->upVec
-  //view = glm::lookAt(pos, pos + input->frontVec, glm::vec3(0.0f, 1.0f, 0.0f)); // input->upVec
+  const simd::mat4 view = toVulkanSpace * simd::lookAt(pos, pos + dir, simd::vec4(0.0f, 1.0f, 0.0f, 0.0f)); // input->upVec
+//   const glm::mat4 view1 = toVulkanSpace1 *  glm::lookAt(glm::vec3(pos1), glm::vec3(pos1 + dir1), glm::vec3(0.0f, 1.0f, 0.0f)); // input->upVec
+  
+//   const simd::mat4 view = simd::mat4(view1[0][0], view1[0][1], view1[0][2], view1[0][3], 
+//                                      view1[1][0], view1[1][1], view1[1][2], view1[1][3], 
+//                                      view1[2][0], view1[2][1], view1[2][2], view1[2][3], 
+//                                      view1[3][0], view1[3][1], view1[3][2], view1[3][3]);
 
 //   PRINT_VEC("view ", view[0])
 //   PRINT_VEC("     ", view[1])
@@ -1397,9 +1505,27 @@ void CameraComponent::update(const size_t &time) {
 
   Global::render()->setView(view);
   Global::render()->setCameraPos(pos);
-  Global::render()->setCameraDir(input->front());
+  Global::render()->setCameraDir(dir);
 
   Global::render()->updateCamera();
+  
+  const ListenerData listenerData{
+    pos,
+    phys->getVelocity(),
+    trans->rot(),
+    -Global::physics()->getGravityNorm()
+  };
+  Global::sound()->updateListener(listenerData);
+  
+  const RayData ray{
+    pos,
+    trans->rot()
+  };
+
+  Global::physics()->add(ray);
+
+  const simd::mat4 &frustum = Global::render()->getViewProj();
+  Global::physics()->add(frustum, pos);
 }
 
 void CameraComponent::init(void* userData) {
@@ -1420,6 +1546,12 @@ void CameraComponent::init(void* userData) {
   if (input == nullptr) {
     Global::console()->printE("Entity " + std::to_string(getEntity()->getId()) + " does not have InputComponent!");
     throw std::runtime_error("Entity " + std::to_string(getEntity()->getId()) + " does not have InputComponent!");
+  }
+  
+  phys = getEntity()->get<PhysicsComponent2>().get();
+  if (phys == nullptr) {
+    Global::console()->printE("Entity " + std::to_string(getEntity()->getId()) + " does not have PhysicsComponent!");
+    throw std::runtime_error("Entity " + std::to_string(getEntity()->getId()) + " does not have PhysicsComponent!");
   }
 }
 

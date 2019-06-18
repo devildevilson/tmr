@@ -3,9 +3,11 @@
 
 #include "EntityAI.h"
 #include "EntityComponentSystem.h"
+#include "PathFindingPhase.h"
 
-namespace TinyBehavior {
+namespace tb {
   class BehaviorTree;
+  class Node;
 }
 
 class vertex_t;
@@ -13,6 +15,7 @@ class edge_t;
 
 class PhysicsComponent2;
 class TransformComponent;
+class AIInputComponent;
 
 // тут нужно почекать верные деструкторы 
 class AIBasicComponent : public EntityAI, public yacs::Component {
@@ -23,7 +26,6 @@ public:
     // к которой принадлежит объект
     
     float radius;
-    size_t timeThreshold;
     vertex_t* currentVertex;
   };
   
@@ -47,11 +49,15 @@ protected:
   // тут будет что нибудь?
   
   size_t internalIndexVal;
+  
+  // нужно тут сохранить позицию (центр) и направление (нормаль)
+  // 
 };
 
 // так ли необходимо наследоваться от AIBasicComponent?
 // мне могут потребоваться какие-то дополнительные функции этого класса
 // можно ли их сделать как-нибудь по другому? я пока еще не знаю что ме может потребоваться лол
+// нужно сделать еще какое то специальное хранилище у компонента для промежуточных данных
 class AIComponent : public AIBasicComponent {
   friend class AISystem;
 public:
@@ -63,7 +69,8 @@ public:
     float radius;
     size_t timeThreshold;
     vertex_t* currentVertex;
-    TinyBehavior::BehaviorTree* tree;
+    tb::BehaviorTree* tree;
+    Type pathFindType;
   };
   AIComponent(const CreateInfo &info);
   ~AIComponent();
@@ -76,11 +83,33 @@ public:
   // 
   void updateAIData();
 protected:
+  struct PathData {
+    RawPath* path;
+    FindRequest req;
+//     size_t frameIndex;
+  };
+  
   // основная задача это сделать деревья и нод чтоб могли выполняться на разных потоках
   // зависит это в основном не от самого дерева, а скорее от действий которое это дерево запустит
-  TinyBehavior::BehaviorTree* tree;
+  // дерево я кажется изменил так чтобы можно было изи мультитрединг использовать (НЕ ВСЕ НОДЫ)
+  tb::BehaviorTree* tree;
+  tb::Node* runningNode;
   PhysicsComponent2* physics;
   TransformComponent* trans;
+  AIInputComponent* input;
+  
+  size_t timeThreshold;
+  size_t currentTime;
+  size_t pathfindingFrame;
+  
+  // тип поиска пути
+  Type pathFindType;
+  PathData foundPath;
+  PathData oldPath;
+  
+  // нужно применить funnel alg на путь и где то сохранить это дело
+  // то есть у меня еще один массив будет, где его хранить?
+  // можно вычислять сразу после нахождения + добавить пачку дополнительных данных
 };
 
 #endif

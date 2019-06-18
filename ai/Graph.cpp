@@ -1,6 +1,51 @@
 //#include "Graph.h"
 #include "Graph.h"
 
+LineSegment::LineSegment() {}
+LineSegment::LineSegment(const glm::vec4 &a, const glm::vec4 &b) : a(a), b(b) {}
+
+float LineSegment::length() const {
+  return glm::distance(b, a);
+}
+
+glm::vec4 LineSegment::dir() const {
+  return glm::normalize(b - a);
+}
+
+simd::vec4 LineSegment::dir_simd() const {
+  const simd::vec4 sA = simd::vec4(&a.x);
+  const simd::vec4 sB = simd::vec4(&b.x);
+  return simd::normalize(sB - sA);
+}
+
+simd::vec4 LineSegment::closestPoint(const simd::vec4 &p) const {
+  const simd::vec4 sA = simd::vec4(&a.x);
+  const simd::vec4 sB = simd::vec4(&b.x);
+  const simd::vec4 vec = sB - sA;
+  
+  float t = simd::dot(p - sA, vec) / simd::dot(vec, vec);
+  t = glm::clamp(t, 0.0f, 1.0f);
+  
+  return sA + t * vec;
+}
+
+void LineSegment::leftRight(const simd::vec4 &point, const simd::vec4 &normal, simd::vec4 &left, simd::vec4 &right) const {
+  simd::vec4 vec = closestPoint(point) - point;
+  vec = simd::cross(vec, normal);
+  
+  const simd::vec4 sA = simd::vec4(&a.x);
+  const simd::vec4 sB = simd::vec4(&b.x);
+  float sign = simd::dot(vec, sB - sA);
+  
+  if (sign >= 0.0f) {
+    left = sA;
+    right = sB;
+  } else {
+    left = sB;
+    right = sA;
+  }
+}
+
 edge_t::edge_t(Graph* graph, size_t graphIndex, const EdgeData &data) : active(true), graph(graph), graphIndex(graphIndex), data(data) {}
 edge_t::~edge_t() {}
 
@@ -78,7 +123,7 @@ size_t edge_t::internalIndex() const {
   return graphIndex;
 }
 
-vertex_t::vertex_t(Graph* graph, size_t graphIndex, const Vertex &data) : active(true), graph(graph), graphIndex(graphIndex), vertex(data) {}
+vertex_t::vertex_t(Graph* graph, size_t graphIndex, const GraphVertex &data) : active(true), graph(graph), graphIndex(graphIndex), vertex(data) {}
 vertex_t::~vertex_t() {}
 
 size_t vertex_t::degree() const {
@@ -86,6 +131,10 @@ size_t vertex_t::degree() const {
 }
 
 edge_t* vertex_t::operator[] (const size_t &index) const {
+  return edges[index];
+}
+
+edge_t* vertex_t::edge(const size_t &index) const {
   return edges[index];
 }
 
@@ -128,8 +177,8 @@ void vertex_t::removeEdge(edge_t* edge) {
   }
 }
 
-Vertex vertex_t::getVertexData() const {
-  return vertex;
+const GraphVertex* vertex_t::getVertexData() const {
+  return &vertex;
 }
 
 float vertex_t::getAngle(const vertex_t* other) const {
@@ -141,9 +190,41 @@ float vertex_t::getAngle(const vertex_t* other) const {
   return -1.0f;
 }
 
+void vertex_t::addObject(const EntityAI* obj) {
+  std::unique_lock<std::mutex> lock(mutex);
+  
+  vertex.objects.push_back(obj);
+}
+
+void vertex_t::removeObject(const EntityAI* obj) {
+  std::unique_lock<std::mutex> lock(mutex);
+  
+  for (size_t i = 0; i < vertex.objects.size(); ++i) {
+    if (vertex.objects[i] == obj) {
+      std::swap(vertex.objects[i], vertex.objects.back());
+      vertex.objects.pop_back();
+      return;
+    }
+  }
+}
+
+size_t vertex_t::objCount() const {
+  std::unique_lock<std::mutex> lock(mutex);
+  
+  return vertex.objects.size();
+}
+
+const EntityAI* vertex_t::at(const size_t &index) const {
+  std::unique_lock<std::mutex> lock(mutex);
+  
+  if (index >= vertex.objects.size()) return nullptr;
+  
+  return vertex.objects[index];
+}
+
 float vertex_t::goalDistanceEstimate(const vertex_t* nodeGoal) const {
   //throw std::runtime_error("kmwvnenjc;lemw;onveowvnvon");
-  return glm::distance(vertex.center, nodeGoal->vertex.center);
+  return simd::distance(simd::vec4(&vertex.center.x), simd::vec4(&nodeGoal->vertex.center.x));
 }
 
 // bool vertex_t::getSuccessors(AStarSearch* astarSearch, const vertex_t* parentNode) const {
@@ -152,7 +233,7 @@ float vertex_t::goalDistanceEstimate(const vertex_t* nodeGoal) const {
 
 float vertex_t::getCost(const vertex_t* successor) const {
 //   throw std::runtime_error("kmwvnenjc;lemw;onveowvnvon");
-  return glm::distance(vertex.center, successor->vertex.center);
+  return simd::distance(simd::vec4(&vertex.center.x), simd::vec4(&successor->vertex.center.x));
   
   // скорее всего это быстрее чем
 //   edge_t* edge;
@@ -226,7 +307,7 @@ size_t Graph::getIndex(const vertex_t* vert) const {
   return vert->internalIndex();
 }
 
-vertex_t* Graph::addVertex(const Vertex &data) {
+vertex_t* Graph::addVertex(const GraphVertex &data) {
   vertex_t* vert = vertexPool.newElement(this, verts.size(), data);
   verts.push_back(vert);
   

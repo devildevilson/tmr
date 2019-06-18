@@ -78,7 +78,7 @@ class GraphicComponent;
 // };
 
 struct InitComponents {
-  std::string shapeName;
+  Type shape;
   bool dynamic;
   uint32_t objType;
 };
@@ -258,8 +258,6 @@ public:
 //   float upMove = 0.0f;
   
 //   PhysicComponent* physic = nullptr;
-  PhysicsComponent2* physics2;
-  TransformComponent* trans;
   
 //   simd::vec4 frontVec;
 //   simd::vec4 upVec;
@@ -288,6 +286,8 @@ public:
   const simd::vec4* getObjectShapePoints() const;
   uint32_t getObjectShapeFacesSize() const;
   const simd::vec4* getObjectShapeFaces() const;
+  
+  PhysicsIndexContainer* getGround() const;
 
   // сюда приходит input
   // + здесь должна обновляться всякая дополнительная информация
@@ -315,6 +315,10 @@ class EventComponent;
 // обновляем стейт, если время вылезает за пределы то это значит состояние закончилось
 // в этом случае даже мы можем вызвать какой-нибудь эвент
 // никаких идиотских виртуальных функций которые возвращают только bool значение
+
+// наверное нужно избавиться от этого StateController
+// он все меньше и меньше имеет какого то смысла
+// вместо него будет небольшой контейнер флажков
 class StateController : public yacs::Component/*, public Controller*/ {
 public:
   CLASS_TYPE_DECLARE
@@ -381,7 +385,7 @@ public:
   static void setOptimizer(LightOptimizer* optimizer);
   
   Light(const float &radius, const float& cutoff, const glm::vec3 &color);
-  virtual ~Light();
+  ~Light();
   
   void update(const size_t &time = 0) override;
   void init(void* userData) override;
@@ -426,6 +430,33 @@ private:
   glm::vec3 rotation;
 };
 
+class RawPath;
+
+class AIInputComponent : public InputComponent {
+public:
+  CLASS_TYPE_DECLARE
+  
+  AIInputComponent();
+  ~AIInputComponent();
+  
+  void update(const size_t &time = 0) override;
+  void init(void* userData) override;
+  
+  simd::vec4 predictPos(const size_t &predictionTime) const;
+  
+  void seek(const simd::vec4 &target);
+  void flee(const simd::vec4 &target);
+  size_t followPath(const size_t &predictionTime, const RawPath* path); // , const size_t &currentPathSegmentIndex
+  void stayOnPath(const size_t &predictionTime, const RawPath* path);
+  
+  // как понять что я дошел до конечной точки в пути?
+  // может вернуть индекс сегмента пути рядом с которым я сейчас нахожусь?
+  // ну вообще идея не лишена смысла
+private:
+  PhysicsComponent2* physics2;
+  TransformComponent* trans;
+};
+
 class CameraComponent : public yacs::Component {
 public:
   CLASS_TYPE_DECLARE
@@ -435,6 +466,7 @@ public:
 private:
   TransformComponent* trans = nullptr;
   InputComponent* input = nullptr;
+  PhysicsComponent2* phys = nullptr;
   
   //simd::mat4 view;
 };
