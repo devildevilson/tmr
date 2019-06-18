@@ -8,15 +8,18 @@
 #include "GraphicComponets.h"
 #include "Components.h"
 
+#include "ThreadPool.h"
+
 class PostPhysics : public Engine {
 public:
-  PostPhysics(yacs::Entity* player, TransformComponent* playerTransform);
+  PostPhysics(dt::thread_pool* pool, yacs::Entity* player, TransformComponent* playerTransform);
   ~PostPhysics();
   
   void update(const uint64_t &time) override;
 private:
-  yacs::Entity* player = nullptr;
-  TransformComponent* playerTransform = nullptr;
+  dt::thread_pool* pool;
+  yacs::Entity* player;
+  TransformComponent* playerTransform;
 };
 
 #endif
