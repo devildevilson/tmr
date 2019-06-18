@@ -1,18 +1,16 @@
 #version 450
 
-in gl_PerVertex
-{
+in gl_PerVertex {
   vec4 gl_Position;
   //float gl_PointSize;
   //float gl_ClipDistance[];
 } gl_in[];
 
-out gl_PerVertex
-{
-  vec4 gl_Position;
-  //float gl_PointSize;
-  //float gl_ClipDistance[];
-};
+// out gl_PerVertex {
+//   vec4 gl_Position;
+//   //float gl_PointSize;
+//   //float gl_ClipDistance[];
+// };
 
 layout(set = 0, binding = 0) uniform Camera {
   mat4 viewproj;
@@ -26,7 +24,7 @@ layout(set = 0, binding = 0) uniform Camera {
 layout(set = 1, binding = 0) uniform Uniform {
   vec4 gravity;
   vec4 planes[6];
-  uvec4 data
+  uvec4 data;
 } u;
 
 layout(points) in;
@@ -34,13 +32,13 @@ layout(triangle_strip, max_vertices = 4) out;
 
 layout(location = 0) in vec4 vel[];
 layout(location = 1) in vec4 col[];
-layout(location = 2) in uvec4 uData[];
+layout(location = 2) flat in uvec4 uData[];
 layout(location = 3) in vec4 fData[];
-layout(location = 4) in uvec4 texture[];
+layout(location = 4) flat in uvec4 texture[];
 
 layout(location = 0) out vec2 texCoord;
 layout(location = 1) out vec4 outCol;
-layout(location = 2) out uvec4 outTexture;
+layout(location = 2) flat out uvec4 outTexture;
 
 bool isGravityAffect(const uint type);
 bool changingSizeFromTime(const uint type);
@@ -77,7 +75,7 @@ void main() {
   // понятно как, нужно сделать матрицу поворота
 
   const vec4 projPos = camera.viewproj * pos;
-  const vec4 projRadius = finalRadius / pos.w;
+  const float projRadius = finalRadius / pos.w;
 
   //gl_Position = camera.viewproj * (pos + up * finalRadius - right * finalRadius);
   gl_Position = projPos + up * projRadius - right * projRadius;
@@ -138,8 +136,8 @@ uint testFrustumAABB(const vec4 planes[6], const vec4 center, const vec4 extents
     const vec4 frustumPlane = vec4(planes[i].xyz, 0.0f);
     const float dist = planes[i].w;
 
-    const float d = dot(center,     frustumPlane);
-    const float r = dot(extent, abs(frustumPlane));
+    const float d = dot(center,      frustumPlane);
+    const float r = dot(extents, abs(frustumPlane));
 
     const float d_p_r = d + r;
     const float d_m_r = d - r;

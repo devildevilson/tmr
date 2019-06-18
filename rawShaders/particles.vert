@@ -9,6 +9,8 @@ layout(set = 0, binding = 0) uniform Camera {
   uint height;
 } camera;
 
+// flat ???
+
 layout(location = 0) in vec4 pos;
 layout(location = 1) in vec4 vel;
 layout(location = 2) in vec4 col;
@@ -18,9 +20,9 @@ layout(location = 5) in uvec4 texture;
 
 layout(location = 0) out vec4 outVel;
 layout(location = 1) out vec4 outCol;
-layout(location = 2) out uvec4 outUData;
+layout(location = 2) flat out uvec4 outUData;
 layout(location = 3) out vec4 outFData;
-layout(location = 4) out uvec4 outTexture;
+layout(location = 4) flat out uvec4 outTexture;
 
 out gl_PerVertex {
   vec4 gl_Position;

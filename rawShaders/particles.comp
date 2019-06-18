@@ -29,14 +29,14 @@ layout(set = 0, binding = 0) uniform Camera {
 layout(set = 1, binding = 0) uniform Uniform {
   vec4 gravity;
   vec4 planes[6];
-  uvec4 data
+  uvec4 data;
 } u;
 
 layout(std140, set = 2, binding = 0) buffer Particles {
   Particle particles[];
 };
 
-layout(std430, set = 3, binding = 0) readonly buffer BufferCount {
+layout(std430, set = 3, binding = 0) buffer BufferCount {
   ParticlesCount particlesCount;
 };
 
@@ -52,6 +52,8 @@ layout(set = 5, binding = 0) uniform sampler2D colors;
 layout(set = 5, binding = 1) uniform sampler2D normals;
 layout(set = 5, binding = 2) uniform sampler2D depths;
 
+#define MCS_TO_SEC(dt) (float(dt) / 1000000.0f)
+
 vec4 clip(const vec4 clipNormal, const float bounce, const vec4 vel);
 
 bool isGravityAffect(const uint type);
@@ -61,9 +63,9 @@ bool stopParticleWithMinVelocity(const uint type);
 
 vec3 unpackNormal(const vec2 enc);
 vec4 getPositionFromView(vec4 viewSpacePosition);
-vec4 getPosition(const ivec2 coord, const float depth);
+vec4 getPosition(const vec2 coord, const float depth);
 
-bool SATOneAxis(const vec4 point, const float radius, const vec4 normalPoint, const vec4 normal, inout vec4 mtv, inout vec4 dist);
+bool SATOneAxis(const vec4 point, const float radius, const vec4 normalPoint, const vec4 normal, inout vec4 mtv, inout float dist);
 
 #define WORKGROUP_SIZE 256
 layout (local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
@@ -99,26 +101,26 @@ void main() {
 
   const vec4 screenPos = camera.viewproj * newPos;
   const vec2 screenUV = screenPos.xy;
-  const uvec2 pixel = screenUV * camera.dim;
+  const ivec2 pixel = ivec2(screenUV * camera.dim);
 
   const float finalRadius = radius / screenPos.w;
 
   // мы должны решить как выталкивать частицы, по идее ничего особ сложного
   const vec2 encNorm = texelFetch(normals, pixel, 0).xy;
   const vec4 normal = getPositionFromView(vec4(unpackNormal(encNorm), 0.0f));
-  const float depth = texelFetch(depths, pixel, 0);
+  const float depth = texelFetch(depths, pixel, 0).x;
 
   // у меня есть точка и нормаль к точке
   // облегченная версия САТ выталкивает в ту или иную сторону
   // клипаю по мтв скорость
   // в общем то ничего сложного
 
-  // нужно найти normalPoint, то есть вывести из depth точку
+  // нужно найти normalPoint, то есть вывести из depth точку // *2.0f-vec2(1.0f)
   const vec4 normalPoint = getPosition(screenUV, depth);
 
   vec4 mtv;
   float dist;
-  const bool res = SATOneAxis(point, radius, normalPoint, normal, mtv, dist);
+  const bool res = SATOneAxis(newPos, radius, normalPoint, normal, mtv, dist);
 
   vec4 finalPos = newPos;
   vec4 finalVel = newVel;
@@ -220,7 +222,7 @@ bool overlap(const float min1, const float max1, const float min2, const float m
 
   if (test1 > 0.0f || test2 > 0.0f) return false;
 
-  const float d = glm::max(glm::min(glm::abs(test1), glm::abs(test2)), 0.0f);
+  const float d = max(min(abs(test1), abs(test2)), 0.0f);
 
   mtv = axis;
   dist = d;
@@ -228,7 +230,7 @@ bool overlap(const float min1, const float max1, const float min2, const float m
   return true;
 }
 
-bool SATOneAxis(const vec4 point, const float radius, const vec4 normalPoint, const vec4 normal, inout vec4 mtv, inout vec4 dist) {
+bool SATOneAxis(const vec4 point, const float radius, const vec4 normalPoint, const vec4 normal, inout vec4 mtv, inout float dist) {
   const float normalCoef = dot(normalPoint, normal);
   const float pointCoef = dot(point, normal);
 

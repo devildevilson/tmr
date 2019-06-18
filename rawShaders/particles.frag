@@ -8,10 +8,15 @@ layout(set = 3, binding = 0) uniform texture2DArray textures[imagesCount];
 
 layout(location = 0) in vec2 texCoord;
 layout(location = 1) in vec4 col;
-layout(location = 2) in uvec4 inTexture;
+layout(location = 2) flat in uvec4 inTexture;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec2 outNormal;
+
+vec2 packNormal(const vec3 normal) {
+  float p = sqrt(normal.z * 8 + 8);
+  return vec2(normal.xy / p + 0.5);
+}
 
 void main() {
   const uint imageIndex = inTexture.x;

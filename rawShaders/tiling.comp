@@ -264,7 +264,7 @@ void main() {
   //vec3 fogColor = applyFog(finalColor, distance(camera.pos.xyz, worldPos), camera.pos.xyz, camera.dir.xyz);
   //finalColor = fogColor;
 
-  //finalColor = finalColor + AMBIENT * c.rgb;
+  finalColor = finalColor + AMBIENT * c.rgb;
 
   imageStore(outImage, pixel, vec4(finalColor, 1.0));
   //imageStore(outImage, pixel, vec4(abs(n), 1.0));
