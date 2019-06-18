@@ -1,31 +1,14 @@
 #include "Type.h"
 
-Type Type::get(const size_t &type) {
-  if (type >= types.size()) return Type(type);
-  
-  return types[type];
-}
-
 Type Type::get(const std::string &name) {
   const auto &itr = nameToType.find(name);
-  if (itr != nameToType.end()) return types[itr->second];
+  if (itr != nameToType.end()) return itr->second;
   
-  types.push_back(Type(types.size(), name));
-  nameToType[name] = types.back().getType();
-  
-  return types.back();
-}
-
-bool Type::has(const size_t &type) {
-  if (type >= types.size()) return false;
-  
-  return true;
+  return Type(name);
 }
 
 bool Type::has(const std::string &name) {
-  if (nameToType.find(name) == nameToType.end()) return false;
-  
-  return true;
+  return nameToType.find(name) != nameToType.end();
 }
 
 size_t Type::getType() const {
@@ -33,23 +16,32 @@ size_t Type::getType() const {
 }
 
 std::string Type::getName() const {
-  return name;
+  return typeToName[*this];
+}
+
+Type & Type::operator=(const Type &other) {
+  this->type = other.type;
+  return *this;
 }
 
 bool Type::operator==(const Type &other) const {
   return getType() == other.getType();
 }
+
+bool Type::operator!=(const Type &other) const {
+  return getType() != other.getType();
+}
   
 Type::Type() {}
 
-Type::Type(const size_t &type) {
-  this->type = type;
+Type::Type(const std::string& name) {
+  type = newType;
+  ++newType;
+  
+  nameToType[name] = *this;
+  typeToName[*this] = name;
 }
 
-Type::Type(const size_t &type, const std::string &name) {
-  this->type = type;
-  this->name = name;
-}
-
-std::vector<Type> Type::types;
-std::unordered_map<std::string, size_t> Type::nameToType;
+size_t Type::newType = 0;
+std::unordered_map<std::string, Type> Type::nameToType;
+std::unordered_map<Type, std::string> Type::typeToName;
