@@ -1,139 +1,40 @@
 #include "Event.h"
 
-EventP::EventP() {}
-
-EventP::EventP(const EventP &other) {
-  this->pos = other.pos;
-  this->event = other.event;
-}
-
-EventP::EventP(const size_t &e, const size_t &p) {
-  this->pos = p;
-  this->event = e;
-}
-
-void EventP::operator=(const EventP &other) {
-  this->pos = other.pos;
-  this->event = other.event;
-}
-
-EventsContainer::FunctionId::FunctionId() {}
-
-EventsContainer::FunctionId::FunctionId(const bool &deleteFunction, const uint64_t &id, const std::function<bool(const EventData1 &ev)> &f) {
-  this->deleteFunction = deleteFunction;
-  this->id = id;
-  this->f = f;
-}
-
 EventsContainer::EventsContainer() {}
 EventsContainer::~EventsContainer() {}
 
-EventP EventsContainer::addListener(const size_t &eventType, const std::function<bool(const EventData1 &ev)> &f) {
-  events[eventType].emplace_back(false, newId, f);
-  size_t pos = newId;
-  newId++;
-  
-  return {eventType, pos};
+void EventsContainer::registerEvent(const Type &type, const std::function<event(const Type &, const EventData &)> &func) {
+  events[type].push_back(func);
 }
 
-EventP EventsContainer::addListener(const Type &eventType, const std::function<bool(const EventData1 &ev)> &f) {
-  events[eventType.getType()].emplace_back(false, newId, f);
-  size_t pos = newId;
-  newId++;
+bool EventsContainer::hasEvent(const Type &type) const {
+  auto itr = events.find(type);
+  if (itr == events.end()) return false;
   
-  return {eventType.getType(), pos};
+  return !itr->second.empty();
 }
 
-void EventsContainer::removeListener(const EventP &pointer) {
-  auto itr = events.find(pointer.event);
-  if (itr == events.end()) return;
+event EventsContainer::fireEvent(const Type &type, const EventData &data) {
+  auto itr = events.find(type);
+  if (itr == events.end()) return failure;
   
-  auto &vec = itr->second;
+  event val = success;
   
-  for (uint64_t i = 0; i < vec.size(); ++i) {
-    if (vec[i].id == pointer.pos) {
-      if (i != vec.size()-1) {
-        std::swap(vec[i], vec[vec.size()-1]);
-      }
-      
-      vec.pop_back();
-      break;
+  for (size_t i = 0; i < itr->second.size(); ++i) {
+    const event ret = itr->second[i](type, data);
+    
+    if ((ret & can_be_deleted) == can_be_deleted) {
+      std::swap(itr->second[i], itr->second.back());
+      itr->second.pop_back();
+      --i;
     }
+    
+    const uint32_t mask = ~static_cast<uint32_t>(can_be_deleted);
+    const event tmp = static_cast<event>(mask & ret);
+    val = std::max(val, tmp);
   }
+  
+  if (itr->second.empty()) events.erase(itr);
+  
+  return val;
 }
-
-void EventsContainer::removeEvent(const size_t &eventType) {
-  events.erase(eventType);
-}
-
-void EventsContainer::removeEvent(const Type &eventType) {
-  events.erase(eventType.getType());
-}
-
-// УДАЛЯТЬ ФУНКЦИИ ПО ВОЗВРАЩЕНИЮ true ЛУЧШАЯ ИДЕЯ
-
-void EventsContainer::fireEvent(const size_t &eventType) {
-  auto itr = events.find(eventType);
-  if (itr == events.end()) return;
-  
-  auto &vec = itr->second;
-  
-  EventData1 dummyData;
-  
-  for (int64_t i = vec.size()-1; i >= 0; --i) {
-    if (vec[i].f(dummyData)) {
-      if (i != vec.size()-1) vec[i] = vec[vec.size()-1];
-      
-      vec.pop_back();
-    }
-  }
-}
-
-void EventsContainer::fireEvent(const size_t &eventType, const EventData1 &data) {
-  auto itr = events.find(eventType);
-  if (itr == events.end()) return;
-  
-  auto &vec = itr->second;
-  
-  for (int64_t i = vec.size()-1; i >= 0; --i) {
-    if (vec[i].f(data)) {
-      if (i != vec.size()-1) vec[i] = vec[vec.size()-1];
-      
-      vec.pop_back();
-    }
-  }
-}
-
-void EventsContainer::fireEvent(const Type &eventType) {
-  auto itr = events.find(eventType.getType());
-  if (itr == events.end()) return;
-  
-  auto &vec = itr->second;
-  
-  EventData1 dummyData;
-  
-  for (int64_t i = vec.size()-1; i >= 0; --i) {
-    if (vec[i].f(dummyData)) {
-      if (i != vec.size()-1) vec[i] = vec[vec.size()-1];
-      
-      vec.pop_back();
-    }
-  }
-}
-
-void EventsContainer::fireEvent(const Type &eventType, const EventData1 &data) {
-  auto itr = events.find(eventType.getType());
-  if (itr == events.end()) return;
-  
-  auto &vec = itr->second;
-  
-  for (int64_t i = vec.size()-1; i >= 0; --i) {
-    if (vec[i].f(data)) {
-      if (i != vec.size()-1) vec[i] = vec[vec.size()-1];
-      
-      vec.pop_back();
-    }
-  }
-}
-
-uint64_t EventsContainer::newId = 0;

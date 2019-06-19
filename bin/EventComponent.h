@@ -5,17 +5,7 @@
 #include "Type.h"
 #include <functional>
 
-enum event : uint32_t {
-  success = 0, // 00
-  running = 1, // 01
-  failure = 2, // 10
-  can_be_deleted = (1<<2) // 100
-};
-
-struct EventData {
-  void* additionalData;
-  void* userData;
-};
+#include "Event.h"
 
 class EventComponent : public yacs::Component {
 public:
