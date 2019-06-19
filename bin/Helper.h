@@ -229,6 +229,7 @@ void initGLFW();
 void deinitGLFW();
 void createInstance(yavf::Instance* inst);
 void createGLFWwindow(yavf::Instance* inst, WindowData &data);
+void createKHRdisplay(yavf::Instance* inst, WindowData &data);
 void createDevice(yavf::Instance* inst, const WindowData &data, yavf::Device** device);
 void createWindow(yavf::Instance* inst, yavf::Device* device, const WindowData &data, Window &window);
 // void destroyWindow(Window* window);

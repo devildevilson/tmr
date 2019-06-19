@@ -1017,13 +1017,13 @@ void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, Da
 // }
 
 void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipelineStage*> &dynPipe) {
-  data.render->addStage<BeginTaskStage>(data.container->tasks3());
+  data.render->addStage<BeginTaskStage>(); //data.container->tasks3()
   
   MonsterGPUOptimizer* monopt = nullptr;
   {
     const MonsterGPUOptimizer::CreateInfo info{
       data.device,
-      data.container->tasks1(),
+//       data.container->tasks1(),
       data.render->getCameraDataBuffer()
     };
     monopt = data.render->addStage<MonsterGPUOptimizer>(info);
@@ -1035,7 +1035,7 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
   {
     const GeometryGPUOptimizer::CreateInfo info{
       data.device,
-      data.container->tasks1(),
+//       data.container->tasks1(),
       data.render->getCameraDataBuffer()
     };
     geoopt = data.render->addStage<GeometryGPUOptimizer>(info);
@@ -1058,7 +1058,7 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
   const GBufferStage::CreateInfo info{
     data.device,
     data.render->getCameraDataBuffer(),
-    data.container->tasks2(), //reinterpret_cast<yavf::GraphicTask**>(data.task),// &graphicsTasks,
+//     data.container->tasks2(), //reinterpret_cast<yavf::GraphicTask**>(data.task),// &graphicsTasks,
     data.window->size().extent.width,
     data.window->size().extent.height,
 
@@ -1081,7 +1081,7 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
     data.device,
     data.render->getCameraDataBuffer(),
     data.render->getMatrixesBuffer(),
-    data.container->tasks1(), //reinterpret_cast<yavf::ComputeTask**>(data.task), //&computeTasks,
+//     data.container->tasks1(), //reinterpret_cast<yavf::ComputeTask**>(data.task), //&computeTasks,
 
     data.lights,
 
@@ -1095,7 +1095,7 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
 
   const ToneMappingStage::CreateInfo tInfo{
     data.device,
-    data.container->tasks1(), //reinterpret_cast<yavf::ComputeTask**>(data.task), //&computeTasks,
+//     data.container->tasks1(), //reinterpret_cast<yavf::ComputeTask**>(data.task), //&computeTasks,
 
     data.window->size().extent.width,
     data.window->size().extent.height,
@@ -1106,7 +1106,7 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
 
   const CopyStage::CreateInfo cInfo{
     data.device,
-    data.container->tasks2(), //reinterpret_cast<yavf::GraphicTask**>(data.task), //&graphicsTasks,
+//     data.container->tasks2(), //reinterpret_cast<yavf::GraphicTask**>(data.task), //&graphicsTasks,
 
     tone->getOutputImage(),
     gBuffer->getDepthBuffer(),
@@ -1123,7 +1123,7 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
   const size_t postRenderStageContainerSize = sizeof(GuiStage) + sizeof(MonsterDebugStage) + sizeof(GeometryDebugStage);
   const PostRenderStage::CreateInfo pInfo{
     data.device,
-    data.container->tasks2(), //reinterpret_cast<yavf::GraphicTask**>(data.task), //&graphicsTasks,
+//     data.container->tasks2(), //reinterpret_cast<yavf::GraphicTask**>(data.task), //&graphicsTasks,
     data.window
   };
   PostRenderStage* postRender = data.render->addStage<PostRenderStage>(postRenderStageContainerSize, pInfo);
@@ -1157,7 +1157,7 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
 //   GeometryDebugStage* geoDebug = postRender->addPart<GeometryDebugStage>(gdInfo);
 
   //data.render->addStage<EndTaskStage>(reinterpret_cast<yavf::TaskInterface**>(data.task));
-  data.render->addStage<EndTaskStage>(data.container->tasks3());
+  data.render->addStage<EndTaskStage>(); // data.container->tasks3()
 }
 
 void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, const size_t &updateDelta, PhysicsContainer &physicsContainer, PhysicsEngine** engine) {
