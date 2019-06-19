@@ -366,46 +366,36 @@ void QueueSoundType::setPlayAnyway(const bool enable) {
 }
 
 SoundSystem::SoundSystem() : device(nullptr), ctx(nullptr) {
-//   ALCdevice* device;
-//   ALCcontext* ctx;
+  TimeLogDestructor soundSystem("Sound system initialization");
+  
   ALCenum error;
-  ALboolean ret;
+//   ALboolean ret;
   
 //   openalError("Initial check");
   
   // все эти листинги мне по идее не нужны
-  ret = alcIsExtensionPresent(nullptr, "ALC_ENUMERATION_EXT");
-  if (ret) {
-    listAudioDevices(alcGetString(nullptr, ALC_ALL_DEVICES_SPECIFIER));
-  }
-  
-  ret = alcIsExtensionPresent(nullptr, "ALC_ENUMERATE_ALL_EXT");
-  if (ret) {
-    listExtensions(alcGetString(nullptr, ALC_EXTENSIONS));
-  }
-  
-  listExtensions(alGetString(AL_EXTENSIONS));
-//   listExtensions(alcGetString(nullptr, AL_EXTENSIONS));
+//   ret = alcIsExtensionPresent(nullptr, "ALC_ENUMERATION_EXT");
+//   if (ret) {
+//     listAudioDevices(alcGetString(nullptr, ALC_ALL_DEVICES_SPECIFIER));
+//   }
+//   
+//   ret = alcIsExtensionPresent(nullptr, "ALC_ENUMERATE_ALL_EXT");
+//   if (ret) {
+//     listExtensions(alcGetString(nullptr, ALC_EXTENSIONS));
+//   }
+//   
+//   listExtensions(alGetString(AL_EXTENSIONS));
   
   //ret = alcIsExtensionPresent(nullptr, "AL_EXT_static_buffer");
   //ret = alcIsExtensionPresent(nullptr, "AL_EXT_STATIC_BUFFER");
-  //ret = alIsExtensionPresent("AL_EXT_STATIC_BUFFER");
-  // пока не знаю что с этим делать
-//   ret = alIsExtensionPresent("AL_EXT_static_buffer");
-//   if (ret) {
-//     Buffer::setBufferDataStatic(true);
-//     std::cout << "AL_EXT_static_buffer is present" << "\n";
-//   }
   
-//   openalError("alcIsExtensionPresent");
-  
-  device = alcOpenDevice(NULL);
+  device = alcOpenDevice(nullptr);
   if (device == nullptr) {
     error = alcGetError(device);
     openalcError(device, error, "Could not create OpenAL device");
   }
   
-  ctx = alcCreateContext(device, NULL);
+  ctx = alcCreateContext(device, nullptr);
   error = alcGetError(device);
   openalcError(device, error, "Could not create OpenAL context");
   

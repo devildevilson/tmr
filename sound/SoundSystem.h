@@ -76,7 +76,8 @@ struct ListenerData {
 };
 
 struct Buffers {
-  Buffers() : buffers{UINT32_MAX, UINT32_MAX} {}
+  Buffers() : buffers{Buffer(UINT32_MAX), Buffer(UINT32_MAX)} {}
+  Buffers(const Buffers &buffers) : buffers{buffers.buffers[0], buffers.buffers[1]} {}
   Buffers(const Buffer &b1, const Buffer &b2) : buffers{b1, b2} {}
   ~Buffers() {}
   

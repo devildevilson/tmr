@@ -29,6 +29,7 @@ bool Buffer::isBufferDataStaticPresent() {
 }
   
 Buffer::Buffer() : alId(UINT32_MAX) {}
+Buffer::Buffer(const Buffer &buffer) : alId(buffer.id()) {}
 Buffer::Buffer(const uint32_t &id) : alId(id) {
 //   if (alId == UINT32_MAX) {
 //     alGenBuffers(1, &alId);

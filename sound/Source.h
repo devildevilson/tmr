@@ -35,6 +35,7 @@ public:
 //   };
   
   Source();
+  Source(const Source &source);
   Source(const uint32_t &id);
 //   Source(const CreateInfo &info);
 //   Source(Source &&source);

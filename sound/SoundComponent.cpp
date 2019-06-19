@@ -13,6 +13,7 @@ SoundComponent::~SoundComponent() {
 }
 
 void SoundComponent::update(const size_t &time) {
+  (void)time;
   // тут мы по идее будем в будущем обновлять звук
   // позицию и прочее
   // каким объектам это требуется?
@@ -24,6 +25,8 @@ void SoundComponent::update(const size_t &time) {
 }
 
 void SoundComponent::init(void* userData) {
+  (void)userData;
+  
   transform = getEntity()->get<TransformComponent>().get();
   physics = getEntity()->get<PhysicsComponent2>().get();
   
@@ -38,6 +41,8 @@ void SoundComponent::init(void* userData) {
 
 void SoundComponent::setSound(const Type &type, const ResourceID &soundId, const float &maxDist) {
   static const auto eventFunc = [&] (const Type type, const EventData &data, const ResourceID &soundId, const float &maxDist) {
+    (void)type;
+    (void)data;
     // тут нам нужно запихать данные для воспроизведения
     // большинство звуков которые мы отсюда стартуем, будут проигрываться лишь единожды
     // следовательно нет необходимости держать указатель на это дело

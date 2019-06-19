@@ -9,6 +9,7 @@ public:
   static bool isBufferDataStaticPresent();
   
   Buffer();
+  Buffer(const Buffer &buffer);
   Buffer(const uint32_t &id);
 //   Buffer(Buffer &&other);
   ~Buffer();

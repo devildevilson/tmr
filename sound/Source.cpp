@@ -15,6 +15,7 @@
 #endif
 
 Source::Source() : alId(UINT32_MAX) {}
+Source::Source(const Source &source) : alId(source.id()) {}
 Source::Source(const uint32_t &id) : alId(id) {
 //   if (alId == UINT32_MAX) {
 //     alGenSources(1, &alId);
