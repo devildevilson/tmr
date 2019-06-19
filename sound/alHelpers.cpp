@@ -5,9 +5,10 @@
 // #include "AL/alut.h"
 #include "AL/alext.h"
 
+#include <iostream>
+#include <cassert>
+
 #ifdef _DEBUG
-#  include <iostream>
-#  include <cassert>
 #  define ASSERT(expr) assert(expr)
 #else
 #  define ASSERT(expr)
