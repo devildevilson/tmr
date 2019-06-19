@@ -476,7 +476,7 @@ void ComputeParticleGBufferStage::create(const CreateInfo &info) {
   }
 }
 
-void ComputeParticleGBufferStage::recreatePipelines(ImageResourceContainer* data) {}
+void ComputeParticleGBufferStage::recreatePipelines(ImageResourceContainer* data) { (void)data; }
 
 void ComputeParticleGBufferStage::begin() {}
 
@@ -542,7 +542,7 @@ void ParticleGBufferStage::recreatePipelines(ImageResourceContainer* data) {
   }
   
   yavf::DescriptorSetLayout uniformLayout = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
-  yavf::DescriptorSetLayout storageLayout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
+//   yavf::DescriptorSetLayout storageLayout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
   {
     yavf::PipelineLayoutMaker plm(device);
     

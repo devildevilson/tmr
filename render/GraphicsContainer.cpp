@@ -29,7 +29,7 @@ struct WindowData {
 
 void createGLFWwindow(yavf::Instance* inst, WindowData &data) {
 //   const bool fullscreen = false;
-  const bool fullscreen = Global::settings()->get<int64_t>("game.graphics.fullscreen");
+  const bool fullscreen = bool(Global::settings()->get<int64_t>("game.graphics.fullscreen"));
 //   uint32_t width = 1280;
 //   uint32_t height = 720;
   uint32_t width = Global::settings()->get<int64_t>("game.graphics.width");
@@ -275,8 +275,8 @@ void createDevice(yavf::Instance* inst, const WindowData &data, yavf::Device** d
       }
     }
 
-    std::cout << "Device name: " << deviceProperties.deviceName << "\n";
-
+//     std::cout << "Device name: " << deviceProperties.deviceName << "\n";
+    Global::console()->printf("Using device: %s", deviceProperties.deviceName);
 
     bool extSupp = yavf::checkDeviceExtensions(physDevices[i], instanceLayers, deviceExtensions);
 
@@ -301,43 +301,12 @@ void createDevice(yavf::Instance* inst, const WindowData &data, yavf::Device** d
     }
   }
 
-//   auto devices = inst->getDevices([s, deviceExtensions] (VkPhysicalDevice physDevice) -> bool {
-//     VkPhysicalDeviceProperties deviceProperties;
-//     VkPhysicalDeviceFeatures deviceFeatures;
-//     vkGetPhysicalDeviceProperties(physDevice, &deviceProperties);
-//     vkGetPhysicalDeviceFeatures(physDevice, &deviceFeatures);
-//
-//     std::cout << "Device name: " << deviceProperties.deviceName << "\n";
-//
-//     bool extSupp = yavf::checkDeviceExtensions(physDevice, yavf::Instance::getLayers(), deviceExtensions);
-//
-//     uint32_t count = 0;
-//     vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &count, nullptr);
-//
-//     bool presentOk = false;
-//     for (uint32_t i = 0; i < count; ++i) {
-//       VkBool32 present;
-//       vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, s, &present);
-//
-//       if (present) {
-//         presentOk = true;
-//         break;
-//       }
-//     }
-//
-//     return //deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
-//            extSupp &&
-//            presentOk;
-//   });
-
   yavf::DeviceMaker dm(inst);
-//   yavf::DeviceMaker::setExtensions(deviceExtensions);
   VkPhysicalDeviceFeatures f = {};
   f.samplerAnisotropy = VK_TRUE;
 //   f.multiDrawIndirect = VK_TRUE;
 //   f.drawIndirectFirstInstance = VK_TRUE;
 //   f.fragmentStoresAndAtomics = VK_TRUE;
-  //*device = dm.beginDevice(devices[0]).createQueues().features(f).create("Graphic device");
   *device = dm.beginDevice(choosen).setExtensions(deviceExtensions).createQueues().features(f).create(instanceLayers, "Graphics device");
 }
 
@@ -386,7 +355,7 @@ void createRender(yavf::Instance* inst,
 //   }
 }
 
-GraphicsContainer::GraphicsContainer() : dev(nullptr), task(nullptr), task1(nullptr), task2(nullptr), task3(nullptr), windows(nullptr), render(nullptr) {
+GraphicsContainer::GraphicsContainer() : dev(nullptr), task(nullptr), windows(nullptr), render(nullptr) {
   uint32_t count;
   const char** ext = glfwGetRequiredInstanceExtensions(&count);
   if (count == 0) {
@@ -449,13 +418,12 @@ GraphicsContainer::~GraphicsContainer() {
   }
 
   if (task != nullptr) delete [] task;
-  if (task1 != nullptr) delete [] task1;
-  if (task2 != nullptr) delete [] task2;
-  if (task3 != nullptr) delete [] task3;
   if (windows != nullptr) delete windows;
 }
 
 void GraphicsContainer::construct(CreateInfo &info) {
+  TimeLogDestructor graphicsSystemLog("Render system initialization");
+  
   WindowData data;
   createGLFWwindow(instance(), data);
 //   createKHRdisplay(instance(), data);
@@ -470,20 +438,10 @@ void GraphicsContainer::construct(CreateInfo &info) {
   windows = window;
 
   const uint32_t count = window->getFrameCount();
-  task  = new yavf::CombinedTask*[count];
-  task1 = new yavf::ComputeTask*[count];
-  task2 = new yavf::GraphicTask*[count];
-  task3 = new yavf::TaskInterface*[count];
+  task = new yavf::CombinedTask*[count];
   createRender(instance(), dev, count, info.containerSize, info.systemContainer, &render, task);
   
   render->setContext(this);
-
-  for (uint32_t i = 0; i < count; ++i) {
-//     std::cout << "command buffer " << task[i]->getCommandBuffer() << "\n";
-    task1[i] = task[i];
-    task2[i] = task[i];
-    task3[i] = task[i];
-  }
 
   for (uint32_t i = 0; i < count; ++i) {
     task[i]->pushWaitSemaphore(window->at(i).imageAvailableSemaphore, window->at(i).flags);
@@ -570,20 +528,4 @@ yavf::TransferTask* GraphicsContainer::transfer() const {
 //   const uint32_t index = windows->currentFrame();
 //   return task[index];
   return nullptr;
-}
-
-yavf::CombinedTask** GraphicsContainer::tasks() const {
-  return task;
-}
-
-yavf::ComputeTask** GraphicsContainer::tasks1() const {
-  return task1;
-}
-
-yavf::GraphicTask** GraphicsContainer::tasks2() const {
-  return task2;
-}
-
-yavf::TaskInterface** GraphicsContainer::tasks3() const {
-  return task3;
 }

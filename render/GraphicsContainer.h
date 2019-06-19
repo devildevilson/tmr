@@ -51,18 +51,11 @@ public:
   yavf::ComputeTask* compute() const override;
   yavf::GraphicTask* graphics() const override;
   yavf::TransferTask* transfer() const override;
-  
-  yavf::CombinedTask** tasks() const;
-  yavf::ComputeTask** tasks1() const;
-  yavf::GraphicTask** tasks2() const;
-  yavf::TaskInterface** tasks3() const;
 private:
   yavf::Instance inst;
   yavf::Device* dev;
   yavf::CombinedTask** task;
-  yavf::ComputeTask** task1;
-  yavf::GraphicTask** task2;
-  yavf::TaskInterface** task3;
+  
   //WindowInterface* windows;
   Window* windows;
   VulkanRender* render;

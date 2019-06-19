@@ -88,10 +88,8 @@ VulkanRender::VulkanRender(const CreateInfo &info) : Render(info.stageContainerS
 
     uniform_layout = dlm.binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL).create(UNIFORM_BUFFER_LAYOUT_NAME);
     storage_layout = dlm.binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_ALL).create(STORAGE_BUFFER_LAYOUT_NAME);
-    
-    std::cout << "uniform_layout " << uniform_layout << '\n';
-    std::cout << "storage_layout " << storage_layout << '\n';
   }
+  (void)storage_layout;
 
   {
     uniformCameraData = device->create(yavf::BufferCreateInfo::buffer(sizeof(CameraData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT), VMA_MEMORY_USAGE_CPU_ONLY);

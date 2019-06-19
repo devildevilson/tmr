@@ -10,6 +10,7 @@ ParticleEmitterComponent::ParticleEmitterComponent() : events(nullptr) {}
 ParticleEmitterComponent::~ParticleEmitterComponent() {}
 
 void ParticleEmitterComponent::update(const size_t &time) {
+  (void)time;
 //   for (size_t i = 0; i < functions.size(); ++i) {
 //     if (functions[i](time)) {
 //       std::swap(functions[i], functions.back());

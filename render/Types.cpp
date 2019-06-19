@@ -613,6 +613,7 @@ namespace yavf {
   }
   
   Swapchain::Swapchain() : imageExtent{0, 0}, device(nullptr), swap(VK_NULL_HANDLE) {}
+  Swapchain::Swapchain(const Swapchain &swapchain) : imageExtent(swapchain.getImageExtent()), device(swapchain.device), swap(swapchain.handle()) {}
   Swapchain::Swapchain(const VkExtent2D &extent, Device* device, const VkSwapchainKHR &swap) : imageExtent(extent), device(device), swap(swap) {}
   Swapchain::~Swapchain() {}
   
@@ -671,6 +672,7 @@ namespace yavf {
   }
   
   Framebuffer::Framebuffer() : buffer(VK_NULL_HANDLE) {}
+  Framebuffer::Framebuffer(const Framebuffer &framebuffer) : buffer(framebuffer.handle()) {}
   Framebuffer::Framebuffer(VkFramebuffer buffer) : buffer(buffer) {}
   Framebuffer::~Framebuffer() {}
   

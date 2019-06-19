@@ -164,6 +164,7 @@ namespace yavf {
   class PhysicalDevice {
   public:
     PhysicalDevice();
+    PhysicalDevice(const PhysicalDevice &device);
     PhysicalDevice(VkPhysicalDevice device);
     ~PhysicalDevice();
     

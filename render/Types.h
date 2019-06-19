@@ -165,6 +165,7 @@ namespace yavf {
   class Swapchain {
   public:
     Swapchain();
+    Swapchain(const Swapchain &swapchain);
     Swapchain(const VkExtent2D &extent, Device* device, const VkSwapchainKHR &swap);
     ~Swapchain();
     
@@ -190,6 +191,7 @@ namespace yavf {
   class Framebuffer {
   public:
     Framebuffer();
+    Framebuffer(const Framebuffer &framebuffer);
     Framebuffer(VkFramebuffer buffer);
     ~Framebuffer();
     

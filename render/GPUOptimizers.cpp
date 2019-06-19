@@ -16,10 +16,6 @@ MonsterGPUOptimizer::MonsterGPUOptimizer(const CreateInfo &info) : transforms(nu
   
   yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
   yavf::DescriptorSetLayout storage_layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
-  
-  std::cout << "storage_layout " << storage_layout << "\n";
-  
-//   throw std::runtime_error("sfagagsg");
   {
     yavf::DescriptorMaker dm(device);
     
@@ -43,8 +39,6 @@ MonsterGPUOptimizer::MonsterGPUOptimizer(const CreateInfo &info) : transforms(nu
                     .addDescriptorLayout(storage_layout)
                     .addDescriptorLayout(storage_layout)
                     .create("monster_optimizer_pipeline_layout");
-                    
-    std::cout << "pipeLayout " << pipeLayout << "\n";
   }
   
   {
@@ -177,8 +171,6 @@ uniform(info.uniform) {
                  create("geometry_optimizer_descriptor_layout");
   }
   
-  std::cout << "layout " << layout << "\n";
-  
   {
     yavf::DescriptorMaker dm(device);
     
@@ -215,8 +207,6 @@ uniform(info.uniform) {
                     .addDescriptorLayout(storage_layout)
                     .addDescriptorLayout(instances_layout)
                     .create("geometry_optimizer_pipeline_layout");
-                    
-    std::cout << "pipeLayout " << pipeLayout << "\n";
   }
   
   {

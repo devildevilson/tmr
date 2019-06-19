@@ -320,11 +320,11 @@ void LightOptimizer::optimize() {
 }
 
 void LightOptimizer::clear() {
-  
+  lightData.clear();
 }
 
 size_t LightOptimizer::size() const {
-  
+  return lightData.size();
 }
 
 MonsterDebugOptimizer::MonsterDebugOptimizer() : count(0) {}

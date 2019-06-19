@@ -1174,6 +1174,7 @@ namespace yavf {
   }
 
   PhysicalDevice::PhysicalDevice() : physDevice(VK_NULL_HANDLE) {}
+  PhysicalDevice::PhysicalDevice(const PhysicalDevice &device) : physDevice(device.handle()) {}
   PhysicalDevice::PhysicalDevice(VkPhysicalDevice device) : physDevice(device) {}
   PhysicalDevice::~PhysicalDevice() {}
   
