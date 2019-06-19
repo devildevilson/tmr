@@ -8,3 +8,4 @@ include_old/
 */*.gch
 *.kate-swp
 */*.kate-swp
+CMakeLists.txt.user
