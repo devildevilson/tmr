@@ -7,11 +7,15 @@ namespace yacs {
 
 class DecalContainerComponent;
 class GraphicComponent;
+class EntityAI;
+class vertex_t;
 
 struct PhysUserData {
   yacs::Entity* ent;
   DecalContainerComponent* decalContainer;
   GraphicComponent* graphicComponent;
+  EntityAI* aiComponent;
+  vertex_t* vertex;
 };
 
 #endif
