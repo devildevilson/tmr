@@ -20,15 +20,16 @@
   #define ASSERT(expr)
 #endif
 
-BeginTaskStage::BeginTaskStage(yavf::TaskInterface** task) : task(task) {}
+BeginTaskStage::BeginTaskStage() {}
 BeginTaskStage::~BeginTaskStage() {}
 
 void BeginTaskStage::begin() {}
 
-void BeginTaskStage::doWork(const uint32_t &index) {
+void BeginTaskStage::doWork(RenderContext* context) {
 //   std::cout << "BeginTaskStage start" << "\n";
   
-  task[index]->begin();
+  context->interface()->begin();
+//   task[index]->begin();
 }
 
 void BeginTaskStage::recreate(const uint32_t &width, const uint32_t &height) {
@@ -36,15 +37,16 @@ void BeginTaskStage::recreate(const uint32_t &width, const uint32_t &height) {
   (void)height;
 }
 
-EndTaskStage::EndTaskStage(yavf::TaskInterface** task) : task(task) {}
+EndTaskStage::EndTaskStage() {}
 EndTaskStage::~EndTaskStage() {}
 
 void EndTaskStage::begin() {}
 
-void EndTaskStage::doWork(const uint32_t &index) {
+void EndTaskStage::doWork(RenderContext* context) {
 //   std::cout << "EndTaskStage start" << "\n";
   
-  task[index]->end();
+//   task[index]->end();
+  context->interface()->end();
 }
 
 void EndTaskStage::recreate(const uint32_t &width, const uint32_t &height) {
@@ -57,7 +59,7 @@ GBufferStage::GBufferStage(const size_t &containerSize, const CreateInfo &info) 
   // пайплайны, ресурсы и прочее
   
   this->device = info.device;
-  this->task = info.task;
+//   this->task = info.task;
 //   this->images = info.images;
 //   this->samplers = info.samplers;
   this->uniformBuffer = info.uniformBuffer;
@@ -88,59 +90,16 @@ void GBufferStage::begin() {
   target.nextframe();
 }
 
-void GBufferStage::doWork(const uint32_t &index) {
-//   std::cout << "GBufferStage start" << "\n";
+void GBufferStage::doWork(RenderContext* context) {
+  yavf::GraphicTask* task = context->graphics();
   
-  //task->begin();
-//   yavf::CombinedTask* tasks[parallelParts.size()];
-  
-//   ASSERT(task[index]->getFamily() < 4);
-  
-  task[index]->setRenderTarget(&target);
-  
-//   ASSERT(task[index]->getFamily() < 4);
-  
-  task[index]->beginRenderPass();
-  
-//   ASSERT(task[index]->getFamily() < 4);
-  
-//   throw std::runtime_error("GBufferStage::doWork");
-  
-//   size_t count = 0;
-//   for (uint32_t i = 0; i < parallelParts.size(); ++i) {
-//     if (parallelParts[i]->doWork(const uint32_t &index)) {
-//       tasks[count] = parallelParts[i]->getSecondaryTask();
-//       ++count;
-//     }
-//   }
-  
+  task->setRenderTarget(&target);
+  task->beginRenderPass();
   for (uint32_t i = 0; i < parallelParts.size(); ++i) {
-    parallelParts[i]->doWork(index);
+    parallelParts[i]->doWork(context);
   }
-  
-//   ASSERT(task[index]->getFamily() < 4);
-  
-  //std::vector<yavf::CombinedTask*> array(parallelParts.size());
-//   std::cout << parallelParts.size() << "\n";
-//   for (uint32_t i = 0; i < parallelParts.size(); ++i) {
-//     std::cout << parallelParts[i] << "\n";
-//     task->execute(parallelParts[i]->getSecondaryTask());
-//     //array[i] = parallelParts[i]->getSecondaryTask();
-//   }
 
-//   if (count != 0) task->execute(count, tasks);
-  
-  //task->execute(array);
-  
-  task[index]->endRenderPass();
-  
-//   ASSERT(task[index]->getFamily() < 4);
-  
-//   for (uint32_t i = 0; i < 3; ++i) {
-//     std::cout << "task pointer " << i << " " << task[i] << " family " << task[index]->getFamily() << "\n";
-//   }
-  
-  // как то так это выглядит
+  task->endRenderPass();
 }
 
 void GBufferStage::recreate(const uint32_t &width, const uint32_t &height) {
@@ -179,10 +138,6 @@ void MonsterGBufferStage::create(const CreateInfo &info) {
 //   this->images = info.images;
 //   this->samplers = info.samplers;
   this->target = info.target;
-  
-//   localTask = device->allocateGraphicTask(1, false);
-//   localTask->setRenderTarget(info.target, false);
-  this->localTask = info.task;
   
   instanceData.construct(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 100);
   yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
@@ -242,13 +197,6 @@ void MonsterGBufferStage::recreatePipelines(ImageResourceContainer* data) {
                          .create(MONSTER_PIPELINE_LAYOUT_NAME);
   }
   
-//   struct InstanceData {
-//     glm::mat4 mat;
-//     uint32_t imageIndex;
-//     uint32_t imageLayer;
-//     uint32_t samplerIndex;
-//   };
-  
   uint32_t constants[2] = {data->samplerCount(), data->imageCount()};
   
   if (pipe.handle() != VK_NULL_HANDLE) {
@@ -257,29 +205,34 @@ void MonsterGBufferStage::recreatePipelines(ImageResourceContainer* data) {
   }
   
   {
-    yavf::raii::ShaderModule vertex (device, (Global::getGameDir() + "shaders/deferredObj.vert.spv").c_str());
-    yavf::raii::ShaderModule fagment(device, (Global::getGameDir() + "shaders/deferredObj.frag.spv").c_str());
+    yavf::raii::ShaderModule vertex (device, Global::getGameDir() + "shaders/deferredObj.vert.spv");
+    yavf::raii::ShaderModule fagment(device, Global::getGameDir() + "shaders/deferredObj.frag.spv");
     
     yavf::PipelineMaker pm(device);
     pm.clearBlending();
+    
+    // почему то получается какая то параша если MonsterGPUOptimizer::InstanceData не выровнен по 16 байт
+    // с этим кстати могут быть связаны и эти идиотские лаги при движение вперед всторону и при повороте камеры
+    // если не учитывать того что этих лагов нет в вине и винде
+    // возможно что нужно переустановить драйверы и vulkan, надо кстати на венде проверить выравнивание по 16 байт
     
     pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, vertex)
              .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, fagment)
                .addSpecializationEntry(0, 0, sizeof(uint32_t))
                .addSpecializationEntry(1, sizeof(uint32_t), sizeof(uint32_t))
                .addData(2*sizeof(uint32_t), constants)
-             .vertexBinding(0, sizeof(MonsterOptimizer::InstanceData), VK_VERTEX_INPUT_RATE_INSTANCE) // никогда не забывать заполнить эти поля ВЕРНО
-               .vertexAttribute(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(MonsterOptimizer::InstanceData, mat) + sizeof(simd::vec4)*0)
-               .vertexAttribute(1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(MonsterOptimizer::InstanceData, mat) + sizeof(simd::vec4)*1)
-               .vertexAttribute(2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(MonsterOptimizer::InstanceData, mat) + sizeof(simd::vec4)*2)
-               .vertexAttribute(3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(MonsterOptimizer::InstanceData, mat) + sizeof(simd::vec4)*3)
-               .vertexAttribute(4, 0, VK_FORMAT_R32_UINT,   offsetof(MonsterOptimizer::InstanceData, textureData) + offsetof(TextureData, t) + offsetof(Texture, imageArrayIndex))
-               .vertexAttribute(5, 0, VK_FORMAT_R32_UINT,   offsetof(MonsterOptimizer::InstanceData, textureData) + offsetof(TextureData, t) + offsetof(Texture, imageArrayLayer))
-               .vertexAttribute(6, 0, VK_FORMAT_R32_UINT,   offsetof(MonsterOptimizer::InstanceData, textureData) + offsetof(TextureData, t) + offsetof(Texture, samplerIndex))
+             .vertexBinding(0, sizeof(MonsterGPUOptimizer::InstanceData), VK_VERTEX_INPUT_RATE_INSTANCE) // никогда не забывать заполнить эти поля ВЕРНО
+               .vertexAttribute(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(MonsterGPUOptimizer::InstanceData, mat) + sizeof(glm::vec4)*0)
+               .vertexAttribute(1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(MonsterGPUOptimizer::InstanceData, mat) + sizeof(glm::vec4)*1)
+               .vertexAttribute(2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(MonsterGPUOptimizer::InstanceData, mat) + sizeof(glm::vec4)*2)
+               .vertexAttribute(3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(MonsterGPUOptimizer::InstanceData, mat) + sizeof(glm::vec4)*3)
+               .vertexAttribute(4, 0, VK_FORMAT_R32_UINT,   offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(TextureData, t) + offsetof(Texture, imageArrayIndex))
+               .vertexAttribute(5, 0, VK_FORMAT_R32_UINT,   offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(TextureData, t) + offsetof(Texture, imageArrayLayer))
+               .vertexAttribute(6, 0, VK_FORMAT_R32_UINT,   offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(TextureData, t) + offsetof(Texture, samplerIndex))
                //.vertexAttribute(7,  0, VK_FORMAT_R32_SFLOAT, offsetof(MonsterOptimizer::InstanceData, textureData) + offsetof(TextureData, mirroredU))
                //.vertexAttribute(8,  0, VK_FORMAT_R32_SFLOAT, offsetof(MonsterOptimizer::InstanceData, textureData) + offsetof(TextureData, mirroredV))
-               .vertexAttribute(7, 0, VK_FORMAT_R32_SFLOAT, offsetof(MonsterOptimizer::InstanceData, textureData) + offsetof(TextureData, movementU))
-               .vertexAttribute(8, 0, VK_FORMAT_R32_SFLOAT, offsetof(MonsterOptimizer::InstanceData, textureData) + offsetof(TextureData, movementV))
+               .vertexAttribute(7, 0, VK_FORMAT_R32_SFLOAT, offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(TextureData, movementU))
+               .vertexAttribute(8, 0, VK_FORMAT_R32_SFLOAT, offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(TextureData, movementV))
              .vertexBinding(1, sizeof(Vertex))
                .vertexAttribute(9,  1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, pos))
                .vertexAttribute(10, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, color))
@@ -300,42 +253,22 @@ void MonsterGBufferStage::recreatePipelines(ImageResourceContainer* data) {
   }
 }
 
-void MonsterGBufferStage::begin() {
-//   RegionLog rl("MonsterGBufferStage::begin()");
-  
-//   monsterOptimiser->optimize();
-}
+void MonsterGBufferStage::begin() {}
 
-bool MonsterGBufferStage::doWork(const uint32_t &index) {
-//   std::cout << "MonsterGBufferStage start" << "\n";
-  
-//   RegionLog rl("MonsterGBufferStage::doWork()");
-  
+bool MonsterGBufferStage::doWork(RenderContext* context) {
   // в будущем нужно будет передавать верный сабпасс сюда
   const uint32_t instanceCount = monsterOptimiser->getInstanceCount();
   if (instanceCount == 0) return false;
   
-//   localTask->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT);
+  yavf::GraphicTask* task = context->graphics();
   
-//   localTask->setView(target->viewport());
-//   localTask->setScissor(target->scissor());
-  
-//   std::cout << "instanceCount " << instanceCount << "\n";
-  
-  localTask[index]->setPipeline(pipe);
-  localTask[index]->setDescriptor({uniformBuffer->descriptorSet()->handle(), samplers->handle(), images->handle()}, 0);
-  localTask[index]->setVertexBuffer(instanceData.vector().handle(), 0);
-  localTask[index]->setVertexBuffer(monsterDefault, 1);
-  
-  localTask[index]->draw(monsterDefaultVerticesCount, instanceCount, 0, 0);
-  
-//   throw std::runtime_error("fwewsad " + std::to_string(((Vertex*)monsterDefault->ptr())->pos.x));
+  task->setPipeline(pipe);
+  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), samplers->handle(), images->handle()}, 0);
+  task->setVertexBuffer(instanceData.vector().handle(), 0);
+  task->setVertexBuffer(monsterDefault, 1);
+  task->draw(monsterDefaultVerticesCount, instanceCount, 0, 0);
   
   monsterOptimiser->clear();
-  
-  //ASSERT(localTask[index]->getFamily() < 4);
-  
-//   localTask->end();
   
   return true;
 }
@@ -350,8 +283,6 @@ GeometryGBufferStage::GeometryGBufferStage(yavf::Buffer* worldMapVertex, Geometr
 }
 
 GeometryGBufferStage::~GeometryGBufferStage() {
-//   device->deallocate(localTask);
-  
   device->destroy(pipe.layout());
   device->destroy(pipe);
 }
@@ -365,7 +296,7 @@ void GeometryGBufferStage::create(const CreateInfo &info) {
   
 //   localTask = device->allocateGraphicTask(1, false);
 //   localTask->setRenderTarget(info.target, false);
-  this->localTask = info.task;
+//   this->localTask = info.task;
   
   indices.construct(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 100);
   instances.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 100);
@@ -451,7 +382,7 @@ void GeometryGBufferStage::recreatePipelines(ImageResourceContainer* data) {
                .vertexAttribute(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, texCoord))
              .depthTest(VK_TRUE)
              .depthWrite(VK_TRUE)
-//                          .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN)
+//              .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN)
              .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN, VK_TRUE)
              .viewport()
              .scissor()
@@ -466,45 +397,23 @@ void GeometryGBufferStage::recreatePipelines(ImageResourceContainer* data) {
   }
 }
 
-void GeometryGBufferStage::begin() {
-//   RegionLog rl("GeometryGBufferStage::begin()");
-//   opt->optimize();
-}
+void GeometryGBufferStage::begin() {}
 
-bool GeometryGBufferStage::doWork(const uint32_t &index) {
-//   std::cout << "GeometryGBufferStage start" << "\n";
-  
-//   RegionLog rl("GeometryGBufferStage::doWork()");
-  
-  // как передать данные для секондари таска?
-  // вообще у меня какое то решение было
-  
-  // мне нужно не делать ничего если нечего рисовать
-  
-  // в будущем нужно будет передавать верный сабпасс сюда
+bool GeometryGBufferStage::doWork(RenderContext* context) {
   const uint32_t indexCount = opt->getIndicesCount();
   if (indexCount == 0) return false;
   
-//   localTask->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT);
+  yavf::GraphicTask* task = context->graphics();
   
-//   localTask->setView(target->viewport());
-//   localTask->setScissor(target->scissor());
-  
-//   std::cout << "indexCount " << indexCount << "\n";
-  
-  localTask[index]->setPipeline(pipe);
-  localTask[index]->setDescriptor({uniformBuffer->descriptorSet()->handle(), samplers->handle(), images->handle(), instances.vector().descriptorSet()->handle()}, 0);
-  localTask[index]->setVertexBuffer(worldMapVertex, 0);
-  //localTask->setInstanceBuffer(instances.vector().handle(), 0);
-  localTask[index]->setIndexBuffer(indices.vector().handle());
-  
-  localTask[index]->drawIndexed(indexCount, 1, 0, 0, 0);
+  task->setPipeline(pipe);
+  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), samplers->handle(), images->handle(), instances.vector().descriptorSet()->handle()}, 0);
+  task->setVertexBuffer(worldMapVertex, 0);
+  task->setIndexBuffer(indices.vector().handle());
+  task->drawIndexed(indexCount, 1, 0, 0, 0);
   
   opt->clear();
   
-  ASSERT(localTask[index]->getFamily() < 4);
-  
-//   localTask->end();
+  ASSERT(task->getFamily() < 4);
   
   return true;
 }
@@ -519,7 +428,7 @@ GPUArray<GeometryGPUOptimizer::InstanceData>* GeometryGBufferStage::getInstanceD
 
 ComputeParticleGBufferStage::ComputeParticleGBufferStage(const StageCreateInfo &info) : 
   device(nullptr),
-  task(info.task), 
+//   task(info.task), 
   uniformBuffer(nullptr),
   particlesUniformBuffer(info.particlesUniformBuffer), 
   particles(info.particles), 
@@ -567,19 +476,17 @@ void ComputeParticleGBufferStage::create(const CreateInfo &info) {
   }
 }
 
-void ComputeParticleGBufferStage::recreatePipelines(ImageResourceContainer* data) {
-  
-}
+void ComputeParticleGBufferStage::recreatePipelines(ImageResourceContainer* data) {}
 
-void ComputeParticleGBufferStage::begin() {
-  
-}
+void ComputeParticleGBufferStage::begin() {}
 
-bool ComputeParticleGBufferStage::doWork(const uint32_t &index) {
+bool ComputeParticleGBufferStage::doWork(RenderContext* context) {
   const size_t particlesCountVariable = Global::particles()->count();
   if (particlesCountVariable == 0) return true;
   
-  task[index]->endRenderPass();
+  yavf::CombinedTask* task = context->combined();
+  
+  task->endRenderPass();
   
   // тут у нас две вещи:
   // компут шейдер с данными геометрии
@@ -591,23 +498,23 @@ bool ComputeParticleGBufferStage::doWork(const uint32_t &index) {
   #define PARTICLES_WORKGROUP_SIZE 256
   const uint32_t dispatchX = std::ceil(float(particlesCountVariable) / float(PARTICLES_WORKGROUP_SIZE));
   
-  task[index]->setPipeline(particlesPipe);
-  task[index]->setDescriptor({uniformBuffer->descriptorSet()->handle(), 
+  task->setPipeline(particlesPipe);
+  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), 
                               particlesUniformBuffer->descriptorSet()->handle(), 
                               particles->descriptorSet()->handle(), 
                               particlesCount->descriptorSet()->handle(), 
                               matrixes->descriptorSet()->handle(), 
                               gbuffer->handle()}, 0);
-  task[index]->dispatch(dispatchX, 1, 1); // тут мы разделим общее количество на блоки по 256 (512? 1024?) 
+  task->dispatch(dispatchX, 1, 1); // тут мы разделим общее количество на блоки по 256 (512? 1024?) 
   
-  task[index]->setBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+  task->setBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                           VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT);
   
-  task[index]->setPipeline(sortPipe);
-  task[index]->setDescriptor({particles->descriptorSet()->handle(), particlesCount->descriptorSet()->handle()}, 0);
-  task[index]->dispatch(1, 1, 1);
+  task->setPipeline(sortPipe);
+  task->setDescriptor({particles->descriptorSet()->handle(), particlesCount->descriptorSet()->handle()}, 0);
+  task->dispatch(1, 1, 1);
   
-  task[index]->beginRenderPass();
+  task->beginRenderPass();
   
   return true;
 }
@@ -620,9 +527,7 @@ void ParticleGBufferStage::create(const CreateInfo &info) {
   this->device = info.device;
   this->target = info.target;
   this->uniformBuffer = info.uniformBuffer;
-  this->localTask = info.task;
-  
-  
+//   this->localTask = info.task;
 }
 
 void ParticleGBufferStage::recreatePipelines(ImageResourceContainer* data) {
@@ -692,18 +597,18 @@ void ParticleGBufferStage::recreatePipelines(ImageResourceContainer* data) {
   }
 }
 
-void ParticleGBufferStage::begin() {
-  
-}
+void ParticleGBufferStage::begin() {}
 
-bool ParticleGBufferStage::doWork(const uint32_t &index) {
+bool ParticleGBufferStage::doWork(RenderContext* context) {
   const size_t particlesCountVariable = Global::particles()->count();
   if (particlesCountVariable == 0) return true;
   
-  localTask[index]->setPipeline(pipe);
-  localTask[index]->setDescriptor({uniformBuffer->descriptorSet()->handle(), particlesUniformBuffer->descriptorSet()->handle(), images->handle(), samplers->handle()}, 0);
-  localTask[index]->setVertexBuffer(particles, 0);
-  localTask[index]->drawIndirect(particlesCount, 1);
+  yavf::GraphicTask* task = context->graphics();
+  
+  task->setPipeline(pipe);
+  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), particlesUniformBuffer->descriptorSet()->handle(), images->handle(), samplers->handle()}, 0);
+  task->setVertexBuffer(particles, 0);
+  task->drawIndirect(particlesCount, 1);
   
   return true;
 }
@@ -720,7 +625,7 @@ void DecalsGBufferStage::create(const CreateInfo &info) {
   
 //   localTask = device->allocateGraphicTask(1, false);
 //   localTask->setRenderTarget(info.target, false);
-  this->localTask = info.task;
+//   this->localTask = info.task;
   
   vertices.construct(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 100);
   indices.construct(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 100);
@@ -807,23 +712,25 @@ void DecalsGBufferStage::begin() {
   optimizer->optimize();
 }
 
-bool DecalsGBufferStage::doWork(const uint32_t &index) {
+bool DecalsGBufferStage::doWork(RenderContext* context) {
   const uint32_t indexCount = optimizer->getIndicesCount();
   if (indexCount == 0) return false;
   
-  localTask[index]->setPipeline(pipe);
-  localTask[index]->setDescriptor({uniformBuffer->descriptorSet()->handle(), samplers->handle(), images->handle(), instances.vector().descriptorSet()->handle()}, 0);
-  localTask[index]->setVertexBuffer(vertices.vector().handle(), 0);
-  localTask[index]->setIndexBuffer(indices.vector().handle());
+  yavf::GraphicTask* task = context->graphics();
+  
+  task->setPipeline(pipe);
+  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), samplers->handle(), images->handle(), instances.vector().descriptorSet()->handle()}, 0);
+  task->setVertexBuffer(vertices.vector().handle(), 0);
+  task->setIndexBuffer(indices.vector().handle());
   
   // нужно будет это установить в пайплайне
   //localTask[index]->setDepthBias(EPSILON, 0.0f, 1.0f);
   
-  localTask[index]->drawIndexed(indexCount, 1, 0, 0, 0);
+  task->drawIndexed(indexCount, 1, 0, 0, 0);
   
   optimizer->clear();
   
-  ASSERT(localTask[index]->getFamily() < 4);
+  ASSERT(task->getFamily() < 4);
   
   return true;
 }
@@ -832,7 +739,7 @@ DefferedLightStage::DefferedLightStage(const CreateInfo &info) : lightArray(info
   this->device = info.device;
   this->uniformBuffer = info.uniformBuffer;
   this->matrixBuffer = info.matrixBuffer;
-  this->task = info.task;
+//   this->task = info.task;
   this->optimizer = info.optimizer;
   this->gbuffer = info.gbuffer;
   this->gbufferLayout = info.gbufferLayout;
@@ -879,12 +786,6 @@ DefferedLightStage::DefferedLightStage(const CreateInfo &info) : lightArray(info
   {
     yavf::PipelineLayoutMaker plm(device);
     
-//     std::cout << "uniform_layout " << uniform_layout << "\n";
-//     std::cout << "gbufferLayout " << gbufferLayout << "\n";
-//     std::cout << "layout " << layout << "\n";
-//     std::cout << "matrixes " << matrixes << "\n";
-//     std::cout << "storage_image_layout " << storage_image_layout << "\n";
-    
     pipelineLayout = plm.addDescriptorLayout(uniform_layout)
                         .addDescriptorLayout(gbufferLayout)
 //                                  .addDescriptorLayout(minmax_layout)
@@ -903,14 +804,6 @@ DefferedLightStage::DefferedLightStage(const CreateInfo &info) : lightArray(info
   }
   
   yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
-//   {
-//     yavf::DescriptorPoolMaker dpm(device);
-//     
-//     if (pool == VK_NULL_HANDLE) {
-//       pool = dpm.poolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 40).poolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 5).create("graphics_descriptor_pool");
-//     }
-//   }
-  
   {
     lightArray.construct(device);
     
@@ -936,29 +829,26 @@ DefferedLightStage::~DefferedLightStage() {
 }
 
 void DefferedLightStage::begin() {
-//   RegionLog rl("DefferedLightStage::begin()");
   optimizer->optimize();
 }
 
-void DefferedLightStage::doWork(const uint32_t &index) {
-//   std::cout << "DefferedLightStage start" << "\n";
+void DefferedLightStage::doWork(RenderContext* context) {
+  yavf::ComputeTask* task = context->compute();
   
-//   RegionLog rl("DefferedLightStage::doWork()", true);
-  
-  task[index]->setPipeline(pipe);
-  task[index]->setDescriptor({uniformBuffer->descriptorSet()->handle(), 
-                              gbuffer->handle(), 
-                              lightArray.vector().descriptorSet()->handle(), 
-                              matrixBuffer->descriptorSet()->handle(), 
-                              output->view()->descriptorSet()->handle()}, 0);
+  task->setPipeline(pipe);
+  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), 
+                      gbuffer->handle(), 
+                      lightArray.vector().descriptorSet()->handle(), 
+                      matrixBuffer->descriptorSet()->handle(), 
+                      output->view()->descriptorSet()->handle()}, 0);
   const uint32_t xCount = glm::ceil(static_cast<float>(output->info().extent.width)  / static_cast<float>(WORKGROUP_SIZE));
   const uint32_t yCount = glm::ceil(static_cast<float>(output->info().extent.height) / static_cast<float>(WORKGROUP_SIZE));
-  task[index]->dispatch(xCount, yCount, 1);
+  task->dispatch(xCount, yCount, 1);
   
   // баррьер?
   
-  task[index]->setBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                          VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT);
+  task->setBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                   VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT);
 }
 
 void DefferedLightStage::recreate(const uint32_t &width, const uint32_t &height) {
@@ -975,7 +865,7 @@ yavf::DescriptorSet* DefferedLightStage::getOutputDescriptor() const {
 
 ToneMappingStage::ToneMappingStage(const CreateInfo &info) {
   this->device = info.device;
-  this->task = info.task;
+//   this->task = info.task;
   this->highResImage = info.highResImage;
   
   output = device->create(yavf::ImageCreateInfo::texture2D({info.width, info.height}, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
@@ -1031,21 +921,19 @@ void ToneMappingStage::begin() {
   // ничего видимо
 }
 
-void ToneMappingStage::doWork(const uint32_t &index) {
-//   std::cout << "ToneMappingStage start" << "\n";
+void ToneMappingStage::doWork(RenderContext* context) {
+  yavf::ComputeTask* task = context->compute();
   
-//   RegionLog rl("ToneMappingStage::doWork()");
-  
-  task[index]->setPipeline(pipe);
-  task[index]->setDescriptor({highResImage->handle(), output->view()->descriptorSet()->handle()}, 0);
+  task->setPipeline(pipe);
+  task->setDescriptor({highResImage->handle(), output->view()->descriptorSet()->handle()}, 0);
   const uint32_t xCount = glm::ceil(static_cast<float>(output->info().extent.width)  / static_cast<float>(WORKGROUP_SIZE));
   const uint32_t yCount = glm::ceil(static_cast<float>(output->info().extent.height) / static_cast<float>(WORKGROUP_SIZE));
-  task[index]->dispatch(xCount, yCount, 1);
+  task->dispatch(xCount, yCount, 1);
   
   // барьер?
   
-  task[index]->setBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                          VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT);
+  task->setBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                   VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT);
 }
 
 void ToneMappingStage::recreate(const uint32_t &width, const uint32_t &height) {
@@ -1058,7 +946,7 @@ yavf::Image* ToneMappingStage::getOutputImage() const {
 
 CopyStage::CopyStage(const CreateInfo &info) {
   this->device = info.device;
-  this->task = info.task;
+//   this->task = info.task;
   this->src = info.src;
   this->depthSrc = info.depthSrc;
   this->presentFamily = info.presentFamily;
@@ -1071,11 +959,7 @@ void CopyStage::begin() {
   // ничего?
 }
 
-void CopyStage::doWork(const uint32_t &index) {
-//   std::cout << "CopyStage start" << "\n";
-  
-//   RegionLog rl("CopyStage::doWork()");
-  
+void CopyStage::doWork(RenderContext* context) {  
   static const VkImageSubresourceRange range{
     VK_IMAGE_ASPECT_COLOR_BIT,
     0, 1, 0, 1
@@ -1102,17 +986,19 @@ void CopyStage::doWork(const uint32_t &index) {
     }
   };
   
-  task[index]->setBarrier(window->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, range, presentFamily, VK_QUEUE_FAMILY_IGNORED);
-  task[index]->setBarrier(src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-  task[index]->copyBlit(src, window->getImage(), blit);
-  task[index]->setBarrier(src, VK_IMAGE_LAYOUT_GENERAL);
-  task[index]->setBarrier(window->getImage(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, range, VK_QUEUE_FAMILY_IGNORED, presentFamily);
+  yavf::GraphicTask* task = context->graphics();
   
-  task[index]->setBarrier(depthSrc, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
-  task[index]->setBarrier(window->getDepth(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
-  task[index]->copy(depthSrc, window->getDepth(), VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
-  task[index]->setBarrier(depthSrc, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
-  task[index]->setBarrier(window->getDepth(), VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+  task->setBarrier(window->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, range, presentFamily, VK_QUEUE_FAMILY_IGNORED);
+  task->setBarrier(src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+  task->copyBlit(src, window->getImage(), blit);
+  task->setBarrier(src, VK_IMAGE_LAYOUT_GENERAL);
+  task->setBarrier(window->getImage(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, range, VK_QUEUE_FAMILY_IGNORED, presentFamily);
+  
+  task->setBarrier(depthSrc, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+  task->setBarrier(window->getDepth(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+  task->copy(depthSrc, window->getDepth(), VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
+  task->setBarrier(depthSrc, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+  task->setBarrier(window->getDepth(), VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
 }
 
 void CopyStage::recreate(const uint32_t &width, const uint32_t &height) {
@@ -1124,7 +1010,7 @@ void CopyStage::recreate(const uint32_t &width, const uint32_t &height) {
 
 PostRenderStage::PostRenderStage(const size_t &containerSize, const CreateInfo &info) : container(containerSize) {
   this->device = info.device;
-  this->task = info.task;
+//   this->task = info.task;
 //   this->target = info.target;
   this->window = info.window;
 }
@@ -1147,25 +1033,23 @@ void PostRenderStage::begin() {
   }
 }
 
-void PostRenderStage::doWork(const uint32_t &index) {
-//   RegionLog rl("PostRenderStage::doWork()");
+void PostRenderStage::doWork(RenderContext* context) {
+  yavf::GraphicTask* task = context->graphics();  
   
-//   std::cout << "PostRenderStage start" << "\n";
-  
-  task[index]->setRenderTarget(window->currentRenderTarget());
+  task->setRenderTarget(window->currentRenderTarget());
   
   //VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS
-  task[index]->beginRenderPass();
+  task->beginRenderPass();
   
   for (size_t i = 0; i < parts.size(); ++i) {
-    parts[i]->doWork(index);
+    parts[i]->doWork(context);
   }
   
 //   for (uint32_t i = 0; i < parts.size(); ++i) {
 //     task->execute(parts[i]->getSecondaryTask());
 //   }
   
-  task[index]->endRenderPass();
+  task->endRenderPass();
 }
 
 void PostRenderStage::recreate(const uint32_t &width, const uint32_t &height) {
@@ -1174,76 +1058,6 @@ void PostRenderStage::recreate(const uint32_t &width, const uint32_t &height) {
   
   // ничего?
 }
-
-// void drawGUI(const yavf::Pipeline &pipe, yavf::Buffer* vertexGui, yavf::Buffer* indexGui, yavf::GraphicTask* task) {
-//   ImGuiIO& io = ImGui::GetIO();
-//   ImDrawData* draw_data = ImGui::GetDrawData();
-// 
-//   // посмотрим как это все выглядит
-//   yavf::ImageView* t = reinterpret_cast<yavf::ImageView*>(io.Fonts->TexID);
-// 
-//   // прибиндим пайплайн и текстурку
-//   task->setPipeline(pipe);
-//   task->setDescriptor(t->descriptorSet(), 0);
-// 
-//   // прибиндим вершинный и буфер индексов
-//   task->setVertexBuffer(vertexGui, 0);
-//   task->setIndexBuffer(indexGui, VK_INDEX_TYPE_UINT16);
-// 
-//   // ЧЕКНУТЬ!!!
-//   // вроде что с вьюпортом, что без
-//   // вьпорт уже прибинден ранее
-// 
-//   // размер и положение (?)
-//   // это дело можно в юниформ засунуть
-//   glm::vec4 vec(2.0f/io.DisplaySize.x, 2.0f/io.DisplaySize.y, -1.0f, -1.0f);
-//   task->setConsts(0, sizeof(glm::vec4), &vec);
-// 
-//   // Setup scale and translation:
-//   // {
-//   //   float scale[2];
-//   //   scale[0] = 2.0f/io.DisplaySize.x;
-//   //   scale[1] = 2.0f/io.DisplaySize.y;
-//   //   float translate[2];
-//   //   translate[0] = -1.0f;
-//   //   translate[1] = -1.0f;
-//   //   graphicDevice->pushConstants(graphicDevice->getBasicGuiPIndex(), VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 0, sizeof(float) * 2, scale);
-//   //   graphicDevice->pushConstants(graphicDevice->getBasicGuiPIndex(), VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 2, sizeof(float) * 2, translate);
-//   // }
-// 
-//   // отрисовываем
-//   int vtx_offset = 0;
-//   int idx_offset = 0;
-//   for (int n = 0; n < draw_data->CmdListsCount; ++n) {
-//     const ImDrawList* cmd_list = draw_data->CmdLists[n];
-//     for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; ++cmd_i) {
-//       const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
-// 
-//       if (pcmd->UserCallback) pcmd->UserCallback(cmd_list, pcmd);
-//       else {
-//         VkRect2D rect{
-//           {
-//             pcmd->ClipRect.x > 0.0f ? (int32_t)(pcmd->ClipRect.x) : 0,
-//             pcmd->ClipRect.y > 0.0f ? (int32_t)(pcmd->ClipRect.y) : 0
-//           },
-//           {
-//             uint32_t(pcmd->ClipRect.z - pcmd->ClipRect.x),
-//             uint32_t(pcmd->ClipRect.w - pcmd->ClipRect.y + 1) // FIXME: Why +1 here?
-//           }
-//         };
-// 
-//         task->setScissor(rect);
-//         task->drawIndexed(pcmd->ElemCount, 1, idx_offset, vtx_offset, 0);
-//       }
-// 
-//       idx_offset += pcmd->ElemCount;
-//     }
-//     vtx_offset += cmd_list->VtxBuffer.Size;
-//   }
-//   
-//   // мне нужно понять, во первых, как рисовать кастомные картинки?
-//   // во вторых, че по стилям? 
-// }
 
 // тут нужно бы еще передать дескриптор
 void drawGUI(nuklear_data* data, const yavf::Pipeline &pipe, yavf::Buffer* vertexGui, yavf::Buffer* indexGui, yavf::Buffer* matrix, yavf::GraphicTask* task) {
@@ -1308,71 +1122,6 @@ void drawGUI(nuklear_data* data, const yavf::Pipeline &pipe, yavf::Buffer* verte
   nk_clear(&data->ctx);
 }
 
-// GuiStage::GuiStage(const CreateInfo &info) {
-//   this->device = info.device;
-//   this->task = info.task;
-//   this->target = info.target;
-//   
-//   {
-//     const yavf::BufferCreateInfo info{
-//       0,
-//       100*sizeof(ImDrawVert),
-//       VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-//       1,
-//       VMA_MEMORY_USAGE_CPU_ONLY
-//     };
-//     
-//     vertexGui = device->createBuffer(info);
-//   }
-//   
-//   {
-//     const yavf::BufferCreateInfo info{
-//       0,
-//       100*sizeof(ImDrawIdx),
-//       VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-//       1,
-//       VMA_MEMORY_USAGE_CPU_ONLY
-//     };
-//     
-//     indexGui = device->createBuffer(info);
-//   }
-//   
-//   yavf::DescriptorSetLayout sampled_image_layout = device->setLayout(SAMPLED_IMAGE_LAYOUT_NAME);
-//   
-//   yavf::PipelineLayout gui_layout = VK_NULL_HANDLE;
-//   {
-//     yavf::PipelineLayoutMaker plm(device);
-//     
-//     gui_layout = plm.addDescriptorLayout(sampled_image_layout).addPushConstRange(0, sizeof(glm::vec2) + sizeof(glm::vec2)).create("gui_layout");
-//   }
-//   
-//   {
-//     yavf::PipelineMaker pm(device);
-//     pm.clearBlending();
-//     
-//     pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, Global::getGameDir() + "shaders/vertGui.spv")
-//              .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, Global::getGameDir() + "shaders/fragGui.spv")
-//              .vertexBinding(0, sizeof(ImDrawVert))
-//                .vertexAttribute(0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, pos))
-//                .vertexAttribute(1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, uv))
-//                .vertexAttribute(2, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(ImDrawVert, col))
-//              .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
-//              .depthTest(VK_FALSE)
-//              .depthWrite(VK_FALSE)
-//              .clearBlending()
-//              .colorBlendBegin()
-//                .srcColor(VK_BLEND_FACTOR_SRC_ALPHA)
-//                .dstColor(VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
-//                .srcAlpha(VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
-//                .dstAlpha(VK_BLEND_FACTOR_SRC_ALPHA)
-//              .viewport()
-//              .scissor()
-//              .dynamicState(VK_DYNAMIC_STATE_VIEWPORT)
-//              .dynamicState(VK_DYNAMIC_STATE_SCISSOR)
-//              .create("gui_pipeline", gui_layout, target->renderPass());
-//   }
-// }
-
 struct gui_vertex {
   glm::vec2 pos;
   glm::vec2 uv;
@@ -1398,7 +1147,7 @@ void GuiStage::create(const CreateInfo &info) {
   
 //   localTask = device->allocateGraphicTask(1, false);
 //   localTask->setRenderTarget(info.target, false);
-  this->localTask = info.task;
+//   this->localTask = info.task;
   
   {
     vertexGui = device->create(yavf::BufferCreateInfo::buffer(MAX_VERTEX_BUFFER, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT), VMA_MEMORY_USAGE_CPU_ONLY);
@@ -1565,38 +1314,11 @@ void GuiStage::begin() {
     -1.0f, -1.0f,  0.0f,  1.0f);
 }
 
-void GuiStage::doWork(const uint32_t &index) {
-//   RegionLog rl("GuiStage::doWork()");
+void GuiStage::doWork(RenderContext* context) {
+  yavf::GraphicTask* task = context->graphics();
   
-//   std::cout << "GuiStage start" << "\n";
-  
-//   task->setRenderTarget(target, false);
-  
-//   task->beginRenderPass();
-  
-//   for (size_t i = 0; i < debug.size(); ++i) {
-//     debug[i](deferredData.combTask);
-//   }
-  
-//   localTask->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT);
-  
-//   localTask->setView(target->viewport());
-//   localTask->setScissor(target->scissor());
-  
-  // сюда нужно будет передать data
-  //drawGUI(pipe, vertexGui, indexGui, localTask);
-  drawGUI(data, pipe, vertexGui, indexGui, matrix, localTask[index]);
-//   localTask->end();
-  
-//   task->endRenderPass();
+  drawGUI(data, pipe, vertexGui, indexGui, matrix, task);
 }
-
-// void GuiStage::recreate(const uint32_t &width, const uint32_t &height) {
-//   (void)width;
-//   (void)height;
-//   
-//   // ничего?
-// }
 
 MonsterDebugStage::MonsterDebugStage(const CreateInfo &info) : monsterDebug(nullptr), instanceCount(0) {
   this->uniformBuffer = info.uniformBuffer;
@@ -1615,7 +1337,7 @@ void MonsterDebugStage::create(const PostRenderPart::CreateInfo &info) {
   this->device = info.device;
 //   this->target = info.target;
   this->window = info.window;
-  this->localTask = info.task;
+//   this->localTask = info.task;
   
   yavf::DescriptorSetLayout uniform_layout = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
   
@@ -1701,34 +1423,23 @@ void MonsterDebugStage::begin() {
   instanceCount = monsterOptimiser->getInstanceCount();
 }
 
-void MonsterDebugStage::doWork(const uint32_t &index) {
-//   std::cout << "MonsterDebugStage start" << "\n";
-  
-  // почему то жутко лагает отрисовка
-  // связано это 200% с дебагом
-  // причем с дебагом геометрии
-  
-  //const uint32_t instanceCount = monsterOptimiser->getInstanceCount();
-  
+void MonsterDebugStage::doWork(RenderContext* context) {
   static cvar debugDraw("debugDraw");
   if (!bool(debugDraw.getFloat())) return;
   if (instanceCount == 0) return;
   
-  localTask[index]->setView(window->currentRenderTarget()->viewport());
-  localTask[index]->setScissor(window->currentRenderTarget()->scissor());
+  yavf::GraphicTask* task = context->graphics();
   
-  localTask[index]->setPipeline(pipe);
-  localTask[index]->setDescriptor(uniformBuffer->descriptorSet(), 0);
-//   localTask->setInstanceBuffer(monData->vector().handle(), 0);
-  localTask[index]->setVertexBuffer(instData.vector().handle(), 0);
-  localTask[index]->setVertexBuffer(monsterDebug, 1);
+  task->setView(window->currentRenderTarget()->viewport());
+  task->setScissor(window->currentRenderTarget()->scissor());
   
-//   std::cout << "instanceCount " << instanceCount << '\n';
-  localTask[index]->draw(cubeStripVerticesCount, instanceCount, 0, 0);
+  task->setPipeline(pipe);
+  task->setDescriptor(uniformBuffer->descriptorSet(), 0);
+  task->setVertexBuffer(instData.vector().handle(), 0);
+  task->setVertexBuffer(monsterDebug, 1);
+  task->draw(cubeStripVerticesCount, instanceCount, 0, 0);
   
   optimizer->clear();
-  
-//   throw std::runtime_error("qoewkfkwjefijwqfji");
 }
 
 GeometryDebugStage::GeometryDebugStage(const CreateInfo &info) : indexCount(0) {
@@ -1748,7 +1459,7 @@ void GeometryDebugStage::create(const PostRenderPart::CreateInfo &info) {
   this->device = info.device;
 //   this->target = info.target;
   this->window = info.window;
-  this->localTask = info.task;
+//   this->localTask = info.task;
   
   yavf::DescriptorSetLayout storage_layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
   yavf::DescriptorSetLayout uniform_layout = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
@@ -1821,26 +1532,22 @@ void GeometryDebugStage::begin() {
   indexCount = geometryOptimiser->getIndicesCount();
 }
 
-void GeometryDebugStage::doWork(const uint32_t &index) {
-//   std::cout << "GeometryDebugStage start" << "\n";
-  
-  //const uint32_t indexCount = geometryOptimiser->getIndicesCount();
-  
+void GeometryDebugStage::doWork(RenderContext* context) {
   static cvar debugDraw("debugDraw");
   if (!bool(debugDraw.getFloat())) return;
   if (indexCount == 0) return;
   
-  localTask[index]->setView(window->currentRenderTarget()->viewport());
-  localTask[index]->setScissor(window->currentRenderTarget()->scissor());
+  yavf::GraphicTask* task = context->graphics();
   
-  localTask[index]->setPipeline(pipe);
-  localTask[index]->setDescriptor({uniformBuffer->descriptorSet()->handle(), instData.vector().descriptorSet()->handle()}, 0);
-  localTask[index]->setVertexBuffer(worldMapVertex, 0);
-  //localTask->setInstanceBuffer(instances.vector().handle(), 0);
-  localTask[index]->setIndexBuffer(indices->vector().handle());
+  task->setView(window->currentRenderTarget()->viewport());
+  task->setScissor(window->currentRenderTarget()->scissor());
   
-//   std::cout << "indexCount " << indexCount << '\n';
-  localTask[index]->drawIndexed(indexCount, 1, 0, 0, 0);
+  task->setPipeline(pipe);
+  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), instData.vector().descriptorSet()->handle()}, 0);
+  task->setVertexBuffer(worldMapVertex, 0);
+  task->setIndexBuffer(indices->vector().handle());
+  
+  task->drawIndexed(indexCount, 1, 0, 0, 0);
   
   optimizer->clear();
 }

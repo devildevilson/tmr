@@ -4,8 +4,6 @@
 #include <cstdint>
 #include "Utility.h"
 
-//#include <glm/glm.hpp>
-
 #define DEFAULT_DESCRIPTOR_POOL_NAME "default_descriptor_pool"
 #define UNIFORM_BUFFER_LAYOUT_NAME "uniform_layout"
 #define MATRICES_BUFFER_LAYOUT_NAME "matrixes_layout"

@@ -32,27 +32,27 @@ public:
 
 class BeginTaskStage : public RenderStage {
 public:
-  BeginTaskStage(yavf::TaskInterface** task);
+  BeginTaskStage();
   ~BeginTaskStage();
   
   void begin() override;
-  void doWork(const uint32_t &index) override;
+  void doWork(RenderContext* context) override;
   void recreate(const uint32_t &width, const uint32_t &height) override;
 private:
-  yavf::TaskInterface** task;
+//   yavf::TaskInterface** task;
   //yavf::CombinedTask** task;
 };
 
 class EndTaskStage : public RenderStage {
 public:
-  EndTaskStage(yavf::TaskInterface** task);
+  EndTaskStage();
   ~EndTaskStage();
   
   void begin() override;
-  void doWork(const uint32_t &index) override;
+  void doWork(RenderContext* context) override;
   void recreate(const uint32_t &width, const uint32_t &height) override;
 private:
-  yavf::TaskInterface** task = nullptr;
+//   yavf::TaskInterface** task = nullptr;
 };
 
 class GBufferPart {
@@ -62,7 +62,7 @@ public:
     yavf::Buffer* uniformBuffer;
     
     yavf::RenderTarget* target;
-    yavf::GraphicTask** task;
+//     yavf::GraphicTask** task;
     
 //     yavf::Descriptor images;
 //     yavf::Descriptor samplers;
@@ -75,11 +75,11 @@ public:
   virtual void recreatePipelines(ImageResourceContainer* data) = 0;
   
   virtual void begin() = 0;
-  virtual bool doWork(const uint32_t &index) = 0;
+  virtual bool doWork(RenderContext* context) = 0;
   
-  yavf::GraphicTask* getSecondaryTask() const { return localTask[0]; }
+//   yavf::GraphicTask* getSecondaryTask() const { return localTask[0]; }
 protected:
-  yavf::GraphicTask** localTask;
+//   yavf::GraphicTask** localTask;
 };
 
 class GBufferStage : public RenderStage, public DynamicPipelineStage {
@@ -88,7 +88,7 @@ public:
     yavf::Device* device;
     yavf::Buffer* uniformBuffer;
     //yavf::RenderTarget* target;
-    yavf::GraphicTask** task;
+//     yavf::GraphicTask** task;
     
     uint32_t width;
     uint32_t height;
@@ -124,7 +124,7 @@ public:
       device,
       uniformBuffer,
       &target,
-      task
+//       task
 //       images,
 //       samplers
     };
@@ -138,7 +138,7 @@ public:
   void recreatePipelines(ImageResourceContainer* data) override;
   
   void begin() override;
-  void doWork(const uint32_t &index) override;
+  void doWork(RenderContext* context) override;
   void recreate(const uint32_t &width, const uint32_t &height) override;
   
   // отсюда нужно будет еще получить созданные пайплайны
@@ -163,7 +163,7 @@ private:
   
   // тут должен быть рендертаргет
   //yavf::RenderTarget* target = nullptr;
-  yavf::GraphicTask** task;
+//   yavf::GraphicTask** task;
   
   Deferred target;
 };
@@ -185,7 +185,7 @@ public:
   void recreatePipelines(ImageResourceContainer* data) override;
   
   void begin() override;
-  bool doWork(const uint32_t &index) override;
+  bool doWork(RenderContext* context) override;
   
   GPUArray<MonsterGPUOptimizer::InstanceData>* getInstanceData();
 private:
@@ -217,7 +217,7 @@ public:
   void recreatePipelines(ImageResourceContainer* data) override;
   
   void begin() override;
-  bool doWork(const uint32_t &index) override;
+  bool doWork(RenderContext* context) override;
   
   GPUArray<uint32_t>* getIndicesArray();
   GPUArray<GeometryGPUOptimizer::InstanceData>* getInstanceData();
@@ -258,7 +258,7 @@ private:
 class ComputeParticleGBufferStage : public GBufferPart {
 public:
   struct StageCreateInfo {
-    yavf::CombinedTask** task;
+//     yavf::CombinedTask** task;
     
 //     yavf::Buffer* uniformBuffer;
     yavf::Buffer* particlesUniformBuffer;
@@ -277,7 +277,7 @@ public:
   void recreatePipelines(ImageResourceContainer* data) override;
   
   void begin() override;
-  bool doWork(const uint32_t &index) override;
+  bool doWork(RenderContext* context) override;
   
   // тут мы также должны получить индирект буфер
 private:
@@ -317,7 +317,7 @@ public:
   void recreatePipelines(ImageResourceContainer* data) override;
   
   void begin() override;
-  bool doWork(const uint32_t &index) override;
+  bool doWork(RenderContext* context) override;
 private:
   yavf::Device* device;
   yavf::Pipeline pipe;
@@ -345,7 +345,7 @@ public:
   void recreatePipelines(ImageResourceContainer* data) override;
   
   void begin() override;
-  bool doWork(const uint32_t &index) override;
+  bool doWork(RenderContext* context) override;
 private:
   yavf::Device* device;
   yavf::Pipeline pipe;
@@ -374,7 +374,7 @@ public:
     yavf::Buffer* uniformBuffer;
     yavf::Buffer* matrixBuffer;
     //yavf::RenderTarget* target;
-    yavf::ComputeTask** task;
+//     yavf::ComputeTask** task;
     
     LightOptimizer* optimizer;
     
@@ -389,7 +389,7 @@ public:
   ~DefferedLightStage();
   
   void begin() override;
-  void doWork(const uint32_t &index) override;
+  void doWork(RenderContext* context) override;
   void recreate(const uint32_t &width, const uint32_t &height) override;
   
   LightOptimizer* getOptimizer();
@@ -417,7 +417,7 @@ class ToneMappingStage : public RenderStage {
 public:
   struct CreateInfo {
     yavf::Device* device;
-    yavf::ComputeTask** task;
+//     yavf::ComputeTask** task;
     
     uint32_t width;
     uint32_t height;
@@ -429,13 +429,13 @@ public:
   ~ToneMappingStage();
   
   void begin() override;
-  void doWork(const uint32_t &index) override;
+  void doWork(RenderContext* context) override;
   void recreate(const uint32_t &width, const uint32_t &height) override;
   
   yavf::Image* getOutputImage() const;
 private:
   yavf::Device* device = nullptr;
-  yavf::ComputeTask** task;
+//   yavf::ComputeTask** task;
   
   yavf::DescriptorSet* highResImage; // мы получаем ее из предыдущих стейджев
   
@@ -453,7 +453,7 @@ class CopyStage : public RenderStage {
 public:
   struct CreateInfo {
     yavf::Device* device;
-    yavf::GraphicTask** task;
+//     yavf::GraphicTask** task;
     
     yavf::Image* src;
     yavf::Image* depthSrc;
@@ -466,7 +466,7 @@ public:
   ~CopyStage();
   
   void begin() override;
-  void doWork(const uint32_t &index) override;
+  void doWork(RenderContext* context) override;
   void recreate(const uint32_t &width, const uint32_t &height) override;
 private:
   yavf::Device* device = nullptr;
@@ -491,7 +491,7 @@ public:
     
 //     yavf::RenderTarget* target;
     Window* window;
-    yavf::GraphicTask** task;
+//     yavf::GraphicTask** task;
   };
   
   virtual ~PostRenderPart() {}
@@ -501,19 +501,19 @@ public:
   virtual void recreatePipelines(ImageResourceContainer* data) = 0;
   
   virtual void begin() = 0;
-  virtual void doWork(const uint32_t &index) = 0;
+  virtual void doWork(RenderContext* context) = 0;
   
-  yavf::GraphicTask* getSecondaryTask() const { return localTask[0]; }
+//   yavf::GraphicTask* getSecondaryTask() const { return localTask[0]; }
 protected:
   //yavf::CombinedTask* localTask = nullptr;
-  yavf::GraphicTask** localTask;
+//   yavf::GraphicTask** localTask;
 };
 
 class PostRenderStage : public RenderStage, public DynamicPipelineStage {
 public:
   struct CreateInfo {
     yavf::Device* device;
-    yavf::GraphicTask** task;
+//     yavf::GraphicTask** task;
     Window* window; // тут нужно что то придумать
   };
   
@@ -529,7 +529,7 @@ public:
       device,
 //       target,
       window,
-      task
+//       task
     };
     
     parts.back()->create(info);
@@ -540,7 +540,7 @@ public:
   void recreatePipelines(ImageResourceContainer* data) override;
   
   void begin() override;
-  void doWork(const uint32_t &index) override;
+  void doWork(RenderContext* context) override;
   void recreate(const uint32_t &width, const uint32_t &height) override;
 protected:
   yavf::Device* device = nullptr;
@@ -571,7 +571,7 @@ public:
   void recreatePipelines(ImageResourceContainer* data) override;
   
   void begin() override;
-  void doWork(const uint32_t &index) override;
+  void doWork(RenderContext* context) override;
   //void recreate(const uint32_t &width, const uint32_t &height) override;
 private:
   yavf::Device* device = nullptr;
@@ -609,7 +609,7 @@ public:
   void recreatePipelines(ImageResourceContainer* data) override;
   
   void begin() override;
-  void doWork(const uint32_t &index) override;
+  void doWork(RenderContext* context) override;
 private:
   yavf::Device* device = nullptr;
 //   yavf::CombinedTask* task = nullptr;
@@ -653,7 +653,7 @@ public:
   void recreatePipelines(ImageResourceContainer* data) override;
   
   void begin() override;
-  void doWork(const uint32_t &index) override;
+  void doWork(RenderContext* context) override;
 private:
   yavf::Device* device = nullptr;
 //   yavf::CombinedTask* task = nullptr;

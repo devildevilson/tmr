@@ -10,7 +10,8 @@ struct MonsterOptimizerCount {
   glm::vec4 playerRotation;
 };
 
-MonsterGPUOptimizer::MonsterGPUOptimizer(const CreateInfo &info) : transforms(nullptr), matrices(nullptr), textures(nullptr), device(info.device), tasks(info.tasks), uniform(info.uniform) {
+//tasks(info.tasks), 
+MonsterGPUOptimizer::MonsterGPUOptimizer(const CreateInfo &info) : transforms(nullptr), matrices(nullptr), textures(nullptr), device(info.device), uniform(info.uniform) {
   indices.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
   
   yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
@@ -103,8 +104,10 @@ void MonsterGPUOptimizer::begin() {
 
 #define WORKGROUP_SIZE 256
 
-void MonsterGPUOptimizer::doWork(const uint32_t &index) {
+void MonsterGPUOptimizer::doWork(RenderContext* context) {
   if (indices.size() == 0) return;
+  
+  yavf::ComputeTask* task = context->compute();
   
   yavf::Buffer* transforms = reinterpret_cast<yavf::Buffer*>(this->transforms->gpu_buffer());
   yavf::Buffer* matrices = reinterpret_cast<yavf::Buffer*>(this->matrices->gpu_buffer());
@@ -116,21 +119,21 @@ void MonsterGPUOptimizer::doWork(const uint32_t &index) {
   ASSERT(textures != nullptr);
   ASSERT(instDatas != nullptr);
   
-  tasks[index]->setPipeline(pipe);
-  tasks[index]->setDescriptor({uniform->descriptorSet()->handle(),
-                              objCount->descriptorSet()->handle(),
-                              
-                              transforms->descriptorSet()->handle(), 
-                              matrices->descriptorSet()->handle(), 
-                              textures->descriptorSet()->handle(), 
-                              
-                              instDatas->descriptorSet()->handle(),
-                              
-                              indices.vector().descriptorSet()->handle()}, 0);
+  task->setPipeline(pipe);
+  task->setDescriptor({uniform->descriptorSet()->handle(),
+                      objCount->descriptorSet()->handle(),
+                      
+                      transforms->descriptorSet()->handle(), 
+                      matrices->descriptorSet()->handle(), 
+                      textures->descriptorSet()->handle(), 
+                      
+                      instDatas->descriptorSet()->handle(),
+                      
+                      indices.vector().descriptorSet()->handle()}, 0);
   
   const uint32_t count = std::ceil(float(indices.size()) / float(WORKGROUP_SIZE));
   ASSERT(count > 0);
-  tasks[index]->dispatch(count, 1, 1);
+  task->dispatch(count, 1, 1);
 }
 
 void MonsterGPUOptimizer::recreate(const uint32_t &width, const uint32_t &height) {
@@ -158,7 +161,7 @@ textures(nullptr),
 faceCount(0), 
 indicesCount(0), 
 device(info.device), 
-tasks(info.tasks), 
+// tasks(info.tasks), 
 uniform(info.uniform) {
   objs.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
   objCount = device->create(yavf::BufferCreateInfo::buffer(sizeof(GeometryOptimizerCount), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT), VMA_MEMORY_USAGE_CPU_ONLY);
@@ -264,8 +267,10 @@ void GeometryGPUOptimizer::begin() {
   if (faceCount+1 > instanceDatas->size()) instanceDatas->resize(faceCount+1);
 }
 
-void GeometryGPUOptimizer::doWork(const uint32_t &index) {
+void GeometryGPUOptimizer::doWork(RenderContext* context) {
   if (objs.size() == 0) return;
+  
+  yavf::ComputeTask* task = context->compute();
   
   yavf::Buffer* transforms = reinterpret_cast<yavf::Buffer*>(this->transforms->gpu_buffer());
   yavf::Buffer* matrices = reinterpret_cast<yavf::Buffer*>(this->matrices->gpu_buffer());
@@ -280,20 +285,20 @@ void GeometryGPUOptimizer::doWork(const uint32_t &index) {
   ASSERT(indices != nullptr);
   
   // больше 8 дескрипторов драйвер нвидии не подерживает на линухе =(
-  tasks[index]->setPipeline(pipe);
-  tasks[index]->setDescriptor({uniform->descriptorSet()->handle(),
-                              objCount->descriptorSet()->handle(),
-                              
-                              transforms->descriptorSet()->handle(),
-                              matrices->descriptorSet()->handle(),
-                              rotationDatas->descriptorSet()->handle(),
-                              textures->descriptorSet()->handle(),
-                              
-                              indices->descriptorSet()->handle()}, 0); // instDatas->descriptorSet()->handle()
+  task->setPipeline(pipe);
+  task->setDescriptor({uniform->descriptorSet()->handle(),
+                      objCount->descriptorSet()->handle(),
+                      
+                      transforms->descriptorSet()->handle(),
+                      matrices->descriptorSet()->handle(),
+                      rotationDatas->descriptorSet()->handle(),
+                      textures->descriptorSet()->handle(),
+                      
+                      indices->descriptorSet()->handle()}, 0); // instDatas->descriptorSet()->handle()
   
   const uint32_t count = std::ceil(float(objs.size()) / float(WORKGROUP_SIZE));
   ASSERT(count > 0);
-  tasks[index]->dispatch(count, 1, 1);
+  task->dispatch(count, 1, 1);
 }
 
 void GeometryGPUOptimizer::recreate(const uint32_t &width, const uint32_t &height) {

@@ -23,6 +23,7 @@ public:
   struct InstanceData {
     glm::mat4 mat;
     TextureData textureData;
+    uint32_t dummy[3];
   };
   
   struct OutputBuffers {
@@ -38,7 +39,7 @@ public:
   
   struct CreateInfo {
     yavf::Device* device;
-    yavf::ComputeTask** tasks;
+//     yavf::ComputeTask** tasks;
     yavf::Buffer* uniform;
   };
   MonsterGPUOptimizer(const CreateInfo &info);
@@ -52,7 +53,7 @@ public:
   uint32_t getInstanceCount() const;
   
   void begin() override;
-  void doWork(const uint32_t &index) override;
+  void doWork(RenderContext* context) override;
   void recreate(const uint32_t &width, const uint32_t &height) override;
   
   void clear();
@@ -77,7 +78,7 @@ private:
   
   yavf::Device* device;
   yavf::Pipeline pipe;
-  yavf::ComputeTask** tasks;
+//   yavf::ComputeTask** tasks;
   
   // этот юниформ буффер нужен только для того чтобы умножить на матрицу вида
   // мне нужен второй юниформ буффер с количеством объектов
@@ -121,7 +122,7 @@ public:
   
   struct CreateInfo {
     yavf::Device* device;
-    yavf::ComputeTask** tasks;
+//     yavf::ComputeTask** tasks;
     yavf::Buffer* uniform;
   };
   GeometryGPUOptimizer(const CreateInfo &info);
@@ -135,7 +136,7 @@ public:
   uint32_t getIndicesCount() const;
   
   void begin() override;
-  void doWork(const uint32_t &index) override;
+  void doWork(RenderContext* context) override;
   void recreate(const uint32_t &width, const uint32_t &height) override;
   
   void clear();
@@ -155,7 +156,7 @@ private:
   
   yavf::Device* device;
   yavf::Pipeline pipe;
-  yavf::ComputeTask** tasks;
+//   yavf::ComputeTask** tasks;
   
   yavf::Buffer* uniform;
   yavf::Buffer* objCount;

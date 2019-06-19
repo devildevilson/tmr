@@ -3,6 +3,7 @@
 
 #include "Engine.h"
 #include "Core.h"
+#include "RenderStage.h"
 
 class VulkanRender;
 class WindowInterface;
@@ -16,6 +17,10 @@ class GameSystemContainer;
 // их доступности, то есть у нас должен рендерится кадр только на половину фреймбуфера
 // в общем пока что оставлю это
 
+// я как то сделал костыль с тасками, теперь бы не помешало сделать нормально
+// а нормально означает что мне нужно сделать некий контекст
+// контекст должен возвращать определенный таск
+
 struct GraphicsOutputStruct {
   VulkanRender* render;
   WindowInterface* windows;
@@ -25,7 +30,7 @@ struct GraphicsOutputStruct {
   // несколько окон window
 };
 
-class GraphicsContainer : public Engine {
+class GraphicsContainer : public Engine, public RenderContext {
 public:
   GraphicsContainer();
   ~GraphicsContainer();
@@ -40,6 +45,13 @@ public:
   
   yavf::Instance* instance();
   yavf::Device* device() const;
+  
+  yavf::TaskInterface* interface() const override;
+  yavf::CombinedTask* combined() const override;
+  yavf::ComputeTask* compute() const override;
+  yavf::GraphicTask* graphics() const override;
+  yavf::TransferTask* transfer() const override;
+  
   yavf::CombinedTask** tasks() const;
   yavf::ComputeTask** tasks1() const;
   yavf::GraphicTask** tasks2() const;

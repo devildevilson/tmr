@@ -3,6 +3,26 @@
 
 #include <cstdint>
 
+namespace yavf {
+  class TransferTask;
+  class CombinedTask;
+  class ComputeTask;
+  class GraphicTask;
+  class TaskInterface;
+}
+
+// так же тут можно возвращать буферы камеры и матриц например
+class RenderContext {
+public:
+  virtual ~RenderContext() {}
+  
+  virtual yavf::TaskInterface* interface() const = 0;
+  virtual yavf::CombinedTask* combined() const = 0;
+  virtual yavf::ComputeTask* compute() const = 0;
+  virtual yavf::GraphicTask* graphics() const = 0;
+  virtual yavf::TransferTask* transfer() const = 0;
+};
+
 // короч это отдельный класс для разного рода команд рендера
 // тип с помощью него составлять рендер
 // что то вроде монстерс->драв(); ... постэффект->драв(); ... и так далее
@@ -37,7 +57,7 @@ public:
   virtual void begin() = 0;
   
   // тут по сути нужно только сделать работу
-  virtual void doWork(const uint32_t &index) = 0;
+  virtual void doWork(RenderContext* context) = 0;
 
   // должен быть еще метод на пересоздание рендертаргетов
   // это означает что нужно только передать размеры? или что то еще?

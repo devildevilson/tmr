@@ -90,6 +90,163 @@ void createGLFWwindow(yavf::Instance* inst, WindowData &data) {
   data.surface = surface;
 }
 
+static bool vulkan_update_display_mode(uint32_t *width, uint32_t *height, const VkDisplayModePropertiesKHR *mode,
+                                       uint32_t desired_width, uint32_t desired_height) {
+  uint32_t visible_width = mode->parameters.visibleRegion.width;
+  uint32_t visible_height = mode->parameters.visibleRegion.height;
+
+  if (!desired_width || !desired_height) {
+    /* Strategy here is to pick something which is largest resolution. */
+    uint32_t area = visible_width * visible_height;
+    if (area > (*width) * (*height)) {
+      *width = visible_width;
+      *height = visible_height;
+      return true;
+    } else return false;
+    
+  } else {
+    /* For particular resolutions, find the closest. */
+    int delta_x = int(desired_width) - int(visible_width);
+    int delta_y = int(desired_height) - int(visible_height);
+    int old_delta_x = int(desired_width) - int(*width);
+    int old_delta_y = int(desired_height) - int(*height);
+
+    int dist = delta_x * delta_x + delta_y * delta_y;
+    int old_dist = old_delta_x * old_delta_x + old_delta_y * old_delta_y;
+    
+    if (dist < old_dist) {
+      *width = visible_width;
+      *height = visible_height;
+      return true;
+    } else return false;
+  }
+}
+
+void createKHRdisplay(yavf::Instance* inst, WindowData &data) {
+  VkSurfaceKHR surface = VK_NULL_HANDLE;
+  
+  auto gpu = inst->getPhysicalDevices()[0];
+
+  uint32_t display_count;
+  vkGetPhysicalDeviceDisplayPropertiesKHR(gpu, &display_count, nullptr);
+  std::vector<VkDisplayPropertiesKHR> displays(display_count);
+  vkGetPhysicalDeviceDisplayPropertiesKHR(gpu, &display_count, displays.data());
+
+  uint32_t plane_count;
+  vkGetPhysicalDeviceDisplayPlanePropertiesKHR(gpu, &plane_count, nullptr);
+  std::vector<VkDisplayPlanePropertiesKHR> planes(plane_count);
+  vkGetPhysicalDeviceDisplayPlanePropertiesKHR(gpu, &plane_count, planes.data());
+
+#ifdef KHR_DISPLAY_ACQUIRE_XLIB
+  VkDisplayKHR best_display = VK_NULL_HANDLE;
+#endif
+  VkDisplayModeKHR best_mode = VK_NULL_HANDLE;
+  uint32_t best_plane = UINT32_MAX;
+
+  const char *desired_display = nullptr;
+
+  uint32_t actual_width = 0;
+  uint32_t actual_height = 0;
+  VkDisplayPlaneAlphaFlagBitsKHR alpha_mode = VK_DISPLAY_PLANE_ALPHA_OPAQUE_BIT_KHR;
+
+  for (uint32_t dpy = 0; dpy < display_count; dpy++) {
+    VkDisplayKHR display = displays[dpy].display;
+    best_mode = VK_NULL_HANDLE;
+    best_plane = UINT32_MAX;
+
+    if (desired_display && strstr(displays[dpy].displayName, desired_display) != displays[dpy].displayName)
+      continue;
+
+    uint32_t mode_count;
+    vkGetDisplayModePropertiesKHR(gpu, display, &mode_count, nullptr);
+    std::vector<VkDisplayModePropertiesKHR> modes(mode_count);
+    vkGetDisplayModePropertiesKHR(gpu, display, &mode_count, modes.data());
+
+    for (uint32_t i = 0; i < mode_count; i++) {
+      const VkDisplayModePropertiesKHR &mode = modes[i];
+      
+      if (vulkan_update_display_mode(&actual_width, &actual_height, &mode, 0, 0)) best_mode = mode.displayMode;
+    }
+
+    if (best_mode == VK_NULL_HANDLE) continue;
+
+    for (uint32_t i = 0; i < plane_count; i++) {
+      uint32_t supported_count = 0;
+      VkDisplayPlaneCapabilitiesKHR plane_caps;
+      vkGetDisplayPlaneSupportedDisplaysKHR(gpu, i, &supported_count, nullptr);
+
+      if (!supported_count) continue;
+
+      std::vector<VkDisplayKHR> supported(supported_count);
+      vkGetDisplayPlaneSupportedDisplaysKHR(gpu, i, &supported_count, supported.data());
+
+      uint32_t j;
+      for (j = 0; j < supported_count; j++) {
+        if (supported[j] == display) {
+          if (best_plane == UINT32_MAX) best_plane = j;
+          
+          break;
+        }
+      }
+
+      if (j == supported_count) continue;
+
+      if (planes[i].currentDisplay == VK_NULL_HANDLE || planes[i].currentDisplay == display) best_plane = j;
+      else continue;
+
+      vkGetDisplayPlaneCapabilitiesKHR(gpu, best_mode, i, &plane_caps);
+
+      if (plane_caps.supportedAlpha & VK_DISPLAY_PLANE_ALPHA_OPAQUE_BIT_KHR) {
+        best_plane = j;
+        alpha_mode = VK_DISPLAY_PLANE_ALPHA_OPAQUE_BIT_KHR;
+#ifdef KHR_DISPLAY_ACQUIRE_XLIB
+        best_display = display;
+#endif
+        break;
+      }
+    }
+    
+    if (best_plane != UINT32_MAX) break;
+  }
+
+  if (best_mode == VK_NULL_HANDLE) throw std::runtime_error("cannot find best screen mode");
+  if (best_plane == UINT32_MAX) throw std::runtime_error("cannot find best screen plane");
+
+  const VkDisplaySurfaceCreateInfoKHR create_info{
+    VK_STRUCTURE_TYPE_DISPLAY_SURFACE_CREATE_INFO_KHR,
+    nullptr,
+    0,
+    best_mode,
+    best_plane,
+    planes[best_plane].currentStackIndex,
+    VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+    1.0f,
+    alpha_mode,
+    {actual_width, actual_height}
+  };
+
+#ifdef KHR_DISPLAY_ACQUIRE_XLIB
+  dpy = XOpenDisplay(nullptr);
+  if (dpy)
+  {
+    if (vkAcquireXlibDisplayEXT(gpu, dpy, best_display) != VK_SUCCESS)
+      LOGE("Failed to acquire Xlib display. Surface creation may fail.\n");
+  }
+#endif
+
+  yavf::vkCheckError("vkCreateDisplayPlaneSurfaceKHR", nullptr, 
+  vkCreateDisplayPlaneSurfaceKHR(inst->handle(), &create_info, NULL, &surface)); 
+  
+  const float fov = Global::settings()->get<float>("game.graphics.fov");
+  data.fov = fov;
+  data.fullscreen = true;
+  data.glfwWindow = nullptr;
+  data.monitor = nullptr;
+  data.surface = surface;
+  data.width = actual_width;
+  data.height = actual_height;
+}
+
 void createDevice(yavf::Instance* inst, const WindowData &data, yavf::Device** device) {
   const std::vector<const char*> deviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -217,7 +374,7 @@ void createRender(yavf::Instance* inst,
   const VulkanRender::CreateInfo info{
     inst,
     device,
-    task, //reinterpret_cast<yavf::TaskInterface**>(task),// &i,
+//     task, //reinterpret_cast<yavf::TaskInterface**>(task),// &i,
     stageContainerSize
   };
 
@@ -241,6 +398,9 @@ GraphicsContainer::GraphicsContainer() : dev(nullptr), task(nullptr), task1(null
   for (uint32_t i = 0; i < count; ++i) {
     extensions.push_back(ext[i]);
   }
+  
+//   extensions.push_back("VK_KHR_display");
+//   extensions.push_back("VK_EXT_direct_mode_display");
 
   const yavf::Instance::ApplicationInfo appInfo{
     APPLICATION_NAME,
@@ -298,8 +458,11 @@ GraphicsContainer::~GraphicsContainer() {
 void GraphicsContainer::construct(CreateInfo &info) {
   WindowData data;
   createGLFWwindow(instance(), data);
+//   createKHRdisplay(instance(), data);
 
   createDevice(instance(), data, &dev);
+  
+//   throw std::runtime_error("end");
 
   Window* window;
   createWindow(instance(), dev, data, &window);
@@ -312,6 +475,8 @@ void GraphicsContainer::construct(CreateInfo &info) {
   task2 = new yavf::GraphicTask*[count];
   task3 = new yavf::TaskInterface*[count];
   createRender(instance(), dev, count, info.containerSize, info.systemContainer, &render, task);
+  
+  render->setContext(this);
 
   for (uint32_t i = 0; i < count; ++i) {
 //     std::cout << "command buffer " << task[i]->getCommandBuffer() << "\n";
@@ -320,21 +485,13 @@ void GraphicsContainer::construct(CreateInfo &info) {
     task3[i] = task[i];
   }
 
-//   throw std::runtime_error("no more");
-
-//   for (uint32_t i = 0; i < 3; ++i) {
-//     std::cout << "task pointer " << i << " " << task[i] << "\n";
-//   }
-//   std::cout << "pointer to pointer " << task << "\n";
-
   for (uint32_t i = 0; i < count; ++i) {
     task[i]->pushWaitSemaphore(window->at(i).imageAvailableSemaphore, window->at(i).flags);
     task[i]->pushSignalSemaphore(window->at(i).finishedRenderingSemaphore);
   }
 
   window->setRender(render);
-
-  //Global::renderPtr = render;
+  
   Global g;
   g.setRender(render);
   g.setWindow(window);
@@ -342,8 +499,6 @@ void GraphicsContainer::construct(CreateInfo &info) {
 
 void GraphicsContainer::update(const uint64_t &time) {
   {
-    // RegionLog rl("window->nextFrame()");
-
     windows->nextFrame();
   }
 //   Global::render()->update(time);
@@ -371,22 +526,14 @@ void GraphicsContainer::update(const uint64_t &time) {
   // на момент 30 марта этих дурацких лагов нет
 
   {
-//     RegionLog rl("render->update()");
-
-    uint32_t index = windows->currentFrame();
-    render->setContextIndex(index);
     render->update(time);
   }
 
   {
-    // RegionLog rl("render->start()");
-
     render->start();
   }
 
   {
-    // RegionLog rl("windows->present()");
-
     windows->present(); // по идее нет никакой разницы где это стоит
   }
 }
@@ -397,6 +544,32 @@ yavf::Instance* GraphicsContainer::instance() {
 
 yavf::Device* GraphicsContainer::device() const {
   return dev;
+}
+
+yavf::TaskInterface* GraphicsContainer::interface() const {
+  const uint32_t index = windows->currentFrame();
+  return task[index];
+}
+
+yavf::CombinedTask* GraphicsContainer::combined() const {
+  const uint32_t index = windows->currentFrame();
+  return task[index];
+}
+
+yavf::ComputeTask* GraphicsContainer::compute() const {
+  const uint32_t index = windows->currentFrame();
+  return task[index];
+}
+
+yavf::GraphicTask* GraphicsContainer::graphics() const {
+  const uint32_t index = windows->currentFrame();
+  return task[index];
+}
+
+yavf::TransferTask* GraphicsContainer::transfer() const {
+//   const uint32_t index = windows->currentFrame();
+//   return task[index];
+  return nullptr;
 }
 
 yavf::CombinedTask** GraphicsContainer::tasks() const {
