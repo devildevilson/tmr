@@ -44,6 +44,17 @@
 
 #define PRINT_VEC4(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << " w: " << vec.w << "\n";
 
+class TimeLogDestructor {
+public:
+  TimeLogDestructor(const std::string &desc);
+  ~TimeLogDestructor();
+  
+  void updateTime();
+private:
+  std::string desc;
+  std::chrono::steady_clock::time_point point;
+};
+
 float fast_fabsf(const float &f);
 
 float sideOf(const glm::vec3 &a, const glm::vec3 &b, const glm::vec3 &point, const glm::vec3 &normal);

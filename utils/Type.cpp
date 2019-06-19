@@ -33,7 +33,7 @@ bool Type::operator!=(const Type &other) const {
 }
   
 Type::Type() {}
-
+Type::Type(const Type &type) : type(type.getType()) {}
 Type::Type(const std::string& name) {
   type = newType;
   ++newType;

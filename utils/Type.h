@@ -11,6 +11,7 @@ public:
   static bool has(const std::string &name);
   
   Type();
+  Type(const Type &type);
   Type(const std::string &name);
   
   size_t getType() const;

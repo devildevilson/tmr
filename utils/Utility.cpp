@@ -1,7 +1,19 @@
 #include "Utility.h"
+#include "Globals.h"
 
 #define SIMD_IMPLEMENTATION
 #include "simd.h"
+
+TimeLogDestructor::TimeLogDestructor(const std::string &desc) : desc(desc), point(std::chrono::steady_clock::now()) {}
+TimeLogDestructor::~TimeLogDestructor() {
+  auto end = std::chrono::steady_clock::now() - point;
+  auto mcs = std::chrono::duration_cast<std::chrono::microseconds>(end).count();
+  Global::console()->print(desc+" takes "+std::to_string(mcs)+" mcs");
+}
+
+void TimeLogDestructor::updateTime() {
+  point = std::chrono::steady_clock::now();
+}
 
 float fast_fabsf(const float &f) {
   int i=((*(int*)&f)&0x7fffffff);
