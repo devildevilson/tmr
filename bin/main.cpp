@@ -1,20 +1,21 @@
 #include "Helper.h"
 
-// #include "../sound/SoundSystem.h"
+class LogCounter {
+public:
+  LogCounter(const std::string &log) {
+    std::cout << log << " #" << counter << "\n";
+    ++counter;
+  }
+private:
+  static size_t counter;
+};
+
+size_t LogCounter::counter = 0;
 
 int main(int argc, char** argv) {
-  for (int32_t i = 0; i < argc; ++i) {
-    std::cout << argv[i] << "\n";
-  }
-
-  (void)argc;
-  (void)argv;
-
-//   SoundSystem sys;
-//   return 0;
+  TimeLogDestructor appTime("Shutdown");
 
   // тут мы создаем дополнительные вещи, такие как консоль, команды, переменные
-//   StageContainer additionalContainer;
   Global::init();
   Global::commands()->addCommand("set", cvar::set_f);
   Global::commands()->addCommand("get", cvar::get_f);
@@ -31,18 +32,17 @@ int main(int argc, char** argv) {
 
   Settings settings;
   {
-    //apathy::Path path(Global::getGameDir() + "settings.json");
+    Global g;
+    g.setSettings(&settings);
+    
     cppfs::FileHandle fh = cppfs::fs::open(Global::getGameDir() + "settings.json");
 
     if (fh.exists()) {
       // грузим настройки
-      settings.load(fh.path());
+      settings.load("game", fh.path());
     } else {
       throw std::runtime_error("Settings not found");
     }
-
-    Global g;
-    g.setSettings(&settings);
   }
 
   // у нас тут еще есть создание треад пула
@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
   // если в настройках определено не использовать треад пул
   // то нам его создавать ни к чему
   //std::cout << "std::thread::hardware_concurrency() " << std::thread::hardware_concurrency() << "\n";
-  dt::thread_pool threadPool(std::max(std::thread::hardware_concurrency()-1, uint32_t(1))); // как там его правильно создать?
+  dt::thread_pool threadPool(std::max(std::thread::hardware_concurrency()-1, uint32_t(1)));
 
   initGLFW();
 
@@ -61,7 +61,6 @@ int main(int argc, char** argv) {
 
   // еще где то здесь мы обрабатываем входные данные с консоли (забыл как это называется верно лол)
 
-//   yavf::Instance instance;
   GraphicsContainer graphicsContainer;
 
   // теперь создаем контейнер
@@ -169,21 +168,13 @@ int main(int argc, char** argv) {
     Global g;
     g.setAnimations(animSys);
 
-//     const AnimationSystem::InputBuffers input{
-//       nullptr,
-//       arrays.transforms
-//     };
-//     animSys->setInputBuffers(input);
-// 
-//     const AnimationSystem::OutputBuffers output{
-//       arrays.textures
-//     };
-//     animSys->setOutputBuffers(output);
-
     // что тут еще надо создать?
     // еще будет боевая система (там нужно будет придумать быстрый и эффективный способ вычислить весь (почти) урон)
     // система эффектов, хотя может быть очень родствена боевой
     // что еще? частицы посчитать?
+    // у меня будет скорее не боевая система, а система которая будет обрабатывать большое количество локальных эвентов параллельно
+    // то есть в нее будут входить много разных подсистем которые будут так или иначе запускать эвенты
+    // от ии будет отличаться тем что вызов эвентов может пересекать друг друга
     
     ParticleSystem* particleSystem = systemContainer.addSystem<ParticleSystem>(graphicsContainer.device());
     g.setParticles(particleSystem);
@@ -376,84 +367,40 @@ int main(int argc, char** argv) {
   Global::physics()->setGravity(simd::vec4(0.0f, -9.8f, 0.0f, 0.0f));
 
   Global::window()->show();
-  //Global::window()->toggleVsync();
-  
-  // нужно сделать настраиваемым (нет, не нужно)
-//   const size_t updateDelta = 33333;
-//   size_t accumulator = 0;
   
   TimeMeter tm(1000000);
   while (!Global::window()->shouldClose() && !quit) {
     tm.start();
     glfwPollEvents();
 
-    // std::cout << "\n";
-
-    // RegionLog rl("everything", true);
-
     // чекаем время
     const uint64_t time = tm.getTime();
 
-//     std::cout << "time " << time << "\n";
-
     // где то здесь нам нужно сделать проверки на конец уровня, начало другого (или в синке это делать)
     // еще же статистику выводить (в конце уровня я имею ввиду)
+    
+    mouseInput(input, time);
+    if (menuContainer.isOpened()) menuKeysCallback(&menuContainer);
+    else keysCallbacks(&keyConfig, time);
+    nextnkFrame(Global::window(), &data.ctx);
 
-    // чекаем инпут (хотя наверное можно его чекать и в другое время)
-    //if (!Global::data()->focusOnInterface)
+    camera->update(time);
 
-    {
-//       RegionLog rl("input + camera", true);
-
-      {
-        {
-          // RegionLog rl("mouse input");
-          mouseInput(input, time);
-        }
-
-        {
-          // RegionLog rl("key input");
-          if (menuContainer.isOpened()) menuKeysCallback(&menuContainer);
-          else keysCallbacks(&keyConfig, time);
-        }
-
-        nextnkFrame(Global::window(), &data.ctx);
-      }
-
-      camera->update(time);
-    }
-
+    // ии тоже нужно ограничить при открытии менюхи
     Global::ai()->update(time);
+    
+    if (!menuContainer.isOpened()) Global::physics()->update(time);
 
-    {
-      // RegionLog rl("physics region");
-      
-      if (!menuContainer.isOpened()) Global::physics()->update(time);
+    postPhysics->update(time);
 
-      postPhysics->update(time);
-    }
-
-    {
-      // RegionLog rl("animation region", true);
-
-      // мне же еще нужно изменить глобал переменную с позицией игрока
-      Global::animations()->update(time);
-    }
+    Global::animations()->update(time);
 
     {
       const uint32_t rayOutputCount = Global::physics()->getRayTracingSize();
       const uint32_t frustumOutputCount = Global::physics()->getFrustumTestSize();
-//       const uint32_t rayOutputCount = 0;
-//       const uint32_t frustumOutputCount = 0;
-//
-//       simd::vec4 pos = simd::vec4(0.0f);
-//       simd::vec4 rot = simd::vec4(0.0f);
-
       const SimpleOverlayData overlayData{
         playerTransform->pos(),
-//         pos,
         playerTransform->rot(),
-//         rot,
         tm.getReportTime(),
         tm.getSleepTime(),
         tm.getFPS(),
@@ -463,8 +410,6 @@ int main(int argc, char** argv) {
       };
       nkOverlay(overlayData, &data.ctx);
     }
-    
-//     Global::sound()->update(time);
 
     // гуи
     menuContainer.draw();
@@ -472,41 +417,13 @@ int main(int argc, char** argv) {
     // дебаг
     // и прочее
 
-    {
-      // RegionLog rl("graphics region");
-
-      graphicsContainer.update(time);
-
-//     window.nextFrame();
-//     Global::render()->update(time);
-//
-//     Global::render()->start();
-//     window.present(); // по идее нет никакой разницы где это стоит
-
-
-    }
+    graphicsContainer.update(time);
+    
+    Global::sound()->update(time);
 
     // здесь же у нас должна быть настройка: тип какую частоту обновления экрана использовать?
-    //(Global::window()->isFullscreen() ?  : 16666)
     const size_t syncTime = Global::window()->isVsync() ? Global::window()->refreshTime() : 0; //16667
-    //std::cout << "syncTime " << syncTime << "\n";
     sync(tm, syncTime);
-    
-//     std::cout << "instanceData.size() " << instanceData.size() << "\n";
-//     for (size_t i = 0; i < std::min(instanceData.size(), uint32_t(5)); ++i) {
-//       PRINT_VEC4("inst "+std::to_string(i)+" mat[0] ", instanceData[i].mat[0])
-//       PRINT_VEC4("inst "+std::to_string(i)+" mat[1] ", instanceData[i].mat[1])
-//       PRINT_VEC4("inst "+std::to_string(i)+" mat[2] ", instanceData[i].mat[2])
-//       PRINT_VEC4("inst "+std::to_string(i)+" mat[3] ", instanceData[i].mat[3])
-//       
-//       std::cout << "inst " << i << " image index    " << instanceData[i].textureData.t.imageArrayIndex << "\n";
-//       std::cout << "inst " << i << " image layer    " << instanceData[i].textureData.t.imageArrayLayer << "\n";
-//       std::cout << "inst " << i << " image sampler  " << instanceData[i].textureData.t.samplerIndex << "\n";
-//       std::cout << "inst " << i << " image move U   " << instanceData[i].textureData.movementU << "\n";
-//       std::cout << "inst " << i << " image move V   " << instanceData[i].textureData.movementV << "\n";
-//     }
-//     
-//     throw std::runtime_error("end");
 
     // неплохо было бы подумать на счет того чтобы отрисовывать часть вещей не дожидаясь свопчейна
     // вообще это означает что мне нужно будет сделать два таск интерфейса и дополнительный семафор
@@ -516,24 +433,14 @@ int main(int argc, char** argv) {
     // и не придется плодить костыли. это откроет для меня возможность использования двойной буферизации
     // (рисуем в картинку, пока показываем другую, верно? у меня сейчас походу не так)
     // для этого придется опять все переписывать =(
-
-//     throw std::runtime_error("1 frame");
+    // для этого нужно несколько командных буферов
   }
-
-//   Global::data()->focusOnInterface = false;
-//   nextnkFrame(Global::window(), &data.ctx);
+  
+  appTime.updateTime();
+  
   glfwSetInputMode(Global::window()->handle(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-
-  RegionLog rl("Shutdown", true);
-
-//   guiShutdown(device);
+  
   deinitnk(data);
-
-//   destroyWindow(window);
-
-  // тут может быть какое-нибудь удаление
-//   destroyDataArrays(arraysContainer, arrays);
-
   deinitGLFW();
 
   cvar::destroy();

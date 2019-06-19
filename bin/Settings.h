@@ -4,34 +4,27 @@
 #include <string>
 #include <unordered_map>
 
-// class SettingsEditor {
-// public:
-//   
-// };
-
-struct SettingVar {
-  // хранить здесь json?
-  
-  bool isInt() const;
-};
+#include "MemoryPool.h"
 
 class Settings {
 public:
-  void load(const std::string &path);
+  void load(const std::string &name, const std::string &path);
   void save();
-  void save(const std::string &path);
-  
-//   int64_t & getInt(const std::string &name);
-//   float & getFloat(const std::string &name);
-//   std::string & getString(const std::string &name);
+
   template<typename T>
   T & get(const std::string &name);
   template<typename T>
-  bool has(const std::string &name, T* data = nullptr);
+  const T & get(const std::string &name) const;
+  template<typename T>
+  bool has(const std::string &name, T* data = nullptr) const;
+  
+  void setFileName(const std::string &name, const std::string &path);
 private:
   std::unordered_map<std::string, int64_t> intData;
   std::unordered_map<std::string, float> floatData;
   std::unordered_map<std::string, std::string> stringData;
+  
+  std::unordered_map<std::string, std::string> fileName;
   
   // нужно лучше продумать как загружать скрытые настройки
   // и как их сохранять

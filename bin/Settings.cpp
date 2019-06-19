@@ -2,92 +2,11 @@
 
 #include <iostream>
 #include <fstream>
-#include "nlohmann/json.hpp"
 
-// enum class ResType {
-//   CLIENT,
-//   SERVER
-// };
-// 
-// struct ResourceInfo {
-//   ResType type;
-//   std::string name;
-//   std::string description;
-//   size_t texturesSize;
-//   size_t soundsSize;
-//   size_t scriptsSize;
-// };
-// 
-// struct TextureData {
-//   uint32_t width;
-//   uint32_t height;
-//   std::string path;
-//   std::string name;
-//   size_t count;
-//   size_t rows;
-//   size_t columns;
-// };
-// 
-// class ResourceManager;
-// 
-// class Loader {
-// public:
-//   virtual bool load(const nlohmann::json &data, const ResourceManager* manager) = 0;
-// };
-// 
-// class ResourceManager {
-// public:
-//   void addLoader(Loader* loader);
-//   void loadMain(const std::string &path);
-// private:
-//   std::vector<Loader*> loaders;
-//   std::unordered_map<std::string, ResourceInfo> loadedResources;
-// };
-// 
-// class TexturesLoader : public Loader {
-// public:
-//   void* getPixels(size_t &size);
-//   bool load(const nlohmann::json &data, const ResourceManager* manager) override;
-//   void clear();
-// private:
-//   std::vector<TextureData> datas;
-//   uint8_t* data;
-//   size_t size;
-//   
-// };
-// 
-// class TextureLoader {
-// public:
-//   virtual void load(const std::string &prefix, const std::string &path, uint32_t &width, uint32_t &height, uint32_t &channels) = 0;
-//   virtual void clear() = 0;
-// };
-// 
-// class TextureResource {
-// public:
-//   
-// private:
-//   TextureLoader* tex;
-//   uint32_t width;
-//   uint32_t height;
-//   size_t count;
-//   size_t rows;
-//   size_t columns;
-// };
-// 
-// class StbiLoader : public TextureLoader {
-// public:
-//   uint8_t* getPixels(size_t &size);
-//   uint32_t getWidth();
-//   uint32_t getHeight();
-//   uint32_t getChannels();
-// private:
-//   uint8_t* data;
-//   size_t size;
-//   uint32_t width;
-//   uint32_t height;
-//   uint32_t channels;
-//   
-// };
+#include "nlohmann/json.hpp"
+#include <iomanip>
+
+#include "Globals.h"
 
 void iterateThroughSettings(const std::string &prefix,
                             const nlohmann::json &json, 
@@ -95,78 +14,128 @@ void iterateThroughSettings(const std::string &prefix,
                             std::unordered_map<std::string, float> &floatData, 
                             std::unordered_map<std::string, std::string> &stringData) {
   for (auto it = json.begin(); it != json.end(); ++it) {
+    if (it.value().is_object()) {
+      iterateThroughSettings(prefix + "." + it.key(), it.value(), intData, floatData, stringData);
+    }
+    
     if (it.value().is_number_integer()) {
-      /*const auto i = */intData.insert(std::make_pair(prefix + "." + it.key(), it.value().get<int64_t>()));
-      //std::cout << i.first->first << ": " << i.first->second << "\n";
+      intData.insert(std::make_pair(prefix + "." + it.key(), it.value().get<int64_t>()));
     }
     
     if (it.value().is_boolean()) {
-      /*const auto i = */intData.insert(std::make_pair(prefix + "." + it.key(), it.value().get<bool>()));
-      //std::cout << i.first->first << ": " << i.first->second << "\n";
+      intData.insert(std::make_pair(prefix + "." + it.key(), it.value().get<bool>()));
     }
     
     if (it.value().is_number_float()) {
-      /*const auto i = */floatData.insert(std::make_pair(prefix + "." + it.key(), it.value().get<float>()));
-      //std::cout << i.first->first << ": " << i.first->second << "\n";
+      floatData.insert(std::make_pair(prefix + "." + it.key(), it.value().get<float>()));
     }
     
     if (it.value().is_string()) {
-      /*const auto i = */stringData.insert(std::make_pair(prefix + "." + it.key(), it.value().get<std::string>()));
-      //std::cout << i.first->first << ": " << i.first->second << "\n";
+      stringData.insert(std::make_pair(prefix + "." + it.key(), it.value().get<std::string>()));
     }
   }
 }
 
-void Settings::load(const std::string &path) {
+void parse_setting_name(const std::string &name, std::vector<std::string> &data) {
+  if (name.empty()) return;
+  
+  size_t start = 0;
+  size_t pos = 0;
+  
+  while (pos < name.size()) {
+    pos = name.find('.', pos);
+    const std::string &str = name.substr(start, pos == std::string::npos ? name.size()-start : pos-start);
+    data.push_back(str);
+    
+    if (pos >= name.size()) break;
+    
+    ++pos;
+    start = pos;
+  }
+  
+  if (data.empty()) throw std::runtime_error("data empty()");
+}
+
+void Settings::load(const std::string &name, const std::string &path) {
   std::ifstream i(path);
   
   nlohmann::json j;
   
   i >> j;
   
-  //std::cout << std::setw(2) << j << "\n";
+//   std::cout << std::setw(2) << j << "\n";
   
-  // тут нужно будет потом добавить обход по секциям
-  // как быть с настройками модов? в принципе ничего сложного по идее
-  // обходим, название секции это сокращенное название мода
-  // нужно только сделать отдельную функцию для этого
-  for (auto it = j.begin(); it != j.end(); ++it) {
-    std::string prefix = "game";
-    
-    if (it.value().is_object()) {
-      iterateThroughSettings(prefix + "." + it.key(), it.value(), intData, floatData, stringData);
-    }
-  }
+  iterateThroughSettings(name, j, intData, floatData, stringData);
   
-//   for (nlohmann::json::iterator it = j.begin(); it != j.end(); ++it) {
-//     if (it.value().is_number_integer()) {
-//       /*const auto i = */intData.insert(std::make_pair(it.key(), it.value().get<int64_t>()));
-//       //std::cout << i.first->first << ": " << i.first->second << "\n";
-//     }
-//     
-//     if (it.value().is_boolean()) {
-//       /*const auto i = */intData.insert(std::make_pair(it.key(), it.value().get<bool>()));
-//       //std::cout << i.first->first << ": " << i.first->second << "\n";
-//     }
-//     
-//     if (it.value().is_number_float()) {
-//       /*const auto i = */floatData.insert(std::make_pair(it.key(), it.value().get<float>()));
-//       //std::cout << i.first->first << ": " << i.first->second << "\n";
-//     }
-//     
-//     if (it.value().is_string()) {
-//       /*const auto i = */stringData.insert(std::make_pair(it.key(), it.value().get<std::string>()));
-//       //std::cout << i.first->first << ": " << i.first->second << "\n";
-//     }
-//   }
+  fileName[name] = path;
 }
 
 void Settings::save() {
+  struct Temp {
+    std::string fileName;
+    nlohmann::json j;
+  };
   
-}
-
-void Settings::save(const std::string &path) {
+  std::unordered_map<std::string, Temp> files;
   
+  for (const auto &pair : fileName) {
+    files[pair.first] = Temp{pair.second, nlohmann::json{}};
+  }
+  
+  std::vector<std::string> strings;
+  for (const auto &pair : intData) {
+    parse_setting_name(pair.first, strings);
+    
+    nlohmann::json* tmp = &files[strings[0]].j;
+    for (size_t i = 1; i < strings.size()-1; ++i) {
+      auto itr = tmp->find(strings[i]);
+      if (itr == tmp->end()) {
+        itr = tmp->emplace(strings[i], nlohmann::json{}).first;
+      }
+      tmp = &itr.value();
+    }
+    
+    tmp->emplace(strings[strings.size()-1], pair.second);
+    strings.clear();
+  }
+  
+  for (const auto &pair : floatData) {
+    parse_setting_name(pair.first, strings);
+    
+    nlohmann::json* tmp = &files[strings[0]].j;
+    for (size_t i = 1; i < strings.size()-1; ++i) {
+      auto itr = tmp->find(strings[i]);
+      if (itr == tmp->end()) {
+        itr = tmp->emplace(strings[i], nlohmann::json{}).first;
+      }
+      tmp = &itr.value();
+    }
+    
+    tmp->emplace(strings[strings.size()-1], pair.second);
+    strings.clear();
+  }
+  
+  for (const auto &pair : stringData) {
+    parse_setting_name(pair.first, strings);
+    
+    nlohmann::json* tmp = &files[strings[0]].j;
+    for (size_t i = 1; i < strings.size()-1; ++i) {
+      auto itr = tmp->find(strings[i]);
+      if (itr == tmp->end()) {
+        itr = tmp->emplace(strings[i], nlohmann::json{}).first;
+      }
+      tmp = &itr.value();
+    }
+    
+    tmp->emplace(strings[strings.size()-1], pair.second);
+    strings.clear();
+  }
+  
+  // здесь дампим json на диск
+  for (const auto &pair : files) {
+    std::ofstream file(pair.second.fileName);
+    file << std::setw(2) << pair.second.j << "\n";
+  }
 }
 
 template<>
@@ -181,16 +150,26 @@ float & Settings::get(const std::string &name) {
 
 template<>
 std::string & Settings::get(const std::string &name) {
-//   auto itr = stringData.find(name);
-//   if (itr == stringData.end()) {
-//     stringData[name] = "";
-//   }
-  
   return stringData[name];
 }
 
 template<>
-bool Settings::has(const std::string &name, int64_t* data) {
+const int64_t & Settings::get(const std::string &name) const {
+  return intData.at(name);
+}
+
+template<>
+const float & Settings::get(const std::string &name) const {
+  return floatData.at(name);
+}
+
+template<>
+const std::string & Settings::get(const std::string &name) const {
+  return stringData.at(name);
+}
+
+template<>
+bool Settings::has(const std::string &name, int64_t* data) const {
   auto itr = intData.find(name);
   if (itr == intData.end()) return false;
   
@@ -199,7 +178,7 @@ bool Settings::has(const std::string &name, int64_t* data) {
 }
 
 template<>
-bool Settings::has(const std::string &name, float* data) {
+bool Settings::has(const std::string &name, float* data) const {
   auto itr = floatData.find(name);
   if (itr == floatData.end()) return false;
   
@@ -208,7 +187,7 @@ bool Settings::has(const std::string &name, float* data) {
 }
 
 template<>
-bool Settings::has(const std::string &name, std::string* data) {
+bool Settings::has(const std::string &name, std::string* data) const {
   auto itr = stringData.find(name);
   if (itr == stringData.end()) return false;
   
@@ -216,29 +195,6 @@ bool Settings::has(const std::string &name, std::string* data) {
   return true;
 }
 
-// int64_t & Settings::getInt(const std::string &name) {
-//   auto itr = intData.find(name);
-//   if (itr == intData.end()) {
-//     intData[name] = 0;
-//   }
-//   
-//   return intData[name];
-// }
-// 
-// float & Settings::getFloat(const std::string &name) {
-//   auto itr = floatData.find(name);
-//   if (itr == floatData.end()) {
-//     floatData[name] = 0.0f;
-//   }
-//   
-//   return floatData[name];
-// }
-// 
-// std::string & Settings::getString(const std::string &name) {
-//   auto itr = stringData.find(name);
-//   if (itr == stringData.end()) {
-//     stringData[name] = "";
-//   }
-//   
-//   return stringData[name];
-// }
+void Settings::setFileName(const std::string &name, const std::string &path) {
+  fileName[name] = path;
+}

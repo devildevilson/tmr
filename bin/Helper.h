@@ -258,13 +258,7 @@ struct SimpleOverlayData {
 };
 void nkOverlay(const SimpleOverlayData &data, nk_context* ctx);
 
-void initGui(yavf::Device* device, Window* window);
-
-void simpleOverlay(const SimpleOverlayData &data);
-void nextGuiFrame();
 void sync(TimeMeter &tm, const size_t &syncTime); // сюда мы должны передать желаемое время кадра
-
-void guiShutdown(yavf::Device* device);
 
 struct ReactionsCreateInfo {
   KeyContainer* container;

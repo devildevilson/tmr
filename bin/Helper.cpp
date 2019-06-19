@@ -536,403 +536,6 @@ void nkOverlay(const SimpleOverlayData &data, nk_context* ctx) {
   nk_style_pop_style_item(ctx);
 }
 
-// void initGui(yavf::Device* device, Window* window) {
-//   ImGuiIO& io = ImGui::GetIO();
-//   io.KeyMap[ImGuiKey_Tab] = GLFW_KEY_TAB;
-//   io.KeyMap[ImGuiKey_LeftArrow] = GLFW_KEY_LEFT;
-//   io.KeyMap[ImGuiKey_RightArrow] = GLFW_KEY_RIGHT;
-//   io.KeyMap[ImGuiKey_UpArrow] = GLFW_KEY_UP;
-//   io.KeyMap[ImGuiKey_DownArrow] = GLFW_KEY_DOWN;
-//   io.KeyMap[ImGuiKey_PageUp] = GLFW_KEY_PAGE_UP;
-//   io.KeyMap[ImGuiKey_PageDown] = GLFW_KEY_PAGE_DOWN;
-//   io.KeyMap[ImGuiKey_Home] = GLFW_KEY_HOME;
-//   io.KeyMap[ImGuiKey_End] = GLFW_KEY_END;
-//   io.KeyMap[ImGuiKey_Delete] = GLFW_KEY_DELETE;
-//   io.KeyMap[ImGuiKey_Backspace] = GLFW_KEY_BACKSPACE;
-//   io.KeyMap[ImGuiKey_Enter] = GLFW_KEY_ENTER;
-//   io.KeyMap[ImGuiKey_Escape] = GLFW_KEY_ESCAPE;
-//   io.KeyMap[ImGuiKey_A] = GLFW_KEY_A;
-//   io.KeyMap[ImGuiKey_C] = GLFW_KEY_C;
-//   io.KeyMap[ImGuiKey_V] = GLFW_KEY_V;
-//   io.KeyMap[ImGuiKey_X] = GLFW_KEY_X;
-//   io.KeyMap[ImGuiKey_Y] = GLFW_KEY_Y;
-//   io.KeyMap[ImGuiKey_Z] = GLFW_KEY_Z;
-//
-//   io.SetClipboardTextFn = setClipboard;
-//   io.GetClipboardTextFn = getClipboard;
-//
-//   io.RenderDrawListsFn = nullptr; // рендер имплементирован с использованием ImGui::GetDrawData()
-//   io.ClipboardUserData = window;
-//   io.DeltaTime = 0.0f;
-//
-//   glfwSetKeyCallback(window->handle(), keyCallback);
-//   glfwSetCharCallback(window->handle(), charCallback);
-//   glfwSetMouseButtonCallback(window->handle(), mouseButtonCallback);
-//   glfwSetScrollCallback(window->handle(), scrollCallback);
-//   glfwSetWindowFocusCallback(window->handle(), focusCallback);
-//   glfwSetWindowIconifyCallback(window->handle(), iconifyCallback);
-//
-//   unsigned char* pixels;
-//   int width, height;
-//   io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-//
-//   yavf::Image* image = nullptr;
-//   {
-//     yavf::Image* staging = nullptr;
-//     {
-//       const yavf::ImageCreateInfo info{
-//         0,
-//         VK_IMAGE_TYPE_2D,
-//         VK_FORMAT_R8G8B8A8_UNORM,
-//         {static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1},
-//         1,
-//         1,
-//         VK_SAMPLE_COUNT_1_BIT,
-//         VK_IMAGE_TILING_LINEAR,
-//         VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-//         VK_IMAGE_ASPECT_COLOR_BIT,
-//         VMA_MEMORY_USAGE_CPU_ONLY
-//       };
-//       staging = device->createImage(info);
-//
-//       memcpy(staging->ptr(), pixels, width*height*4*sizeof(char));
-//     }
-//
-//     {
-//       const yavf::ImageCreateInfo info{
-//         0,
-//         VK_IMAGE_TYPE_2D,
-//         VK_FORMAT_R8G8B8A8_UNORM,
-//         {static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1},
-//         1,
-//         1,
-//         VK_SAMPLE_COUNT_1_BIT,
-//         VK_IMAGE_TILING_OPTIMAL,
-//         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-//         VK_IMAGE_ASPECT_COLOR_BIT,
-//         VMA_MEMORY_USAGE_GPU_ONLY
-//       };
-//       image = device->createImage(info);
-//     }
-//
-//     yavf::TransferTask* task = device->allocateTransferTask();
-//
-//     task->begin();
-//     task->setBarrier(staging, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-//     task->setBarrier(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-//     task->copy(staging, image);
-//     task->setBarrier(image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-//     task->end();
-//
-//     task->start();
-//     task->wait();
-//
-//     device->deallocate(task);
-//     device->destroy(staging);
-//   }
-//
-//   image->createView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
-//   image->setSampler(device->sampler("default_sampler"));
-//
-//   {
-//     yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
-//     yavf::DescriptorSetLayout sampled_image_layout = device->setLayout(SAMPLED_IMAGE_LAYOUT_NAME);
-//     {
-//       yavf::DescriptorLayoutMaker dlm(device);
-//
-//       if (sampled_image_layout == VK_NULL_HANDLE) {
-//         sampled_image_layout = dlm.binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT).create(SAMPLED_IMAGE_LAYOUT_NAME);
-//       }
-//     }
-//
-//     yavf::DescriptorMaker dm(device);
-//
-//     auto d = dm.layout(sampled_image_layout).create(pool)[0];
-//
-//     const yavf::DescriptorUpdate data{
-//       VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-//       0,
-//       0,
-//       d
-//     };
-//     image->setDescriptorData(data);
-//   }
-//
-//   // Store our identifier
-//   io.Fonts->TexID = (void*)image;
-// }
-
-void simpleOverlay(const SimpleOverlayData &data) {
-//   bool open = true;
-//   {
-//     ImGui::SetNextWindowPos(ImVec2(10,10));
-//     bool t = ImGui::Begin("Example: Fixed Overlay",
-//                       nullptr,
-//                       ImVec2(0,0),
-//                       0.5f,
-//                       ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
-//     if (!t) {
-//         ImGui::End();
-//         return;
-//     }
-//     ImGui::Text("Simple overlay\non the top-left side of the screen.");
-//     ImGui::Separator();
-//
-//     const simd::vec4 &pos = simd::vec4(data.pos); //playerTransform->pos;
-//     ImGui::Text("Camera pos: (%.2f,%.2f,%.2f,%.2f)", pos.x,
-//                                                       pos.y,
-//                                                       pos.z,
-//                                                       pos.w);
-//
-//     const glm::vec3 &dir = data.rot;//GameObjectContainer::getObject(0)->getRot();
-//     ImGui::Text("Camera dir: (%.2f,%.2f,%.2f)", dir.x,
-//                                                 dir.y,
-//                                                 dir.z);
-//
-//     ImGui::Separator();
-//     ImGui::Text("Frame rendered in %lu mcs (%.2f fps)", data.frameComputeTime, 1000000.0f/float(data.frameComputeTime));
-//     ImGui::Text("Sleep between frames equals %lu mcs", data.frameSleepTime);
-//     ImGui::Text("Final fps is %.2f", data.fps);
-//     ImGui::Separator();
-//     ImGui::Text("In frustum %zu objects", data.frustumObjCount);
-//     //ImGui::Text("Ray collide %zu objects", collideRay.size());
-//     ImGui::Text("Ray collide %zu objects", data.rayCollideCount);
-//     //ImGui::Text("Player see %zu objects", visibleObjects);
-//     ImGui::Text("Player see %zu objects", data.visibleObjCount);
-// //       ImGui::Text("Visible geo count: %zu", geometryCount);
-// //       ImGui::Text("Visible obj count: %zu", objCount);
-//     //if (!collideRay.empty()) ImGui::Text("Ray collide object index %zu", collideRay.back()->index);
-//     ImGui::End();
-//   }
-}
-
-// void createInstance(yavf::Instance* inst) {
-//   uint32_t count;
-//   const char** ext = glfwGetRequiredInstanceExtensions(&count);
-//   if (count == 0) {
-//     Global::console()->print("Found no extensions\n");
-//     throw std::runtime_error("Extensions not founded!");
-//   }
-//
-//   std::vector<const char*> extensions;
-//   for (uint32_t i = 0; i < count; ++i) {
-//     extensions.push_back(ext[i]);
-//   }
-//
-// //   yavf::Instance::setExtensions(extensions);
-// //   yavf::Instance::setLayers({
-// //     "VK_LAYER_LUNARG_standard_validation",
-// //     "VK_LAYER_LUNARG_api_dump",
-// //     "VK_LAYER_LUNARG_assistant_layer"
-// //   });
-//
-//   const yavf::Instance::ApplicationInfo appInfo{
-//     APPLICATION_NAME,
-//     APP_VERSION,
-//     ENGINE_NAME,
-//     EGINE_VERSION,
-//     VK_API_VERSION_1_0
-//   };
-//
-//   const yavf::Instance::CreateInfo info{
-//     nullptr,
-//     &appInfo,
-//     instanceLayers,
-//     extensions,
-//     true,
-//     false,
-//     false
-//   };
-//
-//   inst->construct(info);
-// }
-//
-// void createGLFWwindow(yavf::Instance* inst, WindowData &data) {
-// //   const bool fullscreen = false;
-//   const bool fullscreen = Global::settings()->get<int64_t>("game.graphics.fullscreen");
-// //   uint32_t width = 1280;
-// //   uint32_t height = 720;
-//   uint32_t width = Global::settings()->get<int64_t>("game.graphics.width");
-//   uint32_t height = Global::settings()->get<int64_t>("game.graphics.height");
-// //   const float fov = 60.0f;
-//   const float fov = Global::settings()->get<float>("game.graphics.fov");
-//   GLFWmonitor* monitor = nullptr;
-//   GLFWwindow* glfwWindow = nullptr;
-//   VkSurfaceKHR surface = VK_NULL_HANDLE;
-//
-//   if (fullscreen) {
-//     monitor = glfwGetPrimaryMonitor();
-//
-//     int32_t count;
-//     auto monitors = glfwGetMonitors(&count);
-//     for (int32_t i = 0; i < count; ++i) {
-//       std::cout << "Monitor name: " << glfwGetMonitorName(monitors[i]) << "\n";
-//       int32_t x, y;
-//       glfwGetMonitorPhysicalSize(monitors[i], &x, &y);
-//       std::cout << "Monitor phys size: x " << x << " y " << y << "\n";
-//       glfwGetMonitorPos(monitors[i], &x, &y);
-//       std::cout << "Monitor pos: x " << x << " y " << y << "\n";
-//     }
-//
-//     const auto data = glfwGetVideoMode(monitor);
-//     width = data->width;
-//     height = data->height;
-//
-//     Global::settings()->get<int64_t>("game.graphics.width") = data->width;
-//     Global::settings()->get<int64_t>("game.graphics.height") = data->height;
-//
-//     // в какой то момент мне может потребоваться даунсэмплить изображение чтоб зернистость появилась
-//     // возможно это делается другим способом
-//   }
-//
-//   glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-//   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-//   if (fullscreen) {
-//     glfwWindow = glfwCreateWindow(width, height, APPLICATION_NAME, monitor, nullptr);
-//   } else {
-//     glfwWindow = glfwCreateWindow(width, height, APPLICATION_NAME, nullptr, nullptr);
-//   }
-//
-//   yavf::vkCheckError("glfwCreateWindowSurface", nullptr,
-//   glfwCreateWindowSurface(inst->handle(), glfwWindow, nullptr, &surface));
-//
-//   data.fullscreen = fullscreen;
-//   data.width = width;
-//   data.height = height;
-//   data.fov = fov;
-//   data.monitor = monitor;
-//   data.glfwWindow = glfwWindow;
-//   data.surface = surface;
-// }
-//
-// void createDevice(yavf::Instance* inst, const WindowData &data, yavf::Device** device) {
-//   const std::vector<const char*> deviceExtensions = {
-//     VK_KHR_SWAPCHAIN_EXTENSION_NAME
-//   };
-//
-//   VkSurfaceKHR s = data.surface;
-//
-//   auto physDevices = inst->getPhysicalDevices();
-//
-//   // как выбирать устройство?
-//   uint32_t index = 0;
-//   size_t maxMem = 0;
-//
-//   yavf::PhysicalDevice choosen = VK_NULL_HANDLE;
-//   for (size_t i = 0; i < physDevices.size(); ++i) {
-//     VkPhysicalDeviceProperties deviceProperties;
-//     VkPhysicalDeviceFeatures deviceFeatures;
-//     VkPhysicalDeviceMemoryProperties memProp;
-//     physDevices[i].getProperties(&deviceProperties);
-//     physDevices[i].getFeatures(&deviceFeatures);
-//     physDevices[i].getMemoryProperties(&memProp);
-//
-//     size_t a = 0;
-//     for (uint32_t j = 0; j < memProp.memoryHeapCount; ++j) {
-//       if ((memProp.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) == VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
-//         a = std::max(memProp.memoryHeaps[i].size, a);
-//       }
-//     }
-//
-//     std::cout << "Device name: " << deviceProperties.deviceName << "\n";
-//
-//
-//     bool extSupp = yavf::checkDeviceExtensions(physDevices[i], instanceLayers, deviceExtensions);
-//
-//     uint32_t count = 0;
-//     physDevices[i].getQueueFamilyProperties(&count, nullptr);
-//
-//     bool presentOk = false;
-//     for (uint32_t i = 0; i < count; ++i) {
-//       VkBool32 present;
-//       vkGetPhysicalDeviceSurfaceSupportKHR(physDevices[i], i, s, &present);
-//
-//       if (present) {
-//         presentOk = true;
-//         break;
-//       }
-//     }
-//
-//     if (extSupp && presentOk && maxMem < a) {
-//       maxMem = a;
-//       choosen = physDevices[i];
-//       //break;
-//     }
-//   }
-//
-// //   auto devices = inst->getDevices([s, deviceExtensions] (VkPhysicalDevice physDevice) -> bool {
-// //     VkPhysicalDeviceProperties deviceProperties;
-// //     VkPhysicalDeviceFeatures deviceFeatures;
-// //     vkGetPhysicalDeviceProperties(physDevice, &deviceProperties);
-// //     vkGetPhysicalDeviceFeatures(physDevice, &deviceFeatures);
-// //
-// //     std::cout << "Device name: " << deviceProperties.deviceName << "\n";
-// //
-// //     bool extSupp = yavf::checkDeviceExtensions(physDevice, yavf::Instance::getLayers(), deviceExtensions);
-// //
-// //     uint32_t count = 0;
-// //     vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &count, nullptr);
-// //
-// //     bool presentOk = false;
-// //     for (uint32_t i = 0; i < count; ++i) {
-// //       VkBool32 present;
-// //       vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, s, &present);
-// //
-// //       if (present) {
-// //         presentOk = true;
-// //         break;
-// //       }
-// //     }
-// //
-// //     return //deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
-// //            extSupp &&
-// //            presentOk;
-// //   });
-//
-//   yavf::DeviceMaker dm(inst);
-// //   yavf::DeviceMaker::setExtensions(deviceExtensions);
-//   VkPhysicalDeviceFeatures f = {};
-//   f.samplerAnisotropy = VK_TRUE;
-// //   f.multiDrawIndirect = VK_TRUE;
-// //   f.drawIndirectFirstInstance = VK_TRUE;
-// //   f.fragmentStoresAndAtomics = VK_TRUE;
-//   //*device = dm.beginDevice(devices[0]).createQueues().features(f).create("Graphic device");
-//   *device = dm.beginDevice(choosen).setExtensions(deviceExtensions).createQueues().features(f).create(instanceLayers, "Graphic device");
-// }
-//
-// void createWindow(yavf::Instance* inst, yavf::Device* device, const WindowData &data, Window &window) {
-//   const Window::CreateInfo info{
-//     inst,
-//     device,
-//     data.monitor,
-//     data.glfwWindow,
-//     data.surface,
-//     data.fov,
-//     data.fullscreen
-//   };
-// //   *window = new Window(info);
-//
-//   window.create(info);
-// }
-//
-// // void destroyWindow(Window* window) {
-// //   delete window;
-// // }
-//
-// void createRender(yavf::Instance* inst, yavf::Device* device, const uint32_t &frameCount, const size_t &stageContainerSize, GameSystemContainer &container, VulkanRender** render, yavf::CombinedTask** task) {
-//   *task = device->allocateCombinedTask(frameCount);
-//
-//   //const size_t stageContainerSize = sizeof(BeginTaskStage) + sizeof(EndTaskStage) + sizeof(GBufferStage) + sizeof(DefferedLightStage);
-//   const VulkanRender::CreateInfo info{
-//     inst,
-//     device,
-//     *task,
-//     stageContainerSize
-//   };
-//
-//   *render = container.addSystem<VulkanRender>(info);
-// }
-
 void setDescriptor(yavf::Buffer* buffer, yavf::DescriptorSet* set) {
   const size_t i = set->add({buffer, 0, buffer->info().size, 0, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER});
   buffer->setDescriptor(set, i);
@@ -973,8 +576,6 @@ void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, Da
   
   yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
   yavf::DescriptorSetLayout storage_layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
-  
-  std::cout << "storage_layout " << storage_layout << "\n";
   {
     yavf::DescriptorMaker dm(device);
     
@@ -1070,6 +671,9 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
 
   auto monGbuffer = gBuffer->addPart<MonsterGBufferStage>(monopt);
   auto geoGbuffer = gBuffer->addPart<GeometryGBufferStage>(data.mapLoader->mapVertices(), geoopt); // тут должен быть буфер карты, как его получить?
+  
+  (void)monGbuffer;
+  (void)geoGbuffer;
 
 //   data.monDebugOpt->setInputBuffers({monGbuffer->getInstanceData()});
 //   data.geoDebugOpt->setInputBuffers({geoGbuffer->getInstanceData()});
@@ -1115,6 +719,7 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
     data.window
   };
   CopyStage* copy = data.render->addStage<CopyStage>(cInfo);
+  (void)copy;
 
   // и отрисовка гуи
   // до гуи у нас еще должна быть закраска какой-нибудь текстурой если у нас ничего не отрисовалось
@@ -1136,6 +741,7 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
 //     };
   //GuiStage* gui = render->addStage<GuiStage>(gInfo);
   GuiStage* gui = postRender->addPart<GuiStage>(data.data);
+  (void)gui;
 
 //   const MonsterDebugStage::CreateInfo mdInfo{
 //     data.monDebugOpt,
@@ -1390,15 +996,6 @@ void sync(TimeMeter &tm, const size_t &syncTime) {
   }
 }
 
-void guiShutdown(yavf::Device* device) {
-//   ImGuiIO& io = ImGui::GetIO();
-//
-//   yavf::Image* image = (yavf::Image*)io.Fonts->TexID;
-//   device->destroy(image);
-//
-//   ImGui::Shutdown();
-}
-
 void createReactions(const ReactionsCreateInfo &info) {
   auto input = info.input;
   info.container->create("Step forward", [input] () {
@@ -1594,6 +1191,8 @@ void mouseButtonCallback(GLFWwindow*, int button, int action, int mods) {
 }
 
 void keyCallback(GLFWwindow*, int key, int scancode, int action, int mods) {
+  (void)mods;
+  
   if (!Global::window()->isFocused()) return;
   (void)scancode;
 
