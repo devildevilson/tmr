@@ -132,6 +132,8 @@ void CPUPathFindingPhaseParallel::update() {
   typedef std::unordered_map<std::pair<const vertex_t*, const vertex_t*>, PathFindingReturn>::iterator localIterator;
   
   static const auto pathFinding = [&] (const Type &type, const std::function<bool(const vertex_t*, const vertex_t*, const edge_t*)> &predicate, localIterator itr) {
+    (void)type;
+    
     AStarSearch* searchPtr = nullptr;
     {
       std::unique_lock<std::mutex> lock(stackMutex);

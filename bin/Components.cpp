@@ -517,6 +517,7 @@ void StateController::addLoopedState(const Type &type) {
 }
 
 bool StateController::isStateLooped(const Type &type) {
+  (void)type;
   return true;
 }
 
@@ -652,515 +653,6 @@ void StateController::registerState(const Type &type, const bool blocking, const
 Container<uint32_t>* StateController::customTimeContainer = nullptr;
 std::unordered_set<size_t> StateController::loopedStates;
 
-// CLASS_TYPE_DEFINE_WITH_NAME(GraphicComponent, "GraphicComponent")
-//
-// void GraphicComponent::setContainer(Container<simd::mat4>* matrices) {
-//   GraphicComponent::matrices = matrices;
-// }
-//
-// void GraphicComponent::setContainer(Container<RotationData>* rotationDatas) {
-//   GraphicComponent::rotationDatas = rotationDatas;
-// }
-//
-// void GraphicComponent::setContainer(Container<Texture>* textureContainer) {
-//   GraphicComponent::textureContainer = textureContainer;
-// }
-//
-// // GraphicComponent::GraphicComponent(const uint32_t &pipelineIndex) {
-// //   this->pipelineIndex = pipelineIndex;
-// // }
-//
-// GraphicComponent::GraphicComponent() {
-//   textureContainerIndex = textureContainer->insert({UINT32_MAX, UINT32_MAX, UINT32_MAX});
-// }
-//
-// GraphicComponent::~GraphicComponent() {
-//   textureContainer->erase(textureContainerIndex);
-// }
-//
-// void GraphicComponent::update(const size_t &time) {
-//   (void)time;
-//
-//   // тут в новом апдейте, теперь только передать данные нужному оптимизеру
-//
-//
-//   Texture texture;
-//
-//   if (getEntity()->getId() == 3) {
-//     //const glm::vec3 pos = trans->pos;
-//     const glm::vec3 pos = glm::vec3(trans->getPos());
-//
-//     glm::vec3 dir = Global::getPlayerPos() - pos;
-//
-//     // это не особо решает проблему с изменением координат
-//     // скорее всего мне потребуется умножать на матрицу вектор, чтобы привести его в обатное состояние
-//     // но теперь мне скорее всего этого будет достаточно
-//     glm::vec3 dirOnGround = Physics::projectVectorOnPlane(-Physics::getGravityNorm(), pos, dir);
-//
-//     dir = glm::normalize(dirOnGround);
-//
-//     float angle2 = glm::acos(glm::dot(trans->rot, dir));
-//     // проверим сторону
-//     if (sideOf(pos, pos+trans->rot, Global::getPlayerPos(), -Physics::getGravityNorm()) > 0.0f) angle2 = -angle2;
-//
-//     // поправка на 22.5 градусов (так как 0 принадлежит [-22.5, 22.5))
-//     angle2 -= eighthPI;
-//
-//     if (angle2 < 0.0f) angle2 = angle2 + glm::two_pi<float>();
-//     if (angle2 > glm::two_pi<float>()) angle2 = angle2 - glm::two_pi<float>();
-//     int a = glm::floor(angle2 / quarterPI);
-//
-//     // я не понимаю почему
-//     a = (a + 5) % 8;
-//
-// //     std::cout << "Side: " << a << "\n";
-//
-//     texture = currentState->getTexture(a);
-//   } else {
-//     texture = currentState->getTexture(0);
-//   }
-//
-//   DrawInfo info{
-//     texture,
-//     //trans->pos,
-//     glm::vec3(trans->getPos()),
-//     trans->rot,
-//     trans->scale,
-//     glm::vec3(0.0f, 0.0f, 0.0f),
-//     0, 0, 0
-//   };
-//
-//   Global::render()->add(RENDER_TYPE_MONSTER, info);
-// }
-//
-// void GraphicComponent::init(void* userData) {
-//   (void)userData;
-// //   trans = getEntity()->get<TransformComponent>().get();
-//
-// //   if (trans == nullptr) {
-// //     Global::console()->printE("Entity " + std::to_string(getEntity()->getId()) + " does not have TransformComponent!");
-// //     throw std::runtime_error("Entity " + std::to_string(getEntity()->getId()) + " does not have TransformComponent!");
-// //   }
-// //
-// //   getEntity()->get<StateController>()->addChild(this);
-//
-//
-// }
-//
-// void GraphicComponent::uiDraw() {
-//   if (ImGui::CollapsingHeader("Graphic")) {
-//     ImGui::Text("Monster and decoration standart mesh");
-//     if (ImGui::IsItemHovered()) {
-//       ImGui::BeginTooltip();
-//       ImGui::Text("You cannot change it.");
-//       ImGui::EndTooltip();
-//     }
-//
-//     ImGui::Text("Current state: %s", currentState->getName().c_str());
-//
-// //     ImGui::Text("Texture scale:");
-// //     ImGui::SameLine();
-// //     ImGui::DragFloat3("scale", &scale, 0.1f);
-//   }
-// }
-//
-// void GraphicComponent::drawBoundingShape(CollisionComponent* shape, const simd::vec4 &color) const {
-//   // if (shape->getType() != AABBOX) {
-//   //   Global::console()->print("Entity's (id: " + std::to_string(getEntity()->getId()) + ") shape is not AABB");
-//   // }
-//
-//   // DrawInfo info;
-//   // info.relativeOnPRotOnly = false;
-//   // info.useIndexBuffer = true;
-//   // info.viewIndex = 0;
-//   // info.vertexCount = 6*4;
-//   // info.firstVertex = 0;
-//   // info.pipelineIndex = Global::render()->getDevice()->getBasicAABBPIndex();
-//   // info.translation = shape->getCenter();
-//   // info.scale = trans->scale; //((AABB*)shape)->extent;
-//   // info.color = color;
-//   // info.vertexBuffer = Global::getAABB();
-//   // info.indexBuffer = Global::getAABBIdx();
-//   // Global::render()->addDrawCommand(info);
-//
-//   (void)shape;
-//
-//   simd::mat4 mat = glm::translate(simd::mat4(), trans->pos);
-//   mat = glm::scale(mat, trans->scale);
-//
-//   Global::render()->addDebugDraw([mat, color] (yavf::GraphicTask* task) {
-//     PushConst consts{
-//       mat,
-//       color,
-//       glm::vec3(0.0f, 0.0f, 0.0f)
-//     };
-//
-//     task->setConsts(0, sizeof(PushConst), &consts);
-//     task->drawIndirect(Global::getIndirectBuffer(), 2);
-//   });
-// }
-//
-// // void GraphicComponent::addChild(Controller* c) { (void)c; }
-// //
-// // void GraphicComponent::changeState(const Type &type) {
-// //   auto itr = states.find(type.getType());
-// //   if (itr == states.end()) return;
-// //
-// //   currentState = itr->second;
-// // }
-// //
-// // void GraphicComponent::reset() {
-// //   currentState->reset();
-// // }
-// //
-// // bool GraphicComponent::isFinished() const {
-// //   return currentState->isFinished();
-// // }
-// //
-// // bool GraphicComponent::isBlocking() const {
-// //   return currentState->isBlocking();
-// // }
-// //
-// // bool GraphicComponent::isBlockingMovement() const {
-// //   return currentState->isBlockingMovement();
-// // }
-// //
-// // void GraphicComponent::setAnim(const Type &type, GraphicState* anim) {
-// //   states[type.getType()] = anim;
-// //
-// //   if (currentState == nullptr) currentState = anim;
-// // }
-// //
-// // GraphicState* GraphicComponent::getCurrentState() const {
-// //   return currentState;
-// // }
-//
-// uint32_t GraphicComponent::getMatrixIndex() const {
-//   return matrixIndex;
-// }
-//
-// uint32_t GraphicComponent::getRotationDataIndex() const {
-//   return rotationDataIndex;
-// }
-//
-// uint32_t GraphicComponent::getTextureContainerIndex() const {
-//   return textureContainerIndex;
-// }
-//
-// Container<simd::mat4>* GraphicComponent::matrices = nullptr;
-// Container<RotationData>* GraphicComponent::rotationDatas = nullptr;
-// Container<Texture>* GraphicComponent::textureContainer = nullptr;
-// MonsterOptimizer* GraphicComponent::optimizer = nullptr;
-//
-// CLASS_TYPE_DEFINE_WITH_NAME(GraphicComponentIndexes, "GraphicComponentIndexes")
-//
-// // GraphicComponentIndexes::GraphicComponentIndexes(const uint32_t &pipelineIndex, const size_t &offset, const size_t &elemCount) : GraphicComponent(pipelineIndex) {
-// //   this->offset = offset;
-// //   this->elemCount = elemCount;
-// // }
-//
-// GraphicComponentIndexes::GraphicComponentIndexes(const size_t &offset, const size_t &elemCount) : GraphicComponent() {
-//   this->offset = offset;
-//   this->elemCount = elemCount;
-// }
-//
-// GraphicComponentIndexes::GraphicComponentIndexes(const size_t &offset, const size_t &elemCount, const uint32_t &faceIndex) : GraphicComponent() {
-//   this->offset = offset;
-//   this->elemCount = elemCount;
-//   this->faceIndex = faceIndex;
-// }
-//
-// GraphicComponentIndexes::~GraphicComponentIndexes() {}
-//
-// void GraphicComponentIndexes::update(const size_t &time) {
-//   const DrawInfo info{
-//     currentState->getTexture(),
-//     glm::vec3(0.0f, 0.0f, 0.0f),
-//     glm::vec3(0.0f, 0.0f, 0.0f),
-//     glm::vec3(0.0f, 0.0f, 0.0f),
-//     glm::vec3(0.0f, 0.0f, 0.0f),
-//     faceIndex,
-//     elemCount,
-//     offset
-//   };
-//
-//   Global::render()->add(RENDER_TYPE_GEOMETRY, info);
-// }
-//
-// void GraphicComponentIndexes::init(void* userData) {
-// //   GraphicComponent::init(userData);
-//   (void)userData;
-//   getEntity()->get<StateController>()->addChild(this);
-// }
-//
-// void GraphicComponentIndexes::uiDraw() {
-//   if (ImGui::CollapsingHeader("Graphic")) {
-//     if (Global::getMapIndex()->ptr() == nullptr) {
-//       ImGui::Text("(some string for error ex:) The game must be in \'dev\' mode");
-//     } else {
-//       if (Global::getMapVertex()->ptr() == nullptr) {
-//         Global::console()->printE("Ptr to map vertices is NULL!");
-//         throw std::runtime_error("Ptr to map vertices is NULL!");
-//       }
-//
-//       uint32_t* idx = (uint32_t*)Global::getMapIndex()->ptr();
-//       idx = idx + offset;
-//       Vertex* verts = (Vertex*)Global::getMapVertex()->ptr();
-//       ImGui::Text("Fast actions with UV coords:");
-//       if (ImGui::Button("Turn left")) {
-// //         std::cout << "Turning left" << "\n";
-//
-//         glm::vec2 tmp = verts[idx[elemCount-1]].texCoord;
-//         for (int64_t i = elemCount-2; i >= 0; --i) {
-//           //verts[idx[i]].texCoord = tmp;
-//           std::swap(verts[idx[i]].texCoord, tmp);
-//         }
-//
-//         std::swap(verts[idx[elemCount-1]].texCoord, tmp);
-//         graphicIndex = (graphicIndex - 1) % elemCount;
-//       }
-//
-//       ImGui::SameLine();
-//
-//       if (ImGui::Button("Turn right")) {
-// //         std::cout << "Turning right" << "\n";
-//
-//         glm::vec2 tmp = verts[idx[0]].texCoord;
-//         for (size_t i = 1; i < elemCount; ++i) {
-//           //verts[idx[i]].texCoord = tmp;
-//           std::swap(verts[idx[i]].texCoord, tmp);
-//         }
-//
-//         std::swap(verts[idx[0]].texCoord, tmp);
-//         graphicIndex = (graphicIndex + 1) % elemCount;
-//       }
-//
-//       ImGui::SameLine();
-//
-//       if (ImGui::Button("Try fix")) {
-// //         size_t index = 0;
-// //         for (size_t i = 0; i < indicies->param.dataCount; ++i) {
-// //           if (vec_eq(verts[idx[i]].texCoord, glm::vec2(0.0f, 0.0f))) {
-// //             index = i;
-// //             break;
-// //           }
-// //         }
-//
-//         CollisionComponent* coll = getEntity()->get<CollisionComponent>().get();
-//         Polygon* poly = (Polygon*)coll;
-//
-//         glm::vec3 x, y;
-//
-//         if (fast_fabsf(poly->normal.x) < EPSILON && fast_fabsf(poly->normal.y) < EPSILON) {
-//           x = glm::vec3(1.0f, 0.0f, 0.0f);
-//           y = glm::vec3(0.0f, 1.0f, 0.0f);
-//         } else {
-//           x = glm::normalize(glm::vec3(-poly->normal.y, poly->normal.x, 0.0f));
-//           y = glm::normalize(glm::vec3(-poly->normal.x*poly->normal.z, -poly->normal.y*poly->normal.z, poly->normal.x*poly->normal.x + poly->normal.y*poly->normal.y));
-//         }
-//
-//         float angle = (float)graphicIndex * (glm::two_pi<float>()/(float)elemCount);
-//         glm::vec3 newX = glm::normalize(glm::rotate(x, angle, poly->normal));
-//         glm::vec3 newY = glm::normalize(glm::rotate(y, angle, poly->normal));
-//
-//         size_t index2 = graphicIndex;
-//         for (size_t i = 1; i < elemCount; ++i) {
-//           index2 = (index2 + 1) % elemCount;
-//
-//           float a = glm::dot(newX, verts[idx[index2]].pos-verts[idx[graphicIndex]].pos);
-//           float b = glm::dot(newY, verts[idx[index2]].pos-verts[idx[graphicIndex]].pos);
-//
-//           verts[idx[index2]].texCoord = glm::vec2(a, b);
-//         }
-//       }
-//
-//       ImGui::SameLine();
-//
-//       if (ImGui::Button("Try fix 2")) {
-//         float angle = 0.0f;
-//         for (size_t i = 0; i < graphicIndex; ++i) {
-//           size_t j = (i + 1) % elemCount;
-//           size_t k = (i - 1) % elemCount;
-//
-//           angle = angle + Physics::angleVec2(verts[idx[j]].pos-verts[idx[i]].pos, verts[idx[k]].pos-verts[idx[i]].pos);
-//         }
-//
-//         CollisionComponent* coll = getEntity()->get<CollisionComponent>().get();
-//         Polygon* poly = (Polygon*)coll;
-//
-//         glm::vec3 x, y;
-//
-//         if (fast_fabsf(poly->normal.x) < EPSILON && fast_fabsf(poly->normal.y) < EPSILON) {
-//           x = glm::vec3(1.0f, 0.0f, 0.0f);
-//           y = glm::vec3(0.0f, 1.0f, 0.0f);
-//         } else {
-//           x = glm::normalize(glm::vec3(-poly->normal.y, poly->normal.x, 0.0f));
-//           y = glm::normalize(glm::vec3(-poly->normal.x*poly->normal.z, -poly->normal.y*poly->normal.z, poly->normal.x*poly->normal.x + poly->normal.y*poly->normal.y));
-//         }
-//
-//         glm::vec3 newX = glm::normalize(glm::rotate(x, angle, poly->normal));
-//         glm::vec3 newY = glm::normalize(glm::rotate(y, angle, poly->normal));
-//
-//         size_t index2 = graphicIndex;
-//         for (size_t i = 1; i < elemCount; ++i) {
-//           index2 = (index2 + 1) % elemCount;
-//
-//           float a = glm::dot(newX, verts[idx[index2]].pos-verts[idx[graphicIndex]].pos);
-//           float b = glm::dot(newY, verts[idx[index2]].pos-verts[idx[graphicIndex]].pos);
-//
-//           verts[idx[index2]].texCoord = glm::vec2(a, b);
-//         }
-//       }
-//
-//       ImGui::SameLine();
-//
-//       if (ImGui::Button("Try fix 3")) {
-//         CollisionComponent* coll = getEntity()->get<CollisionComponent>().get();
-//         Polygon* poly = (Polygon*)coll;
-//
-//         glm::vec3 x, y;
-//
-//         if (fast_fabsf(poly->normal.x) < EPSILON && fast_fabsf(poly->normal.y) < EPSILON) {
-//           x = glm::vec3(1.0f, 0.0f, 0.0f);
-//           y = glm::vec3(0.0f, 1.0f, 0.0f);
-//         } else {
-//           x = glm::normalize(glm::vec3(-poly->normal.y, poly->normal.x, 0.0f));
-//           y = glm::normalize(glm::vec3(-poly->normal.x*poly->normal.z, -poly->normal.y*poly->normal.z, poly->normal.x*poly->normal.x + poly->normal.y*poly->normal.y));
-//         }
-//
-//         float angle = (float)graphicIndex*(glm::two_pi<float>()/4.0f);
-//         glm::vec3 newX = glm::normalize(glm::rotate(x, angle, poly->normal));
-//         glm::vec3 newY = glm::normalize(glm::rotate(y, angle, poly->normal));
-//
-//         size_t index2 = graphicIndex;
-//         for (size_t i = 1; i < elemCount; ++i) {
-//           index2 = (index2 + 1) % elemCount;
-//
-//           float a = glm::dot(newX, verts[idx[index2]].pos-verts[idx[graphicIndex]].pos);
-//           float b = glm::dot(newY, verts[idx[index2]].pos-verts[idx[graphicIndex]].pos);
-//
-//           verts[idx[index2]].texCoord = glm::vec2(a, b);
-//         }
-//       }
-//
-//       if (ImGui::Button("Mirror U")) {
-//         for (size_t i = 0; i < elemCount; ++i) {
-//           verts[idx[i]].texCoord.x = 1.0f - verts[idx[i]].texCoord.x;
-//         }
-//       }
-//
-//       ImGui::SameLine();
-//
-//       if (ImGui::Button("Mirror W")) {
-//         for (size_t i = 0; i < elemCount; ++i) {
-//           verts[idx[i]].texCoord.y = 1.0f - verts[idx[i]].texCoord.y;
-//         }
-//       }
-//
-//       ImGui::Separator();
-//
-//       static float oldScale = 1.0f;
-//       static float newScale = 1.0f;
-//
-//       ImGui::Text("Scale:");
-//       ImGui::SameLine();
-//       ImGui::DragFloat("###scale", &newScale, 0.001f);
-//
-//       float diff = newScale - oldScale;
-//       if (!f_eq(diff, 0.0f)) {
-//
-//         for (size_t i = 0; i < elemCount; ++i) {
-//           verts[idx[i]].texCoord *= (diff + 1.0f);
-//         }
-//
-//         oldScale = newScale;
-//       }
-//
-//       static glm::vec2 oldUV = glm::vec2(0.0f, 0.0f);
-//       static glm::vec2 newUV = glm::vec2(0.0f, 0.0f);
-//
-//       ImGui::Text("Shift:");
-//       ImGui::SameLine();
-//       ImGui::DragFloat2("###shift", (float*)&newUV, 0.001f);
-//
-//       glm::vec2 diffUV = newUV - oldUV;
-//       if (!f_eq(diffUV.x, 0.0f) || !f_eq(diffUV.y, 0.0f)) {
-// //         std::cout << "Moving" << "\n";
-//
-//         for (size_t i = 0; i < elemCount; ++i) {
-//           verts[idx[i]].texCoord += diffUV;
-//         }
-//
-//         oldUV = newUV;
-//       }
-//
-//       for (size_t i = 0; i < elemCount; ++i) {
-//         if (ImGui::CollapsingHeader(("Vertex "+std::to_string(idx[i])).c_str())) {
-//           ImGui::Text("Pos: (%.4f, %.4f, %.4f)", verts[idx[i]].pos.x, verts[idx[i]].pos.y, verts[idx[i]].pos.z);
-//           if (ImGui::IsItemHovered()) {
-//             ImGui::BeginTooltip();
-//             ImGui::Text("You cannot change it here.");
-//             ImGui::EndTooltip();
-//           }
-//           ImGui::Text("TexCoord:");
-//           ImGui::SameLine();
-//           ImGui::DragFloat2((("###uv"+std::to_string(idx[i])).c_str()), (float*)&verts[idx[i]].texCoord, 0.001f);
-//
-//           static glm::vec2 oldUV2 = glm::vec2(0.0f, 0.0f);
-//           static glm::vec2 newUV2 = glm::vec2(0.0f, 0.0f);
-//
-//           ImGui::Text("Shift:");
-//           ImGui::SameLine();
-//           ImGui::DragFloat2((("###shift"+std::to_string(idx[i])).c_str()), (float*)&newUV2, 0.001f);
-//
-//           glm::vec2 diffUV = newUV2 - oldUV2;
-//           if (!f_eq(diffUV.x, 0.0f) || !f_eq(diffUV.y, 0.0f)) {
-//             verts[idx[i]].texCoord += diffUV;
-//
-//             oldUV2 = newUV2;
-//           }
-//         }
-//       }
-//     }
-//
-//     ImGui::Text("Current state: %s", currentState->getName().c_str());
-//
-// //     ImGui::Text("Texture scale:");
-// //     ImGui::SameLine();
-// //     ImGui::DragFloat3("scale", &scale, 0.1f);
-//   }
-// }
-//
-// void GraphicComponentIndexes::drawBoundingShape(CollisionComponent* shape, const simd::vec4 &color) const {
-//   size_t count = elemCount;
-//   size_t indexOffset = offset;
-// //   simd::vec4 color1 = color;
-// //   color1.w = 0.5f;
-//
-//   if (shape && shape->getType() != PLANE) {
-//     std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" << "\n";
-//     exit(-1);
-//   }
-//
-//   Global::render()->addDebugDraw([color, shape, count, indexOffset] (yavf::GraphicTask* task) {
-//     struct PushConst {
-//       simd::mat4 mat;
-//       simd::vec4 color;
-//       glm::vec3 normal;
-//     };
-//
-//     PushConst consts{
-//       simd::mat4(1.0f),
-//       color,
-//       //((Polygon*)shape)->normal
-//       ((Polygon*)shape->getCollidable())->normal
-//     };
-//
-//     task->setConsts(0, sizeof(PushConst), &consts);
-//     task->drawIndexed(count, 1, indexOffset, 0, 0);
-//   });
-// }
-
 CLASS_TYPE_DEFINE_WITH_NAME(Light, "Light")
 
 void Light::setOptimizer(LightOptimizer* optimizer) {
@@ -1227,22 +719,6 @@ void UserInputComponent::update(const size_t &time) { (void)time; }
 void UserInputComponent::init(void* userData) {
   (void)userData;
 
-//   std::cout << "UserInputComponent::init" << "\n";
-
-//   states = getEntity()->get<StateController>().get();
-//
-//   if (states == nullptr) {
-//     Global::console()->printE("Entity " + std::to_string(getEntity()->getId()) + " does not have StateController!");
-//     throw std::runtime_error("Entity " + std::to_string(getEntity()->getId()) + " does not have StateController!");
-//   }
-
-//   input = getEntity()->get<InputComponent>().get();
-//
-//   if (input == nullptr) {
-//     Global::console()->printE("Entity " + std::to_string(getEntity()->getId()) + " does not have InputComponent!");
-//     throw std::runtime_error("Entity " + std::to_string(getEntity()->getId()) + " does not have InputComponent!");
-//   }
-
   trans = getEntity()->get<TransformComponent>().get();
 
   if (trans == nullptr) {
@@ -1258,17 +734,6 @@ void UserInputComponent::init(void* userData) {
 }
 
 void UserInputComponent::mouseMove(const float &horisontalAngle, const float &verticalAngle) {
-//   static bool first = true;
-//   if (first) {
-// //     std::cout << "horisontalAngleSum " << horisontalAngleSum << " verticalAngleSum " << verticalAngleSum << "\n";
-// //     cartesianToSpherical(startingDir, horisontalAngleSum, verticalAngleSum);
-//
-// //     horisontalAngleSum = glm::degrees(horisontalAngleSum);
-// //     verticalAngleSum = glm::degrees(verticalAngleSum);
-//
-//     first = false;
-//   }
-
   float x, y;
   {
     // RegionLog rl("angle compute");
@@ -1351,11 +816,6 @@ void UserInputComponent::mouseMove(const float &horisontalAngle, const float &ve
   trans->rot() = front;
 
   setMovement(0.0f, 0.0f, 0.0f);
-//   input->forwardMove = 0.0f;
-//   input->sideMove = 0.0f;
-//   input->upMove = 0.0f;
-
-//   input->updateInput();
 }
 
 void UserInputComponent::forward() {
@@ -1393,6 +853,8 @@ AIInputComponent::~AIInputComponent() {}
 
 void AIInputComponent::update(const size_t &time) { (void)time; }
 void AIInputComponent::init(void* userData) {
+  (void)userData;
+  
   trans = getEntity()->get<TransformComponent>().get();
   if (trans == nullptr) {
     Global::console()->printE("Entity " + std::to_string(getEntity()->getId()) + " does not have TransformComponent!");
@@ -1429,6 +891,7 @@ size_t AIInputComponent::followPath(const size_t &predictionTime, const RawPath*
   float dist2;
   simd::vec4 closest2;
   const size_t index2 = path->getNearPathSegmentIndex(futurePos, closest2, dist2);
+  (void)index2;
   
 //   const RawPathPiece &pathSeg = path->data()[currentPathSegmentIndex];
 //   const RawPathPiece &nextPathSeg = path->data()[currentPathSegmentIndex+1];
@@ -1456,7 +919,8 @@ size_t AIInputComponent::followPath(const size_t &predictionTime, const RawPath*
 }
 
 void AIInputComponent::stayOnPath(const size_t &predictionTime, const RawPath* path) {
-  
+  (void)predictionTime;
+  (void)path;
 }
 
 CLASS_TYPE_DEFINE_WITH_NAME(CameraComponent, "CameraComponent")

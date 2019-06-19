@@ -71,6 +71,8 @@ uint32_t CPUAnimationSystemParallel::createAnimation(const ResourceID &animId, c
 
 uint32_t CPUAnimationSystemParallel::createAnimation(const ResourceID &animId, const AnimationCreateInfoFromExisting &info) {
   // тут нужно добавить еще парочку переменных в анимацию, поэтому пока это не работает
+  (void)animId;
+  (void)info;
   throw std::runtime_error("not implemented yet");
   return 0;
 }

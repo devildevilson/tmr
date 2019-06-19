@@ -15,6 +15,8 @@
 #define PRINT_VEC3(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << "\n";
 
 CPUPhysicsParallel::CPUPhysicsParallel(const CreateInfo &info) : updateDelta(info.updateDelta), accumulator(0) {
+  TimeLogDestructor physics("Physics system initialization");
+  
   this->pool = info.pool;
   this->broad = info.b;
   this->narrow = info.n;

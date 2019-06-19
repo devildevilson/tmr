@@ -8,8 +8,8 @@
 bool checkTextureJsonValidity(const std::string &pathPrefix, const std::string &path, const nlohmann::json &j, std::string &name, size_t &size, std::vector<ErrorDesc> &error, std::vector<WarningDesc> &warning) {
   bool valid = false;
   bool hasCount = false;
-  bool hasRows = false;
-  bool hasColumns = false;
+//   bool hasRows = false;
+//   bool hasColumns = false;
   bool hasWidth = false;
   bool hasHeight = false;
   uint32_t count = 0;
@@ -28,6 +28,7 @@ bool checkTextureJsonValidity(const std::string &pathPrefix, const std::string &
       
       int32_t comp;
       int ret = stbi_info((pathPrefix + texturePath).c_str(), &loadedWidth, &loadedHeight, &comp);
+      (void)ret;
 //       if (!bool(ret)) throw std::runtime_error("dqsdqwfgqfwfqffqfqfwfavsavaw " + pathPrefix + texturePath);
       
       continue;
@@ -46,13 +47,13 @@ bool checkTextureJsonValidity(const std::string &pathPrefix, const std::string &
     
     if (concreteTIt.value().is_number_unsigned() && concreteTIt.key().compare("rows") == 0) {
       rows = concreteTIt.value().get<size_t>();
-      hasRows = rows > 1;
+//       hasRows = rows > 1;
       continue;
     }
     
     if (concreteTIt.value().is_number_unsigned() && concreteTIt.key().compare("columns") == 0) {
       columns = concreteTIt.value().get<size_t>();
-      hasColumns = columns > 1;
+//       hasColumns = columns > 1;
       continue;
     }
     
@@ -132,6 +133,7 @@ bool getTextureData(const std::string &pathPrefix, const nlohmann::json &j, std:
       
       int32_t comp;
       int ret = stbi_info((pathPrefix + texturePath).c_str(), &loadedWidth, &loadedHeight, &comp);
+      (void)ret;
 //       if (!bool(ret)) throw std::runtime_error("dqsdqwfgqfwfqffqfqfwfavsavaw " + pathPrefix + texturePath);
       
       continue;
@@ -368,6 +370,7 @@ bool TextureLoader::parse(const std::string &pathPrefix,
         bool b = getTextureData(pathPrefix, json, name, resourceSize, tData);
         tData->name = realName;
         
+        (void)b;
 //         if (!b) throw std::runtime_error("getTextureData error");
         
         auto tDataItr = this->data->textureDatas.find(realName);
@@ -482,6 +485,7 @@ bool TextureLoader::parse(const std::string &pathPrefix,
         bool b = getTextureData(pathPrefix, textureJson, name, resourceSize, tData);
         tData->name = realName;
         
+        (void)b;
 //         if (!b) throw std::runtime_error("getTextureData error");
         
         auto tDataItr = this->data->textureDatas.find(realName);
