@@ -107,7 +107,7 @@ CompositeType<Container> operator~(const CompositeType<Container> &type1) {
   return CompositeType<Container>(tmp);
 }
 
-template <typename Container = uint32_t>
+template <typename Container>
 uint32_t CompositeType<Container>::nextTypeBit = 0;
 
 // static std::unordered_map<std::string, Container> names;

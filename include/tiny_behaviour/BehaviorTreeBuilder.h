@@ -243,8 +243,7 @@ namespace tb {
     BehaviorTreeBuilder & random(const uint32_t &seed = 0, RandomSelector** out = nullptr) {
       error();
 
-//         RandomSelector* node = new RandomSelector(seed);
-      RandomSelector* node = currentContainer.create<RandomSelector>();
+      RandomSelector* node = currentContainer.create<RandomSelector>(seed);
       if (out != nullptr) *out = node;
 
       checkCurrentNode(node);
