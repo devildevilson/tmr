@@ -13,9 +13,6 @@
 [submodule "include/tinyobjloader"]
 	path = include/tinyobjloader
 	url = https://github.com/syoyo/tinyobjloader.git
-[submodule "include/TinyBehavior"]
-	path = include/TinyBehavior
-	url = https://github.com/andrewlemeshev/TinyBehavior.git
 [submodule "include/VulkanMemoryAllocator"]
 	path = include/VulkanMemoryAllocator
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
