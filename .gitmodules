@@ -22,3 +22,6 @@
 [submodule "include/cppfs"]
 	path = include/cppfs
 	url = https://github.com/cginternals/cppfs.git
+[submodule "tiny_behaviour"]
+	path = tiny_behaviour
+	url = https://github.com/devildevilson/tiny_behaviour.git
