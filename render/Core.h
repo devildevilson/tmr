@@ -5,8 +5,6 @@
 #include <string>
 #include <unordered_map>
 #include <functional>
-#include <vulkan/vulkan.h>
-#include <vk_mem_alloc.h>
 
 #include <string.h>
 
