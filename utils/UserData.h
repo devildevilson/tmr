@@ -9,6 +9,7 @@ class DecalContainerComponent;
 class GraphicComponent;
 class EntityAI;
 class vertex_t;
+class EventComponent;
 
 struct PhysUserData {
   yacs::Entity* ent;
@@ -16,6 +17,7 @@ struct PhysUserData {
   GraphicComponent* graphicComponent;
   EntityAI* aiComponent;
   vertex_t* vertex;
+  EventComponent* events;
 };
 
 #endif
