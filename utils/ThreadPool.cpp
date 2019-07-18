@@ -118,6 +118,14 @@ namespace dt {
 
     return false;
   }
+  
+  uint32_t thread_pool::thread_index(const std::thread::id &id) const {
+    for (size_t i = 0; i < workers.size(); ++i) {
+      if (workers[i].get_id() == id) return i+1;
+    }
+    
+    return 0;
+  }
 
   size_t thread_pool::size() const {
     return workers.size();

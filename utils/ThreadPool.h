@@ -60,6 +60,7 @@ namespace dt {
     void wait(); // просто ждет всех
 
     bool is_dependent(const std::thread::id &id) const;
+    uint32_t thread_index(const std::thread::id &id) const;
 
     size_t size() const;
     size_t tasks_count() const;
