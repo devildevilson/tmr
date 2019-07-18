@@ -165,8 +165,9 @@ void VulkanRender::update(const uint64_t &time) {
 }
 
 void VulkanRender::start() {
-  const VkSubmitInfo &info = context->interface()->getSubmitInfo();
-  const uint32_t &family = context->interface()->getFamily();
+  yavf::TaskInterface* task = context->interface();
+  const VkSubmitInfo &info = task->getSubmitInfo();
+  const uint32_t &family = task->getFamily();
 
   waitFence = device->submit(family, 1, &info);
 }

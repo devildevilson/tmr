@@ -2,6 +2,7 @@
 #define YAVF_TYPES_H
 
 #include <vulkan/vulkan.h>
+#define VMA_RECORDING_ENABLED 0
 #include <vk_mem_alloc.h>
 
 #include "Internal.h"

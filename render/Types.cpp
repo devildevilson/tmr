@@ -3,6 +3,7 @@
 #include "Core.h"
 #include "Makers.h"
 
+#define VMA_RECORDING_ENABLED 0
 #define VMA_IMPLEMENTATION
 #include <vk_mem_alloc.h>
 
