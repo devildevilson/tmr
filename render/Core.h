@@ -33,6 +33,13 @@
 #define YAVF_DEFAULT_VECTOR_CAPASITY 20
 #endif
 
+#ifndef YAVF_NO_MULTITHREADING
+#include <mutex>
+#define YAVF_LOCK_MUTEX(mutex_variable) std::unique_lock<std::mutex> lock(mutex_variable);
+#else
+#define YAVF_LOCK_MUTEX(mutex_variable)
+#endif
+
 #define VK_VERSION_TO_STRING(ver) \
 std::to_string((ver >> 22) & 0xffc) + "." + \
 std::to_string((ver >> 12) & 0x3ff) + "." + \
@@ -191,6 +198,7 @@ namespace yavf {
   
   class Instance;
   
+  // нужно добавить поддержку мультитрединга и сюда
   class Device {
   public:
     struct CreateInfo {
@@ -207,13 +215,8 @@ namespace yavf {
     //Device(VkDevice device, VkPhysicalDevice phys, const std::vector<yavf::Internal::QueueInfo> &families);
     Device(const CreateInfo &info);
     ~Device();
-
-//     Buffer* createBuffer(const VkBufferCreateInfo &info, const VmaAllocationCreateInfo &alloc, const uint32_t &dataCount = 0, const Descriptor* descriptor = nullptr);
-//     Image* createImage(const VkImageCreateInfo &info, const VmaAllocationCreateInfo &alloc, 
-//                       const VkImageAspectFlags &aspect = VK_IMAGE_ASPECT_COLOR_BIT, const Descriptor* descriptor = nullptr);
     
-//     Buffer* createBuffer(const BufferCreateInfo &info);
-//     Image* createImage(const ImageCreateInfo &info);
+    // кажется только эти 2 функции попадают пока что в мультипоток
     Buffer* create(const BufferCreateInfo &info, const VmaMemoryUsage &usage);
     Image* create(const ImageCreateInfo &info, const VmaMemoryUsage &usage);
     BufferView* create(const VkBufferViewCreateInfo &info, Buffer* relatedBuffer);
@@ -329,6 +332,12 @@ namespace yavf {
     std::vector<Internal::QueueFamily> families;
 
 //     std::vector<VkSampler> samplerContainer;
+    
+#ifndef YAVF_NO_MULTITHREADING
+    std::mutex buffer_mutex;
+    std::mutex image_mutex;
+    // пока что 2 мьютекса, нужны ли другие?
+#endif
 
     std::vector<Buffer*> buffers;
     std::vector<Image*> images;

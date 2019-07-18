@@ -11,6 +11,13 @@
 
 #include <cstring>
 
+#ifndef _WIN32
+#include <execinfo.h>
+#include <signal.h>
+#include <unistd.h>
+//#else
+#endif
+
 PFN_vkSetDebugUtilsObjectNameEXT yavfSetDebugUtilsObjectNameEXT = nullptr;
 
 VkResult CreateDebugReportCallbackEXT(VkInstance instance,
@@ -217,6 +224,19 @@ VkBool32 utilsMessengerCallback(VkDebugUtilsMessageSeverityFlagBitsEXT      mess
   }
   
   std::cout << "\n";
+  
+  if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+    void *array[200];
+    size_t size;
+
+    // get void*'s for all entries on the stack
+    size = backtrace(array, 200);
+    // print out all the frames to stderr
+//     fprintf(stderr, "Error: signal %d:\n", sig);
+    backtrace_symbols_fd(array, size, STDERR_FILENO);
+    
+    throw std::runtime_error("Vulkan error");
+  }
   
   return VK_FALSE;
 }
@@ -1251,8 +1271,8 @@ namespace yavf {
     
     {
       const VmaAllocatorCreateInfo allocInfo{
-        //VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
-        0,
+        VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
+//         0,
         phys,
         h,
         info.bufferSizeBlock, //1000000,  // 1 mib
@@ -1270,8 +1290,8 @@ namespace yavf {
     
     {
       const VmaAllocatorCreateInfo allocInfo{
-        //VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
-        0,
+        VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
+//         0,
         phys,
         h,
         info.imageSizeBlock, //1000000,  // 1 mib
@@ -1487,6 +1507,8 @@ namespace yavf {
   }
   
   Buffer* Device::create(const BufferCreateInfo &info, const VmaMemoryUsage &usage) {
+    YAVF_LOCK_MUTEX(buffer_mutex)
+    
     Buffer* b = bufferPool.newElement(this, info, usage);
     
     b->internalIndex = buffers.size();
@@ -1496,6 +1518,8 @@ namespace yavf {
   }
   
   Image* Device::create(const ImageCreateInfo &info, const VmaMemoryUsage &usage) {
+    YAVF_LOCK_MUTEX(image_mutex)
+    
     Image* i = imagePool.newElement(this, info, usage);
     
     i->internalIndex = images.size();
@@ -1954,6 +1978,8 @@ namespace yavf {
   }
 
   void Device::destroy(Buffer* buffer) {
+    YAVF_LOCK_MUTEX(buffer_mutex)
+    
     buffers.back()->internalIndex = buffer->internalIndex;
     std::swap(buffers.back(), buffers[buffer->internalIndex]);
     buffers.pop_back();
@@ -1962,6 +1988,8 @@ namespace yavf {
   }
 
   void Device::destroy(Image* image) {
+    YAVF_LOCK_MUTEX(image_mutex)
+    
     images.back()->internalIndex = image->internalIndex;
     std::swap(images.back(), images[image->internalIndex]);
     images.pop_back();
