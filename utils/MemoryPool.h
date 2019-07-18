@@ -101,6 +101,7 @@ public:
     template <class... Args> T* newElement(Args&&... args)  {
       T* result = allocate();
       construct<T>(result, std::forward<Args>(args)...);
+//       T* result = new T(std::forward<Args>(args)...);
       return result;
     }
 
@@ -109,6 +110,7 @@ public:
         p->~T();
         deallocate(p);
       }
+//       delete p;
     }
     
     size_t getSize() {
