@@ -472,6 +472,13 @@ simd::vec4 PhysicsComponent2::getVelocity() const {
   return simd::vec4(vel.x, vel.y, vel.z, 0.0f);
 }
 
+float PhysicsComponent2::getSpeed() const {
+  if (container.physicDataIndex == UINT32_MAX) return 0.0f;
+  
+  const float &speed = Global::physics()->getPhysicData(&container).scalar;
+  return speed;
+}
+
 uint32_t PhysicsComponent2::getObjectShapePointsSize() const {
   return Global::physics()->getObjectShapePointsSize(&container);
 }
@@ -498,6 +505,10 @@ PhysicsIndexContainer* PhysicsComponent2::getGround() const {
   }
   
   return ret;
+}
+
+uint32_t PhysicsComponent2::getExternalDataIndex() const {
+  return externalDataIndex;
 }
 
 Container<ExternalData>* PhysicsComponent2::externalDatas = nullptr;

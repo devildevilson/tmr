@@ -281,6 +281,7 @@ public:
   const PhysicsIndexContainer & getIndexContainer() const;
   
   simd::vec4 getVelocity() const;
+  float getSpeed() const;
   
   uint32_t getObjectShapePointsSize() const;
   const simd::vec4* getObjectShapePoints() const;
@@ -288,6 +289,8 @@ public:
   const simd::vec4* getObjectShapeFaces() const;
   
   PhysicsIndexContainer* getGround() const;
+  
+  uint32_t getExternalDataIndex() const;
 
   // сюда приходит input
   // + здесь должна обновляться всякая дополнительная информация
