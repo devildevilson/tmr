@@ -2490,6 +2490,10 @@ namespace simd {
   
   inline mat4 orientation(const vec4 &normal, const vec4 &up) {
     if (all(equal(normal, up, EPSILON))) return mat4(1.0f);
+    if (all(equal(-normal, up, EPSILON))) return mat4(1.0f,  0.0f, 0.0f, 0.0f,
+                                                      0.0f, -1.0f, 0.0f, 0.0f,
+                                                      0.0f,  0.0f, 1.0f, 0.0f,
+                                                      0.0f,  0.0f, 0.0f, 1.0f);
     
     const vec4 rotationAxis = cross(up, normal);
     const float angle = std::acos(dot(normal, up));
