@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
   
   {
     const SoundLoadingData data{
-      Global::getGameDir() + "tmrdata/sound/Omen - Kingdom Under Siege.mp3",
+      Global::getGameDir() + "tmrdata/sound/Curio feat. Lucy - Ten Feet (Daxten Remix).mp3",
       SOUND_TYPE_MP3,
       false,
       false,
@@ -339,10 +339,6 @@ int main(int argc, char** argv) {
     postPhysics = systemContainer.addSystem<PostPhysics>(&threadPool, player, playerTransform);
   }
 
-//   std::cout << "input ptr " << input << "\n";
-
-//   initGui(device, window);
-
 //   bool drawMenu = false;
   bool quit = false;
   MenuStateMachine menuContainer(sizeof(MainMenu) + sizeof(ButtonItem) + sizeof(QuitGame));
@@ -354,8 +350,7 @@ int main(int argc, char** argv) {
     menuContainer.setDefaultItem(menu);
   }
 
-  KeyConfig keyConfig;
-  KeyContainer keyContainer(&keyConfig);
+  KeyContainer keyContainer;
 
   createReactions({&keyContainer, input, Global::window(), &menuContainer});
   setUpKeys(&keyContainer);
@@ -381,7 +376,7 @@ int main(int argc, char** argv) {
     
     mouseInput(input, time);
     if (menuContainer.isOpened()) menuKeysCallback(&menuContainer);
-    else keysCallbacks(&keyConfig, time);
+    else keysCallbacks(&keyContainer, time);
     nextnkFrame(Global::window(), &data.ctx);
 
     camera->update(time);
@@ -419,6 +414,8 @@ int main(int argc, char** argv) {
 
     graphicsContainer.update(time);
     
+    // звук идет после запуска графики
+    // сюда же мы можем засунуть и другие вычисления
     Global::sound()->update(time);
 
     // здесь же у нас должна быть настройка: тип какую частоту обновления экрана использовать?

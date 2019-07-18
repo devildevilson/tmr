@@ -72,6 +72,7 @@
 #define LONG_CLICK_TIME 400000
 
 #define KEY_POOL_SIZE 300
+#define ACTION_POOL_SIZE 300
 #define REACTION_POOL_SIZE 100
 
 // при этом возникают трудности создавать системы в рантайме?
@@ -176,52 +177,114 @@ enum KeyState : uint8_t {
   KEY_STATE_UNKNOWN      = 6
 };
 
-struct Reaction {
-  Reaction();
-  Reaction(const std::string &name, const std::function<void()> &f);
+struct input_function {
+  input_function();
+  input_function(const std::string &name, const std::function<void()> &f);
 
   std::string name;
   std::function<void()> f;
 };
 
-class ActionKey {
-public:
-  ActionKey(const KeyConfiguration &keys, const std::vector<ActionKey*> &keysPtr);
+namespace key {
+  enum class state : uint8_t {
+    unknown,
+    press,
+    click,
+    double_press,
+    double_click,
+    long_press,
+    long_click,
+  };
+  
+  // может ли пригодиться реакция на нажатие двух произвольных клавиш?
+  // думаю что вряд ли
+  // должна быть какая то иерархия  
+  enum class modificator : uint8_t {
+    none,
+    ctrl,
+    alt,
+    shift,
+    super,
+    backspace
+  };
+  
+  class action {
+  public:
+    struct type {
+      uint32_t m_container;
+      
+      type();
+      type(const std::vector<enum state> &states, const bool notUsedWhileModificator, const modificator &mod);
+      
+      void make_type(const std::vector<enum state> &states, const bool notUsedWhileModificator, const modificator &mod);
+      
+      bool is_valid_state(const enum state &state) const;
+      bool isUsedWithModificators() const;
+      bool changed() const;
+      modificator key_modificator() const;
+      
+      void set_changed(const bool value);
+    };
+    
+    action();
+    action(const std::vector<enum state> &states, const bool notUsedWhileModificator, const modificator &mod, const int32_t &key, input_function* func);
+    
+    void execute(const std::vector<modificator> &mods, const int32_t &state, const size_t &time);
+    
+    int32_t key();
+    enum state current_state() const;
+    bool is_valid_state(const enum state &state) const;
+    bool isUsedWithModificators() const;
+    std::string name() const;
+  private:
+    size_t m_time;
+    struct type m_type;
+    int32_t m_key;
+    enum state m_current;
+    input_function* m_func;
+  };
+}
 
-  void execute(const int32_t &state, const uint64_t &_time);
-  void setHandled();
-
-  Reaction* getReaction(uint8_t i) const;
-  void setReaction(const uint8_t &index, Reaction* r);
-
-  uint32_t getKey(const uint8_t &index) const;
-  uint32_t getKeysCount() const;
-private:
-  bool handled;
-  KeyConfiguration keys;
-  std::vector<ActionKey*> keysPtr;
-  std::array<Reaction*, 6> commands;
-  uint64_t time;
-  KeyState currentState;
-};
+// class ActionKey {
+// public:
+//   ActionKey(const KeyConfiguration &keys, const std::vector<ActionKey*> &keysPtr);
+// 
+//   void execute(const int32_t &state, const uint64_t &_time);
+//   void setHandled();
+// 
+//   Reaction* getReaction(uint8_t i) const;
+//   void setReaction(const uint8_t &index, Reaction* r);
+// 
+//   uint32_t getKey(const uint8_t &index) const;
+//   uint32_t getKeysCount() const;
+// private:
+//   bool handled;
+//   KeyConfiguration keys;
+//   std::vector<ActionKey*> keysPtr;
+//   std::array<Reaction*, 6> commands;
+//   uint64_t time;
+//   KeyState currentState;
+// };
 
 struct KeyConfig {
-  std::vector<ActionKey*> keys;
-  std::unordered_map<std::string, Reaction*> reactions;
+  std::vector<key::action*> keys;
+  std::unordered_map<std::string, input_function*> reactions;
 };
 
 struct KeyContainer {
-  MemoryPool<ActionKey, KEY_POOL_SIZE*sizeof(ActionKey)> keysPool;
-  MemoryPool<Reaction, REACTION_POOL_SIZE*sizeof(Reaction)> reactionPool;
-  KeyConfig* config;
+//   MemoryPool<ActionKey, KEY_POOL_SIZE*sizeof(ActionKey)> keysPool;
+  MemoryPool<key::action, ACTION_POOL_SIZE*sizeof(key::action)> keysPool;
+  MemoryPool<input_function, REACTION_POOL_SIZE*sizeof(input_function)> reactionPool;
+  KeyConfig config;
 
-  KeyContainer(KeyConfig* config);
+  KeyContainer();
   ~KeyContainer();
 
-  ActionKey* create(const KeyConfiguration &keys, const std::vector<ActionKey*> &keysPtr);
-  void sort();
+//   ActionKey* create(const KeyConfiguration &keys, const std::vector<ActionKey*> &keysPtr);
+  key::action* create(const std::vector<key::state> &states, const bool notUsedWhileModificator, const key::modificator &mod, const int32_t &key, input_function* func);
+//   void sort();
 
-  Reaction* create(const std::string &name, const std::function<void()> &f);
+  input_function* create(const std::string &name, const std::function<void()> &f);
 };
 
 // почти в каждой функции еще должны использоваться настройки
@@ -275,7 +338,7 @@ struct MouseData {
   // что то еще?
 };
 void mouseInput(UserInputComponent* input, const uint64_t &time);
-void keysCallbacks(KeyConfig* config, const uint64_t &time);
+void keysCallbacks(KeyContainer* container, const uint64_t &time);
 
 void menuKeysCallback(MenuStateMachine* menu);
 

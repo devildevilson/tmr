@@ -86,154 +86,354 @@ uint32_t KeyConfiguration::operator[] (const uint8_t &index) const {
   return tmp == UINT16_MAX ? UINT32_MAX : tmp;
 }
 
-Reaction::Reaction() {}
-Reaction::Reaction(const std::string &name, const std::function<void()> &f) : name(name), f(f) {}
+input_function::input_function() {}
+input_function::input_function(const std::string &name, const std::function<void()> &f) : name(name), f(f) {}
 
-ActionKey::ActionKey(const KeyConfiguration &keys, const std::vector<ActionKey*> &keysPtr)
-  : handled(false),
-    keys(keys),
-    keysPtr(keysPtr),
-    commands({nullptr, nullptr, nullptr, nullptr, nullptr, nullptr}),
-    time(0),
-    currentState(KEY_STATE_UNKNOWN) {
-//   std::cout << "keysCount " << keys.getKeysCount() << "\n";
-
-  const uint32_t count = keys.getKeysCount();
-  if (count == 0) throw std::runtime_error("Key count == 0");
-  if (count != 1 && count != keysPtr.size()) throw std::runtime_error("Wrong key number");
-  //if (count > 1 && count == keysPtr.size())
+key::action::type::type() : m_container(0) {}
+key::action::type::type(const std::vector<enum state> &states, const bool notUsedWhileModificator, const modificator &mod) : m_container(0) {
+  make_type(states, notUsedWhileModificator, mod);
 }
 
-void ActionKey::execute(const int32_t &state, const uint64_t &_time) {
-  if (handled) {
-    handled = !handled;
-    return;
-  }
+#define ACTION_STATE_PLACE 0
+#define NOT_USED_PLACE (static_cast<uint32_t>(key::state::long_click)+ACTION_STATE_PLACE)
+#define CHANGED_PLACE (NOT_USED_PLACE+1)
+#define MOD_PLACE (CHANGED_PLACE+1)
 
-  time += _time;
-  bool changed = false;
-  if (state == GLFW_PRESS || state == GLFW_REPEAT) {
-    if (currentState == KEY_STATE_CLICK) {
-      if (time < DOUBLE_PRESS_TIME) {
-        currentState = KEY_STATE_DOUBLE_PRESS;
-        changed = true;
-      } else {
-        currentState = KEY_STATE_PRESS;
-        time = 0;
-        changed = true;
-      }
-    } else if (currentState == KEY_STATE_PRESS) {
-      if (time > LONG_PRESS_TIME) {
-        currentState = KEY_STATE_PRESS;
-        changed = true;
-      } else {
-        currentState = KEY_STATE_PRESS;
-        changed = true;
-      }
-    } else if ((currentState == KEY_STATE_DOUBLE_CLICK) || (currentState == KEY_STATE_LONG_CLICK) || (currentState == KEY_STATE_UNKNOWN)) {
-      currentState = KEY_STATE_PRESS;
-      time = 0;
-      changed = true;
-    } else if (currentState == KEY_STATE_LONG_PRESS) {
-      changed = true;
-    } else if (currentState == KEY_STATE_DOUBLE_PRESS) {
-      if (time > DOUBLE_CLICK_TIME) {
-        currentState = KEY_STATE_PRESS;
-        time = 0;
-        changed = true;
-      } else {
-        changed = true;
-      }
-    }
-  } else if (state == GLFW_RELEASE) {
-    if (currentState == KEY_STATE_PRESS) {
-      currentState = KEY_STATE_CLICK;
-      changed = true;
-      //std::cout << "clicked " << glfwGetKeyName(*key, 0) << std::endl;
-    } else if (currentState == KEY_STATE_DOUBLE_PRESS) {
-      if (time < DOUBLE_CLICK_TIME) {
-        currentState = KEY_STATE_DOUBLE_CLICK;
-        changed = true;
-        //std::cout << "double clicked " << glfwGetKeyName(*key, 0) << std::endl;
-      } else {
-        currentState = KEY_STATE_CLICK;
-        time = 0;
-        changed = true;
-      }
-    } else if (currentState == KEY_STATE_LONG_PRESS) { // наверное long click будет происходить сразу же после long press
-      if (time > LONG_CLICK_TIME) {
-        currentState = KEY_STATE_LONG_CLICK;
-        changed = true;
-        //std::cout << "long clicked " << glfwGetKeyName(*key, 0) << std::endl;
-      } else {
-        currentState = KEY_STATE_CLICK;
-        time = 0;
-        changed = true;
-      }
+void key::action::type::make_type(const std::vector<enum state> &states, const bool notUsedWhileModificator, const modificator &mod) {
+  for (const auto state : states) {
+    if (state == key::state::unknown) continue;
+    
+    m_container |= (1 << (static_cast<uint32_t>(state)-1));
+  }
+  
+  m_container |= (static_cast<uint32_t>(notUsedWhileModificator) << NOT_USED_PLACE);
+  
+  m_container |= (static_cast<uint32_t>(mod) << MOD_PLACE);
+}
+
+bool key::action::type::is_valid_state(const key::state &state) const {
+  if (state == key::state::unknown) return false;
+  
+  const uint32_t mask = 1 << (static_cast<uint32_t>(state)-1);
+  return (m_container & mask) == mask;
+}
+
+bool key::action::type::isUsedWithModificators() const {
+  const uint32_t mask = 1 << NOT_USED_PLACE;
+  return (m_container & mask) == mask;
+}
+
+bool key::action::type::changed() const {
+  const uint32_t mask = 1 << CHANGED_PLACE;
+  return (m_container & mask) == mask;
+}
+
+key::modificator key::action::type::key_modificator() const {
+  const uint32_t mask = 0x7;
+  return static_cast<key::modificator>((m_container >> MOD_PLACE) & mask);
+}
+
+void key::action::type::set_changed(const bool value) {
+  const uint32_t mask = value << CHANGED_PLACE;
+  m_container |= mask;
+}
+
+key::action::action() : m_time(0), m_key(0) {}
+key::action::action(const std::vector<enum state> &states, const bool notUsedWhileModificator, const modificator &mod, const int32_t &key, input_function* func) : m_time(0), m_type(states, notUsedWhileModificator, mod), m_key(key), m_current(key::state::unknown), m_func(func) {}
+
+void key::action::execute(const std::vector<modificator> &mods, const int32_t &state, const size_t &time) {
+  m_time += time;
+  
+  bool rightModify = false;
+  bool additionalModifiers = false;
+  for (size_t i = 0; i < mods.size(); ++i) {
+    if (mods[i] == m_type.key_modificator()) {
+      rightModify = true;
+      break;
+    } else {
+      additionalModifiers = true;
     }
   }
-
-  if (changed && commands[currentState] != nullptr) {
-    commands[currentState]->f();
-
-    for (uint8_t i = 0; i < keysPtr.size(); ++i) keysPtr[i]->setHandled();
+  
+  if (additionalModifiers && !m_type.isUsedWithModificators()) return;
+  if (m_type.key_modificator() != key::modificator::none && !rightModify) return;
+  
+  const bool key_pressed = static_cast<bool>(state);
+  
+  switch (m_current) {
+    case key::state::unknown: {
+      const key::state old = m_current;
+      
+      const uint8_t inc = state;
+      m_current = static_cast<key::state>(static_cast<uint8_t>(m_current)+inc);
+      m_time = time;
+      
+      m_type.set_changed(m_current != old);
+      break;
+    }
+    
+    case key::state::press: {
+      const key::state old = m_current;
+      const bool is_long_press = m_time > LONG_PRESS_TIME;
+      
+      const uint8_t inc = static_cast<uint8_t>(!key_pressed);
+      m_current = static_cast<key::state>(static_cast<uint8_t>(m_current)+inc);
+      m_current = is_long_press ? key::state::long_press : m_current;
+      
+      m_type.set_changed(m_current != old);
+      break;
+    }
+    
+    case key::state::click: {
+      const key::state old = m_current;
+      const bool is_double_pressed_time = m_time < DOUBLE_PRESS_TIME;
+      
+      const uint8_t inc = static_cast<uint8_t>(key_pressed && is_double_pressed_time);
+      m_current = static_cast<key::state>(static_cast<uint8_t>(m_current)+inc);
+      
+      const bool just_press = key_pressed && !is_double_pressed_time;
+      m_current = just_press ? key::state::press : m_current;
+      m_time = just_press ? time : m_time;
+      
+      m_type.set_changed(m_current != old);
+      break;
+    }
+    
+    case key::state::double_press: {
+      const key::state old = m_current;
+      const bool is_double_clicked_time = m_time < DOUBLE_CLICK_TIME;
+      
+      const uint8_t inc = static_cast<uint8_t>(!key_pressed && is_double_clicked_time);
+      m_current = static_cast<key::state>(static_cast<uint8_t>(m_current)+inc);
+      
+      const bool just_press = !key_pressed && !is_double_clicked_time;
+      m_current = just_press ? key::state::click : m_current;
+      m_time = just_press ? time : m_time;
+      
+      m_type.set_changed(m_current != old);
+      break;
+    }
+    
+    case key::state::double_click: {
+      const key::state old = m_current;
+    
+      m_current = key_pressed ? key::state::press : m_current;
+      m_time = key_pressed ? time : m_time;
+      
+      m_type.set_changed(m_current != old);
+      break;
+    }
+    
+    case key::state::long_press: {
+      const key::state old = m_current;
+      
+      m_current = !key_pressed ? key::state::long_click : m_current;
+      
+      m_type.set_changed(m_current != old);
+      break;
+    }
+    
+    case key::state::long_click: {
+      const key::state old = m_current;
+      
+      m_current = key_pressed ? key::state::press : m_current;
+      m_time = key_pressed ? time : m_time;
+      
+      m_type.set_changed(m_current != old);
+      break;
+    }
   }
+  
+  const bool valid_state = m_type.is_valid_state(m_current);
+  
+  if (valid_state && m_type.changed()) m_func->f();
+  m_type.set_changed(false);
 }
 
-void ActionKey::setHandled() {
-  handled = true;
+int32_t key::action::key() {
+  return m_key;
 }
 
-Reaction* ActionKey::getReaction(uint8_t i) const {
-  return commands[i];
+enum key::state key::action::current_state() const {
+  return m_current;
 }
 
-void ActionKey::setReaction(const uint8_t &index, Reaction* r) {
-  commands[index] = r;
+bool key::action::is_valid_state(const enum state &state) const {
+  return m_type.is_valid_state(state);
 }
 
-uint32_t ActionKey::getKey(const uint8_t &index) const {
-  return keys[index];
+bool key::action::isUsedWithModificators() const {
+  return m_type.isUsedWithModificators();
 }
 
-uint32_t ActionKey::getKeysCount() const {
-  return keys.getKeysCount();
+std::string key::action::name() const {
+  return m_func->name;
 }
 
-KeyContainer::KeyContainer(KeyConfig* config) : config(config) {}
+// Reaction::Reaction() {}
+// Reaction::Reaction(const std::string &name, const std::function<void()> &f) : name(name), f(f) {}
+
+// ActionKey::ActionKey(const KeyConfiguration &keys, const std::vector<ActionKey*> &keysPtr)
+//   : handled(false),
+//     keys(keys),
+//     keysPtr(keysPtr),
+//     commands({nullptr, nullptr, nullptr, nullptr, nullptr, nullptr}),
+//     time(0),
+//     currentState(KEY_STATE_UNKNOWN) {
+// //   std::cout << "keysCount " << keys.getKeysCount() << "\n";
+// 
+//   const uint32_t count = keys.getKeysCount();
+//   if (count == 0) throw std::runtime_error("Key count == 0");
+//   if (count != 1 && count != keysPtr.size()) throw std::runtime_error("Wrong key number");
+//   //if (count > 1 && count == keysPtr.size())
+// }
+// 
+// void ActionKey::execute(const int32_t &state, const uint64_t &_time) {
+//   if (handled) {
+//     handled = !handled;
+//     return;
+//   }
+// 
+//   time += _time;
+//   bool changed = false;
+//   if (state == GLFW_PRESS || state == GLFW_REPEAT) {
+//     if (currentState == KEY_STATE_CLICK) {
+//       if (time < DOUBLE_PRESS_TIME) {
+//         currentState = KEY_STATE_DOUBLE_PRESS;
+//         changed = true;
+//       } else {
+//         currentState = KEY_STATE_PRESS;
+//         time = 0;
+//         changed = true;
+//       }
+//     } else if (currentState == KEY_STATE_PRESS) {
+//       if (time > LONG_PRESS_TIME) {
+//         currentState = KEY_STATE_PRESS;
+//         changed = true;
+//       } else {
+//         currentState = KEY_STATE_PRESS;
+//         changed = true;
+//       }
+//     } else if ((currentState == KEY_STATE_DOUBLE_CLICK) || (currentState == KEY_STATE_LONG_CLICK) || (currentState == KEY_STATE_UNKNOWN)) {
+//       currentState = KEY_STATE_PRESS;
+//       time = 0;
+//       changed = true;
+//     } else if (currentState == KEY_STATE_LONG_PRESS) {
+//       changed = true;
+//     } else if (currentState == KEY_STATE_DOUBLE_PRESS) {
+//       if (time > DOUBLE_CLICK_TIME) {
+//         currentState = KEY_STATE_PRESS;
+//         time = 0;
+//         changed = true;
+//       } else {
+//         changed = true;
+//       }
+//     }
+//   } else if (state == GLFW_RELEASE) {
+//     if (currentState == KEY_STATE_PRESS) {
+//       currentState = KEY_STATE_CLICK;
+//       changed = true;
+//       //std::cout << "clicked " << glfwGetKeyName(*key, 0) << std::endl;
+//     } else if (currentState == KEY_STATE_DOUBLE_PRESS) {
+//       if (time < DOUBLE_CLICK_TIME) {
+//         currentState = KEY_STATE_DOUBLE_CLICK;
+//         changed = true;
+//         //std::cout << "double clicked " << glfwGetKeyName(*key, 0) << std::endl;
+//       } else {
+//         currentState = KEY_STATE_CLICK;
+//         time = 0;
+//         changed = true;
+//       }
+//     } else if (currentState == KEY_STATE_LONG_PRESS) { // наверное long click будет происходить сразу же после long press
+//       if (time > LONG_CLICK_TIME) {
+//         currentState = KEY_STATE_LONG_CLICK;
+//         changed = true;
+//         //std::cout << "long clicked " << glfwGetKeyName(*key, 0) << std::endl;
+//       } else {
+//         currentState = KEY_STATE_CLICK;
+//         time = 0;
+//         changed = true;
+//       }
+//     }
+//   }
+// 
+//   if (changed && commands[currentState] != nullptr) {
+//     commands[currentState]->f();
+// 
+//     for (uint8_t i = 0; i < keysPtr.size(); ++i) keysPtr[i]->setHandled();
+//   }
+// }
+// 
+// void ActionKey::setHandled() {
+//   handled = true;
+// }
+// 
+// Reaction* ActionKey::getReaction(uint8_t i) const {
+//   return commands[i];
+// }
+// 
+// void ActionKey::setReaction(const uint8_t &index, Reaction* r) {
+//   commands[index] = r;
+// }
+// 
+// uint32_t ActionKey::getKey(const uint8_t &index) const {
+//   return keys[index];
+// }
+// 
+// uint32_t ActionKey::getKeysCount() const {
+//   return keys.getKeysCount();
+// }
+
+//KeyContainer::KeyContainer(KeyConfig* config) : config(config) {}
+KeyContainer::KeyContainer() {}
 
 KeyContainer::~KeyContainer() {
-  for (size_t i = 0; i < config->keys.size(); ++i) {
-    keysPool.deleteElement(config->keys[i]);
+  for (size_t i = 0; i < config.keys.size(); ++i) {
+    keysPool.deleteElement(config.keys[i]);
   }
 
-  for (auto itr = config->reactions.begin(); itr != config->reactions.end(); ++itr) {
+  for (auto itr = config.reactions.begin(); itr != config.reactions.end(); ++itr) {
     reactionPool.deleteElement(itr->second);
   }
 }
 
-ActionKey* KeyContainer::create(const KeyConfiguration &keys, const std::vector<ActionKey*> &keysPtr) {
-  ActionKey* key = keysPool.newElement(keys, keysPtr);
-  config->keys.push_back(key);
+// ActionKey* KeyContainer::create(const KeyConfiguration &keys, const std::vector<ActionKey*> &keysPtr) {
+//   ActionKey* key = keysPool.newElement(keys, keysPtr);
+//   config->keys.push_back(key);
+// 
+//   return key;
+// }
 
-  return key;
+key::action* KeyContainer::create(const std::vector<key::state> &states, const bool notUsedWhileModificator, const key::modificator &mod, const int32_t &key, input_function* func) {
+  key::action* action = keysPool.newElement(states, notUsedWhileModificator, mod, key, func);
+  config.keys.push_back(action);
+  return action;
 }
 
-struct KeyCompare {
-  bool operator() (const ActionKey* first, const ActionKey* second) const {
-    return first->getKeysCount() > second->getKeysCount();
-  }
-};
+// struct KeyCompare {
+//   bool operator() (const ActionKey* first, const ActionKey* second) const {
+//     return first->getKeysCount() > second->getKeysCount();
+//   }
+// };
+// 
+// void KeyContainer::sort() {
+//   std::sort(config->keys.begin(), config->keys.end(), KeyCompare());
+// }
 
-void KeyContainer::sort() {
-  std::sort(config->keys.begin(), config->keys.end(), KeyCompare());
-}
+// Reaction* KeyContainer::create(const std::string &name, const std::function<void()> &f) {
+//   Reaction* react = reactionPool.newElement(name, f);
+//   config->reactions[name] = react;
+// 
+//   return react;
+// }
 
-Reaction* KeyContainer::create(const std::string &name, const std::function<void()> &f) {
-  Reaction* react = reactionPool.newElement(name, f);
-  config->reactions[name] = react;
-
-  return react;
+input_function* KeyContainer::create(const std::string &name, const std::function<void()> &f) {
+  auto itr = config.reactions.find(name);
+  if (itr != config.reactions.end()) throw std::runtime_error("Reaction with name " + name + " is already exist");
+  
+  input_function* input = reactionPool.newElement(name, f);
+  config.reactions[name] = input;
+  return input;
 }
 
 void initGLFW() {
@@ -1047,47 +1247,21 @@ void createReactions(const ReactionsCreateInfo &info) {
 
 void setUpKeys(KeyContainer* container) {
   {
-    ActionKey* key = container->create(KeyConfiguration(GLFW_KEY_W), {});
-    key->setReaction(KEY_STATE_PRESS,        container->config->reactions["Step forward"]);
-    key->setReaction(KEY_STATE_DOUBLE_PRESS, container->config->reactions["Step forward"]);
-    key->setReaction(KEY_STATE_LONG_PRESS,   container->config->reactions["Step forward"]);
+    container->create({key::state::press, key::state::double_press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_W, container->config.reactions["Step forward"]);
+//     key->setReaction(KEY_STATE_PRESS,        container->config->reactions["Step forward"]);
+//     key->setReaction(KEY_STATE_DOUBLE_PRESS, container->config->reactions["Step forward"]);
+//     key->setReaction(KEY_STATE_LONG_PRESS,   container->config->reactions["Step forward"]);
   }
 
-  {
-    ActionKey* key = container->create(KeyConfiguration(GLFW_KEY_S), {});
-    key->setReaction(KEY_STATE_PRESS,        container->config->reactions["Step backward"]);
-    key->setReaction(KEY_STATE_DOUBLE_PRESS, container->config->reactions["Step backward"]);
-    key->setReaction(KEY_STATE_LONG_PRESS,   container->config->reactions["Step backward"]);
-  }
+  container->create({key::state::press, key::state::double_press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_S, container->config.reactions["Step backward"]);
+  container->create({key::state::press, key::state::double_press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_A, container->config.reactions["Step left"]);
+  container->create({key::state::press, key::state::double_press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_D, container->config.reactions["Step right"]);
 
-  {
-    ActionKey* key = container->create(KeyConfiguration(GLFW_KEY_A), {});
-    key->setReaction(KEY_STATE_PRESS,        container->config->reactions["Step left"]);
-    key->setReaction(KEY_STATE_DOUBLE_PRESS, container->config->reactions["Step left"]);
-    key->setReaction(KEY_STATE_LONG_PRESS,   container->config->reactions["Step left"]);
-  }
-
-  {
-    ActionKey* key = container->create(KeyConfiguration(GLFW_KEY_D), {});
-    key->setReaction(KEY_STATE_PRESS,        container->config->reactions["Step right"]);
-    key->setReaction(KEY_STATE_DOUBLE_PRESS, container->config->reactions["Step right"]);
-    key->setReaction(KEY_STATE_LONG_PRESS,   container->config->reactions["Step right"]);
-  }
-
-  {
-    ActionKey* key = container->create(KeyConfiguration(GLFW_KEY_SPACE), {});
-    key->setReaction(KEY_STATE_PRESS,        container->config->reactions["Jump"]);
-  }
-
-  {
-    ActionKey* key = container->create(KeyConfiguration(GLFW_KEY_LEFT_ALT), {});
-    key->setReaction(KEY_STATE_CLICK,        container->config->reactions["Interface focus"]);
-  }
+  container->create({key::state::press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_SPACE, container->config.reactions["Jump"]);
   
-  {
-    ActionKey* key = container->create(KeyConfiguration(GLFW_KEY_ESCAPE), {});
-    key->setReaction(KEY_STATE_CLICK,        container->config->reactions["Menu"]);
-  }
+  container->create({key::state::click}, true, key::modificator::none, GLFW_KEY_LEFT_ALT, container->config.reactions["Interface focus"]);
+  
+  container->create({key::state::click}, false, key::modificator::none, GLFW_KEY_ESCAPE, container->config.reactions["Menu"]);
 }
 
 void mouseInput(UserInputComponent* input, const uint64_t &time) {
@@ -1130,22 +1304,42 @@ void mouseInput(UserInputComponent* input, const uint64_t &time) {
   input->mouseMove(horisontalAngle, verticalAngle);
 }
 
-void keysCallbacks(KeyConfig* config, const uint64_t &time) {
-  for (size_t i = 0; i < config->keys.size(); ++i) {
-    const uint32_t keyCount = config->keys[i]->getKeysCount();
-
-//     std::cout << "keyCount " << keyCount << "\n";
-
-    bool state = true;
-    for (uint32_t j = 0; j < keyCount; ++j) {
-      const uint32_t key = config->keys[i]->getKey(j);
-
-//       std::cout << "key " << key << "\n";
-
-      state = state && Global::data()->keys[key];
-    }
-
-    config->keys[i]->execute(state ? GLFW_PRESS : GLFW_RELEASE, time);
+void keysCallbacks(KeyContainer* container, const uint64_t &time) {
+  const bool shift_mod = Global::data()->keys[GLFW_KEY_LEFT_SHIFT] || 
+                         Global::data()->keys[GLFW_KEY_RIGHT_SHIFT];
+  const bool control_mod = Global::data()->keys[GLFW_KEY_LEFT_CONTROL] || 
+                           Global::data()->keys[GLFW_KEY_RIGHT_CONTROL];
+  const bool super_mod = Global::data()->keys[GLFW_KEY_LEFT_SUPER] || 
+                         Global::data()->keys[GLFW_KEY_RIGHT_SUPER];
+  const bool alt_mod = Global::data()->keys[GLFW_KEY_LEFT_ALT] || 
+                       Global::data()->keys[GLFW_KEY_RIGHT_ALT];
+  const bool backspace_mod = Global::data()->keys[GLFW_KEY_BACKSPACE];
+                       
+//   const bool modificators = shift_mod || control_mod || super_mod || alt_mod || backspace_mod;
+  
+  std::vector<key::modificator> mods;
+  if (control_mod) mods.push_back(key::modificator::ctrl);
+  if (alt_mod) mods.push_back(key::modificator::alt);
+  if (shift_mod) mods.push_back(key::modificator::shift);
+  if (super_mod) mods.push_back(key::modificator::super);
+  if (backspace_mod) mods.push_back(key::modificator::backspace);
+  
+  for (size_t i = 0; i < container->config.keys.size(); ++i) {
+//     const uint32_t keyCount = config->keys[i]->getKeysCount();
+// 
+// //     std::cout << "keyCount " << keyCount << "\n";
+// 
+//     bool state = true;
+//     for (uint32_t j = 0; j < keyCount; ++j) {
+//       const uint32_t key = config->keys[i]->getKey(j);
+// 
+// //       std::cout << "key " << key << "\n";
+// 
+//       state = state && Global::data()->keys[key];
+//     }
+    
+    const bool state = Global::data()->keys[container->config.keys[i]->key()];
+    container->config.keys[i]->execute(mods, state ? GLFW_PRESS : GLFW_RELEASE, time);
   }
 }
 
