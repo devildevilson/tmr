@@ -27,7 +27,6 @@ private:
   
   static size_t nextId;
   static std::unordered_map<std::string, size_t> idx;
-  static std::unordered_map<size_t, std::string> names;
 };
 
 namespace std {

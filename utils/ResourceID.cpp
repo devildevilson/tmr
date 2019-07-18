@@ -5,7 +5,6 @@ ResourceID ResourceID::get(const std::string &name) {
   if (itr == idx.end()) {
     ResourceID id(nextId);
     idx[name] = nextId;
-    names[nextId] = name;
     ++nextId;
     return id;
   }
@@ -25,7 +24,6 @@ ResourceID::ResourceID(const std::string &name) {
   if (itr == idx.end()) {
     resourceId = nextId;
     idx[name] = nextId;
-    names[nextId] = name;
     ++nextId;
   } else {
     resourceId = itr->second;
@@ -41,7 +39,11 @@ size_t ResourceID::id() const {
 }
 
 std::string ResourceID::name() const {
-  return names[resourceId];
+  for (const auto &pair : idx) {
+    if (pair.second == resourceId) return pair.first;
+  }
+  
+  return "";
 }
 
 ResourceID & ResourceID::operator=(const ResourceID &other) {
@@ -61,4 +63,3 @@ ResourceID::ResourceID(const size_t &id) : resourceId(id) {}
 
 size_t ResourceID::nextId = 0;
 std::unordered_map<std::string, size_t> ResourceID::idx;
-std::unordered_map<size_t, std::string> ResourceID::names;

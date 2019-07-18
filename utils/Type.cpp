@@ -16,7 +16,11 @@ size_t Type::getType() const {
 }
 
 std::string Type::getName() const {
-  return typeToName[*this];
+  for (const auto &pair : nameToType) {
+    if (pair.second == *this) return pair.first;
+  }
+  
+  return "";
 }
 
 Type & Type::operator=(const Type &other) {
@@ -39,9 +43,7 @@ Type::Type(const std::string& name) {
   ++newType;
   
   nameToType[name] = *this;
-  typeToName[*this] = name;
 }
 
 size_t Type::newType = 0;
 std::unordered_map<std::string, Type> Type::nameToType;
-std::unordered_map<Type, std::string> Type::typeToName;

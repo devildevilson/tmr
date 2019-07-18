@@ -2,7 +2,6 @@
 #define TYPE_H
 
 #include <string>
-// #include <vector>
 #include <unordered_map>
 
 class Type {
@@ -25,7 +24,6 @@ private:
   
   static size_t newType;
   static std::unordered_map<std::string, Type> nameToType;
-  static std::unordered_map<Type, std::string> typeToName;
 };
 
 namespace std {
