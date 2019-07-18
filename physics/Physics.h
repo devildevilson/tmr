@@ -75,6 +75,8 @@ struct PhysicsExternalBuffers {
   ArrayInterface<ExternalData>* externalDatas;
 };
 
+class BroadphaseProxy;
+
 // struct PhysicsOutputBuffers {
 //   ArrayInterface<OverlappingData>* overlappingData;
 //   ArrayInterface<OverlappingData>* rayTracingData;
@@ -158,6 +160,8 @@ public:
   
   virtual PhysData2 & getPhysicData(const PhysicsIndexContainer* container) = 0;
   virtual const PhysData2 & getPhysicData(const PhysicsIndexContainer* container) const = 0;
+  
+  virtual const BroadphaseProxy* getObjectBroadphaseProxy(const PhysicsIndexContainer* container) const = 0;
   
   virtual simd::vec4 getGlobalVelocity(const PhysicsIndexContainer* container) const = 0;
   

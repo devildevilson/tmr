@@ -53,6 +53,8 @@ public:
   PhysData2 & getPhysicData(const PhysicsIndexContainer* container) override;
   const PhysData2 & getPhysicData(const PhysicsIndexContainer* container) const override;
   
+  const BroadphaseProxy* getObjectBroadphaseProxy(const PhysicsIndexContainer* container) const override;
+  
   simd::vec4 getGlobalVelocity(const PhysicsIndexContainer* container) const override;
   
   uint32_t getObjectShapePointsSize(const PhysicsIndexContainer* container) const override;

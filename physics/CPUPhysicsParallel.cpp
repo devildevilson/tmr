@@ -510,6 +510,11 @@ const PhysData2 & CPUPhysicsParallel::getPhysicData(const PhysicsIndexContainer*
   return physicsDatas[container->physicDataIndex];
 }
 
+const BroadphaseProxy* CPUPhysicsParallel::getObjectBroadphaseProxy(const PhysicsIndexContainer* container) const {
+  const Object &obj = objects[container->objectDataIndex];
+  return broad->getProxy(obj.proxyIndex);
+}
+
 simd::vec4 CPUPhysicsParallel::getGlobalVelocity(const PhysicsIndexContainer* container) const {
   return globalVel[container->physicDataIndex];
 }
