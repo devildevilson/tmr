@@ -9,6 +9,8 @@
 
 #include "SoundComponent.h"
 
+#include "Globals.h"
+
 #include <stdexcept>
 #include <iostream>
 #include <string>
@@ -366,8 +368,6 @@ void QueueSoundType::setPlayAnyway(const bool enable) {
 }
 
 SoundSystem::SoundSystem() : device(nullptr), ctx(nullptr) {
-  TimeLogDestructor soundSystem("Sound system initialization");
-  
   ALCenum error;
 //   ALboolean ret;
   
@@ -390,10 +390,14 @@ SoundSystem::SoundSystem() : device(nullptr), ctx(nullptr) {
   //ret = alcIsExtensionPresent(nullptr, "AL_EXT_STATIC_BUFFER");
   
   device = alcOpenDevice(nullptr);
+//   device = alcOpenDevice("OpenAL Soft");
   if (device == nullptr) {
     error = alcGetError(device);
     openalcError(device, error, "Could not create OpenAL device");
   }
+  
+  const ALCchar* actualDeviceName = alcGetString(device, ALC_DEVICE_SPECIFIER);
+  Global::console()->printf("Using sound output driver %s", actualDeviceName);
   
   ctx = alcCreateContext(device, nullptr);
   error = alcGetError(device);
@@ -403,6 +407,30 @@ SoundSystem::SoundSystem() : device(nullptr), ctx(nullptr) {
     error = alGetError();
     openalcError(device, error, "Could not make current context");
   }
+  
+//   {
+//     const ALCchar* tmp = alGetString(AL_VERSION);
+//     if (tmp != nullptr) std::cout << "[OpenAL] Version: " << tmp << "\n";
+//     tmp = alGetString(AL_VENDOR);
+//     if (tmp != nullptr) std::cout << "[OpenAL] Vendor: " << tmp << "\n";
+//     tmp = alGetString(AL_RENDERER);
+//     if (tmp != nullptr) std::cout << "[OpenAL] Renderer: " << tmp << "\n";
+//     tmp = alGetString(AL_EXTENSIONS);
+//     if (tmp != nullptr) std::cout << "[OpenAL] Al extensions: " << tmp << "\n";
+//     
+//     tmp = alcGetString(device, ALC_DEFAULT_DEVICE_SPECIFIER);
+//     if (tmp != nullptr) std::cout << "[OpenAL] Default device: " << tmp << "\n";
+//     tmp = alcGetString(device, ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER);
+//     if (tmp != nullptr) std::cout << "[OpenAL] Default capture device: " << tmp << "\n";
+//     tmp = alcGetString(device, ALC_DEVICE_SPECIFIER);
+//     if (tmp != nullptr) std::cout << "[OpenAL] Device: " << tmp << "\n";
+//     tmp = alcGetString(nullptr, ALC_CAPTURE_DEVICE_SPECIFIER);
+//     if (tmp != nullptr) std::cout << "[OpenAL] Capture device: " << tmp << "\n";
+//     tmp = alcGetString(nullptr, ALC_EXTENSIONS);
+//     if (tmp != nullptr) std::cout << "[OpenAL] Extensions: " << tmp << "\n";
+//     tmp = alcGetString(nullptr, ALC_ALL_DEVICES_SPECIFIER);
+//     if (tmp != nullptr) std::cout << "[OpenAL] All devices: " << tmp << "\n";
+//   }
   
   alDistanceModel(AL_LINEAR_DISTANCE_CLAMPED);
   openalError("Could not set distance model");
