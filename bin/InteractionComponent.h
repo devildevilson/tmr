@@ -38,6 +38,7 @@
 // вообще подобные вещи кажется с помощью joint делаются, но у меня физика простая
 // так или иначе нужен способ постепенного обновления положения, то есть мне наверное нужно задать скорость
 // и двигаться до чего то (?), до точки (но это очень не точно), до пересечения с плоскостью, перемещаться на расстояние
+// зачем мне этот класс в принципе?
 class Communication {
 public:
   
@@ -115,34 +116,77 @@ protected:
 // это классы помошники, само взаимодействие у нас будет отдельно
 class TargetInteraction : public Interaction {
 public:
+  struct CreateInfo {
+    
+  };
+  TargetInteraction(const CreateInfo &info);
+  ~TargetInteraction();
   
+  void update_data(const NewData &data) override;
+  void update(const size_t &time) override;
+  void cancel() override;
+  
+  PhysUserData* get_next() override;
+private:
+  // тут по идее только один объект
+  // и все
+  // как его сюда добавить?
 };
 
 class RayInteraction : public Interaction {
 public:
+  struct CreateInfo {
+    float pos[4];
+    float dir[4];
+    size_t delayTime;
+  };
+  RayInteraction(const CreateInfo &info);
+  ~RayInteraction();
   
+  void update_data(const NewData &data) override;
+  void update(const size_t &time) override;
+  void cancel() override;
+  
+  PhysUserData* get_next() override;
+private:
+  // создаем луч (или несколько лучей? несколько лучей полезно создавать когда мы стреляем из автомата)
+  // (и мы тогда интерполируем и несколько лучей создаем по движению камеры, чтобы правильно все сделать, лучи нам нужно создавать в update_data)
+  // пока что один луч? скорее всего
+  // максимальная дистанция луча еще должна быть
+  uint32_t rayIndex;
+  float pos[4];
+  float dir[4];
+  
+  size_t delayTime;
 };
 
 class PhysicsInteraction : public Interaction {
 public:
   enum PhysicsInteractionType {
     INTERACTION_TYPE_SLASHING,
-    INTERACTION_TYPE_STABBING,
-    INTERACTION_TYPE_AURA
+    INTERACTION_TYPE_STABBING, // пока не сделал еще
+    INTERACTION_TYPE_AURA // переместится в отдельный класс
   };
   
   struct CreateInfo {
     PhysicsInteractionType type;
+    size_t delayTime;
     size_t attackTime;
+    size_t tickTime;
+    uint32_t tickCount;
+    uint32_t ticklessObjectsType;
     float thickness;
     float attackAngle;
     float distance;
     float pos[4];
     float dir[4];
     float plane[4];
-    uint32_t transformIndex;
+    uint32_t transformIndex; // ?
     uint32_t matrixIndex;
     uint32_t rotationIndex;
+    
+    uint32_t sphereCollisionGroup;
+    uint32_t sphereCollisionFilter;
     
     Type eventType;
     void* userData;
@@ -163,34 +207,18 @@ private:
     std::chrono::steady_clock::time_point point;
   };
   
-  // физический объект
-  // угол и позиция (нужно обновлять из вне)
-  // время
-  // предыдущие значения
-  // список объектов которые уже пересек
-  // точность (то есть сколько точек возьмем)
-  
   PhysicsIndexContainer container;
   
   // как правильно отправить данные о взимодействии другому объекту?
-  
-  // как лучше всего сделать форму объекта? то есть мне нужно для режущей атаки создать плоскость - несколько точек которые потом проверятся на пересечение
-  // может быть лучше какнибудь похимичить с матрицей и не пересоздавать постоянно форму (предпочтительный вариант)
-  // это возможно, но что здесь не так? я не знаю как подогнать это дело под угол
-  // ЗАЧЕМ ЗАЧЕМ МНЕ ВООБЩЕ НУЖНА ЭТА ФОРМА??? мне просто нужно опросить все объекты вокруг, и дальше сделать чтото вроде фрустум проверки
-  // конкретно нужно посмотреть насколько далеко находится объект от плоскости (SAT) и входит ли он в угол (как в фуннеле)
-  // форму менять не нужно, причем даже для обычной атаки нужна только сфера
-  // объект попадает между двумя точками И сат по нормали меньше thickness
-  
-  // наверное нужно сформировать массив объектов которые мы задели в этот раз
-  
-  // в случе с аурой у нас будет вход в ауру и выход из нее, как сделать?
-  
+  // делэй? с делэем можно тогда создавать сферу позже, но для этого нужна синхронизация
+  // мне нужно у сферы еще менять положение время от времени
+  size_t delay;
   size_t attackTime;
   size_t lastTime;
   size_t currentTime;
   size_t tickTime;
   
+  uint32_t transformIndex;
   uint32_t tickCount;
   uint32_t ticklessObjectsType;
   float thickness;
@@ -206,25 +234,43 @@ private:
   float plane[4]; // нужно умножать на матрицу поворота (по идее составляется из вектора вверх объекта, хотя может из вектора вперед)
   
   size_t state;
-  // вот эти вещи нужны только здесь по идее
-//   std::unordered_set<uint32_t> objects;
   std::unordered_map<uint32_t, ObjData> objects;
-//   std::vector<uint32_t> newObjs;
 };
 
 class ProjectileInteraction : public Interaction {
 public:
+  struct CreateInfo {
+    
+  };
+  ProjectileInteraction();
+  ~ProjectileInteraction();
   
+  void update_data(const NewData &data) override;
+  void update(const size_t &time) override;
+  void cancel() override;
+  
+  PhysUserData* get_next() override;
+private:
+  // пока что самый непонятный класс
+  // get_next скорее всего всегда будет возвращать нулл
+  // создаваться проджектайлы наверное будут в update
+  // создаваться проджект тайлы должны из какой-нибудь фабрики
+  // фабрики будут создаваться в лоадерах и описываться в json я так понимаю
 };
 
 class AuraInteraction : public Interaction {
 public:
   
+private:
+  // в случе с аурой у нас будет вход в ауру и выход из нее, как сделать?
 };
 
 class EventComponent;
 class TransformComponent;
 class InteractionSystem;
+
+// у каждого компонента рекция на эвент атака будет примерно одинаковая, как бы мне сохранить память?
+// я так полагаю что это как раз тот случай когда либо удобно, либо мало памяти жрет (возможно)
 
 class InteractionComponent : public yacs::Component {
 public:
@@ -236,8 +282,12 @@ public:
   
   void update(const size_t &time = 0) override;
   void init(void* userData) override;
+  
+  size_t & index();
 private:
   void deleteInteraction(Interaction* inter);
+  
+  size_t systemIndex;
   
   InteractionSystem* system;
   EventComponent* events;
@@ -267,29 +317,33 @@ public:
   
   void update(const uint64_t &time) override;
   
-  struct PairData {
-    std::pair<uint32_t, uint32_t> pair;
-    Interaction* inter;
-    InteractionComponent* comp;
-    PhysUserData* secondObj;
-    uint32_t batchID;
-    // характеристики? буду брать из компонента наверное
-  };
-  void addInteractionPair(const PairData &data);
+  // этого здесь не будет
+//   struct PairData {
+//     std::pair<uint32_t, uint32_t> pair;
+//     Interaction* inter;
+//     InteractionComponent* comp;
+//     PhysUserData* secondObj;
+//     uint32_t batchID;
+//     // характеристики? буду брать из компонента наверное
+//   };
+//   void addInteractionPair(const PairData &data);
+  
+  void addInteractionComponent(InteractionComponent* comp);
+  void removeInteractionComponent(InteractionComponent* comp);
 private:
-  struct UniquePairData {
-    uint32_t start;
-    uint32_t count;
-  };
-  void uniquePairs();
+//   struct UniquePairData {
+//     uint32_t start;
+//     uint32_t count;
+//   };
+//   void uniquePairs();
   
   dt::thread_pool* pool;
   
-  std::mutex mutex;
+//   std::mutex mutex;
   
   std::vector<InteractionComponent*> components;
-  std::vector<PairData> pairs;
-  std::vector<UniquePairData> uniqueData;
+//   std::vector<PairData> pairs;
+//   std::vector<UniquePairData> uniqueData;
 };
 
 #endif

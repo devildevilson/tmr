@@ -1,4 +1,4 @@
-#include "CombatComponent.h"
+#include "InteractionComponent.h"
 
 #include "Globals.h"
 #include "Utility.h"
@@ -20,9 +20,15 @@ Container<RotationData>* Interaction::rotationDatas = nullptr;
 
 PhysicsInteraction::PhysicsInteraction(const CreateInfo &info) : 
   Interaction(Interaction::type::physics, info.eventType, info.userData), 
+  delay(info.delayTime),
   attackTime(info.attackTime), 
   lastTime(0), 
   currentTime(0), 
+  tickTime(info.tickTime),
+  //transformIndex(info.transformIndex),
+  transformIndex(UINT32_MAX),
+  tickCount(info.tickCount),
+  ticklessObjectsType(info.ticklessObjectsType),
   thickness(info.thickness), 
   attackAngle(info.attackAngle), 
   distance(info.distance), 
@@ -32,30 +38,36 @@ PhysicsInteraction::PhysicsInteraction(const CreateInfo &info) :
   lastPos{info.pos[0], info.pos[1], info.pos[2], info.pos[3]}, 
   lastDir{info.dir[0], info.dir[1], info.dir[2], info.dir[3]}, 
   plane{info.plane[0], info.plane[1], info.plane[2], info.plane[3]} {
+  // мне нужно еще тогда создать трансформу
+  transformIndex = transforms->insert({simd::vec4(info.pos), simd::vec4(info.dir), simd::vec4()});
+    
   // создаем сферу
   const PhysicsObjectCreateInfo phys_info{
     false,
     PhysicsType(false, SPHERE_TYPE, false, true, false, false),
-    1,
-    1,
+    info.sphereCollisionGroup,
+    info.sphereCollisionFilter,
     0.0f,
     0.0f,
     0.0f,
     distance,
     UINT32_MAX,
-    info.transformIndex,
+    transformIndex,
     UINT32_MAX,
-    info.matrixIndex,
-    info.rotationIndex,
+//     info.matrixIndex,
+//     info.rotationIndex,
+    UINT32_MAX,
+    UINT32_MAX,
     Type()
   };
   
-  // понятное дело нужно как то обезопасить создание
+  // понятное дело нужно как то обезопасить создание, в принципе если будет внешний мьютекс, то норм
   Global::physics()->add(phys_info, &container);
 }
 
 PhysicsInteraction::~PhysicsInteraction() {
   Global::physics()->remove(&container);
+  transforms->erase(transformIndex);
 }
 
 void PhysicsInteraction::update_data(const NewData &data) {
@@ -63,6 +75,9 @@ void PhysicsInteraction::update_data(const NewData &data) {
   memcpy(lastDir, dir, sizeof(simd::vec4));
   data.pos.storeu(pos);
   data.dir.storeu(dir);
+  
+  transforms->at(transformIndex).pos = data.pos;
+  transforms->at(transformIndex).rot = data.dir;
 }
 
 void PhysicsInteraction::update(const size_t &time) {
@@ -71,10 +86,10 @@ void PhysicsInteraction::update(const size_t &time) {
   
   lastTime = currentTime;
   currentTime += time;
-  currentTime = std::min(attackTime, currentTime);
+  currentTime = std::min(attackTime+delay, currentTime);
   state = 0;
   
-  if (currentTime >= attackTime) finished = true;
+  if (currentTime >= attackTime+delay) finished = true;
 }
 
 void PhysicsInteraction::cancel() {
@@ -82,16 +97,20 @@ void PhysicsInteraction::cancel() {
 }
 
 PhysUserData* PhysicsInteraction::get_next() {
+  if (currentTime < delay) return nullptr;
+  
   const uint32_t triggerSize = Global::physics()->getTriggerPairsIndicesSize();
   const ArrayInterface<uint32_t>* triggerPairs = Global::physics()->getTriggerPairsIndices();
   const ArrayInterface<OverlappingData>* datas = Global::physics()->getOverlappingPairsData();
   
+  const size_t finalCurrentTime = currentTime - delay;
+  const size_t finalLastTime = lastTime > delay ? lastTime - delay : 0;
   // найдем 4 точки, 2 из которых это текущее положение и предыдущее
   // + 2 точки предыдущий дир повернутый на предыдущий угол, и текущий дир повернутый на текущий угол
   // плоскость поворота normal
   const float halfAngle = attackAngle / 2.0f;
-  const float currentAngle = (currentTime * (attackAngle / float(attackTime))) - halfAngle;
-  const float lastAngle = (lastTime * (attackAngle / float(attackTime))) - halfAngle;
+  const float currentAngle = (finalCurrentTime * (attackAngle / float(attackTime))) - halfAngle;
+  const float lastAngle = (finalLastTime * (attackAngle / float(attackTime))) - halfAngle;
   
   const simd::vec4 simd_pos = simd::vec4(pos);
   const simd::vec4 simd_dir = simd::vec4(dir);
@@ -265,12 +284,16 @@ PhysUserData* PhysicsInteraction::get_next() {
   return usrData;
 }
 
-InteractionComponent::InteractionComponent(const CreateInfo &info) : system(info.system), events(nullptr), trans(nullptr) {}
-InteractionComponent::~InteractionComponent() {}
+InteractionComponent::InteractionComponent(const CreateInfo &info) : systemIndex(0), system(info.system), events(nullptr), trans(nullptr) {
+  system->addInteractionComponent(this);
+}
+
+InteractionComponent::~InteractionComponent() {
+  system->removeInteractionComponent(this);
+}
 
 void InteractionComponent::update(const size_t &time) {
   for (size_t i = 0; i < interactions.size(); ++i) {
-    interactions[i]->update_data({trans->pos(), trans->rot()});
     interactions[i]->update(time);
     
     PhysUserData* data = interactions[i]->get_next();
@@ -289,6 +312,8 @@ void InteractionComponent::update(const size_t &time) {
       
       data = interactions[i]->get_next();
     }
+    
+    interactions[i]->update_data({trans->pos(), trans->rot()});
     
     if (interactions[i]->isFinished()) {
       // когда взаимодействие заканчивается мы должны его удалить 
@@ -322,10 +347,14 @@ void InteractionComponent::init(void* userData) {
   }
   
   trans = getEntity()->get<TransformComponent>().get();
-  if (events == nullptr) {
+  if (trans == nullptr) {
     Global::console()->printE("Could not create InteractionComponent without transform");
     throw std::runtime_error("Could not create InteractionComponent without transform");
   }
+}
+
+size_t & InteractionComponent::index() {
+  return systemIndex;
 }
 
 void InteractionComponent::deleteInteraction(Interaction* inter) {
@@ -389,7 +418,7 @@ void InteractionSystem::update(const uint64_t &time) {
 //     // + ко всему функции будут заметно быстрее
 //   };
   
-  pairs.clear();
+//   pairs.clear();
   
   const size_t count = std::ceil(float(components.size()) / float(pool->size()+1));
   size_t start = 0;
@@ -440,233 +469,90 @@ void InteractionSystem::update(const uint64_t &time) {
   // просто массив функций к выполнению похоже возможно нужно вернуть future
 }
 
-void InteractionSystem::addInteractionPair(const PairData &data) {
-  std::unique_lock<std::mutex> lock(mutex);
-  pairs.push_back(data);
+// void InteractionSystem::addInteractionPair(const PairData &data) {
+//   std::unique_lock<std::mutex> lock(mutex);
+//   pairs.push_back(data);
+// }
+
+void InteractionSystem::addInteractionComponent(InteractionComponent* comp) {
+  comp->index() = components.size();
+  components.push_back(comp);
 }
 
-struct PairCompareFunc {
-  bool operator()(const InteractionSystem::PairData &first, const InteractionSystem::PairData &second) {
-    return first.batchID < second.batchID;
-  }
-};
-
-void InteractionSystem::uniquePairs() {
-  // что тут? как найти максимально уникальную конфигурацию?
-  // во первых в каждом кадре уникальных пар будет не очень много и впринципе однопоточная реализация будет не сильно проигрывать по скорости
-  // во вторых поиск уникальности тоже требует вычислительных затрат
-  // в третьих операция взаимодействия двух объектов это похоже что будет самой последней операцией в кадре вообще
-  // в четвертых идеальную функцию поиска уникальности сделать практически невозможно (либо медленно но больше потоков параллелиться либо относительно быстро но качество параллельности под вопросом)
-  
-  // как то так выглядит раскидывание пар по батчам, не особо быстрое так и не особо точное
-  // больше проблем чем пользы...
-  
-  static const auto func = [&] (std::atomic<size_t> &pairsCount, const size_t &counter, const uint32_t &index, bool* updated) {
-    static thread_local std::unordered_set<uint32_t> uniqueObjects;
-    
-    if (pairs[index].batchID != UINT32_MAX) return;
-    
-    const uint32_t threadIndex = pool->thread_index(std::this_thread::get_id());
-    if (!updated[threadIndex]) {
-      uniqueObjects.clear();
-      updated[threadIndex] = true;
-    }
-    
-    const uint32_t &batchID = (pool->size()+1) * counter + threadIndex;
-    auto itr1 = uniqueObjects.find(pairs[index].pair.first);
-    auto itr2 = uniqueObjects.find(pairs[index].pair.second);
-    
-    if (itr1 != uniqueObjects.end() && itr2 != uniqueObjects.end()) {
-      pairs[index].batchID = batchID;
-      --pairsCount;
-    }
-  };
-  
-  std::atomic<size_t> pairsCount(pairs.size());
-  bool* updated = new bool[pool->size()+1];
-  memset(updated, 0, (pool->size()+1)*sizeof(bool));
-  size_t counter = 0;
-  while (pairsCount > 0) {
-    for (size_t i = 0; i < pairs.size(); ++i) {
-      pool->submitnr(func, std::ref(pairsCount), counter, i, updated);
-    }
-    
-    pool->compute();
-    pool->wait();
-    ++counter;
-    memset(updated, 0, (pool->size()+1)*sizeof(bool));
-  }
-  delete [] updated;
-  
-  std::sort(pairs.begin(), pairs.end(), PairCompareFunc());
-  
-  uniqueData.clear();
-  
-  uint32_t currentBatch = pairs[0].batchID;
-  uint32_t countCurrentBatchID = 0;
-  uint32_t start = 0;
-  for (size_t i = 0; i < pairs.size(); ++i) {
-    if (pairs[i].batchID == currentBatch) {
-      ++countCurrentBatchID;
-    } else {
-      uniqueData.push_back({start, countCurrentBatchID});
-      start = i;
-      countCurrentBatchID = 1;
-      currentBatch = pairs[i].batchID;
-    }
-  }
+void InteractionSystem::removeInteractionComponent(InteractionComponent* comp) {
+  components.back()->index() = comp->index();
+  std::swap(components[comp->index()], components.back());
+  components.pop_back();
 }
 
-// void AttackState::setTransform(TransformComponent* trans) {
-//   this->trans = trans;
-// }
-// 
-// Slashing::Slashing(const std::string &name, 
-//                    const uint64_t &attackTime, 
-//                    const float &distance, 
-//                    const glm::vec3 &attackPlane, 
-//                    const float &angle, 
-//                    bool blocking, bool blockingMovement) : AttackState(name, attackTime, distance) {
-//   this->blocking = blocking;
-//   this->blockingMovement = blockingMovement;
-//   this->attackPlane = attackPlane;
-//   this->angle = angle;
-// }
-// 
-// Slashing::~Slashing() {}
-// 
-// // float sideOf(const glm::vec3 &a, const glm::vec3 &b, const glm::vec3 &point, const glm::vec3 &normal) {
-// //   glm::vec3 vec = b - a;
-// //   vec = glm::cross(vec, normal);
-// //   return glm::dot(vec, point - a);
-// // }
-// 
-// void Slashing::update(const uint64_t &time) {
-//   // на основе предыдущей точки атаки, предыдущего направления, текущей точки, текущего направления
-//   // мне нужно создать Polygon
-//   // насколько здесь необходима нормализация?
-//   
-//   if (finished) return;
-//   
-//   if (resetB) {
-//     prevDir = glm::normalize(glm::rotate(trans->rot, -(angle / 2.0f), attackPlane));
-//     prevPos = trans->pos;
-//     resetB = false;
+// struct PairCompareFunc {
+//   bool operator()(const InteractionSystem::PairData &first, const InteractionSystem::PairData &second) {
+//     return first.batchID < second.batchID;
 //   }
+// };
+// 
+// void InteractionSystem::uniquePairs() {
+//   // что тут? как найти максимально уникальную конфигурацию?
+//   // во первых в каждом кадре уникальных пар будет не очень много и впринципе однопоточная реализация будет не сильно проигрывать по скорости
+//   // во вторых поиск уникальности тоже требует вычислительных затрат
+//   // в третьих операция взаимодействия двух объектов это похоже что будет самой последней операцией в кадре вообще
+//   // в четвертых идеальную функцию поиска уникальности сделать практически невозможно (либо медленно но больше потоков параллелиться либо относительно быстро но качество параллельности под вопросом)
 //   
-//   float num = float(time) / float(attackTime);
-//   float currentAngle = angle * num;
-//   accumAngle += currentAngle;
-//   glm::vec3 secondDir = glm::normalize(glm::rotate(trans->rot, accumAngle - (angle / 2.0f), attackPlane));
+//   // как то так выглядит раскидывание пар по батчам, не особо быстрое так и не особо точное
+//   // больше проблем чем пользы...
 //   
-//   glm::vec3 d1 = prevPos + prevDir*distance;
-//   
-//   Polygon p;
-//   p.normal = attackPlane;
-//   p.points.push_back(d1);
-//   p.points.push_back(prevPos);
-//   if (!vec_eq(prevPos, trans->pos)) {
-//     p.points.push_back(trans->pos);
-//     if (sideOf(prevPos, d1, trans->pos, attackPlane) > 0.0f) {
-//       std::swap(p.points[1], p.points[2]);
-//     }
-//   }
-//   p.points.push_back(p.points.back() + secondDir*distance);
-//   
-//   for (uint8_t i = 0; i < p.points.size(); ++i) {
-//     PRINT_VEC3("Point "+std::to_string(i), p.points[i])
-//   }
-//   
-// //   if (p.points.size() > 3 && sideOf(prevPos, d1, trans->pos, attackPlane) > 0.0f) {
-// //     std::swap(p.points[1], p.points[2]);
-// //   }
-//   
-//   // чекаем на пересечение этого Polygon с окружающим миром (readonly)
-//   p.computeCenter();
-//   Sphere s(p.barycenter, distance/2.0f);
-//   std::vector<CollisionComponent*> objs;
-//   std::unordered_set<CollisionComponent*> set;
-//   // octree->getObjCollideSphere(&s, objs);
-//   for (auto* obj : objs) {
-//     size_t size = set.size();
-//     set.insert(obj);
-//     if (size == set.size()) continue;
+//   static const auto func = [&] (std::atomic<size_t> &pairsCount, const size_t &counter, const uint32_t &index, bool* updated) {
+//     static thread_local std::unordered_set<uint32_t> uniqueObjects;
 //     
-//     if (obj->collide(&p)) {
-//       // attackFunction(trans->getEntity(), obj->getEntity());
+//     if (pairs[index].batchID != UINT32_MAX) return;
+//     
+//     const uint32_t threadIndex = pool->thread_index(std::this_thread::get_id());
+//     if (!updated[threadIndex]) {
+//       uniqueObjects.clear();
+//       updated[threadIndex] = true;
+//     }
+//     
+//     const uint32_t &batchID = (pool->size()+1) * counter + threadIndex;
+//     auto itr1 = uniqueObjects.find(pairs[index].pair.first);
+//     auto itr2 = uniqueObjects.find(pairs[index].pair.second);
+//     
+//     if (itr1 != uniqueObjects.end() && itr2 != uniqueObjects.end()) {
+//       pairs[index].batchID = batchID;
+//       --pairsCount;
+//     }
+//   };
+//   
+//   std::atomic<size_t> pairsCount(pairs.size());
+//   bool* updated = new bool[pool->size()+1];
+//   memset(updated, 0, (pool->size()+1)*sizeof(bool));
+//   size_t counter = 0;
+//   while (pairsCount > 0) {
+//     for (size_t i = 0; i < pairs.size(); ++i) {
+//       pool->submitnr(func, std::ref(pairsCount), counter, i, updated);
+//     }
+//     
+//     pool->compute();
+//     pool->wait();
+//     ++counter;
+//     memset(updated, 0, (pool->size()+1)*sizeof(bool));
+//   }
+//   delete [] updated;
+//   
+//   std::sort(pairs.begin(), pairs.end(), PairCompareFunc());
+//   
+//   uniqueData.clear();
+//   
+//   uint32_t currentBatch = pairs[0].batchID;
+//   uint32_t countCurrentBatchID = 0;
+//   uint32_t start = 0;
+//   for (size_t i = 0; i < pairs.size(); ++i) {
+//     if (pairs[i].batchID == currentBatch) {
+//       ++countCurrentBatchID;
+//     } else {
+//       uniqueData.push_back({start, countCurrentBatchID});
+//       start = i;
+//       countCurrentBatchID = 1;
+//       currentBatch = pairs[i].batchID;
 //     }
 //   }
-//   // запускаем функцию, которая различным образом будет воздействовать на разные объекты (не readonly)
-// 
-//   prevDir = secondDir;
-//   prevPos = trans->pos;
-//   
-//   if (accumAngle > angle) finished = true;
-// }
-// 
-// void Slashing::reset() {
-//   resetB = true;
-//   accumAngle = 0.0f;
-// }
-// 
-// bool Slashing::isFinished() const {
-//   return finished;
-// }
-// 
-// bool Slashing::isBlocking() const {
-//   return blocking;
-// }
-// 
-// bool Slashing::isBlockingMovement() const {
-//   return blockingMovement;
-// }
-// 
-// Combat::Combat() {}
-// Combat::~Combat() {}
-// 
-// void Combat::update(const uint64_t &time) {}
-// 
-// void Combat::init(void* userData) {}
-// 
-// void Combat::addChild(Controller* c) { (void)c; }
-// 
-// void Combat::changeState(const Type &type) {
-//   auto itr = states.find(type.getType());
-//   if (itr == states.end()) {
-//     current = nullptr;
-//     return;
-//   }
-//   
-//   current = itr->second;
-// }
-// 
-// void Combat::reset() {
-//   if (current != nullptr) current->reset();
-// }
-// 
-// bool Combat::isFinished() const {
-//   if (current != nullptr) return current->isFinished();
-//   
-//   return true;
-// }
-// 
-// bool Combat::isBlocking() const {
-//   if (current != nullptr) return current->isBlocking();
-//   
-//   return false;
-// }
-// 
-// bool Combat::isBlockingMovement() const {
-//   if (current != nullptr) return current->isBlockingMovement();
-//   
-//   return false;
-// }
-// 
-// void Combat::addAttack(const Type &type, AttackState* attack) {
-//   auto itr = states.find(type.getType());
-//   if (itr != states.end()) {
-//     Global::console()->printW("Entity " + std::to_string(getEntity()->getId()) + " already has got attack state " + attack->getName());
-//   }
-//   
-//   states[type.getType()] = attack;
 // }
