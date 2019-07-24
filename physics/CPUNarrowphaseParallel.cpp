@@ -8,11 +8,98 @@
 
 #define ONLY_TRIGGER_ID 0xFFFFFFFF-1
 
+#define FREE_MUTEX 0
+#define MUTEX_LOCK_WRITE 1
+#define MUTEX_LOCK_READ 2
+
 struct IslandAdditionalData {
   glm::uvec4 octreeDepth;
   glm::uvec4 octreeLevels[10];
   glm::uvec4 islandCount;
 };
+
+UniquePairContainer::UniquePairContainer(const size_t &objCount) {
+  const size_t size = std::ceil(float(objCount) / float(UINT32_WIDTH));
+  container = new uint32_t[size];
+  memset(container, 0, size*sizeof(uint32_t));
+  pthread_rwlock_init(&rw_lock, NULL);
+}
+
+UniquePairContainer::~UniquePairContainer() {
+  delete [] container;
+  pthread_rwlock_destroy(&rw_lock);
+}
+
+bool UniquePairContainer::write(const uint32_t &first, const uint32_t &second) {
+  bool res;
+  
+  const uint32_t firstContainerIndex = first / float(UINT32_WIDTH);
+  const uint32_t firstBitMask = 1 << (first % UINT32_WIDTH);
+  
+  const uint32_t secondContainerIndex = second / float(UINT32_WIDTH);
+  const uint32_t secondBitMask = 1 << (second % UINT32_WIDTH);
+  
+//   std::unique_lock<std::mutex> lock(mutex);
+//   writeVar.wait(lock);
+  
+  // бред какой-то, почему похожей операции нет в плюсах? есть я не правильно понял, нужно получше посмотреть
+//   uint32_t value = FREE_MUTEX;
+//   while (!atomicMutex.compare_exchange_weak(value, uint32_t(MUTEX_LOCK_WRITE))); // == MUTEX_LOCK_WRITE
+  // вот только оно возвращает булево значение, вместо предыдущего, и следовательно лучше использовать нормальный мьютекс для тех же целей
+  
+  // для этих целей можно использовать pthread, его скорее всего будет достаточно
+  // оставить в таком виде? или лучше убрать rw_lock внутрь? (придетсся выделять память для него каждый кадр, а потом чистить)
+  // впрочем память мы выделяем для контейнера, потом нужно наверное переделать так чтобы не перевыделять память каждый кадр (потому что не нужно)
+  pthread_rwlock_wrlock(&rw_lock);
+  
+  const bool hasFirst  = (container[firstContainerIndex]  & firstBitMask)  == firstBitMask;
+  const bool hasSecond = (container[secondContainerIndex] & secondBitMask) == secondBitMask;
+  
+  if (!hasFirst && !hasSecond) {
+    res = true;
+    container[firstContainerIndex] |= firstBitMask;
+    container[secondContainerIndex] |= secondBitMask;
+  } else {
+    res = false;
+  }
+  
+//   readVar.notify_all();
+//   atomicMutex.exchange(FREE_MUTEX);
+  pthread_rwlock_unlock(&rw_lock);
+  
+  return res;
+}
+
+bool UniquePairContainer::read(const uint32_t &first, const uint32_t &second) {
+  bool res;
+  
+  const uint32_t firstContainerIndex = first / float(UINT32_WIDTH);
+  const uint32_t firstBitMask = 1 << (first % UINT32_WIDTH);
+  
+  const uint32_t secondContainerIndex = second / float(UINT32_WIDTH);
+  const uint32_t secondBitMask = 1 << (second % UINT32_WIDTH);
+  
+  // с использованием условных переменных пахнет деадлоком
+//   {
+//     std::unique_lock<std::mutex> lock(mutex);
+//     readVar.wait(lock);
+//   }
+  
+  pthread_rwlock_rdlock(&rw_lock);
+  
+  const bool hasFirst  = (container[firstContainerIndex]  & firstBitMask)  == firstBitMask;
+  const bool hasSecond = (container[secondContainerIndex] & secondBitMask) == secondBitMask;
+  
+  res = hasFirst && hasSecond;
+  
+  pthread_rwlock_unlock(&rw_lock);
+  
+//   {
+//     std::unique_lock<std::mutex> lock(mutex);
+//     writeVar.notify_one();
+//   }
+  return res;
+}
 
 CPUNarrowphaseParallel::CPUNarrowphaseParallel(dt::thread_pool* pool, const uint32_t &octreeDepth) {
   this->pool = pool;
@@ -66,7 +153,54 @@ void CPUNarrowphaseParallel::calculateIslands() {
 }
 
 void CPUNarrowphaseParallel::calculateBatches() {
-  throw std::runtime_error("Not implemented yet");
+  static const auto batching = [&] (const size_t &start, const size_t &count, const size_t &batchId, UniquePairContainer* cont, std::atomic<size_t> &pairsCount) {
+    for (size_t i = start; i < start+count; ++i) {
+      const size_t index = i+1;
+      
+      const auto &pair = pairs->at(index);
+      if (pair.islandIndex != UINT32_MAX) continue;
+      
+      const bool hasPair = cont->read(pair.firstIndex, pair.secondIndex);
+      if (!hasPair) {
+        if (cont->write(pair.firstIndex, pair.secondIndex)) {
+          pairs->at(index).islandIndex = batchId;
+          pairsCount.fetch_add(-1);
+        }
+      }
+    }
+  };
+  
+  if (pairs->at(0).secondIndex < 2) return;
+  
+  // для нормальной работы, нужно чтобы pair.islandIndex были все проставлены UINT32_MAX
+  // сейчас мы вручную это сделаем, нужно будет потом убрать
+  for (size_t i = 0; i < pairs->at(0).secondIndex; ++i) {
+    const size_t index = i+1;
+    pairs->at(index).islandIndex = UINT32_MAX;
+  }
+  
+  size_t batchId = 0;
+  const size_t pairSize = pairs->at(0).secondIndex;
+  std::atomic<size_t> pairsCount(pairSize);
+  const size_t count = glm::ceil(float(pairSize) / float(pool->size()+1));
+  UniquePairContainer pairCont(pairSize);
+  
+  while (pairsCount > 0) {
+    size_t start = 0;
+    for (uint32_t i = 0; i < pool->size()+1; ++i) {
+      const size_t jobCount = std::min(count, pairSize-start);
+      if (jobCount == 0) break;
+
+      pool->submitnr(batching, start, jobCount, batchId, &pairCont, std::ref(pairsCount));
+
+      start += jobCount;
+    }
+    
+    pool->compute();
+    pool->wait();
+    
+    ++batchId;
+  }
 }
 
 void CPUNarrowphaseParallel::checkIdenticalPairs() {
@@ -88,13 +222,20 @@ void CPUNarrowphaseParallel::checkIdenticalPairs() {
   for (uint32_t i = 0; i < pairsCount; ++i) {
     const uint32_t index = i+1;
     
-    if (uniqueFirstIndex != pairs->at(index).firstIndex) {
+    if (uniqueFirstIndex == pairs->at(index).firstIndex && uniqueSecondIndex == pairs->at(index).secondIndex) {
+      pairs->at(index).islandIndex = UINT32_MAX;
+    } else {
       uniqueFirstIndex = pairs->at(index).firstIndex;
       uniqueSecondIndex = pairs->at(index).secondIndex;
-    } else {
-      pairs->at(index).islandIndex = uniqueSecondIndex == pairs->at(index).secondIndex ? UINT32_MAX : pairs->at(index).islandIndex;
-      uniqueSecondIndex = uniqueSecondIndex == pairs->at(index).secondIndex ? uniqueSecondIndex : pairs->at(index).secondIndex;
     }
+    
+//     if (uniqueFirstIndex != pairs->at(index).firstIndex) {
+//       uniqueFirstIndex = pairs->at(index).firstIndex;
+//       uniqueSecondIndex = pairs->at(index).secondIndex;
+//     } else {
+//       pairs->at(index).islandIndex = uniqueSecondIndex == pairs->at(index).secondIndex ? UINT32_MAX : pairs->at(index).islandIndex;
+//       uniqueSecondIndex = uniqueSecondIndex == pairs->at(index).secondIndex ? uniqueSecondIndex : pairs->at(index).secondIndex;
+//     }
 
     if (pairs->at(index).islandIndex == ONLY_TRIGGER_ID) pairs->at(0).dist = glm::uintBitsToFloat(glm::floatBitsToUint(pairs->at(0).dist) + 1);
     if (pairs->at(index).islandIndex <  ONLY_TRIGGER_ID) ++pairs->at(0).secondIndex;

@@ -6,6 +6,7 @@
 
 #include "Frustum.h"
 
+// алигн 16, могут возникнуть проблемы
 class BroadphaseProxy {
 public:
   BroadphaseProxy(const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter);
@@ -26,6 +27,8 @@ public:
   PhysicsType getType() const;
 protected:
   FastAABB box;
+//   float center[4]; 
+//   float extent[4];
   uint32_t group;
   uint32_t filter;
   PhysicsType objType; //proxyIndex

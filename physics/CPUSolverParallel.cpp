@@ -227,6 +227,8 @@ void CPUSolverParallel::calculateData() {
   dataIndices->data()->count = dataIndices->data()->temporaryCount;
 
   std::atomic<uint32_t> counter(dataIndices->data()->count);
+  
+//   std::cout << "before searchAndAddDynamic counter " << counter << "\n";
 
   // приходящие пары мне нужно найти и если их нет, то нужно добавить
   // причем у меня теперь есть как статики так и динамики
@@ -276,6 +278,8 @@ void CPUSolverParallel::calculateData() {
 
   pool->compute();
   pool->wait();
+  
+//   std::cout << "after searchAndAddDynamic counter " << counter << "\n";
 
   dataIndices->data()->count = counter;
   dataIndices->data()->indirectX = counter;
@@ -312,6 +316,8 @@ void CPUSolverParallel::calculateData() {
 
   pool->compute();
   pool->wait();
+  
+//   std::cout << "after computeOverlappingData counter " << counter << "\n";
 
   dataIndices->data()->temporaryCount = counter;
   dataIndices->data()->triggerIndicesCount = triggerCounter;
@@ -495,6 +501,15 @@ void CPUSolverParallel::solve() {
       }
     }
   };
+  
+  static const auto solveDynamic2 = [&] (const size_t &start, const size_t &count) {
+    for (size_t i = start; i < start+count; ++i) {
+      const size_t index = i+1;
+      const BroadphasePair &pair = pairs->at(index);
+      
+      computePair(pair);
+    }
+  };
 
 //   const float koef = 1.0f / float(iterationCount);
 
@@ -560,38 +575,68 @@ void CPUSolverParallel::solve() {
     }
 
     // а затем вычисление динамиков, которых мы разбили по уровням октодерева
+//     if (pairs->at(0).secondIndex > 0) {
+//       const IslandAdditionalData* data = islands->structure_from_begin<IslandAdditionalData>();
+//       const IslandData* islandsPtr = islands->data_from<IslandAdditionalData>();
+// 
+//       for (uint32_t depth = 0; depth < data->octreeDepth.x; ++depth) {
+//         const glm::uvec4 &octreeLevel = data->octreeLevels[depth];
+// 
+//         // затем параллелим по островам
+//         if (octreeLevel.z > 0) {
+// //           std::cout << "octree level size " << octreeLevel.z << '\n';
+//           const size_t count = std::ceil(float(octreeLevel.z) / float(pool->size()+1));
+//           size_t start = 0;
+//           //for (uint32_t i = 0; i < octreeLevel.z; ++i) {
+//           for (size_t i = 0; i < pool->size()+1; ++i) {
+// //             const IslandData &island = islandsPtr[octreeLevel.y + i];
+// 
+// //             std::cout << "dynamic pair index " << (octreeLevel.y + i) << '\n';
+// 
+// //             pool->submitnr(solveDynamic, island);
+// 
+//             const uint32_t jobCount = std::min(count, octreeLevel.z-start);
+//             if (jobCount == 0) break;
+// 
+//             pool->submitnr(solveDynamic, start, jobCount, islandsPtr);
+// 
+//             start += jobCount;
+//           }
+// 
+//           pool->compute();
+//           pool->wait();
+//         }
+//       }
+//     }
+
+//     std::cout << "pairs size          " << pairs->size() << "\n";
+//     std::cout << "pairs second index  " << pairs->at(0).secondIndex << "\n";
+//     std::cout << "pairs first  index  " << pairs->at(0).firstIndex << "\n";
+    
+
     if (pairs->at(0).secondIndex > 0) {
       const IslandAdditionalData* data = islands->structure_from_begin<IslandAdditionalData>();
       const IslandData* islandsPtr = islands->data_from<IslandAdditionalData>();
+      
+      for (size_t i = 0; i < data->islandCount.x; ++i) {
+        const size_t count = std::ceil(float(islandsPtr[i].size) / float(pool->size()+1));
+        size_t start = 0;
+        
+        //for (uint32_t i = 0; i < octreeLevel.z; ++i) {
+        for (size_t j = 0; j < pool->size()+1; ++j) {
+          const uint32_t jobCount = std::min(count, islandsPtr[i].size-start);
+          if (jobCount == 0) break;
 
-      for (uint32_t depth = 0; depth < data->octreeDepth.x; ++depth) {
-        const glm::uvec4 &octreeLevel = data->octreeLevels[depth];
+          pool->submitnr(solveDynamic2, islandsPtr[i].offset + start, jobCount);
 
-        // затем параллелим по островам
-        if (octreeLevel.z > 0) {
-//           std::cout << "octree level size " << octreeLevel.z << '\n';
-          const size_t count = std::ceil(float(octreeLevel.z) / float(pool->size()+1));
-          size_t start = 0;
-          //for (uint32_t i = 0; i < octreeLevel.z; ++i) {
-          for (size_t i = 0; i < pool->size()+1; ++i) {
-//             const IslandData &island = islandsPtr[octreeLevel.y + i];
-
-//             std::cout << "dynamic pair index " << (octreeLevel.y + i) << '\n';
-
-//             pool->submitnr(solveDynamic, island);
-
-            const uint32_t jobCount = std::min(count, octreeLevel.z-start);
-            if (jobCount == 0) break;
-
-            pool->submitnr(solveDynamic, start, jobCount, islandsPtr);
-
-            start += jobCount;
-          }
-
-          pool->compute();
-          pool->wait();
+          start += jobCount;
         }
+
+        pool->compute();
+        pool->wait();
       }
+//         }
+//       }
     }
 }
 
@@ -741,15 +786,16 @@ bool CPUSolverParallel::BoxBoxSAT(const float &treshold, const Object &first,  c
 
 bool CPUSolverParallel::BoxSphereSAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
                                      const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const {
-  (void)second;
   const simd::mat4 &sys = systems->at(first.coordinateSystemIndex);
   float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
 
   const simd::vec4 &firstPos  = transforms->at(transFirst).pos;
-  const simd::vec4 &secondPos = simd::vec4(transforms->at(transSecond).pos.x, transforms->at(transSecond).pos.y, transforms->at(transSecond).pos.z, 1.0f);
+  //const simd::vec4 &secondPos = simd::vec4(transforms->at(transSecond).pos.x, transforms->at(transSecond).pos.y, transforms->at(transSecond).pos.z, 1.0f);
+  const simd::vec4 &secondPos = transforms->at(transSecond).pos;
 
   const simd::vec4 &firstExt  = verts->at(first.vertexOffset);
-  const float radius = transforms->at(transSecond).pos.w;
+  //const float radius = transforms->at(transSecond).pos.w;
+  const float radius = glm::floatBitsToUint(second.faceCount);
 
   const simd::vec4 &delta = firstPos - secondPos;
 
@@ -819,17 +865,21 @@ bool CPUSolverParallel::BoxPolySAT(const float &treshold, const Object &first,  
 
 bool CPUSolverParallel::SphereSphereSAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
                                         const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const {
-  (void)first;
-  (void)second;
   float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
 
-  const simd::vec4 &tmpPos1 = transforms->at(transFirst).pos;
-  const simd::vec4 &firstPos = simd::vec4(tmpPos1.x, tmpPos1.y, tmpPos1.z, 1.0f);
-  const float firstRadius = transforms->at(transFirst).pos.w;
+//   const simd::vec4 &tmpPos1 = transforms->at(transFirst).pos;
+//   const simd::vec4 &firstPos = simd::vec4(tmpPos1.x, tmpPos1.y, tmpPos1.z, 1.0f);
+//   const float firstRadius = transforms->at(transFirst).pos.w;
+// 
+//   const simd::vec4 &tmpPos2 = transforms->at(transFirst).pos;
+//   const simd::vec4 &secondPos = simd::vec4(tmpPos2.x, tmpPos2.y, tmpPos2.z, 1.0f);
+//   const float secondRadius = transforms->at(transSecond).pos.w;
+  
+  const simd::vec4 &firstPos = transforms->at(transFirst).pos;
+  const float firstRadius = glm::floatBitsToUint(first.faceCount);
 
-  const simd::vec4 &tmpPos2 = transforms->at(transFirst).pos;
-  const simd::vec4 &secondPos = simd::vec4(tmpPos2.x, tmpPos2.y, tmpPos2.z, 1.0f);
-  const float secondRadius = transforms->at(transSecond).pos.w;
+  const simd::vec4 &secondPos = transforms->at(transSecond).pos;
+  const float secondRadius = glm::floatBitsToUint(second.faceCount);
 
   const simd::vec4 &axis = simd::normalize(secondPos - firstPos);
 
@@ -852,14 +902,12 @@ bool CPUSolverParallel::SphereSphereSAT(const float &treshold, const Object &fir
 
 bool CPUSolverParallel::PolySphereSAT(const float &treshold, const Object &first,  const uint32_t &transFirst,
                                       const Object &second, const uint32_t &transSecond, simd::vec4 &mtv, float &dist) const {
-  (void)second;
   float minFirst = 0.0f, maxFirst = 0.0f, minSecond = 0.0f, maxSecond = 0.0f;
 
   const simd::vec4 &firstPos = transFirst != UINT32_MAX ? transforms->at(transFirst).pos : simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-  const simd::vec4 &tmpPos = transforms->at(transSecond).pos;
-  const simd::vec4 &secondPos = simd::vec4(tmpPos.x, tmpPos.y, tmpPos.z, 1.0f);
+  const simd::vec4 &secondPos = transforms->at(transSecond).pos;
 
-  const float secondRadius = transforms->at(transSecond).pos.w;
+  const float secondRadius = second.faceCount;
 
   const uint32_t vert     = first.vertexOffset;
   const uint32_t vertSize = first.vertexCount;

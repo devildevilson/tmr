@@ -1,5 +1,37 @@
 #include "PhysicsUtils.h"
 
+RayData::RayData() {}
+RayData::RayData(const simd::vec4 &pos, const simd::vec4 &dir) 
+  : pos(pos), dir(simd::normalize(dir)), data(-std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), glm::uintBitsToFloat(UINT32_MAX), glm::uintBitsToFloat(UINT32_MAX)) {}
+RayData::RayData(const simd::vec4 &pos, const simd::vec4 &dir, const uint32_t &ignoreObj, const uint32_t &filter) 
+  : pos(pos), dir(simd::normalize(dir)), data(-std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), glm::uintBitsToFloat(ignoreObj), glm::uintBitsToFloat(filter)) {}
+RayData::RayData(const simd::vec4 &pos, const simd::vec4 &dir, const float &minDist, const float &maxDist, const uint32_t &ignoreObj, const uint32_t &filter) 
+  : pos(pos), dir(simd::normalize(dir)), data(minDist, maxDist, glm::uintBitsToFloat(ignoreObj), glm::uintBitsToFloat(filter)) {}
+
+float RayData::min() const {
+  float arr[4];
+  data.storeu(arr);
+  return arr[0];
+}
+
+float RayData::max() const {
+  float arr[4];
+  data.storeu(arr);
+  return arr[1];
+}
+
+uint32_t RayData::ignoreObject() const {
+  float arr[4];
+  data.storeu(arr);
+  return glm::floatBitsToUint(arr[2]);
+}
+
+uint32_t RayData::filter() const {
+  float arr[4];
+  data.storeu(arr);
+  return glm::floatBitsToUint(arr[3]);
+}
+
 // FrustumStruct::FrustumStruct() {}
 // FrustumStruct::FrustumStruct(const simd::mat4 &matrix) {
 //   calcFrustum(matrix);

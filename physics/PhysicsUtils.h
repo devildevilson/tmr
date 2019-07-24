@@ -2,8 +2,6 @@
 #define PHYSIC_UTILS
 
 #include <cstdint>
-// #include "glm/glm.hpp"
-
 
 #include "PhysicsTemporary.h"
 
@@ -17,8 +15,19 @@ struct FastAABB {
 };
 
 struct RayData {
+  RayData();
+  RayData(const simd::vec4 &pos, const simd::vec4 &dir);
+  RayData(const simd::vec4 &pos, const simd::vec4 &dir, const uint32_t &ignoreObj, const uint32_t &filter);
+  RayData(const simd::vec4 &pos, const simd::vec4 &dir, const float &minDist, const float &maxDist, const uint32_t &ignoreObj, const uint32_t &filter);
+  
   simd::vec4 pos;
   simd::vec4 dir;
+  simd::vec4 data;
+  
+  float min() const;
+  float max() const;
+  uint32_t ignoreObject() const;
+  uint32_t filter() const;
 };
 
 // struct FrustumStruct {
@@ -41,6 +50,8 @@ struct OverlappingData {
 
   glm::vec3 vec; // это может быть позиция
   float dist;
+  
+  // добавить скорости еще нужно, что еще?
 };
 
 struct DataIndices {

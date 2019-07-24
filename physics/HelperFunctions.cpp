@@ -147,41 +147,82 @@ FastAABB recalcAABB(const ArrayInterface<simd::vec4>* verticies, const simd::vec
 //   return extent.x > center.x && extent.y > center.y && extent.z > center.z;
 // }
 
+bool testAABBPoint(const FastAABB &box, const simd::vec4 &point) {
+  
+}
+
 bool intersection(const FastAABB &box, const RayData &ray) {
   const simd::vec4 boxMin = box.center - box.extent;
   const simd::vec4 boxMax = box.center + box.extent;
-  
-  const simd::vec4 t1 = (boxMin - ray.pos) / ray.dir;
-  const simd::vec4 t2 = (boxMax - ray.pos) / ray.dir;
-  
-  float arr1[4];
-  float arr2[4];
-  t1.store(arr1);
-  t2.store(arr2);
-  
-  float tmin = glm::min(arr1[0], arr2[0]);
-  float tmax = glm::max(arr1[0], arr2[0]);
-  
-  for (uint32_t i = 1; i < 3; ++i) {
-    tmin = glm::max(tmin, glm::min(arr1[i], arr2[i]));
-    tmax = glm::min(tmax, glm::max(arr1[i], arr2[i]));
-  }
-
-//   float t1 = (boxMin[0] - ray.pos[0]) / ray.dir[0];
-//   float t2 = (boxMax[0] - ray.pos[0]) / ray.dir[0];
-// 
-//   float tmin = glm::min(t1, t2);
-//   float tmax = glm::max(t1, t2);
-// 
-//   for (int i = 1; i < 3; ++i) {
-//     t1 = (boxMin[i] - ray.pos[i]) / ray.dir[i];
-//     t2 = (boxMax[i] - ray.pos[i]) / ray.dir[i];
-// 
-//     tmin = glm::max(tmin, glm::min(t1, t2));
-//     tmax = glm::min(tmax, glm::max(t1, t2));
+//   
+//   const simd::vec4 t1 = (boxMin - ray.pos) / ray.dir;
+//   const simd::vec4 t2 = (boxMax - ray.pos) / ray.dir;
+//   
+//   float arr1[4];
+//   float arr2[4];
+//   t1.store(arr1);
+//   t2.store(arr2);
+//   
+// //   float tmin = glm::min(arr1[0], arr2[0]);
+// //   float tmax = glm::max(arr1[0], arr2[0]);
+//   float tmin = ray.min();
+//   float tmax = ray.max();
+//   for (uint32_t i = 0; i < 3; ++i) {
+//     tmin = glm::max(tmin, glm::min(arr1[i], arr2[i]));
+//     tmax = glm::min(tmax, glm::max(arr1[i], arr2[i]));
 //   }
-
-  //return tmax > glm::max(tmin, 0.0f);
+// 
+//   //return tmax > glm::max(tmin, 0.0f);
+//   return tmax >= tmin;
+  
+//   float arr1[4];
+//   float arr2[4];
+//   float arr3[4];
+//   float arr4[4];
+//   boxMin.store(arr1);
+//   boxMax.store(arr2);
+//   ray.dir.storeu(arr3);
+//   ray.pos.storeu(arr4);
+//   
+//   float tmin1 = ray.min();
+//   float tmax1 = ray.max();
+//   for (uint8_t i = 0; i < 3; ++i) {
+//     const float invD = 1.0f / arr3[i];
+//     float t0 = (arr1[i] - arr4[i]) * invD;
+//     float t1 = (arr2[i] - arr4[i]) * invD;
+//     
+//     if (invD < 0.0f) std::swap(t0, t1);
+//     
+//     tmin1 = std::max(t0, tmin1);
+//     tmax1 = std::min(t1, tmax1);
+//     
+//     if (tmax1 < tmin) return false; // <= ?
+//   }
+  
+  // еще один способ очень похож на первый, 208 и 209 нужны чтоб знак определить, результат получается чуть чуть другой
+  const simd::vec4 invD = 1.0f / ray.dir;
+  const simd::vec4 t0v = (boxMin - ray.pos) * invD;
+  const simd::vec4 t1v = (boxMax - ray.pos) * invD;
+  const simd::vec4 invDZero = invD < 0.0f;
+  const simd::vec4 invinvDZero = ~invDZero;
+  const simd::vec4 t0invDZ = (t0v & invDZero) + (t1v & invinvDZero);
+  const simd::vec4 t1invDZ = (t1v & invDZero) + (t0v & invinvDZero);
+  
+  float t0arr[4];
+  float t1arr[4];
+  t0invDZ.storeu(t0arr);
+  t1invDZ.storeu(t1arr);
+  
+  float tmin = ray.min();
+  float tmax = ray.max();
+  for (uint8_t i = 0; i < 3; ++i) {
+    tmin = std::max(t0arr[i], tmin);
+    tmax = std::min(t1arr[i], tmax);
+    
+//     if (tmax < tmin) return false; // <= ?
+  }
+  
+//   return true;
   return tmax >= tmin;
 }
 

@@ -329,10 +329,11 @@ void CPUOctreeBroadphaseParallel::update() {
 
       } else if (obj.objType.getObjType() == SPHERE_TYPE) {
         const simd::vec4 &sphere = transforms->at(obj.transformIndex).pos;
-        float arr[4];
-        sphere.store(arr);
+        const float radius = glm::uintBitsToFloat(obj.faceCount);
+//         float arr[4];
+//         sphere.store(arr);
         
-        const FastAABB box = {simd::vec4(arr[0], arr[1], arr[2], 1.0f), simd::vec4(arr[3], arr[3], arr[3], 0.0f)};
+        const FastAABB box = {sphere, simd::vec4(radius, radius, radius, 0.0f)};
         proxies[proxyIndex].setAABB(box);
       } else {
         const simd::vec4 pos = obj.transformIndex != UINT32_MAX ? transforms->at(obj.transformIndex).pos : simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -650,6 +651,12 @@ void CPUOctreeBroadphaseParallel::calculateRayTests() {
     if (!proxy->getType().canBlockRays()) return;
 
     const FastAABB &box = proxy->getAABB();
+    
+    const uint32_t filter = current.filter();
+    const uint32_t ignore = current.ignoreObject();
+    
+    if (proxy->getObjectIndex() == ignore) return;
+    if ((proxy->collisionGroup() & filter) == 0) return;
 
 //     std::cout << "proxy " << proxy->getProxyIndex() << " obj index " << proxy->getObjectIndex() << "\n";
 //     PRINT_VEC4("proxy   pos", proxy->getAABB().center)

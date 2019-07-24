@@ -44,7 +44,9 @@ public:
   void add(const PhysicsObjectCreateInfo &info, PhysicsIndexContainer* container) override;
   void remove(PhysicsIndexContainer* comp) override;
 
+  // thread safe, only rays
   uint32_t add(const RayData &ray) override; // лучи и фрустумы нужно передобавлять каждый кадр
+  
   uint32_t add(const simd::mat4 &frustum, const simd::vec4 &pos = simd::vec4(10000.0f)) override; // так добавить фрустум, или вычислить его вне?
   
   Object & getObjectData(const PhysicsIndexContainer* container) override;
@@ -135,7 +137,8 @@ protected:
 
   CPUArray<simd::vec4> globalVel;
 
-  CPUArray<RayData> rays; // надо ли их нормализовывать? 
+  std::mutex rayMutex;
+  CPUArray<RayData> rays; // надо ли их нормализовывать? скорее всего
   CPUArray<Frustum> frustums;
   CPUArray<simd::vec4> frustumPoses;
   

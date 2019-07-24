@@ -15,8 +15,6 @@
 #define PRINT_VEC3(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << "\n";
 
 CPUPhysicsParallel::CPUPhysicsParallel(const CreateInfo &info) : updateDelta(info.updateDelta), accumulator(0) {
-  TimeLogDestructor physics("Physics system initialization");
-  
   this->pool = info.pool;
   this->broad = info.b;
   this->narrow = info.n;
@@ -104,6 +102,8 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
     sorter->sort(&overlappingPairCache, 1);
 
     narrow->checkIdenticalPairs();
+    
+    narrow->calculateBatches();
 
     pool->submitnr([&] () {
       sorter->sort(&overlappingPairCache);
@@ -422,13 +422,17 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
     physicsDatas[container->physicDataIndex] = data;
   }
 
-  auto itr = shapes.find(info.shapeType);
-  if (itr == shapes.end()) throw std::runtime_error("Shape " + info.shapeType.getName() + " was not registered");
-  if (itr->second.shapeType != info.type.getObjType()) throw std::runtime_error("Wrong shape for object");
+  if (info.type.getObjType() != SPHERE_TYPE) {
+    auto itr = shapes.find(info.shapeType);
+    if (itr == shapes.end()) throw std::runtime_error("Shape " + info.shapeType.getName() + " was not registered");
+    if (itr->second.shapeType != info.type.getObjType()) throw std::runtime_error("Wrong shape for object");
 
-  objects[container->objectDataIndex].vertexOffset = itr->second.offset;
-  objects[container->objectDataIndex].vertexCount = itr->second.pointCount;
-  objects[container->objectDataIndex].faceCount = itr->second.faceCount;
+    objects[container->objectDataIndex].vertexOffset = itr->second.offset;
+    objects[container->objectDataIndex].vertexCount = itr->second.pointCount;
+    objects[container->objectDataIndex].faceCount = itr->second.faceCount;
+  } else {
+    objects[container->objectDataIndex].faceCount = glm::floatBitsToUint(info.radius);
+  }
 
   if (!info.type.isDynamic()) {
     const uint32_t id = indices[0];
@@ -474,6 +478,8 @@ void CPUPhysicsParallel::remove(PhysicsIndexContainer* comp) {
 uint32_t CPUPhysicsParallel::add(const RayData &ray) {
   // эту функцию вполне можно выполнять параллельно
 
+  std::unique_lock<std::mutex> lock(rayMutex);
+  
   uint32_t index = rays.vector().size();
   // нормализация??
   rays.vector().push_back(ray);

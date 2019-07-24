@@ -45,8 +45,8 @@ public:
 
     CPUParallelOctreeNode() = default;
     ~CPUParallelOctreeNode() = default;
-    CPUParallelOctreeNode(const CPUParallelOctreeNode &node) = default;
-    CPUParallelOctreeNode & operator=(const CPUParallelOctreeNode &node) = default;
+    CPUParallelOctreeNode(const CPUParallelOctreeNode &node) = delete;
+    CPUParallelOctreeNode & operator=(const CPUParallelOctreeNode &node) = delete;
 
 //     FastAABB getAABB() const;
     void add(CPUOctreeProxyParallel* proxy);
