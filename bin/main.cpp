@@ -185,6 +185,7 @@ int main(int argc, char** argv) {
     decalSystem = systemContainer.addSystem<DecalSystem>();
     // глобальный указатель?
     
+    TimeLogDestructor soundSystemLog("Sound system initialization");
     SoundSystem* soundSystem = systemContainer.addSystem<SoundSystem>();
     g.setSound(soundSystem);
   }
@@ -416,7 +417,7 @@ int main(int argc, char** argv) {
     
     // звук идет после запуска графики
     // сюда же мы можем засунуть и другие вычисления
-    Global::sound()->update(time);
+//     Global::sound()->update(time);
 
     // здесь же у нас должна быть настройка: тип какую частоту обновления экрана использовать?
     const size_t syncTime = Global::window()->isVsync() ? Global::window()->refreshTime() : 0; //16667

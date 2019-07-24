@@ -967,6 +967,8 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
 }
 
 void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, const size_t &updateDelta, PhysicsContainer &physicsContainer, PhysicsEngine** engine) {
+  TimeLogDestructor physics("Physics system initialization");
+  
 // const GPUOctreeBroadphase::GPUOctreeBroadphaseCreateInfo octreeInfo{
   //   {simd::vec4(0.0f, 0.0f, 0.0f, 1.0f), simd::vec4(100.0f, 100.0f, 100.0f, 0.0f), 5},
   //   device,
@@ -1051,6 +1053,8 @@ void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, const 
 }
 
 void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystemContainer &container) {
+  TimeLogDestructor AIsystem("AI system initialization");
+  
   const CPUAISystem::CreateInfo info {
     threadPool,
     updateDelta,
