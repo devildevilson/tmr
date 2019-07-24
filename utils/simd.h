@@ -76,7 +76,6 @@ namespace simd {
     inline vec4 & operator++();
     inline vec4 operator--(int);
     inline vec4 operator++(int);
-    inline vec4 & operator~();
     inline vec4 & operator&=(const vec4 &vec);
     inline vec4 & operator|=(const vec4 &vec);
     inline vec4 & operator^=(const vec4 &vec);
@@ -111,6 +110,7 @@ namespace simd {
   inline vec4 operator<=(const vec4 &vec1, const vec4 &vec2);
   inline vec4 operator==(const vec4 &vec1, const vec4 &vec2);
   inline vec4 operator!=(const vec4 &vec1, const vec4 &vec2);
+  inline vec4 operator~(const vec4 &vec1);
   inline vec4 operator&(const vec4 &vec1, const vec4 &vec2);
   inline vec4 operator|(const vec4 &vec1, const vec4 &vec2);
   inline vec4 operator^(const vec4 &vec1, const vec4 &vec2);

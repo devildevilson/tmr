@@ -183,10 +183,10 @@ namespace simd {
     return tmp;
   }
 
-  inline vec4 & vec4::operator~() {
-    native = _mm_xor_ps(native, _mm_set1_ps(0xffffffff));
-    return *this;
-  }
+//   inline vec4 & vec4::operator~() {
+//     native = _mm_xor_ps(native, _mm_set1_ps(0xffffffff));
+//     return *this;
+//   }
 
   inline vec4 & vec4::operator&=(const vec4 &vec) {
     native = _mm_and_ps(native, vec);
@@ -303,6 +303,10 @@ namespace simd {
 
   inline vec4 operator!=(const vec4 &vec1, const vec4 &vec2) {
     return _mm_cmpneq_ps(vec1, vec2);
+  }
+  
+  inline vec4 operator~(const vec4 &vec1) {
+    return vec4(_mm_xor_ps(vec1, _mm_set1_ps(0xffffffff)));
   }
 
   inline vec4 operator&(const vec4 &vec1, const vec4 &vec2) {
