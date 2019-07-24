@@ -62,6 +62,15 @@ public:
   AttributeFinder(const size_t &size, T* attribs) : size(size), attribs(attribs) {}
   
   template <typename AT>
+  T* find(const AT &type) {
+    for (size_t i = 0; i < size; ++i) {
+      if (attribs[i].type() == type) return &attribs[i];
+    }
+    
+    return nullptr;
+  }
+  
+  template <typename AT>
   const T* find(const AT &type) const {
     for (size_t i = 0; i < size; ++i) {
       if (attribs[i].type() == type) return &attribs[i];
@@ -202,58 +211,6 @@ std::unordered_map<std::string, size_t> AttributeType<Type>::names;
 template <typename Type>
 std::vector<std::string> AttributeType<Type>::idToName;
 
-template <typename Type>
-class Attribute {
-public:
-  Attribute() : baseValue(Type(0)), current(Type(0)), rawBonusValue(Type(0)), finalBonusValue(Type(0)), rawBonusMul(0.0f), finalBonusMul(0.0f) {}
-  ~Attribute() {}
-  
-  void setType(const AttributeType<Type> &t) { this->t = t; }
-  void setBase(const float &base) { baseValue = base; }
-  
-  void addBonus(const Bonus &bonus) { rawBonusValue += bonus.add; rawBonusMul += bonus.mul; }
-  void addFinalBonus(const Bonus &bonus) { finalBonusValue += bonus.add; finalBonusMul += bonus.mul; }
-  void removeBonus(const Bonus &bonus) { rawBonusValue -= bonus.add; rawBonusMul -= bonus.mul; }
-  void removeFinalBonus(const Bonus &bonus) { finalBonusValue -= bonus.add; finalBonusMul -= bonus.mul; }
-  
-  void add(const float &val) { baseValue += val; }
-  void add(const float &val, const float &min, const float &max) {
-    baseValue += val;
-    
-    baseValue = std::max(min, std::min(max, baseValue));
-  }
-  
-  float base() const { return baseValue; }
-  float value() const { return current; }
-  
-  // в функцию было бы неплохо засунуть дополнительные данные
-  // например какие? игрок/не игрок, 
-  void calculate(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>& float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>& int_finder) {
-    current = t.attributeFunction()(float_finder, int_finder, baseValue, rawBonusValue, rawBonusMul, finalBonusValue, finalBonusMul);
-  }
-  
-  void dumpCurrentValue() {
-    baseValue = current;
-    rawBonusValue = Type(0);
-    finalBonusValue = Type(0);
-    rawBonusMul = 0.0f;
-    finalBonusMul = 0.0f;
-  }
-  
-  AttributeType<Type> type() const { return t; }
-private:
-  Type baseValue;
-  Type current;
-  
-  Type rawBonusValue;
-  Type finalBonusValue;
-  
-  float rawBonusMul;     // + 1.0f
-  float finalBonusMul;   // + 1.0f
-  
-  AttributeType<Type> t;
-};
-
 class TypelessAttributeType {
 public:
   TypelessAttributeType(const TypelessAttributeType &type);
@@ -275,6 +232,60 @@ private:
   size_t data;
 };
 
+template <typename Type>
+class Attribute {
+public:
+  Attribute() : baseValue(Type(0)), current(Type(0)), rawBonusValue(Type(0)), finalBonusValue(Type(0)), rawBonusMul(0.0f), finalBonusMul(0.0f) {}
+  ~Attribute() {}
+  
+  void setType(const AttributeType<Type> &t) { this->t = t; }
+  void setBase(const Type &base) { baseValue = base; }
+  void setValue(const Type &value) { current = value; }
+  
+  void addBonus(const Bonus &bonus) { rawBonusValue += bonus.add; rawBonusMul += bonus.mul; }
+  void addFinalBonus(const Bonus &bonus) { finalBonusValue += bonus.add; finalBonusMul += bonus.mul; }
+  void removeBonus(const Bonus &bonus) { rawBonusValue -= bonus.add; rawBonusMul -= bonus.mul; }
+  void removeFinalBonus(const Bonus &bonus) { finalBonusValue -= bonus.add; finalBonusMul -= bonus.mul; }
+  
+  void add(const float &val) { baseValue += val; }
+  void add(const float &val, const float &min, const float &max) {
+    baseValue += val;
+    
+    baseValue = std::max(min, std::min(max, baseValue));
+  }
+  
+  Type base() const { return baseValue; }
+  Type value() const { return current; }
+  
+  // в функцию было бы неплохо засунуть дополнительные данные
+  // например какие? игрок/не игрок, 
+  void calculate(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>& float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>& int_finder) {
+    current = t.attributeFunction()(float_finder, int_finder, baseValue, rawBonusValue, rawBonusMul, finalBonusValue, finalBonusMul);
+  }
+  
+  void dumpCurrentValue() {
+    baseValue = current;
+    rawBonusValue = Type(0);
+    finalBonusValue = Type(0);
+    rawBonusMul = 0.0f;
+    finalBonusMul = 0.0f;
+  }
+  
+  AttributeType<Type> type() const { return t; }
+  TypelessAttributeType typeless_type() const { return TypelessAttributeType(t); }
+private:
+  Type baseValue;
+  Type current;
+  
+  Type rawBonusValue;
+  Type finalBonusValue;
+  
+  float rawBonusMul;     // + 1.0f
+  float finalBonusMul;   // + 1.0f
+  
+  AttributeType<Type> t;
+};
+
 struct AttribChangeType {
   uint32_t container;
   
@@ -286,14 +297,34 @@ struct AttribChangeType {
   bool bonus_math_add() const;
 };
 
+class EntityAI;
+
 struct AttribChangeData {
   AttribChangeType type;
   Bonus b;
   TypelessAttributeType attribType;
+  // в эффектах должен быть способ понять кто его наложил
+  // но и неплохо было бы узнать кто сейчас непосредственно меняет статы
+  // и + кто последний изменил какой то определенный стат
+  EntityAI* entity;
+};
+
+struct AttributeReaction {
+  enum class comparison {
+    less,
+    more,
+    equal
+  };
+  
+  TypelessAttributeType attribType;
+  float value;
+  comparison comp;
+  Type event;
 };
 
 class PhysicsComponent2;
 class AttributeSystem;
+class EventComponent;
 
 // у нас помимо AttributeType должен быть еще какой то MonsterType
 class AttributeComponent : public yacs::Component {
@@ -325,7 +356,12 @@ public:
   template <typename Type>
   const Attribute<Type>* get(const AttributeType<Type> &type);
   
+  template <typename Type>
+  AttributeFinder<Attribute<Type>> get_finder() const;
+  
   void change_attribute(const AttribChangeData &data);
+  const AttribChangeData* get_attribute_change(const TypelessAttributeType &type) const;
+  void clear_counter();
   
   size_t & internalIndex();
 private:
@@ -335,11 +371,14 @@ private:
   Attribute<FLOAT_ATTRIBUTE_TYPE>* attribsf;
   Attribute<INT_ATTRIBUTE_TYPE>* attribsi;
   PhysicsComponent2* phys;
+  EventComponent* events;
   AttributeSystem* system;
   
   // массив изменений характеристик должен быть + многопоточность
-  std::atomic<size_t> count;
+//   std::atomic<size_t> count;
+  size_t counter;
   std::vector<AttribChangeData> datas;
+  std::vector<AttributeReaction> reactions;
   
   static Container<ExternalData>* externalDatas;
 };

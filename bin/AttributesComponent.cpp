@@ -1,6 +1,7 @@
 #include "AttributesComponent.h"
 
 #include "Components.h"
+#include "EventComponent.h"
 
 const size_t LAST_SIZE_T_BIT = 1 << (SIZE_WIDTH - 1);
 
@@ -49,6 +50,25 @@ bool TypelessAttributeType::operator!=(const TypelessAttributeType &type) const 
   return data != type.data;
 }
 
+AttribChangeType::AttribChangeType() : container(0) {}
+AttribChangeType::AttribChangeType(const bool raw, const bool add) : container(0) {
+  make(raw, add);
+}
+
+void AttribChangeType::make(const bool raw, const bool add) {
+  container |= (raw * (1 << 0)) | (add * (1 << 1));
+}
+
+bool AttribChangeType::bonus_type_raw() const {
+  const uint32_t mask = 1 << 0;
+  return (container & mask) == mask;
+}
+
+bool AttribChangeType::bonus_math_add() const {
+  const uint32_t mask = 1 << 1;
+  return (container & mask) == mask;
+}
+
 void AttributeComponent::setContainer(Container<ExternalData>* cont) {
   AttributeComponent::externalDatas = cont;
 }
@@ -62,6 +82,7 @@ AttributeComponent::AttributeComponent(const CreateInfo &info) : fcount(info.flo
       case ATTRIBUTE_CURRENT_SPEED: {
         attribsf[i].setType(info.float_arrtibs[i].type);
         attribsf[i].setBase(0.0f);
+        attribsf[i].setValue(0.0f);
         break;
       }
       
@@ -105,11 +126,32 @@ void AttributeComponent::update(const uint64_t &time) {
   AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> float_finder(fcount, attribsf);
   AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> int_finder(icount, attribsi);
   
+  for (size_t i = 0; i < datas.size(); ++i) {
+    if (datas[i].attribType.float_type()) {
+      const AttributeType<FLOAT_ATTRIBUTE_TYPE> &type = datas[i].attribType.get_float_type();
+      Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib = float_finder.find(type);
+      
+      if      ( datas[i].type.bonus_type_raw() &&  datas[i].type.bonus_math_add()) attrib->addBonus(datas[i].b);
+      else if (!datas[i].type.bonus_type_raw() &&  datas[i].type.bonus_math_add()) attrib->addFinalBonus(datas[i].b);
+      else if ( datas[i].type.bonus_type_raw() && !datas[i].type.bonus_math_add()) attrib->removeBonus(datas[i].b);
+      else attrib->removeFinalBonus(datas[i].b);
+    } else {
+      const AttributeType<INT_ATTRIBUTE_TYPE> &type = datas[i].attribType.get_int_type();
+      Attribute<INT_ATTRIBUTE_TYPE>* attrib = int_finder.find(type);
+      
+      if      ( datas[i].type.bonus_type_raw() &&  datas[i].type.bonus_math_add()) attrib->addBonus(datas[i].b);
+      else if (!datas[i].type.bonus_type_raw() &&  datas[i].type.bonus_math_add()) attrib->addFinalBonus(datas[i].b);
+      else if ( datas[i].type.bonus_type_raw() && !datas[i].type.bonus_math_add()) attrib->removeBonus(datas[i].b);
+      else attrib->removeFinalBonus(datas[i].b);
+    }
+  }
+  
   for (size_t i = 0; i < fcount; ++i) {
     switch (attribsf[i].type().data_type()) {
       case ATTRIBUTE_CURRENT_SPEED: {
         if (phys != nullptr) break;
         attribsf[i].setBase(phys->getSpeed());
+        attribsf[i].setValue(phys->getSpeed());
         break;
       }
       
@@ -138,12 +180,149 @@ void AttributeComponent::update(const uint64_t &time) {
   for (size_t i = 0; i < icount; ++i) {
     attribsi[i].calculate(float_finder, int_finder);
   }
+  
+  // как сделать смерть? мы должны вызвать какой то эвент, когда определенный аттрибут достигает определенного значения
+  // то есть массив типов с неким значением, после вычисления всех аттрибутов мы обходим массив
+  // должно ли это быть внутри типа или внутри энтити? можно создавать типы 
+  // как сделать отрывание частей тел как в брутал думе? по идее нам для этого нужно только 4 вещи: позиции игрока и монстра, направление взгляда игрока и монстра
+  // 
+  
+  struct AttributeReactionPointers {
+    AttributeReaction* reaction;
+    void* attribute;
+  };
+  
+  for (size_t i = 0; i < reactions.size(); ++i) {
+    switch (reactions[i].comp) {
+      case AttributeReaction::comparison::less: {
+        if (reactions[i].attribType.float_type()) {
+          const AttributeType<FLOAT_ATTRIBUTE_TYPE> &type = datas[i].attribType.get_float_type();
+          Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib = float_finder.find(type);
+          
+          if (attrib->value() < reactions[i].value) {
+            // запускаем эвент с аттрибутом, реакцией?, неплохо было бы еще просмотреть изменения аттрибута
+            // изменения именно этого аттрибута? (вообще логично что этого, для просмотра мне нужен по идее только тип)
+            // 
+            AttributeReactionPointers p{
+              &reactions[i],
+              attrib
+            };
+            
+            const EventData ed{
+              this,
+              &p
+            };
+            events->fireEvent(reactions[i].event, ed);
+          }
+        } else {
+          const AttributeType<INT_ATTRIBUTE_TYPE> &type = datas[i].attribType.get_int_type();
+          Attribute<INT_ATTRIBUTE_TYPE>* attrib = int_finder.find(type);
+          
+          if (attrib->value() < reactions[i].value) {
+            AttributeReactionPointers p{
+              &reactions[i],
+              attrib
+            };
+            
+            const EventData ed{
+              this,
+              &p
+            };
+            events->fireEvent(reactions[i].event, ed);
+          }
+        }
+        
+        break;
+      }
+      
+      case AttributeReaction::comparison::more: {
+        if (reactions[i].attribType.float_type()) {
+          const AttributeType<FLOAT_ATTRIBUTE_TYPE> &type = datas[i].attribType.get_float_type();
+          Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib = float_finder.find(type);
+          
+          if (attrib->value() > reactions[i].value) {
+            AttributeReactionPointers p{
+              &reactions[i],
+              attrib
+            };
+            
+            const EventData ed{
+              this,
+              &p
+            };
+            events->fireEvent(reactions[i].event, ed);
+          }
+        } else {
+          const AttributeType<INT_ATTRIBUTE_TYPE> &type = datas[i].attribType.get_int_type();
+          Attribute<INT_ATTRIBUTE_TYPE>* attrib = int_finder.find(type);
+          
+          if (attrib->value() > reactions[i].value) {
+            AttributeReactionPointers p{
+              &reactions[i],
+              attrib
+            };
+            
+            const EventData ed{
+              this,
+              &p
+            };
+            events->fireEvent(reactions[i].event, ed);
+          }
+        }
+        
+        break;
+      }
+      
+      case AttributeReaction::comparison::equal: {
+        if (reactions[i].attribType.float_type()) {
+          const AttributeType<FLOAT_ATTRIBUTE_TYPE> &type = datas[i].attribType.get_float_type();
+          Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib = float_finder.find(type);
+          
+          if (std::abs(attrib->value() - reactions[i].value) < EPSILON) {
+            AttributeReactionPointers p{
+              &reactions[i],
+              attrib
+            };
+            
+            const EventData ed{
+              this,
+              &p
+            };
+            events->fireEvent(reactions[i].event, ed);
+          }
+        } else {
+          const AttributeType<INT_ATTRIBUTE_TYPE> &type = datas[i].attribType.get_int_type();
+          Attribute<INT_ATTRIBUTE_TYPE>* attrib = int_finder.find(type);
+          
+          if (std::abs(attrib->value() - reactions[i].value) < EPSILON) {
+            AttributeReactionPointers p{
+              &reactions[i],
+              attrib
+            };
+            
+            const EventData ed{
+              this,
+              &p
+            };
+            events->fireEvent(reactions[i].event, ed);
+          }
+        }
+        
+        break;
+      }
+    }
+  }
+  
+  datas.clear();
 }
 
 void AttributeComponent::init(void* userData) {
   (void)userData;
   
   phys = getEntity()->get<PhysicsComponent2>().get();
+  
+  // тут нет гарантии что PhysicsComponent2 заинитится быстрее чем AttributeComponent
+  // нужно просто взять данные инитиализации
   
   if (phys != nullptr) {
     for (size_t i = 0; i < fcount; ++i) {
@@ -181,6 +360,20 @@ const Attribute<FLOAT_ATTRIBUTE_TYPE>* AttributeComponent::get(const AttributeTy
 template <>
 const Attribute<INT_ATTRIBUTE_TYPE>* AttributeComponent::get(const AttributeType<INT_ATTRIBUTE_TYPE> &type) {
   return AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>(icount, attribsi).find(type);
+}
+
+template <>
+AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> AttributeComponent::get_finder() const {
+  return AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>(fcount, attribsf);
+}
+
+template <>
+AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> AttributeComponent::get_finder() const {
+  return AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>(icount, attribsi);
+}
+
+void AttributeComponent::change_attribute(const AttribChangeData &data) {
+  datas.push_back(data);
 }
 
 size_t & AttributeComponent::internalIndex() {
