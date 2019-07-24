@@ -276,7 +276,6 @@ void createDevice(yavf::Instance* inst, const WindowData &data, yavf::Device** d
     }
 
 //     std::cout << "Device name: " << deviceProperties.deviceName << "\n";
-    Global::console()->printf("Using device: %s", deviceProperties.deviceName);
 
     bool extSupp = yavf::checkDeviceExtensions(physDevices[i], instanceLayers, deviceExtensions);
 
@@ -300,6 +299,10 @@ void createDevice(yavf::Instance* inst, const WindowData &data, yavf::Device** d
       //break;
     }
   }
+  
+  VkPhysicalDeviceProperties deviceProperties;
+  choosen.getProperties(&deviceProperties);
+  Global::console()->printf("Using device: %s", deviceProperties.deviceName);
 
   yavf::DeviceMaker dm(inst);
   VkPhysicalDeviceFeatures f = {};
