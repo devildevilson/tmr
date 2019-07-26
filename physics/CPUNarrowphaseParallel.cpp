@@ -6,7 +6,8 @@
 #include <iostream>
 #include <cstring>
 
-#define ONLY_TRIGGER_ID 0xFFFFFFFF-1
+#define ONLY_TRIGGER_ID (0xFFFFFFFF-1)
+#define INITIAL_ID (UINT32_MAX-2)
 
 #define FREE_MUTEX 0
 #define MUTEX_LOCK_WRITE 1
@@ -18,15 +19,15 @@ struct IslandAdditionalData {
   glm::uvec4 islandCount;
 };
 
-UniquePairContainer::UniquePairContainer(const size_t &objCount) {
-  const size_t size = std::ceil(float(objCount) / float(UINT32_WIDTH));
-  container = new uint32_t[size];
-  memset(container, 0, size*sizeof(uint32_t));
+UniquePairContainer::UniquePairContainer() {
+//   const size_t size = std::ceil(float(objCount) / float(UINT32_WIDTH));
+//   container = new uint32_t[size];
+//   memset(container, 0, size*sizeof(uint32_t));
   pthread_rwlock_init(&rw_lock, NULL);
 }
 
 UniquePairContainer::~UniquePairContainer() {
-  delete [] container;
+//   delete [] container;
   pthread_rwlock_destroy(&rw_lock);
 }
 
@@ -101,10 +102,13 @@ bool UniquePairContainer::read(const uint32_t &first, const uint32_t &second) {
   return res;
 }
 
-CPUNarrowphaseParallel::CPUNarrowphaseParallel(dt::thread_pool* pool, const uint32_t &octreeDepth) {
-  this->pool = pool;
-  this->octreeDepth = octreeDepth;
+void UniquePairContainer::resize(const size_t &objCount) {
+  const size_t size = std::ceil(float(objCount) / float(UINT32_WIDTH));
+  if (container.size() <= size) container.resize(size);
+  memset(container.data(), 0, container.size()*sizeof(uint32_t));
+}
 
+CPUNarrowphaseParallel::CPUNarrowphaseParallel(dt::thread_pool* pool, const uint32_t &octreeDepth) : pool(pool), iterationCount(50), octreeDepth(octreeDepth) {
   octreeLevels.resize(10);
 
   uint32_t tmp = 0;
@@ -158,7 +162,8 @@ void CPUNarrowphaseParallel::calculateBatches() {
       const size_t index = i+1;
       
       const auto &pair = pairs->at(index);
-      if (pair.islandIndex != UINT32_MAX) continue;
+      //if (pair.islandIndex != UINT32_MAX) continue;
+      if (pair.islandIndex != INITIAL_ID) continue;
       
       const bool hasPair = cont->read(pair.firstIndex, pair.secondIndex);
       if (!hasPair) {
@@ -174,16 +179,17 @@ void CPUNarrowphaseParallel::calculateBatches() {
   
   // для нормальной работы, нужно чтобы pair.islandIndex были все проставлены UINT32_MAX
   // сейчас мы вручную это сделаем, нужно будет потом убрать
-  for (size_t i = 0; i < pairs->at(0).secondIndex; ++i) {
-    const size_t index = i+1;
-    pairs->at(index).islandIndex = UINT32_MAX;
-  }
+//   for (size_t i = 0; i < pairs->at(0).secondIndex; ++i) {
+//     const size_t index = i+1;
+//     pairs->at(index).islandIndex = UINT32_MAX;
+//   }
   
   size_t batchId = 0;
   const size_t pairSize = pairs->at(0).secondIndex;
   std::atomic<size_t> pairsCount(pairSize);
   const size_t count = glm::ceil(float(pairSize) / float(pool->size()+1));
-  UniquePairContainer pairCont(pairSize);
+//   UniquePairContainer pairCont(pairSize);
+  pairCont.resize(pairSize);
   
   while (pairsCount > 0) {
     size_t start = 0;

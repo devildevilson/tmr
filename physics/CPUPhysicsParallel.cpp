@@ -14,13 +14,7 @@
 #define PRINT_VEC4(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << " w: " << vec.w << "\n";
 #define PRINT_VEC3(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << "\n";
 
-CPUPhysicsParallel::CPUPhysicsParallel(const CreateInfo &info) : updateDelta(info.updateDelta), accumulator(0) {
-  this->pool = info.pool;
-  this->broad = info.b;
-  this->narrow = info.n;
-  this->solver = info.s;
-  this->sorter = info.sorter;
-
+CPUPhysicsParallel::CPUPhysicsParallel(const CreateInfo &info) : pool(info.pool), broad(info.b), narrow(info.n), solver(info.s), sorter(info.sorter), updateDelta(info.updateDelta), accumulator(0) {
   verts.vector().reserve(3000);
   verts.update();
 

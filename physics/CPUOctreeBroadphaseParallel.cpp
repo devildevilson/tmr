@@ -13,7 +13,8 @@
 #define INSIDE 1
 #define INTERSECT 2
 
-#define ONLY_TRIGGER_ID 0xFFFFFFFF-1
+#define ONLY_TRIGGER_ID (0xFFFFFFFF-1)
+#define INITIAL_ID (UINT32_MAX-2)
 
 #include <HelperFunctions.h>
 
@@ -511,7 +512,8 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
         overlappingPairCache->at(id+1).secondIndex = secondIndex;
         const float dist2 = simd::distance2(firstBox.center, secondBox.center);
         overlappingPairCache->at(id+1).dist = dist2;
-        overlappingPairCache->at(id+1).islandIndex = triggerOnly ? ONLY_TRIGGER_ID : nodesCount - glm::min(first->getNodeIndex(), second->getNodeIndex()) - 1;
+        //overlappingPairCache->at(id+1).islandIndex = triggerOnly ? ONLY_TRIGGER_ID : nodesCount - glm::min(first->getNodeIndex(), second->getNodeIndex()) - 1;
+        overlappingPairCache->at(id+1).islandIndex = triggerOnly ? ONLY_TRIGGER_ID : INITIAL_ID;
 
         // до нарров фазы мы именно эти пары мы должны отсортировать по индексам!!!
         // а после нарров фазы отсортировать по индексам островов

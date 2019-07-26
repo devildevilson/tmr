@@ -7,7 +7,8 @@
 #include <pthread.h>
 
 struct UniquePairContainer {
-  uint32_t* container;
+//   uint32_t* container;
+  std::vector<uint32_t> container;
   
 //   std::mutex mutex;
 //   std::condition_variable writeVar;
@@ -16,11 +17,12 @@ struct UniquePairContainer {
   
   pthread_rwlock_t rw_lock;
   
-  UniquePairContainer(const size_t &objCount);
+  UniquePairContainer(); //const size_t &objCount
   ~UniquePairContainer();
   
   bool write(const uint32_t &first, const uint32_t &second);
   bool read(const uint32_t &first, const uint32_t &second);
+  void resize(const size_t &objCount);
 };
 
 class CPUNarrowphaseParallel : public Narrowphase {
@@ -40,11 +42,13 @@ public:
 
   void printStats() override;
 protected:
-  dt::thread_pool* pool = nullptr;
+  dt::thread_pool* pool;
   
-  uint32_t iterationCount = 50;
+  uint32_t iterationCount;
   
-  uint32_t octreeDepth = 0;
+  uint32_t octreeDepth;
+  
+  UniquePairContainer pairCont;
 
   ArrayInterface<BroadphasePair>* pairs = nullptr;
   ArrayInterface<BroadphasePair>* staticPairs = nullptr;
