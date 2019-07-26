@@ -1001,6 +1001,10 @@ void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, const 
   //CPUSolver solver;
   //CPUSolverParallel solver(&threadPool);
   CPUSolverParallel* solver = physicsContainer.createSolver<CPUSolverParallel>(threadPool);
+  
+//   if (solver == nullptr) {
+//     throw std::runtime_error("wtf");
+//   }
 
   // const GPUPhysicsSorterCreateInfo sorterInfo{
   //   {

@@ -145,6 +145,8 @@ int main(int argc, char** argv) {
   const size_t updateDelta = 33333;
 
   // создадим физику (почти везде нужно собрать сайз для контейнера)
+//   const size_t physSize = sizeof(CPUOctreeBroadphaseParallel) + sizeof(CPUNarrowphaseParallel) + sizeof(CPUSolverParallel) + sizeof(CPUPhysicsSorter) + sizeof(CPUPhysicsParallel);
+//   std::cout << "physSize " << physSize << "\n";
   PhysicsContainer physicsContainer(sizeof(CPUOctreeBroadphaseParallel) + sizeof(CPUNarrowphaseParallel) + sizeof(CPUSolverParallel) + sizeof(CPUPhysicsSorter) + sizeof(CPUPhysicsParallel));
   {
     PhysicsEngine* phys;
@@ -243,7 +245,6 @@ int main(int argc, char** argv) {
   nuklear_data data;
   initnk(graphicsContainer.device(), Global::window(), data);
 
-  // здесь еще должно быть создание рендер стейджев
   std::vector<DynamicPipelineStage*> dynPipe;
   {
     const RenderConstructData renderData{
@@ -261,8 +262,7 @@ int main(int argc, char** argv) {
       geoDebug
     };
     createRenderStages(renderData, dynPipe);
-
-    // вот так примерно мы собираем рендер (уберем в отдельную функцию)
+    // переделать рендер, частицы вызовут проблемы у меня сейчас
   }
 
   // загрузим стейт по умолчанию
@@ -297,7 +297,8 @@ int main(int argc, char** argv) {
     if (!textureLoader->load("nw")) throw std::runtime_error("Cannot load nw");
 
 //     std::cout << "texture loading" << "\n";
-
+    
+    // карта по умолчанию - главное меню, несколько текстур, интерфейс, одна плоскость
     mapLoader->load("default");
     //levelLoader->load(0);
 
