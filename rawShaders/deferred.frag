@@ -24,7 +24,7 @@ struct TextureData {
   float movementV;
 };
 
-layout(std140, set = 3, binding = 0) readonly buffer Textures {
+layout(std430, set = 3, binding = 0) readonly buffer Textures {
   // x - imageIndex, y - imageLayer, z - samplerIndex, w - может быть материалом
   //uvec4 texturesData[];
   TextureData texturesData[];
@@ -34,6 +34,7 @@ layout(std140, set = 3, binding = 0) readonly buffer Textures {
 // layout(location = 1) in flat uint inSamplerIndex;
 layout(location = 0) in vec4 inNormal;
 layout(location = 1) in vec2 inUV;
+layout(location = 2) in flat uint faceIndex;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec2 outNormal;
@@ -44,7 +45,8 @@ vec2 packNormal(const vec3 normal) {
 }
 
 void main() {
-  const uint index = floatBitsToUint(inNormal.w);
+  //const uint index = floatBitsToUint(inNormal.w);
+  const uint index = faceIndex;
   const uint imageIndex   = texturesData[index].imageArrayIndex;
   const uint imageLayer   = texturesData[index].imageArrayLayer;
   const uint samplerIndex = texturesData[index].samplerIndex;

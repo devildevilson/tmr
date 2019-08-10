@@ -27,19 +27,20 @@ layout(location = 2) in vec2 uv;
 layout(location = 0) out vec4 outNormal;
 // layout(location = 3) out vec3 outUV;
 layout(location = 1) out vec2 outUV;
+layout(location = 2) out flat uint faceIndex;
 
 out gl_PerVertex {
   vec4 gl_Position;
 };
 
 void main() {
-  //gl_Position = camera.viewproj * vec4(pos.x, pos.y, pos.z, 1.0);
   gl_Position = camera.viewproj * pos;
-  //gl_Position.y = -gl_Position.y;
 
-  // outImageIndex = imageIndex;
-  // outSamplerIndex = samplerIndex;
-  outNormal = normal;
-  // outUV = vec3(uv, imageLayer);
+  outNormal = vec4(normal.xyz, 0.0f);
   outUV = uv;
+  faceIndex = floatBitsToUint(normal.w);
+
+  // аккуратнее со значениями передаваемыми в следующие шейдеры
+  // нормаль передается фигово ВСЕГДА даже если значения одинаковые у всех вершин
+  // необходимо использовать модификатор flat
 }
