@@ -573,7 +573,7 @@ namespace simd {
   }
 
   inline float distance2(const vec4 &a, const vec4 &b) {
-    return length2(b - a);
+    return length2(a - b);
   }
 
   inline vec4 distance24(const vec4 &xxxx1, const vec4 &yyyy1, const vec4 &zzzz1,
