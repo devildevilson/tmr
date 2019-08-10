@@ -3,6 +3,9 @@
 #include "Core.h"
 #include "Makers.h"
 
+//#define VMA_DEBUG_INITIALIZE_ALLOCATIONS 1
+//#define VMA_DEBUG_MARGIN 16
+//#define VMA_DEBUG_DETECT_CORRUPTION 1
 #define VMA_RECORDING_ENABLED 0
 #define VMA_IMPLEMENTATION
 #include <vk_mem_alloc.h>
@@ -902,7 +905,8 @@ namespace yavf {
     setIndex(0), 
     parameters(info) {
     VmaAllocationInfo data;
-    
+
+    //VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
     const VmaAllocationCreateInfo alloc{
       static_cast<VmaAllocationCreateFlags>(memUsage != VMA_MEMORY_USAGE_GPU_ONLY ? VMA_ALLOCATION_CREATE_MAPPED_BIT : 0),
       memUsage,
@@ -916,6 +920,10 @@ namespace yavf {
   }
   
   Buffer::~Buffer() {
+//    if (set != nullptr) {
+//      set->erase(setIndex);
+//    }
+
     BufferView* view = bufferView;
     while (view != nullptr) {
       BufferView* toDelete = view;
@@ -977,6 +985,48 @@ namespace yavf {
       view = view->next();
     }
     
+    if (set != nullptr) {
+      set->at(setIndex).bufferData.range = finalSize;
+      set->update(setIndex);
+    }
+  }
+
+  void Buffer::resize(const size_t &newSize) {
+    if (parameters.size == newSize) return;
+
+    const size_t finalSize = memUsage == VMA_MEMORY_USAGE_CPU_ONLY ?
+                             alignMemorySize(std::max(device->getMinMemoryMapAlignment(), device->getNonCoherentAtomSize()), newSize) :
+                             //alignMemorySize(device->getNonCoherentAtomSize(), newSize);
+                             newSize;
+
+    const size_t copySize = std::min(parameters.size, finalSize);
+    parameters.size = finalSize;
+
+    const VmaAllocationCreateInfo alloc{
+      static_cast<VmaAllocationCreateFlags>(memUsage != VMA_MEMORY_USAGE_GPU_ONLY ? VMA_ALLOCATION_CREATE_MAPPED_BIT : 0),
+      memUsage,
+      0, 0, 0, VK_NULL_HANDLE, nullptr
+    };
+
+    VmaAllocationInfo data;
+
+    VkBuffer buffer = VK_NULL_HANDLE;
+    VmaAllocation allocation = VK_NULL_HANDLE;
+    vmaCreateBuffer(allocator, &parameters._info, &alloc, &buffer, &allocation, &data);
+
+    if (pointer != nullptr) memcpy(data.pMappedData, pointer, copySize);
+
+    vmaDestroyBuffer(allocator, obj, RAIIType4::allocation);
+    obj = buffer;
+    RAIIType4::allocation = allocation;
+    pointer = data.pMappedData;
+
+    BufferView* view = bufferView;
+    while (view != nullptr) {
+      view->recreate();
+      view = view->next();
+    }
+
     if (set != nullptr) {
       set->at(setIndex).bufferData.range = finalSize;
       set->update(setIndex);
@@ -1056,6 +1106,10 @@ namespace yavf {
   }
   
   void Buffer::setDescriptor(DescriptorSet* set, const size_t &index) {
+    if (this->set != nullptr) {
+      throw std::runtime_error("trying to change descriptor set");
+    }
+
     this->set = set;
     this->setIndex = index;
     
@@ -1149,6 +1203,10 @@ namespace yavf {
   }
   
   void ImageView::setDescriptor(DescriptorSet* res, const size_t &resIndex) {
+    if (this->set != nullptr) {
+      throw std::runtime_error("trying to change descriptor set");
+    }
+
     this->set = res;
     this->setIndex = resIndex;
     
@@ -1436,8 +1494,11 @@ namespace yavf {
   void DescriptorSet::update(const size_t &index) {
     if (index == SIZE_MAX) {
       DescriptorUpdater du(device);
-      
+
+//      std::cout << "size: " << datas.size() << "\n";
       for (size_t i = 0; i < datas.size(); ++i) {
+        if (datas[i].bindingNum == UINT32_MAX) continue;
+
         du.currentSet(h);
         du.begin(datas[i].bindingNum, datas[i].arrayElement, datas[i].descType);
         int a = getIntTypeFromDescType(datas[i].descType);
@@ -1445,6 +1506,7 @@ namespace yavf {
         if (a == 0) {
           du.image(datas[i].imageData.imageView, datas[i].imageData.imageLayout, datas[i].imageData.sampler);
         } else if (a == 1) {
+//          std::cout << "buffer: " << datas[i].bufferData.buffer->handle() << "\n";
           du.buffer(datas[i].bufferData.buffer, datas[i].bufferData.offset, datas[i].bufferData.range);
         } else {
           du.texelBuffer(datas[i].view);

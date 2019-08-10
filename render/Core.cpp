@@ -1271,8 +1271,8 @@ namespace yavf {
     
     {
       const VmaAllocatorCreateInfo allocInfo{
-        VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
-//         0,
+//        VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
+  0,
         phys,
         h,
         info.bufferSizeBlock, //1000000,  // 1 mib
@@ -1290,8 +1290,8 @@ namespace yavf {
     
     {
       const VmaAllocatorCreateInfo allocInfo{
-        VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
-//         0,
+//        VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
+        0,
         phys,
         h,
         info.imageSizeBlock, //1000000,  // 1 mib

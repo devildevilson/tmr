@@ -130,8 +130,6 @@ namespace yavf {
 //     ASSERT((dst->info().usage & VK_BUFFER_USAGE_TRANSFER_DST_BIT) == VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     
     vkCmdCopyBuffer(current, src->handle(), dst->handle(), 1, &region);
-    
-    ASSERT(family < 4);
   }
 
   void TaskInterface::copy(Buffer* src, Buffer* dst, const VkDeviceSize &srcOffset, const VkDeviceSize &dstOffset, const VkDeviceSize &size) {

@@ -238,34 +238,39 @@ namespace yavf {
     template <typename ObjType, typename ObjCreateInfo, typename CreateFuncType, typename DestroyFuncType>
     class RAIIType1 {
     public:
-      RAIIType1() : cfn(CreateFuncType()), dfn(DestroyFuncType()), d(VK_NULL_HANDLE), obj(VK_NULL_HANDLE) {}
-      RAIIType1(VkDevice d) : cfn(CreateFuncType()), dfn(DestroyFuncType()), d(d), obj(VK_NULL_HANDLE) {}
+      RAIIType1() : d(VK_NULL_HANDLE), obj(VK_NULL_HANDLE) {}
+      RAIIType1(VkDevice d) : d(d), obj(VK_NULL_HANDLE) {}
       
       RAIIType1(VkDevice d, const ObjCreateInfo &info, const char* funcName) 
-      : cfn(CreateFuncType()), dfn(DestroyFuncType()), d(d), obj(VK_NULL_HANDLE) { 
-        vkCheckError(funcName, nullptr, 
-        cfn(d, &info, nullptr, &obj));
+      :
+//        cfn(CreateFuncType()), dfn(DestroyFuncType()),
+        d(d), obj(VK_NULL_HANDLE) {
+
+        const auto fn = CreateFuncType();
+        vkCheckError(funcName, nullptr,
+                     fn(d, &info, nullptr, &obj));
       }
       
       RAIIType1(const RAIIType1 &another) = delete;
       RAIIType1(RAIIType1 &&another) {
-        cfn = another.cfn;
-        dfn = another.dfn;
+//        cfn = another.cfn;
+//        dfn = another.dfn;
         obj = another.obj;
         d = another.d;
         another.obj = VK_NULL_HANDLE;
       }
       
       ~RAIIType1() {
-        if (obj != VK_NULL_HANDLE) dfn(d, obj, nullptr);
+        const auto fn = DestroyFuncType();
+        if (obj != VK_NULL_HANDLE) fn(d, obj, nullptr);
       }
       
       RAIIType1 & operator=(const RAIIType1 &another) = delete;
       RAIIType1 & operator=(RAIIType1 &&another) {
         if (this == &another) return *this;
         
-        cfn = another.cfn;
-        dfn = another.dfn;
+//        cfn = another.cfn;
+//        dfn = another.dfn;
         obj = another.obj;
         d = another.d;
         another.obj = VK_NULL_HANDLE;
@@ -274,19 +279,21 @@ namespace yavf {
       
       VkResult construct(VkDevice d, const ObjCreateInfo &info) {
         this->d = d;
-        return cfn(d, &info, nullptr, &obj);
+        const auto fn = CreateFuncType();
+        return fn(d, &info, nullptr, &obj);
       }
       
       VkResult construct(const ObjCreateInfo &info) {
-        return cfn(d, &info, nullptr, &obj);
+        const auto fn = CreateFuncType();
+        return fn(d, &info, nullptr, &obj);
       }
       
       operator ObjType() const {
         return obj;
       }
     private:
-      CreateFuncType cfn;
-      DestroyFuncType dfn;
+//      CreateFuncType cfn;
+//      DestroyFuncType dfn;
     protected:
       VkDevice d;
       ObjType obj;
@@ -295,20 +302,21 @@ namespace yavf {
     template <typename ObjType, typename ObjCreateInfo, typename CreateFuncType, typename DestroyFuncType>
     class RAIIType2 {
     public:
-      RAIIType2() : cfn(CreateFuncType()), dfn(DestroyFuncType()), d(VK_NULL_HANDLE), cache(VK_NULL_HANDLE), obj(VK_NULL_HANDLE) {}
-      RAIIType2(VkDevice d) : cfn(CreateFuncType()), dfn(DestroyFuncType()), d(d), cache(VK_NULL_HANDLE), obj(VK_NULL_HANDLE) {}
-      RAIIType2(VkDevice d, VkPipelineCache cache) : cfn(CreateFuncType()), dfn(DestroyFuncType()), d(d), cache(cache), obj(VK_NULL_HANDLE) {}
+      RAIIType2() : d(VK_NULL_HANDLE), cache(VK_NULL_HANDLE), obj(VK_NULL_HANDLE) {}
+      RAIIType2(VkDevice d) : d(d), cache(VK_NULL_HANDLE), obj(VK_NULL_HANDLE) {}
+      RAIIType2(VkDevice d, VkPipelineCache cache) : d(d), cache(cache), obj(VK_NULL_HANDLE) {}
       
       RAIIType2(VkDevice d, VkPipelineCache cache, const ObjCreateInfo &info, const char* funcName) 
-      : cfn(CreateFuncType()), dfn(DestroyFuncType()), d(d), cache(cache), obj(VK_NULL_HANDLE) {
-        vkCheckError(funcName, nullptr, 
-        cfn(d, cache, 1, &info, nullptr, &obj));
+      : d(d), cache(cache), obj(VK_NULL_HANDLE) {
+        const auto fn = CreateFuncType();
+        vkCheckError(funcName, nullptr,
+                     fn(d, cache, 1, &info, nullptr, &obj));
       }
       
       RAIIType2(const RAIIType2 &another) = delete;
       RAIIType2(RAIIType2 &&another) {
-        cfn = another.cfn;
-        dfn = another.dfn;
+//        cfn = another.cfn;
+//        dfn = another.dfn;
         obj = another.obj;
         cache = another.cache;
         d = another.d;
@@ -316,15 +324,16 @@ namespace yavf {
       }
       
       ~RAIIType2() {
-        if (obj != VK_NULL_HANDLE) dfn(d, obj, nullptr);
+        const auto fn = DestroyFuncType();
+        if (obj != VK_NULL_HANDLE) fn(d, obj, nullptr);
       }
       
       RAIIType2 & operator=(const RAIIType2 &another) = delete;
       RAIIType2 & operator=(RAIIType2 &&another) {
         if (this == &another) return *this;
         
-        cfn = another.cfn;
-        dfn = another.dfn;
+//        cfn = another.cfn;
+//        dfn = another.dfn;
         obj = another.obj;
         cache = another.cache;
         d = another.d;
@@ -334,25 +343,28 @@ namespace yavf {
       
       VkResult construct(VkDevice d, const ObjCreateInfo &info) {
         this->d = d;
-        return cfn(d, cache, 1, &info, nullptr, &obj);
+        const auto fn = CreateFuncType();
+        return fn(d, cache, 1, &info, nullptr, &obj);
       }
       
       VkResult construct(VkDevice d, VkPipelineCache cache, const ObjCreateInfo &info) {
         this->d = d;
         this->cache = cache;
-        return cfn(d, cache, 1, &info, nullptr, &obj);
+        const auto fn = CreateFuncType();
+        return fn(d, cache, 1, &info, nullptr, &obj);
       }
       
       VkResult construct(const ObjCreateInfo &info) {
-        return cfn(d, cache, 1, &info, nullptr, &obj);
+        const auto fn = CreateFuncType();
+        return fn(d, cache, 1, &info, nullptr, &obj);
       }
       
       operator ObjType() const {
         return obj;
       }
     private:
-      CreateFuncType cfn;
-      DestroyFuncType dfn;
+//      CreateFuncType cfn;
+//      DestroyFuncType dfn;
     protected:
       VkDevice d;
       VkPipelineCache cache;
@@ -362,47 +374,50 @@ namespace yavf {
     template <typename ObjType, typename ObjCreateInfo, typename CreateFuncType, typename DestroyFuncType>
     class RAIIType3 {
     public:
-      RAIIType3() : cfn(CreateFuncType()), dfn(DestroyFuncType()), obj(VK_NULL_HANDLE) {}
+      RAIIType3() : obj(VK_NULL_HANDLE) {}
       
       RAIIType3(const ObjCreateInfo &info, const char* funcName) 
-      : cfn(CreateFuncType()), dfn(DestroyFuncType()), obj(VK_NULL_HANDLE) { //, createFuncPtr(createFuncPtr), destroyFuncPtr(destroyFuncPtr) {
+      : obj(VK_NULL_HANDLE) { //, createFuncPtr(createFuncPtr), destroyFuncPtr(destroyFuncPtr) {
+        const auto fn = CreateFuncType();
         vkCheckError(funcName, nullptr, 
-        cfn(&info, nullptr, &obj));
+        fn(&info, nullptr, &obj));
       }
       
       RAIIType3(const RAIIType3 &another) = delete;
       RAIIType3(RAIIType3 &&another) {
-        cfn = another.cfn;
-        dfn = another.dfn;
+//        cfn = another.cfn;
+//        dfn = another.dfn;
         obj = another.obj;
         another.obj = VK_NULL_HANDLE;
       }
       
       ~RAIIType3() {
-        if (obj != VK_NULL_HANDLE) dfn(obj, nullptr);
+        const auto fn = DestroyFuncType();
+        if (obj != VK_NULL_HANDLE) fn(obj, nullptr);
       }
       
       RAIIType3 & operator=(const RAIIType3 &another) = delete;
       RAIIType3 & operator=(RAIIType3 &&another) {
         if (this == &another) return *this;
         
-        cfn = another.cfn;
-        dfn = another.dfn;
+//        cfn = another.cfn;
+//        dfn = another.dfn;
         obj = another.obj;
         another.obj = VK_NULL_HANDLE;
         return *this;
       }
       
       VkResult construct(const ObjCreateInfo &info) {
-        return cfn(&info, nullptr, &obj);
+        const auto fn = CreateFuncType();
+        return fn(&info, nullptr, &obj);
       }
       
       operator ObjType() const {
         return obj;
       }
     private:
-      CreateFuncType cfn;
-      DestroyFuncType dfn;
+//      CreateFuncType cfn;
+//      DestroyFuncType dfn;
     protected:
       ObjType obj;
     };
@@ -410,19 +425,20 @@ namespace yavf {
     template <typename ObjType, typename ObjCreateInfo, typename CreateFuncType, typename DestroyFuncType>
     class RAIIType4 {
     public:
-      RAIIType4() : cfn(CreateFuncType()), dfn(DestroyFuncType()), allocator(VK_NULL_HANDLE), allocation(VK_NULL_HANDLE), obj(VK_NULL_HANDLE) {}
-      RAIIType4(VmaAllocator allocator) : cfn(CreateFuncType()), dfn(DestroyFuncType()), allocator(allocator), allocation(VK_NULL_HANDLE), obj(VK_NULL_HANDLE) {}
+      RAIIType4() : allocator(VK_NULL_HANDLE), allocation(VK_NULL_HANDLE), obj(VK_NULL_HANDLE) {}
+      RAIIType4(VmaAllocator allocator) : allocator(allocator), allocation(VK_NULL_HANDLE), obj(VK_NULL_HANDLE) {}
       
       RAIIType4(VmaAllocator allocator, const ObjCreateInfo &info, const VmaAllocationCreateInfo &pAllocationCreateInfo, const char* funcName) 
-      : cfn(CreateFuncType()), dfn(DestroyFuncType()), allocator(allocator), allocation(VK_NULL_HANDLE), obj(VK_NULL_HANDLE) { //, createFuncPtr(createFuncPtr), destroyFuncPtr(destroyFuncPtr) {
+      : allocator(allocator), allocation(VK_NULL_HANDLE), obj(VK_NULL_HANDLE) { //, createFuncPtr(createFuncPtr), destroyFuncPtr(destroyFuncPtr) {
+        const auto fn = CreateFuncType();
         vkCheckError(funcName, nullptr, 
-        cfn(allocator,  &info, &pAllocationCreateInfo, &obj, &allocation, nullptr));
+                     fn(allocator,  &info, &pAllocationCreateInfo, &obj, &allocation, nullptr));
       }
       
       RAIIType4(const RAIIType4 &another) = delete;
       RAIIType4(RAIIType4 &&another) {
-        cfn = another.cfn;
-        dfn = another.dfn;
+//        cfn = another.cfn;
+//        dfn = another.dfn;
         obj = another.obj;
         allocation = another.allocation;
         allocator = another.allocator;
@@ -430,15 +446,16 @@ namespace yavf {
       }
       
       ~RAIIType4() {
-        if (obj != VK_NULL_HANDLE) dfn(allocator, obj, allocation);
+        const auto fn = DestroyFuncType();
+        if (obj != VK_NULL_HANDLE) fn(allocator, obj, allocation);
       }
       
       RAIIType4 & operator=(const RAIIType4 &another) = delete;
       RAIIType4 & operator=(RAIIType4 &&another) {
         if (this == &another) return *this;
         
-        cfn = another.cfn;
-        dfn = another.dfn;
+//        cfn = another.cfn;
+//        dfn = another.dfn;
         obj = another.obj;
         allocation = another.allocation;
         allocator = another.allocator;
@@ -448,19 +465,21 @@ namespace yavf {
       
       VkResult construct(VmaAllocator allocator, const ObjCreateInfo &info, const VmaAllocationCreateInfo &pAllocationCreateInfo, VmaAllocationInfo *pAllocationInfo) {
         this->allocator = allocator;
-        return cfn(allocator,  &info, &pAllocationCreateInfo, &obj, &allocation, pAllocationInfo);
+        const auto fn = CreateFuncType();
+        return fn(allocator,  &info, &pAllocationCreateInfo, &obj, &allocation, pAllocationInfo);
       }
       
       VkResult construct(const ObjCreateInfo &info, const VmaAllocationCreateInfo &pAllocationCreateInfo, VmaAllocationInfo *pAllocationInfo) {
-        return cfn(allocator,  &info, &pAllocationCreateInfo, &obj, &allocation, pAllocationInfo);
+        const auto fn = CreateFuncType();
+        return fn(allocator,  &info, &pAllocationCreateInfo, &obj, &allocation, pAllocationInfo);
       }
       
       operator ObjType() const {
         return obj;
       }
     private:
-      CreateFuncType cfn;
-      DestroyFuncType dfn;
+//      CreateFuncType cfn;
+//      DestroyFuncType dfn;
     protected:
       VmaAllocator allocator;
       VmaAllocation allocation;
@@ -470,23 +489,24 @@ namespace yavf {
     template <typename ObjType, typename DestroyFuncType>
     class RAIIType5 {
     public:
-      RAIIType5(VkDevice d, ObjType obj) : dfn(DestroyFuncType()), d(d), obj(obj) {}
+      RAIIType5(VkDevice d, ObjType obj) : d(d), obj(obj) {}
       RAIIType5(const RAIIType5 &another) = delete;
       RAIIType5(RAIIType5 &&another) {
-        dfn = another.dfn;
+//        dfn = another.dfn;
         obj = another.obj;
         another.obj = VK_NULL_HANDLE;
       }
       
       ~RAIIType5() {
-        if (obj != VK_NULL_HANDLE) dfn(d, obj, nullptr);
+        const auto fn = DestroyFuncType();
+        if (obj != VK_NULL_HANDLE) fn(d, obj, nullptr);
       }
       
       RAIIType5 & operator=(const RAIIType5 &another) = delete;
       RAIIType5 & operator=(RAIIType5 &&another) {
         if (this == &another) return *this;
         
-        dfn = another.dfn;
+//        dfn = another.dfn;
         obj = another.obj;
         d = another.d;
         another.obj = VK_NULL_HANDLE;
@@ -497,7 +517,7 @@ namespace yavf {
         return obj;
       }
     private:
-      DestroyFuncType dfn;
+//      DestroyFuncType dfn;
     protected:
       VkDevice d;
       ObjType obj;

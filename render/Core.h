@@ -1,6 +1,10 @@
 #ifndef YAVF_CORE_H
 #define YAVF_CORE_H
 
+//#include <execinfo.h>
+//#include <csignal>
+//#include <unistd.h>
+
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -440,7 +444,7 @@ namespace yavf {
 //     static std::vector<const char*> layers;
 //     static std::vector<const char*> extensions;
   };
-  
+
   template<typename T>
   class vector {
   public:
@@ -463,6 +467,10 @@ namespace yavf {
       
       bool operator== (const reverse_iterator &other) const {
         return this->ptr == other.ptr;
+      }
+
+      bool operator!= (const reverse_iterator &other) const {
+        return this->ptr != other.ptr;
       }
       
       reverse_iterator& operator++() {
@@ -489,22 +497,24 @@ namespace yavf {
     private:
       T* ptr;
     };
+
+    typedef const reverse_iterator const_reverse_iterator;
     
-    vector() : usage(0), m_capasity(0), m_size(0), ptr(nullptr), device(nullptr), buffer(nullptr) {}
+    vector() : usage(0), m_capacity(0), m_size(0), ptr(nullptr), device(nullptr), buffer(nullptr) {}
     
-    vector(Device* device, const VkBufferUsageFlags &usage) : usage(usage), m_capasity(0), m_size(0), ptr(nullptr), device(device), buffer(nullptr) {
+    vector(Device* device, const VkBufferUsageFlags &usage) : usage(usage), m_capacity(0), m_size(0), ptr(nullptr), device(device), buffer(nullptr) {
       construct(device, usage);
     }
     
-    vector(Device* device, const VkBufferUsageFlags &usage, const size_t &size) : usage(usage), m_capasity(size), m_size(size), ptr(nullptr), device(device), buffer(nullptr) {
+    vector(Device* device, const VkBufferUsageFlags &usage, const size_t &size) : usage(usage), m_capacity(size), m_size(size), ptr(nullptr), device(device), buffer(nullptr) {
       construct(device, usage, size);
     }
     
-    vector(Device* device, const VkBufferUsageFlags &usage, const size_t &size, const T& initial) : usage(usage), m_capasity(size), m_size(size), ptr(nullptr), device(device), buffer(nullptr) {
+    vector(Device* device, const VkBufferUsageFlags &usage, const size_t &size, const T& initial) : usage(usage), m_capacity(size), m_size(size), ptr(nullptr), device(device), buffer(nullptr) {
       construct(device, usage, size, initial);
     }
     
-    vector(Device* device, const VkBufferUsageFlags &usage, const vector<T> &v) : usage(usage), m_capasity(v.size()), m_size(v.size()), ptr(nullptr), device(device), buffer(nullptr) {
+    vector(Device* device, const VkBufferUsageFlags &usage, const vector<T> &v) : usage(usage), m_capacity(v.size()), m_size(v.size()), ptr(nullptr), device(device), buffer(nullptr) {
       construct(device, usage, v);
     }
     
@@ -517,9 +527,9 @@ namespace yavf {
       
       this->device = device;
       this->usage = usage;
-      
-      m_capasity = YAVF_DEFAULT_VECTOR_CAPASITY;
-      buffer = device->create(BufferCreateInfo::buffer(m_capasity * sizeof(T), usage), VMA_MEMORY_USAGE_CPU_ONLY);
+
+      m_capacity = YAVF_DEFAULT_VECTOR_CAPASITY;
+      buffer = device->create(BufferCreateInfo::buffer(m_capacity * sizeof(T), usage), VMA_MEMORY_USAGE_CPU_ONLY);
       
       ptr = reinterpret_cast<T*>(buffer->ptr());
       m_size = 0;
@@ -530,9 +540,9 @@ namespace yavf {
       
       this->device = device;
       this->usage = usage;
-      
-      m_capasity = std::max(size_t(YAVF_DEFAULT_VECTOR_CAPASITY), size);
-      buffer = device->create(BufferCreateInfo::buffer(m_capasity * sizeof(T), usage), VMA_MEMORY_USAGE_CPU_ONLY);
+
+      m_capacity = std::max(size_t(YAVF_DEFAULT_VECTOR_CAPASITY), size);
+      buffer = device->create(BufferCreateInfo::buffer(m_capacity * sizeof(T), usage), VMA_MEMORY_USAGE_CPU_ONLY);
       
       ptr = reinterpret_cast<T*>(buffer->ptr());
       
@@ -548,9 +558,9 @@ namespace yavf {
       
       this->device = device;
       this->usage = usage;
-      
-      m_capasity = std::max(size_t(YAVF_DEFAULT_VECTOR_CAPASITY), size);
-      buffer = device->create(BufferCreateInfo::buffer(m_capasity * sizeof(T), usage), VMA_MEMORY_USAGE_CPU_ONLY);
+
+      m_capacity = std::max(size_t(YAVF_DEFAULT_VECTOR_CAPASITY), size);
+      buffer = device->create(BufferCreateInfo::buffer(m_capacity * sizeof(T), usage), VMA_MEMORY_USAGE_CPU_ONLY);
       
       ptr = reinterpret_cast<T*>(buffer->ptr());
       
@@ -566,9 +576,9 @@ namespace yavf {
       
       this->device = device;
       this->usage = usage;
-      
-      m_capasity = std::max(size_t(YAVF_DEFAULT_VECTOR_CAPASITY), v.size());
-      buffer = device->create(BufferCreateInfo::buffer(m_capasity * sizeof(T), usage), VMA_MEMORY_USAGE_CPU_ONLY);
+
+      m_capacity = std::max(size_t(YAVF_DEFAULT_VECTOR_CAPASITY), v.size());
+      buffer = device->create(BufferCreateInfo::buffer(m_capacity * sizeof(T), usage), VMA_MEMORY_USAGE_CPU_ONLY);
       
       ptr = reinterpret_cast<T*>(buffer->ptr());
       
@@ -591,8 +601,8 @@ namespace yavf {
         device->destroy(buffer);
         buffer = nullptr;
       }
-      
-      m_capasity = 0;
+
+      m_capacity = 0;
       m_size = 0;
       ptr = nullptr;
       device = nullptr;
@@ -616,19 +626,19 @@ namespace yavf {
     }
     
     size_t buffer_size() const {
-      return m_capasity * sizeof(T);
+      return m_capacity * sizeof(T);
     }
     
     size_t max_size() const {
       return UINT64_MAX;
     }
     
-    size_t capasity() const {
-      return m_capasity;
+    size_t capacity() const {
+      return m_capacity;
     }
 
     void reserve(const size_t &size) {
-      if (m_capasity >= size) return;
+      if (m_capacity >= size) return;
       
       recreate(size);
     }
@@ -641,7 +651,7 @@ namespace yavf {
         return;
       }
       
-      if (size > m_capasity) {        
+      if (size > m_capacity) {
         recreate(size);
         
         for (size_t i = m_size; i < size; ++i) {
@@ -682,7 +692,7 @@ namespace yavf {
     }
     
     void shrink_to_fit() {
-      if (m_size == m_capasity) return;
+      if (m_size == m_capacity) return;
       
       recreate(m_size);
     }
@@ -694,8 +704,8 @@ namespace yavf {
         return end();
       }
       
-      if (m_size == m_capasity) {
-        recreate(m_capasity * YAVF_VECTOR_UPDATE_KOEF);
+      if (m_size == m_capacity) {
+        recreate(m_capacity * YAVF_VECTOR_UPDATE_KOEF);
       }
       
       const size_t s = pos - ptr;
@@ -709,8 +719,8 @@ namespace yavf {
     
     template<typename... Args>
     void emplace_back(Args&&... args) {
-      if (m_size == m_capasity) {
-        recreate(m_capasity * YAVF_VECTOR_UPDATE_KOEF);
+      if (m_size == m_capacity) {
+        recreate(m_capacity * YAVF_VECTOR_UPDATE_KOEF);
       }
       
       new (&ptr[m_size]) T(std::forward<Args>(args)...);
@@ -718,7 +728,7 @@ namespace yavf {
     }
     
     void assign(const size_t &count, const T& value) {
-      if (count > m_capasity) recreate(count);
+      if (count > m_capacity) recreate(count);
       
       for (size_t i = 0; i < count; ++i) {
         ptr[i] = value;
@@ -728,8 +738,8 @@ namespace yavf {
     }
     
     void push_back(const T &obj) {
-      if (m_size == m_capasity) {
-        recreate(m_capasity * YAVF_VECTOR_UPDATE_KOEF);
+      if (m_size == m_capacity) {
+        recreate(m_capacity * YAVF_VECTOR_UPDATE_KOEF);
       }
       
       ptr[m_size] = obj;
@@ -750,8 +760,8 @@ namespace yavf {
         return end();
       }
       
-      if (m_size == m_capasity) {
-        recreate(m_capasity * YAVF_VECTOR_UPDATE_KOEF);
+      if (m_size == m_capacity) {
+        recreate(m_capacity * YAVF_VECTOR_UPDATE_KOEF);
       }
       
       const size_t s = pos - ptr;
@@ -766,7 +776,7 @@ namespace yavf {
     iterator insert(const_iterator pos, const size_t &count, const T& value) {
       const size_t s = pos - ptr;
       
-      if (m_size + count > m_capasity) {
+      if (m_size + count > m_capacity) {
         recreate(m_size + count);
       }
       
@@ -786,12 +796,12 @@ namespace yavf {
 //         return end();
 //       }
 //       
-//       const size_t s = pos - ptr;
-//       std::_Destroy_aux<__has_trivial_destructor(T)>::
-//       __destroy(ptr + s, ptr + s+1);
+       const size_t s = pos - ptr;
+       std::_Destroy_aux<__has_trivial_destructor(T)>::
+       __destroy(ptr + s, ptr + s+1);
 //       
 //       memmove(ptr + s, ptr + s+1, (m_size - s) * sizeof(T));
-      
+
       if (pos != end()-1) _GLIBCXX_MOVE3(pos + 1, end(), pos);
       pop_back();
       
@@ -831,22 +841,23 @@ namespace yavf {
     reverse_iterator rbegin() {
       return reverse_iterator(ptr+m_size-1);
     }
-    
-    const reverse_iterator rbegin() const {
-      return reverse_iterator(ptr+m_size-1);
+
+    const_reverse_iterator rbegin() const {
+      return const_reverse_iterator(ptr+m_size-1);
     }
     
     reverse_iterator rend() {
       return reverse_iterator(ptr-1);
     }
-    
-    const reverse_iterator rend() const {
-      return reverse_iterator(ptr-1);
+
+    const_reverse_iterator rend() const {
+      return const_reverse_iterator(ptr-1);
     }
     
     T& front() {
       return ptr[0];
     }
+
     const T& front() const {
       return ptr[0];
     }
@@ -884,7 +895,7 @@ namespace yavf {
     }
     
     vector<T>& operator=(const vector<T> &v) {
-      if (m_capasity < v.size()) recreate(v.size());
+      if (m_capacity < v.size()) recreate(v.size());
       
       for (size_t i = 0; i < v.size(); ++i) {
         ptr[i] = v[i];
@@ -910,32 +921,50 @@ namespace yavf {
   private:
     VkBufferUsageFlags usage;
     
-    size_t m_capasity;
+    size_t m_capacity;
     size_t m_size;
     T* ptr;
     Device* device;
     Buffer* buffer;
     
-    void recreate(const size_t &newCapasity) {
+    void recreate(const size_t &newCapacity) {
       T* oldPtr = ptr;
       size_t oldSize = m_size;
-      
-      Buffer* newBuffer = device->create(BufferCreateInfo::buffer(newCapasity * sizeof(T), usage), VMA_MEMORY_USAGE_CPU_ONLY);
+
+      Buffer* newBuffer = device->create(BufferCreateInfo::buffer(newCapacity * sizeof(T), usage), VMA_MEMORY_USAGE_CPU_ONLY);
       ptr = reinterpret_cast<T*>(newBuffer->ptr());
-      
+
       // просто копируем или нужно вызывать конструкторы деструкторы?
-      memcpy(ptr, oldPtr, oldSize * sizeof(T));
-      
+      //memcpy(ptr, oldPtr, oldSize * sizeof(T));
+      std::copy(oldPtr, oldPtr+oldSize, ptr);
+
       if (buffer->descriptorSet() != nullptr) {
         buffer->descriptorSet()->at(buffer->descriptorSetIndex()).bufferData.buffer = newBuffer;
-        buffer->descriptorSet()->at(buffer->descriptorSetIndex()).bufferData.range = newCapasity * sizeof(T);
-        
+        buffer->descriptorSet()->at(buffer->descriptorSetIndex()).bufferData.range = newCapacity * sizeof(T);
+
         newBuffer->setDescriptor(buffer->descriptorSet(), buffer->descriptorSetIndex());
       }
-      
+
+      std::_Destroy_aux<!std::is_trivially_destructible<T>::value>::__destroy(oldPtr, oldPtr + m_size);
+
       device->destroy(buffer);
       buffer = newBuffer;
-      m_capasity = newCapasity;
+
+//      buffer->resize(newCapacity * sizeof(T));
+//      ptr = reinterpret_cast<T*>(buffer->ptr());
+
+      m_capacity = newCapacity;
+
+//      {
+//        void* btarray[200];
+//        size_t btSize;
+//
+//        // get void*'s for all entries on the stack
+//        btSize = backtrace(btarray, 200);
+//        // print out all the frames to stderr
+////     fprintf(stderr, "Error: signal %d:\n", sig);
+//        backtrace_symbols_fd(btarray, btSize, STDERR_FILENO);
+//      }
     }
   };
   
@@ -1132,7 +1161,7 @@ namespace yavf {
       lastSlot_ = reinterpret_cast<Slot_*>(reinterpret_cast<char*>(ptr) + m_size); // находим последний слот
     }
     
-//     void create(const size_t &capasity, VkBuffer* buffer, VmaAllocation* allocation) {
+//     void create(const size_t &capacity, VkBuffer* buffer, VmaAllocation* allocation) {
 //       VmaAllocationCreateInfo a{
 //         VMA_ALLOCATION_CREATE_MAPPED_BIT,
 //         VMA_MEMORY_USAGE_CPU_ONLY,
@@ -1147,7 +1176,7 @@ namespace yavf {
 //         VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 //         nullptr,
 //         0,
-//         capasity,
+//         capacity,
 //         usage,
 //         VK_SHARING_MODE_EXCLUSIVE,
 //         0,

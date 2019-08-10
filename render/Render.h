@@ -17,42 +17,12 @@
 
 #include <vector>
 
-// #define YAVF_DEBUG_REPORT_EXTENSION
-// #define YAVF_INFO_REPORT
-// #include "yavf.h"
-
-//#include <glm/glm.hpp>
-
 #include "RenderStage.h"
-#include "StageContainer.h"
+#include "TypelessContainer.h"
 
 #include "Engine.h"
 
 #include "RenderStructures.h"
-
-//class VulkanRender;
-
-// enum RenderType : uint32_t {
-//   RENDER_TYPE_GEOMETRY = 0,
-//   RENDER_TYPE_MONSTER,
-//   RENDER_TYPE_LIGHT,
-//   RENDER_TYPE_DEBUG,
-//   RENDER_TYPE_MAX
-// };
-
-class Constant {
-public:
-  template <typename T>
-  T get() {
-    return reinterpret_cast<T&>(value);
-  }
-  
-  void set(const bool &val);
-  void set(const size_t &val);
-  void set(const float &val);
-private:
-  size_t value;
-};
 
 class Render : public Engine {
 public:
@@ -62,7 +32,7 @@ public:
   
   virtual ~Render() {
     for (uint32_t i = 0; i < stages.size(); ++i) {
-      stageContainer.destroyStage(stages[i]);
+      stageContainer.destroy(stages[i]);
     }
     
     delete matrices;
@@ -99,7 +69,7 @@ public:
   template <typename T, typename... Args>
   T* addStage(Args&&... args) {
     // нужно ли мне добавить какой-нибудь индекс стейджу?
-    T* ptr = stageContainer.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = stageContainer.create<T>(std::forward<Args>(args)...);
     stages.push_back(ptr);
     
     return ptr;
@@ -137,70 +107,8 @@ protected:
   // задать отдельные стейджы которые только нужны для старта и окончания тасков......... (в общем ничего криминального не вижу, но эт очень странно)
   bool perspective;
   std::vector<RenderStage*> stages;
-  StageContainer stageContainer;
+  TypelessContainer stageContainer;
   Matrices* matrices;
 };
-
-// struct Vertex {
-//   glm::vec3 pos;
-//   simd::vec4 color;
-//   glm::vec2 texCoord;
-// };
-
-// struct PushConst {
-//   simd::mat4 mat;
-//   simd::vec4 color;
-//   glm::vec3 normal;
-// };
-// 
-// struct DrawInfo {
-//   Texture texture;
-//   glm::vec3 pos;
-//   glm::vec3 rot;
-//   glm::vec3 scale;
-//   glm::vec3 normal;
-//   uint32_t faceIndex;
-//   size_t elemCount;
-//   size_t offset;
-// };
-// 
-// struct LightData {
-//   glm::vec3 pos;
-//   float radius;
-//   glm::vec3 color;
-//   float cutoff;
-// };
-
-// class VulkanRender;
-// 
-// class Optimizer {
-// public:
-//   virtual ~Optimizer() {}
-//   
-//   virtual void setup(VulkanRender* render) = 0;
-//   
-//   virtual void add(const DrawInfo &info) = 0;
-//   virtual void prepare(const size_t &offset) = 0;
-//   virtual void occlusion(yavf::GraphicTask* task) = 0;
-//   virtual void optimize() = 0;
-//   virtual void draw(yavf::GraphicTask* task) = 0;
-//   virtual void clear() = 0;
-//   virtual size_t size() const = 0;
-// };
-// 
-// class Render {
-// public:
-//   Render();
-//   virtual ~Render();
-// 
-//   void add(const uint32_t &type, const DrawInfo &info);
-//   void optimize();
-//   virtual void draw() = 0;
-//   virtual void start() = 0;
-//   virtual void wait() = 0;
-//   void clear();
-// protected:
-//   std::vector<Optimizer*> opts;
-// };
 
 #endif

@@ -2,6 +2,9 @@
 #define YAVF_TYPES_H
 
 #include <vulkan/vulkan.h>
+//#define VMA_DEBUG_INITIALIZE_ALLOCATIONS 1
+//#define VMA_DEBUG_MARGIN 16
+//#define VMA_DEBUG_DETECT_CORRUPTION 1
 #define VMA_RECORDING_ENABLED 0
 #include <vk_mem_alloc.h>
 
@@ -339,6 +342,7 @@ namespace yavf {
     void construct(Device* device, const VkBufferCreateInfo &info, const VmaMemoryUsage &memUsage);
     
     void recreate(const size_t &newSize);
+    void resize(const size_t &newSize);
     void flush() const;
     
     // что с вью? их может быть несколько, и их нужно обновлять каждый раз как я переделываю буфер
@@ -928,5 +932,49 @@ namespace yavf {
 //       VkDescriptorType descType;
 //     };
 //   }
+
+//  template <typename T>
+//  void resize(const size_t &newSize, const size_t &copySize) {
+//    if (parameters.size == newSize) return;
+//
+//    const size_t finalSize = memUsage == VMA_MEMORY_USAGE_CPU_ONLY ?
+//                             alignMemorySize(std::max(device->getMinMemoryMapAlignment(), device->getNonCoherentAtomSize()), newSize) :
+//                             //alignMemorySize(device->getNonCoherentAtomSize(), newSize);
+//                             newSize;
+//
+//    const size_t finalCopySize = std::min(std::min(parameters.size, finalSize), copySize);
+//    parameters.size = finalSize;
+//
+//    const VmaAllocationCreateInfo alloc{
+//            static_cast<VmaAllocationCreateFlags>(memUsage != VMA_MEMORY_USAGE_GPU_ONLY ? VMA_ALLOCATION_CREATE_MAPPED_BIT : 0),
+//            memUsage,
+//            0, 0, 0, VK_NULL_HANDLE, nullptr
+//    };
+//
+//    VmaAllocationInfo data;
+//
+//    VkBuffer buffer;
+//    VmaAllocation allocation;
+//    vmaCreateBuffer(allocator, &parameters._info, &alloc, &buffer, &allocation, &data);
+//
+//    memcpy(data.pMappedData, pointer, copySize);
+//
+//    vmaDestroyBuffer(allocator, obj, RAIIType4::allocation);
+//    obj = buffer;
+//    RAIIType4::allocation = allocation;
+//    pointer = data.pMappedData;
+//
+//    BufferView* view = bufferView;
+//    while (view != nullptr) {
+//      view->recreate();
+//      view = view->next();
+//    }
+//
+//    if (set != nullptr) {
+//      set->at(setIndex).bufferData.range = finalSize;
+//      set->update(setIndex);
+//    }
+//  }
+
 }
 #endif
