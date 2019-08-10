@@ -30,12 +30,12 @@ const std::atomic<size_t> & Blackboard::data(const Type &name) const {
 
 CPUAISystem::CPUAISystem(const CreateInfo &info) : updateDelta(info.updateDelta), accumulator(0), pool(info.pool), pathfinding(nullptr), container(info.utilitySystemsSize) {}
 CPUAISystem::~CPUAISystem() {
-  container.destroyStage(pathfinding);
-  container.destroyStage(graph);
+  container.destroy(pathfinding);
+  container.destroy(graph);
   
-  for (size_t i = 0; i < groupAI.size(); ++i) {
-    groupAIPool.deleteElement(groupAI[i]);
-  }
+//  for (size_t i = 0; i < groupAI.size(); ++i) {
+//    groupAIPool.deleteElement(groupAI[i]);
+//  }
   
   for (size_t i = 0; i < groups.size(); ++i) {
     groupPool.deleteElement(groups[i]);
@@ -77,21 +77,25 @@ void CPUAISystem::update(const uint64_t &time) {
   
   static const auto updateAIData = [&] (const size_t &start, const size_t &count) {
     for (size_t i = start; i < start+count; ++i) {
-      aiEntities[i]->updateAIData();
+      yacs::component_handle<AIComponent> handle = Global::world()->get_component<AIComponent>(i);
+      handle->updateAIData();
+//      aiEntities[i]->updateAIData();
     }
   };
   
   static const auto updateAI = [&] (const size_t &start, const size_t &count, const size_t &time) {
     for (size_t i = start; i < start+count; ++i) {
-      aiEntities[i]->update(time);
+      yacs::component_handle<AIComponent> handle = Global::world()->get_component<AIComponent>(i);
+      handle->update(time);
+//      aiEntities[i]->update(time);
     }
   };
   
-  static const auto updateAIGroup = [&] (const size_t &start, const size_t &count, const size_t &time) {
-    for (size_t i = start; i < start+count; ++i) {
-      groupAI[i]->update(time);
-    }
-  };
+//  static const auto updateAIGroup = [&] (const size_t &start, const size_t &count, const size_t &time) {
+//    for (size_t i = start; i < start+count; ++i) {
+//      groupAI[i]->update(time);
+//    }
+//  };
   
   // кадр может не успеть сделать всю нагрузку и тогда аккумулятор будет все больше и больше, что будет в итоге приводить к зависанию
   // как ограничивать? вообще можно accumulator = (accumulator + frameTime) % CONST
@@ -99,22 +103,23 @@ void CPUAISystem::update(const uint64_t &time) {
   // наверное вместе с этим надо бы что нибудь в консоль вывести
   // какая константа? я думаю что 
   
-  const size_t frameTime = std::min(time, size_t(250000));
+  const size_t frameTime = std::min(time, size_t(ACCUMULATOR_MAX_CONSTANT));
   accumulator += frameTime;
   
   if (accumulator > ACCUMULATOR_MAX_CONSTANT) {
     accumulator = accumulator % ACCUMULATOR_MAX_CONSTANT;
     
-    Global::console()->printW("AI lags detected. Check your PC suitability for the game minimal requirements or remove some reundant mods");
+    Global::console()->printW("AI lags detected. Check your PC suitability for the game minimal requirements or remove some redundant mods");
   }
-  
+
+  const size_t componentCount = Global::world()->count_components<AIComponent>();
   while (accumulator >= updateDelta) {
     // нужно ли здесь что-то интерполировать? пока ничего в голову не приходит
     /*if (!aiEntities.empty())*/ {
-      const size_t count = std::ceil(float(aiEntities.size()) / float(pool->size()+1));
+      const size_t count = std::ceil(float(componentCount) / float(pool->size()+1));
       size_t start = 0;
       for (uint32_t i = 0; i < pool->size()+1; ++i) {
-        const size_t jobCount = std::min(count, aiEntities.size()-start);
+        const size_t jobCount = std::min(count, componentCount-start);
         if (jobCount == 0) break;
 
         pool->submitnr(updateAIData, start, jobCount);
@@ -126,12 +131,13 @@ void CPUAISystem::update(const uint64_t &time) {
       pool->wait();
     }
     
+    // нужно наверное сделать по отдельности
 //     if (!aiEntities.empty() || !groupAI.empty()) {
       /*if (!aiEntities.empty())*/ {
-        const size_t count = std::ceil(float(aiEntities.size()) / float(pool->size()+1));
+        const size_t count = std::ceil(float(componentCount) / float(pool->size()+1));
         size_t start = 0;
         for (uint32_t i = 0; i < pool->size()+1; ++i) {
-          const size_t jobCount = std::min(count, aiEntities.size()-start);
+          const size_t jobCount = std::min(count, componentCount-start);
           if (jobCount == 0) break;
 
           pool->submitnr(updateAI, start, jobCount, updateDelta);
@@ -140,18 +146,18 @@ void CPUAISystem::update(const uint64_t &time) {
         }
       }
       
-      /*if (!groupAI.empty())*/ {
-        const size_t count = std::ceil(float(groupAI.size()) / float(pool->size()+1));
-        size_t start = 0;
-        for (uint32_t i = 0; i < pool->size()+1; ++i) {
-          const size_t jobCount = std::min(count, aiEntities.size()-start);
-          if (jobCount == 0) break;
-
-          pool->submitnr(updateAIGroup, start, jobCount, updateDelta);
-
-          start += jobCount;
-        }
-      }
+//      /*if (!groupAI.empty())*/ {
+//        const size_t count = std::ceil(float(groupAI.size()) / float(pool->size()+1));
+//        size_t start = 0;
+//        for (uint32_t i = 0; i < pool->size()+1; ++i) {
+//          const size_t jobCount = std::min(count, aiEntities.size()-start);
+//          if (jobCount == 0) break;
+//
+//          pool->submitnr(updateAIGroup, start, jobCount, updateDelta);
+//
+//          start += jobCount;
+//        }
+//      }
       
       pool->compute();
       pool->wait();
@@ -202,31 +208,31 @@ PathFindingPhase* CPUAISystem::pathfindingSystem() const {
   return pathfinding;
 }
 
-void CPUAISystem::registerComponent(AIComponent* component) {
-  component->internalIndex() = aiEntities.size();
-  aiEntities.push_back(component);
-}
-
-void CPUAISystem::registerBasicComponent(AIBasicComponent* component) {
-  component->internalIndex() = aiObjects.size();
-  aiObjects.push_back(component);
-}
-
-void CPUAISystem::removeComponent(AIComponent* component) {
-  if (aiEntities[component->internalIndex()] != component) return;
-  
-  aiEntities.back()->internalIndex() = component->internalIndex();
-  std::swap(aiEntities[component->internalIndex()], aiEntities.back());
-  aiEntities.pop_back();
-}
-
-void CPUAISystem::removeBasicComponent(AIBasicComponent* component) {
-  if (aiObjects[component->internalIndex()] != component) return;
-  
-  aiObjects.back()->internalIndex() = component->internalIndex();
-  std::swap(aiObjects[component->internalIndex()], aiObjects.back());
-  aiObjects.pop_back();
-}
+//void CPUAISystem::registerComponent(AIComponent* component) {
+//  component->internalIndex() = aiEntities.size();
+//  aiEntities.push_back(component);
+//}
+//
+//void CPUAISystem::registerBasicComponent(AIBasicComponent* component) {
+//  component->internalIndex() = aiObjects.size();
+//  aiObjects.push_back(component);
+//}
+//
+//void CPUAISystem::removeComponent(AIComponent* component) {
+//  if (aiEntities[component->internalIndex()] != component) return;
+//
+//  aiEntities.back()->internalIndex() = component->internalIndex();
+//  std::swap(aiEntities[component->internalIndex()], aiEntities.back());
+//  aiEntities.pop_back();
+//}
+//
+//void CPUAISystem::removeBasicComponent(AIBasicComponent* component) {
+//  if (aiObjects[component->internalIndex()] != component) return;
+//
+//  aiObjects.back()->internalIndex() = component->internalIndex();
+//  std::swap(aiObjects[component->internalIndex()], aiObjects.back());
+//  aiObjects.pop_back();
+//}
 
 size_t CPUAISystem::getUpdateDelta() const {
   return updateDelta;
@@ -244,4 +250,8 @@ tb::BehaviorTree* CPUAISystem::getBehaviourTreePointer(const Type &name) const {
   if (itr == treesPtr.end()) throw std::runtime_error("Behaviour tree with name " + name.getName() + " is not exist");
   
   return itr->second;
+}
+
+Graph* CPUAISystem::getGraph() {
+  return graph;
 }

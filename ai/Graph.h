@@ -43,7 +43,9 @@ struct LineSegment {
   glm::vec4 dir() const;
   simd::vec4 dir_simd() const;
   
+  glm::vec4 closestPoint(const glm::vec4 &p) const;
   simd::vec4 closestPoint(const simd::vec4 &p) const;
+  void leftRight(const glm::vec4 &point, const glm::vec4 &normal, glm::vec4 &left, glm::vec4 &right) const;
   void leftRight(const simd::vec4 &point, const simd::vec4 &normal, simd::vec4 &left, simd::vec4 &right) const;
 };
 
@@ -137,6 +139,7 @@ public:
   size_t degree() const;
   edge_t* operator[] (const size_t &index) const;
   edge_t* edge(const size_t &index) const;
+  edge_t* edge(const vertex_t* other) const;
   bool hasEdge(const vertex_t* other, edge_t** edge) const;
   bool hasEdge(const vertex_t* other) const;
   vertex_t* neighbor(const size_t &index) const;

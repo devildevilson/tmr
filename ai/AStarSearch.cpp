@@ -312,6 +312,8 @@ void AStarSearch::freeSolutionNodes() {
 }
 
 std::vector<AStarSearch::Node*> AStarSearch::getSolution() {
+  if (start->vertex == goal->vertex) return {start};
+  
   std::vector<AStarSearch::Node*> sol;
   
   Node* n = start;

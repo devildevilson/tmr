@@ -18,6 +18,15 @@ simd::vec4 LineSegment::dir_simd() const {
   return simd::normalize(sB - sA);
 }
 
+glm::vec4 LineSegment::closestPoint(const glm::vec4 &p) const {
+  const glm::vec4 vec = b - a;
+  
+  float t = glm::dot(p - a, vec) / glm::dot(vec, vec);
+  t = glm::clamp(t, 0.0f, 1.0f);
+  
+  return a + t * vec;
+}
+
 simd::vec4 LineSegment::closestPoint(const simd::vec4 &p) const {
   const simd::vec4 sA = simd::vec4(&a.x);
   const simd::vec4 sB = simd::vec4(&b.x);
@@ -29,20 +38,37 @@ simd::vec4 LineSegment::closestPoint(const simd::vec4 &p) const {
   return sA + t * vec;
 }
 
+void LineSegment::leftRight(const glm::vec4 &point, const glm::vec4 &normal, glm::vec4 &left, glm::vec4 &right) const {
+  glm::vec4 vec = closestPoint(point) - point;
+  vec = glm::normalize(glm::vec4(glm::cross(glm::vec3(vec), glm::vec3(normal)), 0.0f));
+
+  const glm::vec4 diff = glm::normalize(b - a);
+  float sign = glm::dot(vec, diff);
+  
+  if (sign >= 0.0f) {
+    left = a;
+    right = b;
+  } else {
+    left = b;
+    right = a;
+  }
+}
+
 void LineSegment::leftRight(const simd::vec4 &point, const simd::vec4 &normal, simd::vec4 &left, simd::vec4 &right) const {
-  simd::vec4 vec = closestPoint(point) - point;
-  vec = simd::cross(vec, normal);
+  simd::vec4 simdVec = closestPoint(point) - point;
+  simdVec = simd::cross(simdVec, normal); //simd::normalize(
   
   const simd::vec4 sA = simd::vec4(&a.x);
   const simd::vec4 sB = simd::vec4(&b.x);
-  float sign = simd::dot(vec, sB - sA);
+  const simd::vec4 simdDiff = sB - sA; // simd::normalize(
+  float simdSign = simd::dot(simdVec, simdDiff);
   
-  if (sign >= 0.0f) {
-    left = sA;
-    right = sB;
+  if (simdSign >= 0.0f) {
+    left = simd::vec4(&a.x);
+    right = simd::vec4(&b.x);
   } else {
-    left = sB;
-    right = sA;
+    left = simd::vec4(&b.x);
+    right = simd::vec4(&a.x);
   }
 }
 
@@ -136,6 +162,18 @@ edge_t* vertex_t::operator[] (const size_t &index) const {
 
 edge_t* vertex_t::edge(const size_t &index) const {
   return edges[index];
+}
+
+edge_t* vertex_t::edge(const vertex_t* other) const {
+  edge_t* edge = nullptr;
+  for (size_t i = 0; i < edges.size(); ++i) {
+    if ((edges[i]->first() == this && edges[i]->second() == other) || (edges[i]->first() == other && edges[i]->second() == this)) {
+      edge = edges[i];
+      break;
+    }
+  }
+  
+  return edge;
 }
 
 bool vertex_t::hasEdge(const vertex_t* other, edge_t** edge) const {
@@ -263,12 +301,12 @@ Graph::~Graph() {
   for (size_t i = 0; i < verts.size(); ++i) {
     vertexPool.deleteElement(verts[i]);
   }
-  vertexPool.clear();
+//   vertexPool.clear();
   
   for (size_t i = 0; i < edgs.size(); ++i) {
     edgePool.deleteElement(edgs[i]);
   }
-  edgePool.clear();
+//   edgePool.clear();
 }
 
 bool Graph::null() const {

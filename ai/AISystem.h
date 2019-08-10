@@ -8,10 +8,11 @@
 #include "MemoryPool.h"
 #include "EntityAI.h"
 #include "AIComponent.h"
+#include "EntityComponentSystem.h"
 
 #include "ThreadPool.h"
 
-#include "StageContainer.h"
+#include "TypelessContainer.h"
 
 #include <atomic>
 #include <unordered_map>
@@ -157,7 +158,7 @@ public:
   // но в связи с переделками я полагаю мне может не потребоваться этот класс вовсе
 };
 
-class AISystem : public Engine {
+class AISystem : public Engine, public yacs::system {
 public:
   virtual ~AISystem() {}
   
@@ -209,15 +210,19 @@ public:
   
   virtual PathFindingPhase* pathfindingSystem() const = 0;
   
-  virtual void registerComponent(AIComponent* component) = 0;
-  virtual void registerBasicComponent(AIBasicComponent* component) = 0;
-  virtual void removeComponent(AIComponent* component) = 0;
-  virtual void removeBasicComponent(AIBasicComponent* component) = 0;
+//  virtual void registerComponent(AIComponent* component) = 0;
+//  virtual void registerBasicComponent(AIBasicComponent* component) = 0;
+//  virtual void removeComponent(AIComponent* component) = 0;
+//  virtual void removeBasicComponent(AIBasicComponent* component) = 0;
   
   virtual size_t getUpdateDelta() const = 0;
   
   virtual void setBehaviourTreePointer(const Type &name, tb::BehaviorTree* tree) = 0;
   virtual tb::BehaviorTree* getBehaviourTreePointer(const Type &name) const = 0;
+  
+  virtual Graph* getGraph() = 0;
+
+  virtual void update(const size_t &time) = 0;
 };
 
 
@@ -241,26 +246,28 @@ public:
   
   PathFindingPhase* pathfindingSystem() const override;
   
-  void registerComponent(AIComponent* component) override;
-  void registerBasicComponent(AIBasicComponent* component) override;
-  void removeComponent(AIComponent* component) override;
-  void removeBasicComponent(AIBasicComponent* component) override;
+//  void registerComponent(AIComponent* component) override;
+//  void registerBasicComponent(AIBasicComponent* component) override;
+//  void removeComponent(AIComponent* component) override;
+//  void removeBasicComponent(AIBasicComponent* component) override;
   
   size_t getUpdateDelta() const override;
   
   void setBehaviourTreePointer(const Type &name, tb::BehaviorTree* tree) override;
   tb::BehaviorTree* getBehaviourTreePointer(const Type &name) const override;
   
+  Graph* getGraph() override;
+  
   template <typename T, typename... Args>
   T* createPathfindingSystem(Args&&... args) {
-    T* ptr = container.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = container.create<T>(std::forward<Args>(args)...);
     pathfinding = ptr;
     return ptr;
   }
   
   template <typename T, typename... Args>
   T* createGraph(Args&&... args) {
-    T* ptr = container.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = container.create<T>(std::forward<Args>(args)...);
     graph = ptr;
     return ptr;
   }
@@ -271,9 +278,9 @@ private:
   dt::thread_pool* pool;
   Blackboard board;
   
-  std::vector<AIComponent*> aiEntities; // здесь мы обновляем дерево поведения
-  std::vector<AIBasicComponent*> aiObjects; // с этим аи может взаимодействовать
-  std::vector<AIComponent*> groupAI;
+//  std::vector<AIComponent*> aiEntities; // здесь мы обновляем дерево поведения
+//  std::vector<AIBasicComponent*> aiObjects; // с этим аи может взаимодействовать
+//  std::vector<AIComponent*> groupAI;
   std::vector<AIGroup*> groups; // с группами не все очевидно
   
   std::unordered_map<Type, tb::BehaviorTree*> treesPtr;
@@ -282,7 +289,7 @@ private:
   PathFindingPhase* pathfinding;
   Graph* graph;
   
-  StageContainer container;
+  TypelessContainer container;
   
   MemoryPool<AIGroup, sizeof(AIGroup)*20> groupPool;
   MemoryPool<AIComponent, sizeof(AIComponent)*20> groupAIPool; // поторопился

@@ -18,30 +18,48 @@ struct RawPathPiece {
   // что тут может еще добавиться?
   // тут можно расположить данные от фуннел алгоритма
   // нам потребуется: точка "начала" ребра, направление ребра ОТ точки, точка в котороую мы идем
-  simd::vec4 edgePoint;
-  simd::vec4 edgeDir;
+//   simd::vec4 edgePoint;
+//   simd::vec4 edgeDir;
+//   simd::vec4 funnelPoint;
+  
+  // у нас тут могут возникнуть проблемы из-за того что мы мешаем simd с обычными переменными
+//   float edgePoint[4];
+//   float edgeDir[4];
+//   float funnelPoint[4];
+};
+
+struct FunnelPath {
   simd::vec4 funnelPoint;
+//   simd::vec4 another;
+  simd::vec4 edgeDir;
 };
 
 class RawPath {
 public:
-  RawPath() = default;
+  RawPath();
   RawPath(const size_t &size);
-  ~RawPath() = default;
+  ~RawPath();
   
-  std::vector<RawPathPiece> & data();
-  const std::vector<RawPathPiece> & data() const;
+  std::vector<RawPathPiece> & graphData();
+  const std::vector<RawPathPiece> & graphData() const;
+  
+  std::vector<FunnelPath> & funnelData();
+  const std::vector<FunnelPath> & funnelData() const;
   
   const vertex_t* start() const;
   const vertex_t* goal() const;
   
   size_t getNearPathSegmentIndex(const simd::vec4 &pos, simd::vec4 &closest, float &dist) const;
+  size_t getNextSegmentIndex(const size_t &index) const;
+  size_t getPrevSegmentIndex(const size_t &index) const;
+  
+  size_t getNextSegmentIndex2(const size_t &index) const;
+  size_t getPrevSegmentIndex2(const size_t &index) const;
   
   RawPath & operator=(const RawPath &path) = default;
 private:
-  // что то еще потребуется?
-  
   std::vector<RawPathPiece> rawPath;
+  std::vector<FunnelPath> funnelPath;
 };
 
 // struct PathfindingType {
@@ -104,3 +122,4 @@ public:
 };
 
 #endif
+
