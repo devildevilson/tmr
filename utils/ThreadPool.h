@@ -27,7 +27,8 @@ namespace dt {
     template<class F, class... Args>
     auto submit(F&& f, Args&&... args) -> std::future<typename std::result_of<F(Args...)>::type> {
       using return_type = typename std::result_of<F(Args...)>::type;
-
+      
+      // тут лучше не придумали
       auto task = std::make_shared<std::packaged_task<return_type()>>(std::bind(std::forward<F>(f), std::forward<Args>(args)...));
 
       std::future<return_type> res = task->get_future();
@@ -42,9 +43,22 @@ namespace dt {
       return res;
     }
 
+    // быстрое сравнение лямбды и bind показало что разница минимальна (bind даже порой быстрее), проблема если и заключается в чем то точно не в этом
+    // нужно сравнить еще с оптимизациями, с оптимизациями таже история (лямбда в этот раз чутка быстрее), лямбды конечно скорее всего будут быстрее чем bind
+    // потом когда я перейду на C++17 нужно будет посмотреть быстрый способ создать таск
     template<class F, class... Args>
     void submitnr(F&& f, Args&&... args) {
+      // std::bind пытается создать копии всего что тут передано (хотя наверное мне копии и нужны), функцию можно переместить
       auto task = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
+      
+      // вот так тоже можно
+      //auto task = [f, args...]() { f(args...); };
+      
+      // только с C++14
+//       auto task = [f = std::move(f), largs = std::make_tuple(std::forward<Args>(args)...)] () mutable {
+//         return std::apply(std::move(f), std::move(largs));
+//       }
+      
       {
         std::unique_lock<std::mutex> lock(mutex);
         if (stop) throw std::runtime_error("Could not submit new task");

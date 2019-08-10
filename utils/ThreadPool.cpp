@@ -18,15 +18,15 @@ namespace dt {
             --busyWorkersCount;
             if (tasks.empty()) finish.notify_one();
             
-            if (!barriers.empty() && barriers.front().taskCount == 0 && busyWorkersCount == 0) {
-              barriers.pop();
-              condition.notify_all();
-            }
+//             if (!barriers.empty() && barriers.front().taskCount == 0 && busyWorkersCount == 0) {
+//               barriers.pop();
+//               condition.notify_all();
+//             }
 
             // condition_variable освобождает мьютекс пока ждет
             condition.wait(lock, [this] () {
-              const bool barrierExist = !barriers.empty();
-              return stop || (!tasks.empty() && ((barrierExist && barriers.front().taskCount != 0) || !barrierExist));
+//               const bool barrierExist = !barriers.empty();
+              return stop || !tasks.empty(); //&& ((barrierExist && barriers.front().taskCount != 0) || !barrierExist))
             });
 
             if (stop && tasks.empty()) return; // это гарантирует что мы выйдем когда закончим выполнение всех задач
@@ -34,7 +34,7 @@ namespace dt {
             task = std::move(tasks.front());
             tasks.pop();
             
-            if (!barriers.empty()) --barriers.front().taskCount;
+//             if (!barriers.empty()) --barriers.front().taskCount;
 
             ++busyWorkersCount;
             --tasksCount;
