@@ -18,7 +18,7 @@ struct DecalPhysContainer {
   PhysicsIndexContainer container;
   DecalUserData userData;
   PendingDecalData data;
-  yacs::Entity* decalEntity;
+  yacs::entity* decalEntity;
   DecalComponent* comp;
   uint32_t matrixIndex;
   TransformComponent* transform;
@@ -254,7 +254,7 @@ void DecalSystem::update(const uint64_t &time) {
 //     };
 //     
 //     yacs::Entity* ent = Global::world()->createEntity();
-//     auto comp = ent->assign<DecalComponent>(pendingDecals[i].texture);
+//     auto comp = ent->add<DecalComponent>(pendingDecals[i].texture);
 //     
 //     auto ptr = indexContainerPool.newElement();
 //     ptr->data = pendingDecals[i];
@@ -277,7 +277,7 @@ void DecalSystem::update(const uint64_t &time) {
 //   pendingDecals.clear();
 }
 
-yacs::Entity* DecalSystem::add(const PendingDecalData &data) {
+yacs::entity* DecalSystem::add(const PendingDecalData &data) {
 //   pendingDecals.push_back(data);
   const float width = 1.0f;
   const float height = data.scale;
@@ -288,9 +288,9 @@ yacs::Entity* DecalSystem::add(const PendingDecalData &data) {
   const uint32_t matrixIndex = matrix->insert(data.orn);
 //   const uint32_t transformIndex = transforms->insert({data.pos, data.orn[2], simd::vec4(sizeX, sizeY, 1.0f, 0.0f)});
   
-  yacs::Entity* ent = Global::world()->createEntity();
-  auto comp = ent->assign<DecalComponent>(data.texture);
-  auto transform = ent->assign<TransformComponent>(data.pos, data.orn[2], simd::vec4(sizeX, sizeY, 1.0f, 0.0f));
+  yacs::entity* ent = Global::world()->createEntity();
+  auto comp = ent->add<DecalComponent>(data.texture);
+  auto transform = ent->add<TransformComponent>(data.pos, data.orn[2], simd::vec4(sizeX, sizeY, 1.0f, 0.0f));
   
   const PhysicsObjectCreateInfo obj{
     false,
@@ -319,7 +319,7 @@ yacs::Entity* DecalSystem::add(const PendingDecalData &data) {
   pendingPhysics.push_back(ptr);
 }
 
-void DecalSystem::remove(yacs::Entity* ent) {
+void DecalSystem::remove(yacs::entity* ent) {
   for (size_t i = 0; i < decals.size(); ++i) {
     if (decals[i].ent == ent) {
 //       std::swap(decals[i], decals.back());
@@ -343,7 +343,7 @@ void DecalSystem::removeOld() {
   decals.erase(decals.begin());
 }
 
-void DecalSystem::changePlace(yacs::Entity* ent, const PendingDecalData &data) {
+void DecalSystem::changePlace(yacs::entity* ent, const PendingDecalData &data) {
   for (size_t i = 0; i < decals.size(); ++i) {
     if (decals[i].ent == ent) {
       const float width = 1.0f;
@@ -357,8 +357,8 @@ void DecalSystem::changePlace(yacs::Entity* ent, const PendingDecalData &data) {
     //   const uint32_t transformIndex = transforms->insert({data.pos, data.orn[2], simd::vec4(sizeX, sizeY, 1.0f, 0.0f)});
       
     //   yacs::Entity* ent = Global::world()->createEntity();
-    //   auto comp = ent->assign<DecalComponent>(data.texture);
-    //   auto transform = ent->assign<TransformComponent>(data.pos, data.orn[2], simd::vec4(sizeX, sizeY, 1.0f, 0.0f));
+    //   auto comp = ent->add<DecalComponent>(data.texture);
+    //   auto transform = ent->add<TransformComponent>(data.pos, data.orn[2], simd::vec4(sizeX, sizeY, 1.0f, 0.0f));
       auto transform = decals[i].ent->get<TransformComponent>();
       transform->pos() = data.pos;
       transform->rot() = data.orn[2];

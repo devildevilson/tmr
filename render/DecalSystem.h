@@ -17,7 +17,7 @@ namespace yavf {
 }
 
 namespace yacs {
-  class Entity;
+  class entity;
 }
 
 // нам нужно найти все стены пересекающие объект
@@ -86,13 +86,13 @@ public:
   
   void update(const uint64_t &time) override;
   
-  yacs::Entity* add(const PendingDecalData &data);
-  void remove(yacs::Entity* ent);
+  yacs::entity* add(const PendingDecalData &data);
+  void remove(yacs::entity* ent);
   void removeOld();
-  void changePlace(yacs::Entity* ent, const PendingDecalData &data);
+  void changePlace(yacs::entity* ent, const PendingDecalData &data);
 private:
   struct ComputedDecals {
-    yacs::Entity* ent;
+    yacs::entity* ent;
     DecalComponent* comp;
     uint32_t matrixIndex;
   };
