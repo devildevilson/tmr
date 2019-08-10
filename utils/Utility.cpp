@@ -7,8 +7,8 @@
 TimeLogDestructor::TimeLogDestructor(const std::string &desc) : desc(desc), point(std::chrono::steady_clock::now()) {}
 TimeLogDestructor::~TimeLogDestructor() {
   auto end = std::chrono::steady_clock::now() - point;
-  auto mcs = std::chrono::duration_cast<std::chrono::microseconds>(end).count();
-  Global::console()->print(desc+" takes "+std::to_string(mcs)+" mcs");
+  auto mcs = std::chrono::duration_cast<CHRONO_TIME_TYPE>(end).count();
+  Global::console()->print(desc+" takes "+std::to_string(mcs)+" "+TIME_STRING);
 }
 
 void TimeLogDestructor::updateTime() {
@@ -145,8 +145,14 @@ float atan2Approximation(float y, float x) {
 }
 
 void cartesianToSpherical(const simd::vec4 &vec, float &theta, float &phi) {
-  theta = glm::acos(vec.y / 1.0f);
-  phi = glm::atan(vec.z, vec.x);
+  float arr[4];
+  vec.storeu(arr);
+  
+//   theta = glm::acos(vec.y / 1.0f);
+//   phi = glm::atan(vec.z, vec.x);
+  
+  theta = glm::acos(arr[1] / 1.0f);
+  phi = glm::atan(arr[2], arr[0]);
 }
 
 uint32_t nextPowerOfTwo(const uint32_t &x) {
@@ -160,4 +166,20 @@ uint32_t nextPowerOfTwo(const uint32_t &x) {
   v++;
   
   return v;
+}
+
+float getAngle(const simd::vec4 &first, const simd::vec4 &second) {
+  const float dotV = simd::dot(first, second);
+  const float lenSq1 = simd::length2(first);
+  const float lenSq2 = simd::length2(second);
+
+  return glm::acos(dotV / glm::sqrt(lenSq1 * lenSq2));
+}
+
+float getAngle(const glm::vec4 &a, const glm::vec4 &b) {
+  const float dotV = glm::dot(a, b);
+  const float lenSq1 = glm::length2(a);
+  const float lenSq2 = glm::length2(b);
+
+  return glm::acos(dotV / glm::sqrt(lenSq1 * lenSq2));
 }

@@ -1,22 +1,7 @@
 #ifndef UTILITY_H
 #define UTILITY_H
 
-#define APPLICATION_NAME "VulkanTest"
-#define ENGINE_NAME "test_engine"
-
-#define MAKE_VERSION(major, minor, patch) \
-(major << 22) | (minor << 12) | patch
-
-#define VERSION_TO_STR(ver) \
-(std::to_string((ver >> 22) & 0xffc) + "." + \
- std::to_string((ver >> 12) & 0x3ff) + "." + \
- std::to_string(ver & 0xfff))
-
-#define EGINE_VERSION MAKE_VERSION(0, 0, 1)
-#define APP_VERSION   MAKE_VERSION(0, 0, 1)
-
-#define ENGINE_VERSION_STR VERSION_TO_STR(EGINE_VERSION)
-#define APP_VERSION_STR    VERSION_TO_STR(APP_VERSION)
+#include <cstdint>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -26,10 +11,15 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/rotate_vector.hpp>
+#include <glm/gtx/norm.hpp>
 
 #include "simd.h"
 
 #include "Logging.h"
+
+#include "shared_time_constant.h"
+#include "shared_mathematical_constant.h"
+#include "shared_application_constant.h"
 
 #ifdef _DEBUG
   #include <cassert>
@@ -38,15 +28,15 @@
   #define ASSERT(expr)
 #endif
 
-#define EPSILON 0.000001f
-#define MCS_TO_SEC(dt) (float(dt) / 1000000.0f)
-#define ACCUMULATOR_MAX_CONSTANT 200000
-
 #define PRINT_VEC4(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << " w: " << vec.w << "\n";
+#define PRINT_VEC3(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << "\n";
+#define PRINT_VEC2(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << "\n";
+#define PRINT_VAR(name, var) std::cout << name << ": " << var << "\n";
+#define PRINT(var) std::cout << var << "\n";
 
 class TimeLogDestructor {
 public:
-  TimeLogDestructor(const std::string &desc);
+  explicit TimeLogDestructor(const std::string &desc);
   ~TimeLogDestructor();
   
   void updateTime();
@@ -83,5 +73,8 @@ float atan2Approximation(float y, float x);
 void cartesianToSpherical(const simd::vec4 &vec, float &theta, float &phi);
 
 uint32_t nextPowerOfTwo(const uint32_t &x);
+
+float getAngle(const simd::vec4 &a, const simd::vec4 &b);
+float getAngle(const glm::vec4 &a, const glm::vec4 &b);
 
 #endif

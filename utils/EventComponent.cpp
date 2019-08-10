@@ -1,12 +1,10 @@
 #include "EventComponent.h"
 
-CLASS_TYPE_DEFINE_WITH_NAME(EventComponent, "EventComponent")
-
 EventComponent::EventComponent() {}
 EventComponent::~EventComponent() {}
 
-void EventComponent::update(const uint64_t &time)  { (void)time; }
-void EventComponent::init(void* userData) { (void)userData; }
+//void EventComponent::update(const uint64_t &time)  { (void)time; }
+//void EventComponent::init(void* userData) { (void)userData; }
 
 void EventComponent::registerEvent(const Type &type, const std::function<event(const Type &, const EventData &)> &func) {
   events[type].push_back(func);

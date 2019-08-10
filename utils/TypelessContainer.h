@@ -1,18 +1,24 @@
-#ifndef STAGE_CONTAINER_H
-#define STAGE_CONTAINER_H
+#ifndef TYPELESS_CONTAINER_H
+#define TYPELESS_CONTAINER_H
 
 #include <cstddef>
 #include <utility>
-#include <cassert>
 #include <iostream>
 
-class StageContainer {
+#ifdef _DEBUG
+#include <cassert>
+#define ASSERT(expr) assert(expr)
+#else
+#define ASSERT(expr)
+#endif
+
+class TypelessContainer {
 public:
-  StageContainer(const size_t &bufferSize) : bufferSize(bufferSize), dataSize(0), buffer(nullptr) {
+  TypelessContainer(const size_t &bufferSize) : bufferSize(bufferSize), dataSize(0), buffer(nullptr) {
     createBuffer();
   }
   
-  ~StageContainer() {
+  ~TypelessContainer() {
     char* tmp = buffer;
     while (tmp != nullptr) {
       char** ptr = reinterpret_cast<char**>(tmp);
@@ -25,19 +31,18 @@ public:
   
   // добавить данные для конструктора?
   template<typename T, typename... Args>
-  T* addStage(Args&&... args) {
-    assert(sizeof(T) <= bufferSize && "Bad sizeof(T) or size for stage container");
+  T* create(Args&&... args) {
+    ASSERT(sizeof(T) <= bufferSize && "Bad sizeof(T) or size for stage container");
 //     std::cout << "dataSize + sizeof(T) " << dataSize + sizeof(T) << " buffer size " << bufferSize << "\n";
-    assert(dataSize + sizeof(T) <= bufferSize && "Need more buffer size");
+    ASSERT(dataSize + sizeof(T) <= bufferSize && "Need more buffer size");
     
     if (dataSize + sizeof(T) > bufferSize) createBuffer();
     
     T* ptr = reinterpret_cast<T*>(buffer + sizeof(char*) + dataSize);
     new (ptr) T(std::forward<Args>(args)...);
 //     T* ptr = new T(std::forward<Args>(args)...);
-    
-    const size_t newSize = dataSize + sizeof(T);
-    dataSize = newSize;
+
+    dataSize += sizeof(T);
     
     return ptr;
   }
@@ -52,8 +57,8 @@ public:
   // мне потребуется деструктор для стейджей
   // но тут скорее всего просто вызов деструктора и ничего более
   template<typename T>
-  void destroyStage(T* stage) {
-    stage->~T();
+  void destroy(T* object) {
+    object->~T();
 //     delete stage;
   }
   
@@ -69,18 +74,15 @@ private:
     // мы создаем буфер размера size+sizeof(char*)
     const size_t newBufferSize = bufferSize + sizeof(char*);
     char* newBuffer = new char[newBufferSize];
-    
-    // в датаСайз кладем sizeof(char*) так как это указатель на следующий массив
-    // теперь пприбавляю sizeof(char*) непосредственно при создании
+
     dataSize = 0;
-    //bufferSize = newBufferSize;
     
     // в первые sizeof(char*) байт кладем указатель
     char** tmp = reinterpret_cast<char**>(newBuffer);
     tmp[0] = buffer;
     buffer = newBuffer;
     
-//     std::cout << "StageContainer createBuffer " << bufferSize << "\n";
+//     std::cout << "TypelessContainer createBuffer " << bufferSize << "\n";
   }
 };
 
