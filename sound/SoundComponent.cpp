@@ -2,14 +2,14 @@
 
 #include "SoundSystem.h"
 #include "EventComponent.h"
-#include "Components.h"
+//#include "Components.h"
 #include "Globals.h"
+#include "TransformComponent.h"
+#include "PhysicsComponent.h"
 
-CLASS_TYPE_DEFINE_WITH_NAME(SoundComponent, "SoundComponent")
-
-SoundComponent::SoundComponent() {}
+SoundComponent::SoundComponent(const CreateInfo &info) : transform(info.transform), physics(info.physics), events(info.events), queuedSound(nullptr) {}
 SoundComponent::~SoundComponent() {
-  Global::sound()->removeComponent(this);
+//  Global::sound()->removeComponent(this);
 }
 
 void SoundComponent::update(const size_t &time) {
@@ -24,20 +24,20 @@ void SoundComponent::update(const size_t &time) {
 //   }
 }
 
-void SoundComponent::init(void* userData) {
-  (void)userData;
-  
-  transform = getEntity()->get<TransformComponent>().get();
-  physics = getEntity()->get<PhysicsComponent2>().get();
-  
-  events = getEntity()->get<EventComponent>().get();
-  if (events == nullptr) {
-    Global::console()->printE("Trying to create SoundComponent without events");
-    throw std::runtime_error("Trying to create SoundComponent without events");
-  }
-  
-  Global::sound()->addComponent(this);
-}
+//void SoundComponent::init(void* userData) {
+//  (void)userData;
+//
+//  transform = getEntity()->get<TransformComponent>().get();
+//  physics = getEntity()->get<PhysicsComponent2>().get();
+//
+//  events = getEntity()->get<EventComponent>().get();
+//  if (events == nullptr) {
+//    Global::console()->printE("Trying to create SoundComponent without events");
+//    throw std::runtime_error("Trying to create SoundComponent without events");
+//  }
+//
+//  Global::sound()->addComponent(this);
+//}
 
 void SoundComponent::setSound(const Type &type, const ResourceID &soundId, const float &maxDist) {
   static const auto eventFunc = [&] (const Type type, const EventData &data, const ResourceID &soundId, const float &maxDist) {

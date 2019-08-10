@@ -1,41 +1,66 @@
 #include "CPUAnimationSystemParallel.h"
 
 #include "AnimationComponent.h"
+#include "Globals.h"
 
 CPUAnimationSystemParallel::CPUAnimationSystemParallel(dt::thread_pool* pool) : pool(pool) {}
 CPUAnimationSystemParallel::~CPUAnimationSystemParallel() {}
 
 void CPUAnimationSystemParallel::update(const uint64_t & time) {
+//  static const auto func = [&] (const size_t &start, const size_t &count) {
+//    for (size_t i = start; i < start+count; ++i) {
+//      components[i]->update(time);
+//    }
+//  };
+//
+//  const size_t count = std::ceil(float(components.size()) / float(pool->size()+1));
+//  size_t start = 0;
+//  for (uint32_t i = 0; i < pool->size()+1; ++i) {
+//    const size_t jobCount = std::min(count, components.size()-start);
+//    if (jobCount == 0) break;
+//
+//    pool->submitnr(func, start, jobCount);
+//
+//    start += jobCount;
+//  }
+//
+//  pool->compute();
+//  pool->wait();
+
   static const auto func = [&] (const size_t &start, const size_t &count) {
     for (size_t i = start; i < start+count; ++i) {
-      components[i]->update(time);
+      // надеюсь так ничего не сломается
+      yacs::component_handle<AnimationComponent> handle = Global::world()->get_component<AnimationComponent>(i);
+      handle->update(time);
+//      components[i]->update(time);
     }
   };
-  
-  const size_t count = std::ceil(float(components.size()) / float(pool->size()+1));
+
+  const size_t componentsCount = Global::world()->count_components<AnimationComponent>();
+  const size_t count = std::ceil(float(componentsCount) / float(pool->size() + 1));
   size_t start = 0;
   for (uint32_t i = 0; i < pool->size()+1; ++i) {
-    const size_t jobCount = std::min(count, components.size()-start);
+    const size_t jobCount = std::min(count, componentsCount-start);
     if (jobCount == 0) break;
 
     pool->submitnr(func, start, jobCount);
 
     start += jobCount;
   }
-  
+
   pool->compute();
   pool->wait();
 }
 
 void CPUAnimationSystemParallel::registerAnimationUnit(AnimationComponent* component) {
-  component->getInternalIndex() = components.size();
-  components.push_back(component);
+//  component->getInternalIndex() = components.size();
+//  components.push_back(component);
 }
 
 void CPUAnimationSystemParallel::removeAnimationUnit(AnimationComponent* component) {
-  components.back()->getInternalIndex() = component->getInternalIndex();
-  std::swap(components.back(), components[component->getInternalIndex()]);
-  components.pop_back();
+//  components.back()->getInternalIndex() = component->getInternalIndex();
+//  std::swap(components.back(), components[component->getInternalIndex()]);
+//  components.pop_back();
 }
 
 uint32_t CPUAnimationSystemParallel::createAnimation(const ResourceID &animId, const AnimationCreateInfoNewFrames &info) {

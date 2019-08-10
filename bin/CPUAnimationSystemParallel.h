@@ -2,10 +2,11 @@
 #define CPU_ANIMATION_SYSTEM_PARALLEL_H
 
 #include "AnimationSystem.h"
+#include "EntityComponentSystem.h"
 
 #include "ThreadPool.h"
 
-class CPUAnimationSystemParallel : public AnimationSystem {
+class CPUAnimationSystemParallel : public AnimationSystem, public yacs::system {
 public:
   CPUAnimationSystemParallel(dt::thread_pool* pool);
   ~CPUAnimationSystemParallel();
@@ -30,7 +31,7 @@ public:
 private:
   dt::thread_pool* pool;
   
-  std::vector<AnimationComponent*> components;
+//  std::vector<AnimationComponent*> components;
   std::vector<Animation> animations;
   std::vector<TextureData> textures;
   std::unordered_map<ResourceID, size_t> animationIdx;

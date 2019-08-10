@@ -46,7 +46,7 @@ void StateFlagsContainer::setOnGround(const bool value) {
   container = value ? container | STATE_ON_GROUND : container & ~(STATE_ON_GROUND);
 }
 
-EntityAI::EntityAI() : pos{0.0f, 0.0f, 0.0f, 0.0f}, dir{0.0f, 0.0f, 0.0f, 0.0f}, vel{0.0f, 0.0f, 0.0f, 0.0f}, objectIndex(UINT32_MAX), aiData({0.0f, nullptr, nullptr, nullptr, nullptr}), collidingIndex(0), localEvents(nullptr) {}
+EntityAI::EntityAI(const CreateInfo &info) : pos{0.0f, 0.0f, 0.0f, 0.0f}, dir{0.0f, 0.0f, 0.0f, 0.0f}, vel{0.0f, 0.0f, 0.0f, 0.0f}, objectIndex(UINT32_MAX), aiData({0.0f, nullptr, nullptr, nullptr, nullptr}), collidingIndex(0), usrData(info.usrData) {}
 EntityAI::~EntityAI() {}
 
 event EntityAI::pushEvent(const Type &event, void* data) {
@@ -74,7 +74,7 @@ event EntityAI::pushEvent(const Type &event, void* data) {
     data
   };
   
-  return localEvents->fireEvent(event, ed);
+  return usrData->events->fireEvent(event, ed);
 }
 
 void EntityAI::setTarget(const EntityAI* target) {

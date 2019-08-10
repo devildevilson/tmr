@@ -49,11 +49,13 @@ struct ComponentType {
 #define CLASS_TYPE_DEFINE_WITH_NAME(typeName, name) ComponentType typeName::yacsType(SIZE_MAX, name);
 #define YACS_UPDATE_TYPE const size_t &time = 0
 #define YACS_UPDATE_CALL time
-#define YACS_SYSTEM_UPDATE const size_t &time = 0
+#define YACS_SYSTEM_UPDATE const size_t &time
+#define YACS_SYSTEM_FUNC const size_t &time
 #define YACS_SYSTEM_UPDATE_CALL time
 #define YACS_DEFAULT_COMPONENTS_COUNT 1000
 #define YACS_DEFAULT_ENTITY_COUNT 1000
-#include "YACS.h"
+//#include "YACS.h"
+#include "yacs.h"
 
 // std::ostream& operator<<(std::ostream& stream, const glm::vec3 &vec);
 

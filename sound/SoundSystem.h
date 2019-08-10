@@ -4,6 +4,7 @@
 #include "Engine.h"
 #include "Utility.h"
 #include "MemoryPool.h"
+#include "EntityComponentSystem.h"
 
 #include <vector>
 #include <string>
@@ -219,7 +220,7 @@ struct SoundLoadingData {
 class SoundComponent;
 
 // тут нужно бы мультитрединг запилить
-class SoundSystem : public Engine {
+class SoundSystem : public Engine, public yacs::system {
 public:
   SoundSystem();
   ~SoundSystem();
@@ -257,8 +258,8 @@ public:
   void unloadSound(const ResourceID &id);
   SoundData* getSound(const ResourceID &id) const;
   
-  void addComponent(SoundComponent* ptr);
-  void removeComponent(SoundComponent* ptr);
+//  void addComponent(SoundComponent* ptr);
+//  void removeComponent(SoundComponent* ptr);
   
   size_t sourcesCount() const;
   size_t activeSourcesCount() const;
@@ -279,7 +280,7 @@ private:
   SoundOutput soundtrack;
   
   std::vector<QueueSoundData*> soundQueue;
-  std::vector<SoundComponent*> components;
+//  std::vector<SoundComponent*> components;
   
   std::vector<Source> freeSources;
   std::vector<Buffers> sourceBuffers;

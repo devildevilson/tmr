@@ -17,13 +17,6 @@
 #include <cstring>
 #include <chrono>
 
-#ifdef _DEBUG
-#include <cassert>
-#define ASSERT(expr) assert(expr)
-#else
-#define ASSERT(expr)
-#endif
-
 // #include "portaudio.h"
 
 // с аудио библиотеками оказалась та еще запара
@@ -599,6 +592,13 @@ void SoundSystem::update(const uint64_t &time) {
       soundtrack.source.queueBuffers(1, &buf);
     }
   }
+
+  // по идее расспараллелить это легко
+  const size_t componentsCount = Global::world()->count_components<SoundComponent>();
+  for (size_t i = 0; i < componentsCount; ++i) {
+    yacs::component_handle<SoundComponent> handle = Global::world()->get_component<SoundComponent>(i);
+    handle->update(time);
+  }
   
   // думаю что нужно использовать саундКью как раз для того чтобы раздать сорсы
   // то бишь, сорсы выдаются только первым N звукам, если звук потерял приоритет
@@ -606,15 +606,15 @@ void SoundSystem::update(const uint64_t &time) {
   // о конце звука? компонент должен как то следить за состоянием своего звука, 
   // и возможно самостоятельно прикидывать его текущее состояние
   // компонент скорее всего нужно обновлять
-  for (size_t i = 0; i < components.size(); ++i) {
-    // обновляем компонент каждый кадр
-    // в нем обновляется положение звуков запущенных компонентом
-    // кроме положения, наверное обновляется что то еще
-    // например, если приходит эвент как какой-нибудь звук в очереди
-    // зацикливаем его
-    
-    components[i]->update(time);
-  }
+//  for (size_t i = 0; i < components.size(); ++i) {
+//    // обновляем компонент каждый кадр
+//    // в нем обновляется положение звуков запущенных компонентом
+//    // кроме положения, наверное обновляется что то еще
+//    // например, если приходит эвент как какой-нибудь звук в очереди
+//    // зацикливаем его
+//
+//    components[i]->update(time);
+//  }
   
   const glm::vec3 pos = Listener::getPos();
   const simd::vec4 listenerPos = simd::vec4(pos.x, pos.y, pos.z, 1.0f);
@@ -1083,19 +1083,19 @@ SoundData* SoundSystem::getSound(const ResourceID &id) const {
   return itr->second;
 }
 
-void SoundSystem::addComponent(SoundComponent* ptr) {
-  components.push_back(ptr);
-}
-
-void SoundSystem::removeComponent(SoundComponent* ptr) {
-  for (size_t i = 0; i < components.size(); ++i) {
-    if (components[i] == ptr) {
-      std::swap(components.back(), components[i]);
-      components.pop_back();
-      break;
-    }
-  }
-}
+//void SoundSystem::addComponent(SoundComponent* ptr) {
+//  components.push_back(ptr);
+//}
+//
+//void SoundSystem::removeComponent(SoundComponent* ptr) {
+//  for (size_t i = 0; i < components.size(); ++i) {
+//    if (components[i] == ptr) {
+//      std::swap(components.back(), components[i]);
+//      components.pop_back();
+//      break;
+//    }
+//  }
+//}
 
 size_t SoundSystem::sourcesCount() const {
   return sourcesCountVar;

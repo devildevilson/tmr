@@ -31,7 +31,7 @@ class SoundSystem;
 class ParticleSystem;
 
 namespace yacs {
-  class World;
+  class world;
 }
 
 namespace yavf {
@@ -91,7 +91,7 @@ public:
   static Window* window();
   static SoundSystem* sound();
   static ParticleSystem* particles();
-  static yacs::World* world();
+  static yacs::world* world();
   static size_t frameIndex();
   static size_t mcsSinceEpoch();
   
@@ -114,7 +114,7 @@ public:
   void setWindow(Window* window);
   void setSound(SoundSystem* sound);
   void setParticles(ParticleSystem* particles);
-  void setWorld(yacs::World* world);
+  void setWorld(yacs::world* world);
   void incrementFrameIndex();
   
   void setGameDir(const std::string &dir);
@@ -138,7 +138,7 @@ private:
   static Window* windowPtr;
   static SoundSystem* soundPtr;
   static ParticleSystem* particlesPtr;
-  static yacs::World* worldPtr;
+  static yacs::world* worldPtr;
   
   static size_t currentFrameIndex;
   

@@ -1,6 +1,7 @@
 #ifndef ENTITY_AI_H
 #define ENTITY_AI_H
 
+#include "UserDataComponent.h"
 #include "EventComponent.h"
 
 #include "Utility.h"
@@ -48,7 +49,10 @@ struct AdditionalAIData {
 
 class EntityAI {
 public:
-  EntityAI();
+  struct CreateInfo {
+    UserDataComponent* usrData;
+  };
+  EntityAI(const CreateInfo &info);
   ~EntityAI();
   
   // этот класс будет вызывать эвенты
@@ -130,8 +134,9 @@ protected:
   
   mutable size_t collidingIndex;
   
-  EventComponent* localEvents;
+//  EventComponent* localEvents;
 //   StateController* states;
+  UserDataComponent* usrData; // стоит ли возвращать его в EntityAI?
   
   Type lastEvent;
   

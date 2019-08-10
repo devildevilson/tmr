@@ -2,7 +2,6 @@
 #define AI_COMPONENT_H
 
 #include "EntityAI.h"
-#include "EntityComponentSystem.h"
 #include "PathFindingPhase.h"
 
 namespace tb {
@@ -13,12 +12,12 @@ namespace tb {
 class vertex_t;
 class edge_t;
 
-class PhysicsComponent2;
+class PhysicsComponent;
 class TransformComponent;
 class AIInputComponent;
 
 // тут нужно почекать верные деструкторы 
-class AIBasicComponent : public EntityAI, public yacs::Component {
+class AIBasicComponent : public EntityAI {
   friend class AISystem;
 public:
   struct CreateInfo {
@@ -27,6 +26,7 @@ public:
     
     float radius;
     vertex_t* currentVertex;
+    UserDataComponent* components;
   };
   
   AIBasicComponent() = delete;
@@ -36,8 +36,8 @@ public:
   // update и другие компонентные фичи
   // по идее это класс для разных активируемых объектов
   
-  void update(const size_t &time) override;
-  void init(void* userData) override;
+  void update(const size_t &time);
+//  void init(void* userData) override;
   
 //   void setPosition(const glm::vec4 &value);
 //   void direction(const glm::vec4 &value);
@@ -45,6 +45,8 @@ public:
   //void raduis(const float &value) const;
   
   size_t & internalIndex();
+
+  UserDataComponent* components() const;
 protected:
   // тут будет что нибудь?
   
@@ -61,27 +63,29 @@ protected:
 class AIComponent : public AIBasicComponent {
   friend class AISystem;
 public:
-  // это полноценный ии класс
-  // здесь же наверное будет метод апдейтТри
-  // скорее всего
-  
   struct CreateInfo {
     float radius;
     size_t timeThreshold;
     vertex_t* currentVertex;
     tb::BehaviorTree* tree;
+
+    AIInputComponent* input;
+    UserDataComponent* components;
+
     Type pathFindType;
   };
   AIComponent(const CreateInfo &info);
   ~AIComponent();
   
-  void update(const size_t &time = 0) override;
-  void init(void* userData) override;
+  void update(const size_t &time = 0);
+//  void init(void* userData) override;
   
   // тут мы должны заполнить такие вещи как позиция, направление, скорость
   // хотя так ли нам это нужно? так ли нам нужно выделять дополнительную память для этого?
   // 
   void updateAIData();
+  
+  void releasePath();
 protected:
   struct PathData {
     RawPath* path;
@@ -94,13 +98,14 @@ protected:
   // дерево я кажется изменил так чтобы можно было изи мультитрединг использовать (НЕ ВСЕ НОДЫ)
   tb::BehaviorTree* tree;
   tb::Node* runningNode;
-  PhysicsComponent2* physics;
-  TransformComponent* trans;
   AIInputComponent* input;
   
   size_t timeThreshold;
   size_t currentTime;
-  size_t pathfindingFrame;
+//   size_t pathfindingFrame;
+  size_t pathfindingTime;
+  
+  size_t currentPathSegment;
   
   // тип поиска пути
   Type pathFindType;

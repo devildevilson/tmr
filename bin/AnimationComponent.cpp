@@ -1,25 +1,24 @@
 #include "AnimationComponent.h"
 
 #include "Globals.h"
-#include "Components.h"
 #include "GraphicComponets.h"
 #include "EventComponent.h"
-
-// все это дело очень подвязано на AnimationSystem
-
-CLASS_TYPE_DEFINE_WITH_NAME(AnimationComponent, "AnimationComponent")
+#include "TransformComponent.h"
+#include "Physics.h"
 
 void AnimationComponent::setStateContainer(Container<AnimationState>* stateContainer) {
   AnimationComponent::stateContainer = stateContainer;
 }
 
-AnimationComponent::AnimationComponent() : currentAnimationIndex(UINT32_MAX), oldAnimationIndex(UINT32_MAX), accumulatedTime(0), localEvents(nullptr), trans(nullptr), graphics(nullptr) {
-  Global::animations()->registerAnimationUnit(this);
-}
+AnimationComponent::AnimationComponent(const CreateInfo &info)
+  : currentAnimationIndex(UINT32_MAX),
+    oldAnimationIndex(UINT32_MAX),
+    accumulatedTime(0),
+    localEvents(info.localEvents),
+    trans(info.trans),
+    graphics(info.graphics) {}
 
-AnimationComponent::~AnimationComponent() {
-  Global::animations()->removeAnimationUnit(this);
-}
+AnimationComponent::~AnimationComponent() {}
 
 void AnimationComponent::update(const uint64_t &time) {
   // вычисляем прибавочное время
@@ -42,13 +41,13 @@ void AnimationComponent::update(const uint64_t &time) {
     
     simd::vec4 dir = playerPos - trans->pos();
     
-    const simd::vec4 dirOnGround = projectVectorOnPlane(-Global::physics()->getGravityNorm(), trans->pos(), dir);
+    const simd::vec4 dirOnGround = projectVectorOnPlane(-PhysicsEngine::getGravityNorm(), trans->pos(), dir);
     
     dir = simd::normalize(dirOnGround);
     
     float angle2 = glm::acos(simd::dot(trans->rot(), dir));
     // проверим сторону
-    const bool side = sideOf(trans->pos(), trans->pos()+trans->rot(), playerPos, -Global::physics()->getGravityNorm()) > 0.0f;
+    const bool side = sideOf(trans->pos(), trans->pos()+trans->rot(), playerPos, -PhysicsEngine::getGravityNorm()) > 0.0f;
     angle2 = side ? -angle2 : angle2;
     
     #define PI_FRAME_SIZE (PI_2 / frameSize)
@@ -69,23 +68,23 @@ void AnimationComponent::update(const uint64_t &time) {
   graphics->setTexture(Global::animations()->getAnimationTextureData(finalTextureIndex));
 }
 
-void AnimationComponent::init(void* userData) {
-  (void)userData;
-  
-  localEvents = getEntity()->get<EventComponent>().get();
-  if (localEvents == nullptr) {
-    Global::console()->printE("Initializing animation without event component");
-    throw std::runtime_error("Initializing animation without event component");
-  }
-  
-  trans = getEntity()->get<TransformComponent>().get();
-  
-  graphics = getEntity()->get<GraphicComponent>().get();
-  if (graphics == nullptr) {
-    Global::console()->printE("Initializing animation without graphics");
-    throw std::runtime_error("Initializing animation without graphics");
-  }
-}
+//void AnimationComponent::init(void* userData) {
+//  (void)userData;
+//
+//  localEvents = getEntity()->get<EventComponent>().get();
+//  if (localEvents == nullptr) {
+//    Global::console()->printE("Initializing animation without event component");
+//    throw std::runtime_error("Initializing animation without event component");
+//  }
+//
+//  trans = getEntity()->get<TransformComponent>().get();
+//
+//  graphics = getEntity()->get<GraphicComponent>().get();
+//  if (graphics == nullptr) {
+//    Global::console()->printE("Initializing animation without graphics");
+//    throw std::runtime_error("Initializing animation without graphics");
+//  }
+//}
 
 void AnimationComponent::setAnimation(const Type &state, const ResourceID &id) {
   static const auto changeAnimId = [&] (const Type &type, const EventData &data, const uint32_t &index) {
@@ -104,8 +103,8 @@ void AnimationComponent::setAnimation(const Type &state, const ResourceID &id) {
   localEvents->registerEvent(state, std::bind(changeAnimId, std::placeholders::_1, std::placeholders::_2, Global::animations()->getAnimationId(id)));
 }
 
-size_t & AnimationComponent::getInternalIndex() {
-  return internalIndex;
-}
+//size_t & AnimationComponent::getInternalIndex() {
+//  return internalIndex;
+//}
 
 Container<AnimationState>* AnimationComponent::stateContainer = nullptr;

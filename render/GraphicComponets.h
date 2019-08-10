@@ -4,8 +4,6 @@
 #include "Optimizers.h"
 #include "GPUOptimizers.h"
 
-#include "EntityComponentSystem.h"
-
 #include "Editable.h"
 
 class TransformComponent;
@@ -15,10 +13,8 @@ class TransformComponent;
 // нужно бы как нибудь это использовать
 // пока пусть это полежит на затворках
 
-class GraphicComponent : public yacs::Component, /*public Controller,*/ public Editable {
+class GraphicComponent : public Editable {
 public:
-  CLASS_TYPE_DECLARE
-  
   static void setContainer(Container<simd::mat4>* matrices);
   static void setContainer(Container<RotationData>* rotationDatas);
   static void setContainer(Container<TextureData>* textureContainer);
@@ -28,11 +24,15 @@ public:
   static void setDebugOptimizer(MonsterDebugOptimizer* debugOptimizer);
 
 //   GraphicComponent(const uint32_t &pipelineIndex);
-  GraphicComponent();
+  struct CreateInfo {
+    uint32_t transformIndex;
+  };
+  GraphicComponent(const CreateInfo &info);
   virtual ~GraphicComponent();
-  
-  void update(const uint64_t &time = 0) override;
-  void init(void* userData) override;
+
+  virtual void update();
+//  void update(const uint64_t &time = 0) override;
+//  void init(void* userData) override;
   
   void uiDraw() override;
   
@@ -46,12 +46,13 @@ public:
   uint32_t getRotationDataIndex() const;
   uint32_t getTextureContainerIndex() const;
 protected:
-  uint32_t matrixIndex = UINT32_MAX;
-  uint32_t rotationDataIndex = UINT32_MAX;
-  uint32_t textureContainerIndex = UINT32_MAX;
+  uint32_t matrixIndex;
+  uint32_t rotationDataIndex;
+  uint32_t textureContainerIndex;
 //   uint32_t optimiserIndex = UINT32_MAX;
   
-  TransformComponent* trans;
+  //TransformComponent* trans;
+  uint32_t transformIndex;
   
   // эти контейнеры будут использованы скорее всего только в одном потомке (тот что будет отвечать за отрисовку сложных объектов)
   // должны ли быть здесь матрицы или все же они должны быть в другом месте? (и данные о повороте тоже?)
@@ -68,16 +69,21 @@ protected:
 
 class GraphicComponentIndexes : public GraphicComponent {
 public:
-  CLASS_TYPE_DECLARE
-
   static void setOptimizer(GeometryGPUOptimizer* geo);
   static void setDebugOptimizer(GeometryDebugOptimizer* debugOptimizer);
-  
-  GraphicComponentIndexes(const size_t &offset, const size_t &elemCount, const uint32_t &faceIndex);
+
+  struct CreateInfo {
+    size_t offset;
+    size_t elemCount;
+    uint32_t faceIndex;
+
+    uint32_t transformIndex;
+  };
+  GraphicComponentIndexes(const CreateInfo &info);
   ~GraphicComponentIndexes();
   
-  void update(const uint64_t &time = 0) override;
-  void init(void* userData) override;
+  void update() override; //const uint64_t &time = 0
+//  void init(void* userData) override;
   
   void uiDraw() override;
   
@@ -90,6 +96,28 @@ protected:
   
   static GeometryGPUOptimizer* optimizer;
   static GeometryDebugOptimizer* debugOptimizer;
+};
+
+class Light : public GraphicComponent {
+public:
+  static void setOptimizer(LightOptimizer* optimiser);
+
+  struct CreateInfo {
+    LightData data;
+    uint32_t transformIndex;
+  };
+  Light(const CreateInfo &info);
+  ~Light();
+
+  void update() override;
+
+  void uiDraw() override;
+
+  void drawBoundingShape(const simd::vec4 &color) const override;
+protected:
+  LightData data;
+
+  static LightOptimizer* optimiser;
 };
 
 #endif

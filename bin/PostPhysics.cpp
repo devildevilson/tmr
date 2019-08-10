@@ -1,8 +1,12 @@
 #include "PostPhysics.h"
 
 #include "Variable.h"
+#include "Globals.h"
+#include "Physics.h"
+#include "GraphicComponets.h"
+#include "UserDataComponent.h"
 
-PostPhysics::PostPhysics(dt::thread_pool* pool, yacs::Entity* player, TransformComponent* playerTransform) : pool(pool), player(player), playerTransform(playerTransform) {}
+PostPhysics::PostPhysics(dt::thread_pool* pool, yacs::entity* player, TransformComponent* playerTransform) : pool(pool), player(player), playerTransform(playerTransform) {}
 PostPhysics::~PostPhysics() {}
 
 void PostPhysics::update(const uint64_t &time) {
@@ -12,10 +16,13 @@ void PostPhysics::update(const uint64_t &time) {
     for (size_t i = start; i < start+count; ++i) {
       const uint32_t index = pairs->at(i+1).secondIndex;
       
-      PhysUserData* userData = reinterpret_cast<PhysUserData*>(Global::physics()->getUserData(index));
-      if (userData->ent == player) continue;
-      
-      if (userData->graphicComponent != nullptr) userData->graphicComponent->update();
+//      PhysUserData* userData = reinterpret_cast<PhysUserData*>(Global::physics()->getUserData(index));
+//      if (userData->ent == player) continue;
+//
+//      if (userData->graphicComponent != nullptr) userData->graphicComponent->update();
+      auto userData = reinterpret_cast<UserDataComponent*>(Global::physics()->getUserData(index));
+      if (userData->entity == player) continue;
+      if (userData->graphic != nullptr) userData->graphic->update();
       
       // потом нужно все же будет добавить отрисовку дебага
     }
@@ -66,7 +73,9 @@ void PostPhysics::update(const uint64_t &time) {
 //     // мне нужно отключить ее здесь + ничего не делать в рендер стейджах
 //     // + не помешает на релизе вообще не создавать рендер стейджы для дебага
 //   }
-  
+
+//  std::cout << "\n";
+//  std::cout << "Starting graphics" << "\n";
   const size_t count = std::ceil(float(frustumOutputCount) / float(pool->size()+1));
   size_t start = 0;
   for (uint32_t i = 0; i < pool->size()+1; ++i) {
@@ -77,12 +86,7 @@ void PostPhysics::update(const uint64_t &time) {
 
     start += jobCount;
   }
-//   
-//   pool->compute();
-//   pool->wait();
-  
-  {
-    Global g;
-    g.setPlayerPos(playerTransform->pos());
-  }
+
+  pool->compute();
+  pool->wait();
 }

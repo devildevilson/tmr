@@ -1,26 +1,29 @@
 #ifndef ANIMATION_COMPONENT_H
 #define ANIMATION_COMPONENT_H
 
-#include "EntityComponentSystem.h"
-#include "Controller.h"
 #include "AnimationSystem.h"
+#include "Type.h"
 
-class StateController;
+//class StateController;
 class EventComponent;
 class TransformComponent;
 class GraphicComponent;
 
-class AnimationComponent : public yacs::Component/*, public Controller*/ {
+class AnimationComponent {
 public:
-  CLASS_TYPE_DECLARE
-  
   static void setStateContainer(Container<AnimationState>* stateContainer);
-  
-  AnimationComponent();
+
+  struct CreateInfo {
+    EventComponent* localEvents;
+    TransformComponent* trans;
+    GraphicComponent* graphics;
+  };
+  AnimationComponent(const CreateInfo &info);
   ~AnimationComponent();
   
-  void update(const uint64_t &time = 0) override;
-  void init(void* userData) override;
+//  void update(const uint64_t &time = 0) override;
+  void update(const uint64_t &time = 0);
+//  void init(void* userData) override;
   
 //   void addChild(Controller* c) override;
 //   ControllerChildData changeState(const Type &state) override;
@@ -34,7 +37,7 @@ public:
 //   void precacheStateCount(const uint32_t &count);
   void setAnimation(const Type &state, const ResourceID &id);
   
-  size_t & getInternalIndex();
+//  size_t & getInternalIndex();
 private:
   uint32_t currentAnimationIndex;
   uint32_t oldAnimationIndex;

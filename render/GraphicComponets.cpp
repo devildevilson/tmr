@@ -1,8 +1,7 @@
 #include "GraphicComponets.h"
 
-#include "Components.h"
-
-CLASS_TYPE_DEFINE_WITH_NAME(GraphicComponent, "GraphicComponent")
+//#include "Components.h"
+#include "TransformComponent.h"
 
 void GraphicComponent::setContainer(Container<simd::mat4>* matrices) {
   GraphicComponent::matrices = matrices;
@@ -32,7 +31,7 @@ void GraphicComponent::setDebugOptimizer(MonsterDebugOptimizer* debugOptimizer) 
 //   this->pipelineIndex = pipelineIndex;
 // }
 
-GraphicComponent::GraphicComponent() {
+GraphicComponent::GraphicComponent(const CreateInfo &info) : matrixIndex(UINT32_MAX), rotationDataIndex(UINT32_MAX), textureContainerIndex(UINT32_MAX), transformIndex(info.transformIndex) {
   textureContainerIndex = textureContainer->insert({{UINT32_MAX, UINT32_MAX, UINT32_MAX}, 0.0f, 0.0f});
 }
 
@@ -44,11 +43,9 @@ GraphicComponent::~GraphicComponent() {
 //   }
 }
 
-void GraphicComponent::update(const uint64_t &time) {
-  (void)time;
-  
+void GraphicComponent::update() { //const uint64_t &time
   const MonsterGPUOptimizer::GraphicsIndices info{
-    trans->transformIndex,
+    transformIndex,
     matrixIndex,           // для монстров это поди не нужно
     rotationDataIndex,     // и это
     textureContainerIndex
@@ -56,14 +53,14 @@ void GraphicComponent::update(const uint64_t &time) {
   optimizer->add(info);
 }
 
-void GraphicComponent::init(void* userData) {
-  (void)userData;
-  trans = getEntity()->get<TransformComponent>().get();
-  
-  
-  
-//   optimiserIndex = optimizer->add(info);
-}
+//void GraphicComponent::init(void* userData) {
+//  (void)userData;
+//  trans = getEntity()->get<TransformComponent>().get();
+//
+//
+//
+////   optimiserIndex = optimizer->add(info);
+//}
 
 void GraphicComponent::uiDraw() {
   
@@ -72,7 +69,7 @@ void GraphicComponent::uiDraw() {
 void GraphicComponent::drawBoundingShape(const simd::vec4 &color) const {
 //   auto trans = getEntity()->get<TransformComponent>();
   
-  debugOptimizer->setDebugColor(trans->transformIndex, color);
+  debugOptimizer->setDebugColor(transformIndex, color);
 }
 
 void GraphicComponent::setTexture(const Texture &t) {
@@ -107,9 +104,7 @@ Container<TextureData>* GraphicComponent::textureContainer = nullptr;
 MonsterGPUOptimizer* GraphicComponent::optimizer = nullptr;
 MonsterDebugOptimizer* GraphicComponent::debugOptimizer = nullptr;
 
-CLASS_TYPE_DEFINE_WITH_NAME(GraphicComponentIndexes, "GraphicComponentIndexes")
-
-GraphicComponentIndexes::GraphicComponentIndexes(const size_t &offset, const size_t &elemCount, const uint32_t &faceIndex) : faceIndex(faceIndex), offset(offset), elemCount(elemCount) {}
+GraphicComponentIndexes::GraphicComponentIndexes(const CreateInfo &info) : GraphicComponent({info.transformIndex}), faceIndex(info.faceIndex), offset(info.offset), elemCount(info.elemCount) {}
 GraphicComponentIndexes::~GraphicComponentIndexes() {}
 
 void GraphicComponentIndexes::setOptimizer(GeometryGPUOptimizer* geo) {
@@ -120,9 +115,7 @@ void GraphicComponentIndexes::setDebugOptimizer(GeometryDebugOptimizer* debugOpt
   GraphicComponentIndexes::debugOptimizer = debugOptimizer;
 }
 
-void GraphicComponentIndexes::update(const uint64_t &time) {
-  (void)time;
-  
+void GraphicComponentIndexes::update() {
   const GeometryGPUOptimizer::GraphicsIndices info{
     UINT32_MAX,
     matrixIndex,
@@ -137,17 +130,38 @@ void GraphicComponentIndexes::update(const uint64_t &time) {
   optimizer->add(info);
 }
 
-void GraphicComponentIndexes::init(void* userData) {
-  (void)userData;
-}
+//void GraphicComponentIndexes::init(void* userData) {
+//  (void)userData;
+//}
 
 void GraphicComponentIndexes::uiDraw() {
   
 }
 
 void GraphicComponentIndexes::drawBoundingShape(const simd::vec4 &color) const {
-  debugOptimizer->setDebugColor(trans->transformIndex, color);
+  debugOptimizer->setDebugColor(transformIndex, color);
 }
 
 GeometryGPUOptimizer* GraphicComponentIndexes::optimizer = nullptr;
 GeometryDebugOptimizer* GraphicComponentIndexes::debugOptimizer = nullptr;
+
+void Light::setOptimizer(LightOptimizer* optimiser) {
+  Light::optimiser = optimiser;
+}
+
+Light::Light(const CreateInfo &info) : GraphicComponent({info.transformIndex}), data(info.data) {}
+Light::~Light() {}
+
+void Light::update() {
+  optimiser->add({data, transformIndex});
+}
+
+void Light::uiDraw() {
+
+}
+
+void Light::drawBoundingShape(const simd::vec4 &color) const {
+
+}
+
+LightOptimizer* Light::optimiser = nullptr;

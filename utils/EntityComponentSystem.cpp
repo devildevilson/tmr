@@ -1,4 +1,4 @@
-#define YACS_DEFINE_EVENT_TYPE
+#define YACS_IMPLEMENTATION
 #include "EntityComponentSystem.h"
 
 // std::ostream& operator<<(std::ostream& stream, const glm::vec3 &vec) {

@@ -44,7 +44,7 @@ AnimationSystem* Global::anim = nullptr;
 Window* Global::windowPtr = nullptr;
 SoundSystem* Global::soundPtr = nullptr;
 ParticleSystem* Global::particlesPtr = nullptr;
-yacs::World* Global::worldPtr = nullptr;
+yacs::world* Global::worldPtr = nullptr;
 size_t Global::currentFrameIndex = 0;
 
 GlobalData Global::globalData = {
@@ -164,7 +164,7 @@ ParticleSystem* Global::particles() {
   return particlesPtr;
 }
 
-yacs::World* Global::world() {
+yacs::world* Global::world() {
   return worldPtr;
 }
 
@@ -173,10 +173,10 @@ size_t Global::frameIndex() {
 }
 
 size_t Global::mcsSinceEpoch() {
-  auto now = std::chrono::steady_clock::now();
-  auto now_mcs = std::chrono::time_point_cast<std::chrono::microseconds>(now);
+  const auto now = std::chrono::steady_clock::now();
+  const auto now_mcs = std::chrono::time_point_cast<CHRONO_TIME_TYPE>(now);
 
-  auto value = now_mcs.time_since_epoch();
+  const auto value = now_mcs.time_since_epoch();
   return value.count();
 }
 
@@ -244,7 +244,7 @@ void Global::setParticles(ParticleSystem* particles) {
   this->particlesPtr = particles;
 }
 
-void Global::setWorld(yacs::World* world) {
+void Global::setWorld(yacs::world* world) {
   this->worldPtr = world;
 }
 

@@ -2,42 +2,37 @@
 #define TIMEMETER_H
 
 #include <chrono>
-
-#define MICRO 1000000
-#define MILLI 1000
-
-#define ONE_FRAME_TIME_SEC 0.01666667f
-#define ONE_FRAME_TIME_MILLISEC 16.66666667f
-#define ONE_FRAME_TIME_MICROSEC 16666.66667f
-#define FRAME_INT 16667
-
-enum TimePrecise : uint8_t {
-  MICROSECONDS = 0,
-  MILLISECONDS = 1,
-  SECONDS      = 2
-};
+#include "shared_time_constant.h"
 
 class TimeMeter {
 public:
-  TimeMeter();
-  TimeMeter(uint64_t reportInterval = 0); // обновлять вывод только после определенного промежутка времени
+//   TimeMeter();
+  TimeMeter(const size_t &reportInterval = 0);
   ~TimeMeter();
   
-  void init(uint64_t reportInterval = 0);
+//   void init(size_t reportInterval = 0);
   
   void start();
   void stop();
   
-  uint64_t getTime() const; 
-  uint64_t getReportTime(TimePrecise tp = MICROSECONDS) const;
-  uint64_t getSleepTime(TimePrecise tp = MICROSECONDS) const;
-  uint64_t getStartStopTime() const;
-  uint64_t getStopStartTime() const;
-  // названия конечно полное дерьмище
-  uint64_t getIntervalFramesTime(TimePrecise tp = MICROSECONDS) const; // возвращает время без учета времени между stop и start (без времени сна)
+  size_t time() const; // frameTime() + sleepTime()
   
-  uint32_t getFramesCount() const;
-  float getFPS() const;
+  size_t frameTime() const;
+  size_t sleepTime() const;
+  
+  size_t lastFrameTime() const;
+  size_t lastSleepTime() const;
+  
+  // может быть понядобится третий кадр
+  
+  size_t accumulatedFrameTime() const;
+  size_t accumulatedSleepTime() const;
+  
+  size_t lastIntervalFrameTime() const;
+  size_t lastIntervalSleepTime() const;
+  
+  uint32_t framesCount() const;
+  float fps() const;
   
   std::chrono::steady_clock::time_point getStart() const;
   std::chrono::steady_clock::time_point getStop() const;
@@ -45,20 +40,27 @@ private:
   std::chrono::steady_clock::time_point startingPoint;
   std::chrono::steady_clock::time_point endingPoint;
   
-  float fps = 0.0f;
-  uint32_t frameCount = 0;
-  uint64_t frameDuration = 0; // между start и end
-  uint64_t sleepDuration = 0; // между end и start
+  float fpsVar;
+  uint32_t frameCount;
+  size_t frameDuration; // между start и end
+  size_t sleepDuration; // между end и start
   
-  uint64_t timeStorage = 0;
-  uint64_t frameTimeStorage = 0;
+  size_t timeStorage;
   
-  uint64_t lastReportTime = 1;
-  uint64_t lastSleepTime = 1;
-  uint32_t lastFrameCount = 1;
-  uint64_t lastFrameTimeStorage = 1;
+  size_t frameTimeStorage;
+  size_t sleepTimeStorage;
   
-  uint64_t reportInterval = 0;
+  size_t lastFrameTimeStorage;
+  size_t lastSleepTimeStorage;
+  
+  size_t lastIntervalFrameTimeStorage;
+  size_t lastIntervalSleepTimeStorage;
+  
+  size_t lastReportTime;
+  size_t lastSleepTimeVar;
+  uint32_t lastFrameCount;
+  
+  size_t reportInterval;
 };
 
 #endif

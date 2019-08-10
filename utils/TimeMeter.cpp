@@ -1,92 +1,105 @@
 #include "TimeMeter.h"
 
-TimeMeter::TimeMeter() {
-  endingPoint = std::chrono::steady_clock::now();
-}
-
-TimeMeter::TimeMeter(uint64_t reportInterval) {
-  this->reportInterval = reportInterval;
-  endingPoint = std::chrono::steady_clock::now();
-}
+TimeMeter::TimeMeter(const size_t &reportInterval)
+  : startingPoint(std::chrono::steady_clock::now()),
+    endingPoint(std::chrono::steady_clock::now()),
+    fpsVar(0.0f), 
+    frameCount(0), 
+    frameDuration(0), 
+    sleepDuration(0), 
+    timeStorage(0), 
+    frameTimeStorage(0), 
+    sleepTimeStorage(0), 
+    lastFrameTimeStorage(0), 
+    lastSleepTimeStorage(0),
+    lastIntervalFrameTimeStorage(0),
+    lastIntervalSleepTimeStorage(0),
+    lastReportTime(1), 
+    lastSleepTimeVar(1), 
+    lastFrameCount(1), 
+    reportInterval(reportInterval) {}
 
 TimeMeter::~TimeMeter() {}
-
-void TimeMeter::init(uint64_t reportInterval) {
-  this->reportInterval = reportInterval;
-  endingPoint = std::chrono::steady_clock::now();
-}
 
 void TimeMeter::start() {
   startingPoint = std::chrono::steady_clock::now();
   
-  auto elapsed = startingPoint - endingPoint;
-  sleepDuration = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
+  lastSleepTimeVar = sleepDuration;
+  const auto elapsed = startingPoint - endingPoint;
+  sleepDuration = std::chrono::duration_cast<CHRONO_TIME_TYPE>(elapsed).count();
   
   timeStorage += sleepDuration;
+  sleepTimeStorage += sleepDuration;
 }
 
 void TimeMeter::stop() {
   endingPoint = std::chrono::steady_clock::now();
-  frameCount++;
+  ++frameCount;
   
-  auto elapsed = endingPoint - startingPoint;
-  frameDuration = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
+  lastReportTime = frameDuration;
+  const auto elapsed = endingPoint - startingPoint;
+  frameDuration = std::chrono::duration_cast<CHRONO_TIME_TYPE>(elapsed).count();
   
   timeStorage += frameDuration;
   frameTimeStorage += frameDuration;
   
   if (timeStorage > reportInterval) {
-    fps = (float)(frameCount * MICRO) / (float)timeStorage;
+    fpsVar = float(frameCount * TIME_PRECISION) / float(timeStorage);
     lastFrameCount = frameCount;
-    lastReportTime = frameDuration;
     lastFrameTimeStorage = frameTimeStorage;
-    lastSleepTime = sleepDuration;
+    lastSleepTimeStorage = sleepTimeStorage;
+    lastIntervalFrameTimeStorage = frameDuration;
+    lastIntervalSleepTimeStorage = sleepDuration;
     
     frameCount = 0;
     timeStorage = 0;
     frameTimeStorage = 0;
+    sleepTimeStorage = 0;
   }
 }
 
-uint64_t TimeMeter::getTime() const {
-  return frameDuration + sleepDuration;
+size_t TimeMeter::time() const {
+  return frameTime() + sleepTime();
 }
 
-uint64_t TimeMeter::getReportTime(TimePrecise tp) const {
-  if (tp == MILLISECONDS) return lastReportTime/MILLI;
-  if (tp == SECONDS) return lastReportTime/MICRO;
-  
-  return lastReportTime;
-}
-
-uint64_t TimeMeter::getSleepTime(TimePrecise tp) const {
-  if (tp == MILLISECONDS) return lastSleepTime/MILLI;
-  if (tp == SECONDS) return lastSleepTime/MICRO;
-  
-  return lastSleepTime;
-}
-
-uint64_t TimeMeter::getStartStopTime() const {
+size_t TimeMeter::frameTime() const {
   return frameDuration;
 }
 
-uint64_t TimeMeter::getStopStartTime() const {
+size_t TimeMeter::sleepTime() const {
   return sleepDuration;
 }
 
-uint32_t TimeMeter::getFramesCount() const {
+size_t TimeMeter::lastFrameTime() const {
+  return lastReportTime;
+}
+
+size_t TimeMeter::lastSleepTime() const {
+  return lastSleepTimeVar;
+}
+
+uint32_t TimeMeter::framesCount() const {
   return lastFrameCount;
 }
 
-uint64_t TimeMeter::getIntervalFramesTime(TimePrecise tp) const {
-  if (tp == MILLISECONDS) return lastFrameTimeStorage/MILLI;
-  if (tp == SECONDS) return lastFrameTimeStorage/MICRO;
-  
+size_t TimeMeter::accumulatedFrameTime() const {
   return lastFrameTimeStorage;
 }
 
-float TimeMeter::getFPS() const {
-  return fps;
+size_t TimeMeter::accumulatedSleepTime() const {
+  return lastSleepTimeStorage;
+}
+
+size_t TimeMeter::lastIntervalFrameTime() const {
+  return lastIntervalFrameTimeStorage;
+}
+
+size_t TimeMeter::lastIntervalSleepTime() const {
+  return lastIntervalSleepTimeStorage;
+}
+
+float TimeMeter::fps() const {
+  return fpsVar;
 }
 
 std::chrono::steady_clock::time_point TimeMeter::getStart() const {
