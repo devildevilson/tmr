@@ -4,6 +4,12 @@
 #include "ArrayInterface.h"
 #include "yavf.h"
 
+//#include "Utility.h"
+//
+//#include <execinfo.h>
+//#include <csignal>
+//#include <unistd.h>
+
 template <typename T>
 class GPUArray : public ArrayInterface<T> {
 public:
@@ -27,6 +33,7 @@ public:
   }
   
   void construct(yavf::Device* device, const uint32_t &size) {
+    throw std::runtime_error("FIX THIS");
     array.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, size);
     update();
   }
@@ -37,6 +44,11 @@ public:
   }
   
   void resize(const uint32_t &size) override {
+//    std::cout << "\n";
+
+//    PRINT_VAR("array buffer", array.handle()->handle())
+//    PRINT_VAR("array resize", size)
+
     array.resize(size);
     update();
   }
