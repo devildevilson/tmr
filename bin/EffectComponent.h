@@ -111,6 +111,8 @@ class EffectSystem;
 
 class EffectComponent : public yacs::Component {
 public:
+  CLASS_TYPE_DECLARE
+  
   struct CreateInfo {
     EffectSystem* system;
   };

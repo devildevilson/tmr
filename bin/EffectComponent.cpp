@@ -97,6 +97,8 @@ EffectFuncRet Effect::resist(const size_t &time, const size_t &period_time, cons
   return resistfunc(time, period_time, bonuses, float_attribs, int_attribs);
 }
 
+CLASS_TYPE_DEFINE_WITH_NAME(EffectComponent, "EffectComponent")
+
 EffectComponent::EffectComponent(const CreateInfo &info) : systemIndex(0), system(info.system), attribs(nullptr), counter(0) {
   system->addEffectComponent(this);
 }

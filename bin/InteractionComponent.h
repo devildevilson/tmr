@@ -63,6 +63,10 @@ public:
 // эвенты на вход и выход все наверное
 
 struct PhysUserData;
+class EventComponent;
+class TransformComponent;
+class InteractionSystem;
+class EntityAI;
 
 class Interaction {
 public:
@@ -73,7 +77,8 @@ public:
     ray,
     physics,
     projectile,
-    aura
+    aura,
+    collision
   };
   
   Interaction(const type &t, const Type &eventType, void* userData) : t(t), eventType(eventType), userData(userData), finished(false) {}
@@ -117,7 +122,11 @@ protected:
 class TargetInteraction : public Interaction {
 public:
   struct CreateInfo {
+    size_t delayTime;
+    yacs::Entity* entity;
     
+    Type event;
+    void* userData;
   };
   TargetInteraction(const CreateInfo &info);
   ~TargetInteraction();
@@ -129,8 +138,11 @@ public:
   PhysUserData* get_next() override;
 private:
   // тут по идее только один объект
-  // и все
-  // как его сюда добавить?
+  // и все, как его сюда добавить? просто передать при создании
+  uint32_t index;
+  size_t delayTime;
+  size_t currentTime;
+  yacs::Entity* entity;
 };
 
 class RayInteraction : public Interaction {
@@ -143,6 +155,9 @@ public:
     uint32_t ignoreObj;
     uint32_t filter;
     size_t delayTime;
+    
+    Type event;
+    void* userData;
   };
   RayInteraction(const CreateInfo &info);
   ~RayInteraction();
@@ -166,7 +181,10 @@ private:
   uint32_t ignoreObj;
   uint32_t filter;
   
+  size_t currentTime;
   size_t delayTime;
+  
+  size_t state;
 };
 
 class PhysicsInteraction : public Interaction {
@@ -274,15 +292,45 @@ private:
   // в случе с аурой у нас будет вход в ауру и выход из нее, как сделать?
 };
 
-class EventComponent;
-class TransformComponent;
-class InteractionSystem;
+// скорее всего существует всегда
+// функция вызываемая при коллизии, должна определяться для триггера
+// можно хранить ее здесь, запускать в эвенте коллизия, например
+// тогда в этой функции мы никак не должны изменять триггер объект
+// у нас может быть две ситуации, либо вызывать каждый кадр триггер функцию 
+// либо вызывать только при начале колизии и при конце (как я планирую сделать в ауре)
+class CollisionInteraction : public Interaction {
+public:
+  struct CreateInfo {
+    
+  };
+  CollisionInteraction();
+  ~CollisionInteraction();
+  
+  void update_data(const NewData &data) override;
+  void update(const size_t &time) override;
+  void cancel() override;
+  
+  PhysUserData* get_next() override;
+  
+private:
+  uint32_t physicsObjectID;
+  
+  std::function<void(const yacs::Entity*, yacs::Entity*)> func;
+};
+
+template <typename T, size_t N>
+struct MultithreadingMemoryPool {
+  std::mutex creationMutex;
+  MemoryPool<T, sizeof(T)*N> pool;
+};
 
 // у каждого компонента рекция на эвент атака будет примерно одинаковая, как бы мне сохранить память?
 // я так полагаю что это как раз тот случай когда либо удобно, либо мало памяти жрет (возможно)
 
 class InteractionComponent : public yacs::Component {
 public:
+  CLASS_TYPE_DECLARE
+  
   struct CreateInfo {
     InteractionSystem* system;
   };
@@ -291,6 +339,21 @@ public:
   
   void update(const size_t &time = 0) override;
   void init(void* userData) override;
+  
+  // этот способ не позволяет использовать например разное оружее (то есть использовать разные данные на один эвент)
+  // для оружия в этом случае самым логичным решением будет создать специальный компонент который будет разные ситуации в одном эвенте обрабатывать
+  void create(const Type &creationEvent, const TargetInteraction::CreateInfo &info);  // юзер дату мы тоже сюда складываем
+  void create(const Type &creationEvent, const RayInteraction::CreateInfo &info);     // так что имеет смысл ее хранить в другом месте
+  void create(const Type &creationEvent, const PhysicsInteraction::CreateInfo &info); // 
+  
+  // нужно по идее еще проверить наличие
+  // удалять? не думаю, возможно потребуется найти, а потом провзаимодействовать с отдельным элементом
+  // но не факт
+  bool has(const enum Interaction::type &type, const Type &event);
+  
+  void create(const TargetInteraction::CreateInfo &info);
+  void create(const RayInteraction::CreateInfo &info);
+  void create(const PhysicsInteraction::CreateInfo &info);
   
   size_t & index();
 private:
@@ -309,6 +372,11 @@ private:
   // в этом случае мы можем как угодно планировать свои взаимодействия в паре
   // + не придется вызывать save вариант функции
   
+  // я тут подумал, что в будущем возможно эффективно выделять память для почти всех массивов
+  // для этого нужен очень крупный пул, в котором каждая страница (?) памяти будет выделять с небольшим количеством метаинформации
+  // метаинформация будет содержать данные о незанятых байтах (или незанятом кусочке памяти объекта), в этом случае обход свободного места
+  // будет достаточно быстр, можно еще сделать дефрагментацию, но для этого нужно будет хранить указатели на все массивы использующие пул
+  // об этом потом
   std::vector<Interaction*> interactions;
   
   // мне нужно еще заблокировать/разблокировать возможность некоторых интеракций, например, атака происходит только тогда 
@@ -316,10 +384,11 @@ private:
   // должна быть какая-то обратная связь, можно конечно организовать с помощью тех же эвентов
   // но на мой взгляд это черевато проблемами со скоростью? с другой стороны, нет никакого общего способа решить данную беду
   // наверное буду использовать тогда эвенты
-  // вообще у меня будет ряд действий которые потребуют вызова эвента при окончаниинужно просто ввести какой то способ обобщить все эти вещи
+  // вообще у меня будет ряд действий которые потребуют вызова эвента при окончании, нужно просто ввести какой то способ обобщить все эти вещи
   
-  static std::mutex creationMutex;
-  static MemoryPool<PhysicsInteraction, sizeof(PhysicsInteraction)*20> physInt;
+  static MultithreadingMemoryPool<TargetInteraction, 20> targetInt;
+  static MultithreadingMemoryPool<RayInteraction, 20> rayInt;
+  static MultithreadingMemoryPool<PhysicsInteraction, 100> physInt;
 };
 
 // система для InteractionComponent и многопоточность
@@ -361,5 +430,8 @@ private:
 //   std::vector<PairData> pairs;
 //   std::vector<UniquePairData> uniqueData;
 };
+
+// компонент с оружием как он должен выглядеть?
+// мы должны контролировать что создавать, характеристики, оружее котрое сейчас используем
 
 #endif

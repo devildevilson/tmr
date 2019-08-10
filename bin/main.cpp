@@ -140,9 +140,13 @@ int main(int argc, char** argv) {
     Light::setOptimizer(lights);
     GraphicComponent::setDebugOptimizer(monDebug);
     GraphicComponentIndexes::setDebugOptimizer(geoDebug);
+
+    Global::render()->addOptimizerToClear(lights);
+    Global::render()->addOptimizerToClear(monDebug);
+    Global::render()->addOptimizerToClear(geoDebug);
   }
   
-  const size_t updateDelta = 33333;
+  const size_t updateDelta = DELTA_TIME_CONSTANT;
 
   // создадим физику (почти везде нужно собрать сайз для контейнера)
 //   const size_t physSize = sizeof(CPUOctreeBroadphaseParallel) + sizeof(CPUNarrowphaseParallel) + sizeof(CPUSolverParallel) + sizeof(CPUPhysicsSorter) + sizeof(CPUPhysicsParallel);
@@ -163,7 +167,7 @@ int main(int argc, char** argv) {
   // создадим еще какое то количество систем
   // и заодно парсеры для них
   // затем мы все это дело добавим в контейнер
-  DecalSystem* decalSystem = nullptr;
+//  DecalSystem* decalSystem = nullptr;
   {
     CPUAnimationSystemParallel* animSys = systemContainer.addSystem<CPUAnimationSystemParallel>(&threadPool);
 
@@ -178,13 +182,13 @@ int main(int argc, char** argv) {
     // то есть в нее будут входить много разных подсистем которые будут так или иначе запускать эвенты
     // от ии будет отличаться тем что вызов эвентов может пересекать друг друга
     
-    ParticleSystem* particleSystem = systemContainer.addSystem<ParticleSystem>(graphicsContainer.device());
-    g.setParticles(particleSystem);
-    
-    DecalSystem::setContainer(arrays.matrices);
-    DecalSystem::setContainer(arrays.transforms);
-    
-    decalSystem = systemContainer.addSystem<DecalSystem>();
+//    ParticleSystem* particleSystem = systemContainer.addSystem<ParticleSystem>(graphicsContainer.device());
+//    g.setParticles(particleSystem);
+//
+//    DecalSystem::setContainer(arrays.matrices);
+//    DecalSystem::setContainer(arrays.transforms);
+//
+//    decalSystem = systemContainer.addSystem<DecalSystem>();
     // глобальный указатель?
     
     TimeLogDestructor soundSystemLog("Sound system initialization");
@@ -266,10 +270,11 @@ int main(int argc, char** argv) {
   }
 
   // загрузим стейт по умолчанию
-  yacs::Entity* player = nullptr;
+  yacs::entity* player = nullptr;
   CameraComponent* camera = nullptr;
   UserInputComponent* input = nullptr;
   TransformComponent* playerTransform = nullptr;
+  EntityAI* entityWithBrain = nullptr;
   {
     // попытаемся че нибудь загрузить
     parser->loadPlugin("tmrdata/main.json");
@@ -330,6 +335,7 @@ int main(int argc, char** argv) {
     camera = entityLoader->getCamera();
     input = entityLoader->getInput();
     playerTransform = entityLoader->getPlayerTransform();
+    entityWithBrain = entityLoader->getEntityBrain();
 
     // понадобится ли нам указатели на текстур лоадер и прочее, кроме уровней?
     // понадобится для того чтобы обновлять, например, пайплайны
@@ -354,8 +360,10 @@ int main(int argc, char** argv) {
 
   KeyContainer keyContainer;
 
-  createReactions({&keyContainer, input, Global::window(), &menuContainer});
+  createReactions({&keyContainer, input, Global::window(), &menuContainer, entityWithBrain});
   setUpKeys(&keyContainer);
+  
+  // мы може создать дополнительный KeyContainer специально для меню
 
   for (size_t i = 0; i < dynPipe.size(); ++i) {
     dynPipe[i]->recreatePipelines(textureLoader);
@@ -365,13 +373,13 @@ int main(int argc, char** argv) {
 
   Global::window()->show();
   
-  TimeMeter tm(1000000);
+  TimeMeter tm(ONE_SECOND);
   while (!Global::window()->shouldClose() && !quit) {
     tm.start();
     glfwPollEvents();
 
     // чекаем время
-    const uint64_t time = tm.getTime();
+    const size_t time = tm.time();
 
     // где то здесь нам нужно сделать проверки на конец уровня, начало другого (или в синке это делать)
     // еще же статистику выводить (в конце уровня я имею ввиду)
@@ -380,27 +388,39 @@ int main(int argc, char** argv) {
     if (menuContainer.isOpened()) menuKeysCallback(&menuContainer);
     else keysCallbacks(&keyContainer, time);
     nextnkFrame(Global::window(), &data.ctx);
+    
+//     if (Global::data()->keys[GLFW_KEY_M]) std::cout << "M pressed" << "\n";
 
-    camera->update(time);
+    camera->update();
 
     // ии тоже нужно ограничить при открытии менюхи
     Global::ai()->update(time);
     
     if (!menuContainer.isOpened()) Global::physics()->update(time);
 
-    postPhysics->update(time);
+    {
+      Global g;
+      g.setPlayerPos(playerTransform->pos());
+    }
 
     Global::animations()->update(time);
 
+    postPhysics->update(time);
+
     {
+      // пересчитал значения из TimeMeter, получилось что кадр занимает около 4 мс =(
+      
       const uint32_t rayOutputCount = Global::physics()->getRayTracingSize();
       const uint32_t frustumOutputCount = Global::physics()->getFrustumTestSize();
       const SimpleOverlayData overlayData{
         playerTransform->pos(),
         playerTransform->rot(),
-        tm.getReportTime(),
-        tm.getSleepTime(),
-        tm.getFPS(),
+        tm.accumulatedFrameTime(),
+        tm.accumulatedSleepTime(),
+        tm.lastIntervalFrameTime(),
+        tm.lastIntervalSleepTime(),
+        tm.framesCount(),
+        tm.fps(),
         frustumOutputCount,
         rayOutputCount,
         0
@@ -423,6 +443,15 @@ int main(int argc, char** argv) {
     // здесь же у нас должна быть настройка: тип какую частоту обновления экрана использовать?
     const size_t syncTime = Global::window()->isVsync() ? Global::window()->refreshTime() : 0; //16667
     sync(tm, syncTime);
+
+//    const size_t entityCount = 5000;
+//    for (size_t i = entityCount; i < arrays.textures->size(); ++i) {
+//      PRINT_VAR("array index", i)
+//      PRINT_VAR("image index", arrays.textures->at(i).t.imageArrayIndex)
+//      PRINT_VAR("image layer", arrays.textures->at(i).t.imageArrayLayer)
+//    }
+//
+//    throw std::runtime_error("dvdsvlasdvbmk;lbs");
 
     // неплохо было бы подумать на счет того чтобы отрисовывать часть вещей не дожидаясь свопчейна
     // вообще это означает что мне нужно будет сделать два таск интерфейса и дополнительный семафор

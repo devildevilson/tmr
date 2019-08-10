@@ -18,6 +18,94 @@ Container<Transform>* Interaction::transforms = nullptr;
 Container<simd::mat4>* Interaction::matrices = nullptr;
 Container<RotationData>* Interaction::rotationDatas = nullptr;
 
+TargetInteraction::TargetInteraction(const CreateInfo &info)
+  : Interaction(Interaction::type::ray, info.event, info.userData),
+    index(0),
+    delayTime(info.delayTime), 
+    currentTime(0), 
+    entity(info.entity) {}
+
+TargetInteraction::~TargetInteraction() {}
+
+void TargetInteraction::update_data(const NewData &data) {
+  (void)data;
+}
+
+void TargetInteraction::update(const size_t &time) {
+  currentTime += time;
+  finished = currentTime >= delayTime;
+}
+
+void TargetInteraction::cancel() {
+  
+}
+
+PhysUserData* TargetInteraction::get_next() {
+  if (currentTime < delayTime) return nullptr;
+  
+  // если не будет у этого PhysicsComponent2, может ли такое быть?
+  PhysUserData* userData = reinterpret_cast<PhysUserData*>(entity->get<PhysicsComponent2>()->getIndexContainer().userData);
+  
+  return userData;
+}
+
+RayInteraction::RayInteraction(const CreateInfo &info) 
+  : Interaction(Interaction::type::ray, info.event, info.userData),
+    rayIndex(UINT32_MAX),
+    lastPos{info.pos[0], info.pos[1], info.pos[2], info.pos[3]},
+    lastDir{info.dir[0], info.dir[1], info.dir[2], info.dir[3]},
+    pos{info.pos[0], info.pos[1], info.pos[2], info.pos[3]},
+    dir{info.dir[0], info.dir[1], info.dir[2], info.dir[3]},
+    maxDist(info.maxDist),
+    minDist(info.minDist),
+    ignoreObj(info.ignoreObj),
+    filter(info.filter),
+    currentTime(0),
+    delayTime(info.delayTime),
+    state(0) {}
+
+RayInteraction::~RayInteraction() {}
+
+void RayInteraction::update_data(const NewData &data) {
+  memcpy(lastPos, pos, sizeof(simd::vec4));
+  memcpy(lastDir, dir, sizeof(simd::vec4));
+  data.pos.storeu(pos);
+  data.dir.storeu(dir);
+  
+  rayIndex = Global::physics()->add(RayData(simd::vec4(pos), simd::vec4(dir), minDist, maxDist, ignoreObj, filter));
+}
+
+void RayInteraction::update(const size_t &time) {
+  currentTime += time;
+  
+  finished = currentTime >= delayTime;
+  state = 0;
+}
+
+void RayInteraction::cancel() {
+  
+}
+
+PhysUserData* RayInteraction::get_next() {
+  if (currentTime < delayTime) return nullptr;
+  
+  const uint32_t rayCount = Global::physics()->getRayTracingSize();
+  const auto* rayData = Global::physics()->getRayTracingData();
+  
+  PhysUserData* userData = nullptr;
+  while (state < rayCount && userData == nullptr) {
+    const OverlappingData &data = rayData->at(state);
+    ++state;
+    
+    if (data.firstIndex != rayIndex) continue;
+    
+    const PhysicsIndexContainer* another = Global::physics()->getIndexContainer(data.secondIndex);
+    userData = reinterpret_cast<PhysUserData*>(another->userData);
+  }
+  
+  return userData;
+}
+
 PhysicsInteraction::PhysicsInteraction(const CreateInfo &info) : 
   Interaction(Interaction::type::physics, info.eventType, info.userData), 
   delay(info.delayTime),
@@ -284,6 +372,8 @@ PhysUserData* PhysicsInteraction::get_next() {
   return usrData;
 }
 
+CLASS_TYPE_DEFINE_WITH_NAME(InteractionComponent, "InteractionComponent")
+
 InteractionComponent::InteractionComponent(const CreateInfo &info) : systemIndex(0), system(info.system), events(nullptr), trans(nullptr) {
   system->addInteractionComponent(this);
 }
@@ -353,6 +443,120 @@ void InteractionComponent::init(void* userData) {
   }
 }
 
+// event creationFunc(const Type &event, const EventData &data) {
+//   (void)event;
+//   (void)data;
+//   
+//   for (size_t i = 0; i < interactions.size(); ++i) {
+//     if (interactions[i]->type() == Interaction::type::target && interactions[i]->event_type() == info.event) return running;
+//   }
+//   
+//   Interaction* interaction = nullptr;
+//   {
+//     std::unique_lock<std::mutex> lock(targetInt.creationMutex);
+//     interaction = targetInt.pool.newElement(info);
+//   }
+//   interactions.push_back(interaction);
+//   
+//   return success;
+// }
+
+void InteractionComponent::create(const Type &creationEvent, const TargetInteraction::CreateInfo &info) {
+  // по идее здесь создается каждый раз заново объект std function и мы каждый раз передаем info по значению
+  events->registerEvent(creationEvent, [&, info] (const Type &event, const EventData &data) {
+    (void)event;
+    (void)data;
+    
+    for (size_t i = 0; i < interactions.size(); ++i) {
+      if (interactions[i]->type() == Interaction::type::target && interactions[i]->event_type() == info.event) return running;
+    }
+    
+    Interaction* interaction = nullptr;
+    {
+      std::unique_lock<std::mutex> lock(targetInt.creationMutex);
+      interaction = targetInt.pool.newElement(info);
+    }
+    interactions.push_back(interaction);
+    
+    return success;
+  });
+}
+
+void InteractionComponent::create(const Type &creationEvent, const RayInteraction::CreateInfo &info) {
+  events->registerEvent(creationEvent, [&, info] (const Type &event, const EventData &data) {
+    (void)event;
+    (void)data;
+    
+    for (size_t i = 0; i < interactions.size(); ++i) {
+      if (interactions[i]->type() == Interaction::type::ray && interactions[i]->event_type() == info.event) return running;
+    }
+    
+    Interaction* interaction = nullptr;
+    {
+      std::unique_lock<std::mutex> lock(rayInt.creationMutex);
+      interaction = rayInt.pool.newElement(info);
+    }
+    interactions.push_back(interaction);
+    
+    return success;
+  });
+}
+
+void InteractionComponent::create(const Type &creationEvent, const PhysicsInteraction::CreateInfo &info) {
+  events->registerEvent(creationEvent, [&, info] (const Type &event, const EventData &data) {
+    (void)event;
+    (void)data;
+    
+    for (size_t i = 0; i < interactions.size(); ++i) {
+      if (interactions[i]->type() == Interaction::type::physics && interactions[i]->event_type() == info.eventType) return running;
+    }
+    
+    Interaction* interaction = nullptr;
+    {
+      std::unique_lock<std::mutex> lock(physInt.creationMutex);
+      interaction = physInt.pool.newElement(info);
+    }
+    interactions.push_back(interaction);
+    
+    return success;
+  });
+}
+
+bool InteractionComponent::has(const enum Interaction::type &type, const Type &event) {
+  for (size_t i = 0; i < interactions.size(); ++i) {
+    if (interactions[i]->type() == type && interactions[i]->event_type() == event) return true;
+  }
+  
+  return false;
+}
+  
+void InteractionComponent::create(const TargetInteraction::CreateInfo &info) {
+  Interaction* interaction = nullptr;
+    {
+      std::unique_lock<std::mutex> lock(targetInt.creationMutex);
+      interaction = targetInt.pool.newElement(info);
+    }
+    interactions.push_back(interaction);
+}
+
+void InteractionComponent::create(const RayInteraction::CreateInfo &info) {
+  Interaction* interaction = nullptr;
+  {
+    std::unique_lock<std::mutex> lock(rayInt.creationMutex);
+    interaction = rayInt.pool.newElement(info);
+  }
+  interactions.push_back(interaction);
+}
+
+void InteractionComponent::create(const PhysicsInteraction::CreateInfo &info) {
+  Interaction* interaction = nullptr;
+  {
+    std::unique_lock<std::mutex> lock(physInt.creationMutex);
+    interaction = physInt.pool.newElement(info);
+  }
+  interactions.push_back(interaction);
+}
+
 size_t & InteractionComponent::index() {
   return systemIndex;
 }
@@ -360,19 +564,25 @@ size_t & InteractionComponent::index() {
 void InteractionComponent::deleteInteraction(Interaction* inter) {
   switch (inter->type()) {
     case Interaction::type::target: {
+      TargetInteraction* target = reinterpret_cast<TargetInteraction*>(inter);
+      std::unique_lock<std::mutex> lock(targetInt.creationMutex);
+      targetInt.pool.deleteElement(target);
       
       break;
     }
     
     case Interaction::type::ray: {
+      RayInteraction* ray = reinterpret_cast<RayInteraction*>(inter);
+      std::unique_lock<std::mutex> lock(rayInt.creationMutex);
+      rayInt.pool.deleteElement(ray);
       
       break;
     }
     
     case Interaction::type::physics: {
       PhysicsInteraction* phys = reinterpret_cast<PhysicsInteraction*>(inter);
-      std::unique_lock<std::mutex> lock(creationMutex);
-      physInt.deleteElement(phys);
+      std::unique_lock<std::mutex> lock(physInt.creationMutex);
+      physInt.pool.deleteElement(phys);
       
       break;
     }
@@ -388,6 +598,10 @@ void InteractionComponent::deleteInteraction(Interaction* inter) {
     }
   }
 }
+
+MultithreadingMemoryPool<TargetInteraction, 20> InteractionComponent::targetInt;
+MultithreadingMemoryPool<RayInteraction, 20> InteractionComponent::rayInt;
+MultithreadingMemoryPool<PhysicsInteraction, 100> InteractionComponent::physInt;
 
 InteractionSystem::InteractionSystem(const CreateInfo &info) : pool(info.pool) {}
 InteractionSystem::~InteractionSystem() {}

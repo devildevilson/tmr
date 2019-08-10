@@ -69,6 +69,8 @@ bool AttribChangeType::bonus_math_add() const {
   return (container & mask) == mask;
 }
 
+CLASS_TYPE_DEFINE_WITH_NAME(AttributeComponent, "AttributeComponent")
+
 void AttributeComponent::setContainer(Container<ExternalData>* cont) {
   AttributeComponent::externalDatas = cont;
 }
@@ -353,13 +355,27 @@ void AttributeComponent::init(void* userData) {
 }
 
 template <>
-const Attribute<FLOAT_ATTRIBUTE_TYPE>* AttributeComponent::get(const AttributeType<FLOAT_ATTRIBUTE_TYPE> &type) {
+const Attribute<FLOAT_ATTRIBUTE_TYPE>* AttributeComponent::get(const AttributeType<FLOAT_ATTRIBUTE_TYPE> &type) const {
   return AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>(fcount, attribsf).find(type);
 }
 
 template <>
-const Attribute<INT_ATTRIBUTE_TYPE>* AttributeComponent::get(const AttributeType<INT_ATTRIBUTE_TYPE> &type) {
+const Attribute<INT_ATTRIBUTE_TYPE>* AttributeComponent::get(const AttributeType<INT_ATTRIBUTE_TYPE> &type) const {
   return AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>(icount, attribsi).find(type);
+}
+
+template <>
+const Attribute<FLOAT_ATTRIBUTE_TYPE>* AttributeComponent::get(const TypelessAttributeType &type) const {
+  if (!type.float_type()) return nullptr;
+  
+  return AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>(fcount, attribsf).find(type.get_float_type());
+}
+
+template <>
+const Attribute<INT_ATTRIBUTE_TYPE>* AttributeComponent::get(const TypelessAttributeType &type) const {
+  if (!type.int_type()) return nullptr;
+  
+  return AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>(icount, attribsi).find(type.get_int_type());
 }
 
 template <>
@@ -374,6 +390,32 @@ AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> AttributeComponent::get_finder() 
 
 void AttributeComponent::change_attribute(const AttribChangeData &data) {
   datas.push_back(data);
+}
+
+const AttribChangeData* AttributeComponent::get_attribute_change(const TypelessAttributeType &type, size_t &counter) const {
+  if (datas.size() <= counter) {
+    counter = 0;
+    return nullptr;
+  }
+  
+  const AttribChangeData* ptr = &datas[counter];
+  
+  while (ptr->attribType != type) {
+    ++counter;
+    ptr = &datas[counter];
+  }
+  
+  ++counter;
+  
+  return ptr;
+}
+
+// void AttributeComponent::clear_counter() {
+//   counter = 0;
+// }
+
+void AttributeComponent::addReaction(const AttributeReaction &reaction) {
+  reactions.push_back(reaction);
 }
 
 size_t & AttributeComponent::internalIndex() {

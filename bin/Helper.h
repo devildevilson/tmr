@@ -39,7 +39,13 @@
 
 #include "ThreadPool.h"
 
-#include "Components.h"
+//#include "Components.h"
+#include "TransformComponent.h"
+#include "PhysicsComponent.h"
+#include "InputComponent.h"
+#include "InfoComponent.h"
+#include "AIInputComponent.h"
+#include "CameraComponent.h"
 #include "GraphicComponets.h"
 
 #include "ParticleSystem.h"
@@ -104,7 +110,7 @@
 // по идее количество мониторов = количеству рендеров
 // количетсво аутпут конфигураций (монитор + устройство) = количеству рендеров
 
-// void initCommonSystems(StageContainer &cont);
+// void initCommonSystems(TypelessContainer &cont);
 
 // extern GPUArray<MonsterGPUOptimizer::InstanceData> instanceData;
 
@@ -298,7 +304,7 @@ void createWindow(yavf::Instance* inst, yavf::Device* device, const WindowData &
 // void destroyWindow(Window* window);
 void createRender(yavf::Instance* inst, yavf::Device* device, const uint32_t &frameCount, const size_t &stageContainerSize, GameSystemContainer &container, VulkanRender** render, yavf::CombinedTask** task);
 void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, DataArrays &arrays);
-// void destroyDataArrays(StageContainer &arraysContainer, DataArrays &arrays);
+// void destroyDataArrays(TypelessContainer &arraysContainer, DataArrays &arrays);
 void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipelineStage*> &dynPipe);
 void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, const size_t &updateDelta, PhysicsContainer &physicsContainer, PhysicsEngine** engine); // еще device поди пригодится
 void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystemContainer &container);
@@ -314,6 +320,9 @@ struct SimpleOverlayData {
   simd::vec4 rot;
   size_t frameComputeTime;
   size_t frameSleepTime;
+  size_t lastFrameComputeTime;
+  size_t lastFrameSleepTime;
+  uint32_t frameCount;
   float fps;
   size_t frustumObjCount;
   size_t rayCollideCount;
@@ -328,6 +337,7 @@ struct ReactionsCreateInfo {
   UserInputComponent* input;
   Window* window;
   MenuStateMachine* menuContainer;
+  EntityAI* brain;
 };
 void createReactions(const ReactionsCreateInfo &info);
 void setUpKeys(KeyContainer* container);

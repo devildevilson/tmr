@@ -449,7 +449,7 @@ public:
   
   void seek(const simd::vec4 &target);
   void flee(const simd::vec4 &target);
-  size_t followPath(const size_t &predictionTime, const RawPath* path); // , const size_t &currentPathSegmentIndex
+  simd::vec4 followPath(const size_t &predictionTime, const RawPath* path, const size_t &currentPathSegmentIndex);
   void stayOnPath(const size_t &predictionTime, const RawPath* path);
   
   // как понять что я дошел до конечной точки в пути?

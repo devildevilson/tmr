@@ -16,6 +16,9 @@
 
 #include "PathFindingPhase.h"
 
+#include "AIComponent.h"
+#include "Graph.h"
+
 // #include <glm/gtx/rotate_vector.hpp>
 // #define YACS_DEFINE_EVENT_TYPE
 // #include "YACS.h"
@@ -417,7 +420,11 @@ void PhysicsComponent2::init(void* userData) {
   trans = getEntity()->get<TransformComponent>().get();
   auto input = getEntity()->get<InputComponent>().get();
   if (input == nullptr) input = getEntity()->get<UserInputComponent>().get();
+  if (input == nullptr) input = getEntity()->get<AIInputComponent>().get();
   auto graphic = getEntity()->get<GraphicComponent>().get();
+  
+  auto ai = getEntity()->get<AIBasicComponent>().get();
+  if (ai == nullptr) ai = getEntity()->get<AIComponent>().get();
 
   const uint32_t inputIndex = input == nullptr ? UINT32_MAX : input->inputIndex;
   const uint32_t transformIndex = trans == nullptr ? UINT32_MAX : trans->transformIndex;
@@ -429,6 +436,8 @@ void PhysicsComponent2::init(void* userData) {
   this->userData.ent = getEntity();
   this->userData.decalContainer = getEntity()->get<DecalContainerComponent>().get();
   this->userData.graphicComponent = graphic;
+  this->userData.aiComponent = ai;
+  //this->userData.vertex = const_cast<vertex_t*>(ai->vertex());
 
   // физику я буду создавать здесь полюбому
   // так как мне требуется доступ к индексам некоторых вещей
@@ -496,12 +505,12 @@ const simd::vec4* PhysicsComponent2::getObjectShapeFaces() const {
 }
 
 PhysicsIndexContainer* PhysicsComponent2::getGround() const {
-  Object obj = Global::physics()->getObjectData(&container);
+  const Object* obj = &Global::physics()->getObjectData(&container);
   PhysicsIndexContainer* ret = nullptr;
   
-  while (obj.groundObjIndex != UINT32_MAX) {
-    ret = Global::physics()->getIndexContainer(obj.groundObjIndex);
-    obj = Global::physics()->getObjectData(ret);
+  while (obj->groundObjIndex != UINT32_MAX) {
+    ret = Global::physics()->getIndexContainer(obj->groundObjIndex);
+    obj = &Global::physics()->getObjectData(ret);
   }
   
   return ret;
@@ -859,6 +868,8 @@ void UserInputComponent::jump() {
   movementData().y = 1.0f;
 }
 
+CLASS_TYPE_DEFINE_WITH_NAME(AIInputComponent, "AIInputComponent")
+
 AIInputComponent::AIInputComponent() : physics2(nullptr), trans(nullptr) {}
 AIInputComponent::~AIInputComponent() {}
 
@@ -891,42 +902,94 @@ void AIInputComponent::flee(const simd::vec4 &target) {
   front() = trans->pos() - target;
 }
 
-// как избавиться от currentPathSegmentIndex?
-size_t AIInputComponent::followPath(const size_t &predictionTime, const RawPath* path) {
+simd::vec4 getDirIndex(const simd::vec4 &in, uint32_t &index) {
+  float dir[4];
+  in.storeu(dir);
+  
+  index = glm::floatBitsToUint(dir[3]);
+  return simd::vec4(dir[0], dir[1], dir[2], 0.0f);
+}
+
+simd::vec4 AIInputComponent::followPath(const size_t &predictionTime, const RawPath* path, const size_t &currentPathSegmentIndex) {
   // предскажем нашу будущую позицию
   const simd::vec4 &futurePos = predictPos(predictionTime);
+  const FunnelPath* pathSeg = &path->funnelData()[currentPathSegmentIndex];
+//   const RawPathPiece* prevPathSeg = &path->data()[path->getPrevSegmentIndex(currentPathSegmentIndex)];
+//   const RawPathPiece* prevPathSeg = &path->graphData()[path->getPrevSegmentIndex2(currentPathSegmentIndex)];
+  const FunnelPath* prevPathSeg = &path->funnelData()[currentPathSegmentIndex-1];
   
-  float dist;
-  simd::vec4 closest;
-  const size_t index1 = path->getNearPathSegmentIndex(trans->pos(), closest, dist);
-  float dist2;
-  simd::vec4 closest2;
-  const size_t index2 = path->getNearPathSegmentIndex(futurePos, closest2, dist2);
-  (void)index2;
+  uint32_t currentIndex = 0;
+  const simd::vec4 finalCurrentDir = getDirIndex(pathSeg->edgeDir, currentIndex);
+  uint32_t prevIndex = 0;
+  const simd::vec4 finalPrevDir = getDirIndex(prevPathSeg->edgeDir, prevIndex);
   
-//   const RawPathPiece &pathSeg = path->data()[currentPathSegmentIndex];
-//   const RawPathPiece &nextPathSeg = path->data()[currentPathSegmentIndex+1];
-  const RawPathPiece &pathSeg = path->data()[index1];
-  const RawPathPiece &nextPathSeg = path->data()[index1+1];
-  
-  // это работало
-  const simd::vec4 &nextPoint = nextPathSeg.funnelPoint + nextPathSeg.edgeDir * trans->scale().x;
-  const simd::vec4 &prevPoint = pathSeg.funnelPoint + pathSeg.edgeDir * trans->scale().x;
+  float scale[4];
+  trans->scale().storeu(scale);
+  const float offset = path->graphData()[currentIndex].toNextVertex != nullptr ? std::min(path->graphData()[currentIndex].toNextVertex->getWidth()/2.0f, scale[0]) : 0.0f;
+  //const float offset = scale[0];
+//   const simd::vec4 &nextPoint = simd::vec4(pathSeg->funnelPoint) + simd::vec4(pathSeg->edgeDir) * offset;
+//   const simd::vec4 &prevPoint = simd::vec4(prevPathSeg->funnelPoint) + simd::vec4(prevPathSeg->edgeDir) * offset;
+  const simd::vec4 &nextPoint = simd::vec4(pathSeg->funnelPoint) + simd::vec4(finalCurrentDir) * offset;
+  const simd::vec4 &prevPoint = simd::vec4(prevPathSeg->funnelPoint) + simd::vec4(finalPrevDir) * offset;
 
   // примерно так узнаем что мы двигаемся в правильную сторону
   const bool rightWay2 = simd::dot(physics2->getVelocity(), nextPoint - prevPoint) > 0.0f;
-  
-  // вместо скейла должна быть наверное константа
-  if (dist2 < trans->scale().x && rightWay2) return index1;
 
-  if (dist < trans->scale().x && rightWay2) {
-    front() = nextPoint - prevPoint;
-    return index1;
-  }
+  float dist;
+  simd::vec4 closest;
+  /*size_t ind = */path->getNearPathSegmentIndex(trans->pos(), closest, dist);
+  float dist2;
+  simd::vec4 closest2;
+  /*size_t ind2 = */path->getNearPathSegmentIndex(futurePos, closest2, dist2);
+
+//   const bool ret =
+
+  const float tolerance2 = offset * offset;
+  
+//   if (dist2 < tolerance2 && rightWay2) return nextPoint;
+// 
+//   if (dist < tolerance2 && rightWay2) {
+//     front() = nextPoint - prevPoint;
+//     return nextPoint;
+//   }
 
   seek(nextPoint);
   
-  return index1;
+//   float dist;
+//   simd::vec4 closest;
+//   const size_t index1 = path->getNearPathSegmentIndex(trans->pos(), closest, dist);
+//   float dist2;
+//   simd::vec4 closest2;
+//   const size_t index2 = path->getNearPathSegmentIndex(futurePos, closest2, dist2);
+//   (void)index2;
+//   
+// //   const RawPathPiece &pathSeg = path->data()[currentPathSegmentIndex];
+// //   const RawPathPiece &nextPathSeg = path->data()[currentPathSegmentIndex+1];
+//   const RawPathPiece* pathSeg = &path->data()[index1];
+//   const RawPathPiece* nextPathSeg = &path->data()[path->getNextSegmentIndex(index1)];
+//   
+//   // это работало
+//   const simd::vec4 &nextPoint = simd::vec4(nextPathSeg->funnelPoint); //  + simd::vec4(nextPathSeg->edgeDir) * trans->scale().x
+//   const simd::vec4 &prevPoint = simd::vec4(pathSeg->funnelPoint); // + simd::vec4(pathSeg->edgeDir) * trans->scale().x
+//   
+//   PRINT_VAR( "index1", index1)
+//   PRINT_VEC4("nextPoint", nextPoint)
+//   PRINT_VEC4("prevPoint", prevPoint)
+// 
+//   // примерно так узнаем что мы двигаемся в правильную сторону
+//   const bool rightWay2 = simd::dot(physics2->getVelocity(), nextPoint - prevPoint) > 0.0f;
+//   
+//   // вместо скейла должна быть наверное константа
+//   if (dist2 < trans->scale().x && rightWay2) return index1;
+// 
+//   if (dist < trans->scale().x && rightWay2) {
+//     front() = nextPoint - prevPoint;
+//     return index1;
+//   }
+// 
+//   seek(nextPoint);
+  
+  return nextPoint;
 }
 
 void AIInputComponent::stayOnPath(const size_t &predictionTime, const RawPath* path) {
@@ -941,10 +1004,10 @@ CLASS_TYPE_DEFINE_WITH_NAME(CameraComponent, "CameraComponent")
 void CameraComponent::update(const size_t &time) {
   (void)time;
 
-  static const simd::mat4 toVulkanSpace = simd::mat4(1.0f, 0.0f, 0.0f, 0.0f,
-                                                     0.0f,-1.0f, 0.0f, 0.0f,
-                                                     0.0f, 0.0f, 1.0f, 0.0f,
-                                                     0.0f, 0.0f, 0.0f, 1.0f);
+  static const simd::mat4 toVulkanSpace = simd::mat4( 1.0f, 0.0f, 0.0f, 0.0f,
+                                                      0.0f,-1.0f, 0.0f, 0.0f,
+                                                      0.0f, 0.0f, 1.0f, 0.0f,
+                                                      0.0f, 0.0f, 0.0f, 1.0f);
   
 //   static const glm::mat4 toVulkanSpace1 =  glm::mat4(1.0f, 0.0f, 0.0f, 0.0f,
 //                                                      0.0f,-1.0f, 0.0f, 0.0f,

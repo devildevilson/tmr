@@ -2,7 +2,7 @@
 #define CONTAINERS_H
 
 #include "Engine.h"
-#include "StageContainer.h"
+#include "TypelessContainer.h"
 #include "Optimizer.h"
 #include "Manager.h"
 #include "ResourceManager.h"
@@ -27,13 +27,13 @@ public:
   GameSystemContainer(const size_t &gameSize) : container(gameSize) {}
   ~GameSystemContainer() {
     for (size_t i = 0; i < engines.size(); ++i) {
-      container.destroyStage(engines[i]);
+      container.destroy(engines[i]);
     }
   }
   
   template <typename T, typename ...Args>
   T* addSystem(Args&&... args) {
-    T* ptr = container.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = container.create<T>(std::forward<Args>(args)...);
     engines.push_back(ptr);
     
     return ptr;
@@ -50,7 +50,7 @@ public:
   }
 private:
   std::vector<Engine*> engines;
-  StageContainer container;
+  TypelessContainer container;
 };
 
 class OptimiserContainer {
@@ -58,13 +58,13 @@ public:
   OptimiserContainer(const size_t &size) : container(size) {}
   ~OptimiserContainer() {
     for (size_t i = 0; i < optimizers.size(); ++i) {
-      container.destroyStage(optimizers[i]);
+      container.destroy(optimizers[i]);
     }
   }
   
   template <typename T, typename ...Args>
   T* add(Args&&... args) {
-    T* ptr = container.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = container.create<T>(std::forward<Args>(args)...);
     optimizers.push_back(ptr);
     
     return ptr;
@@ -74,7 +74,7 @@ public:
     return container.size();
   }
 private:
-  StageContainer container;
+  TypelessContainer container;
   std::vector<Optimizer*> optimizers;
 };
 
@@ -87,13 +87,13 @@ public:
     }
     
     for (size_t i = 0; i < parsers.size(); ++i) {
-      parserContainers.destroyStage(parsers[i]);
+      parserContainers.destroy(parsers[i]);
     }
   }
   
   template <typename T, typename ...Args>
   T* add(Args&&... args) {
-    T* ptr = parserContainers.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = parserContainers.create<T>(std::forward<Args>(args)...);
     parsers.push_back(ptr);
     
     return ptr;
@@ -114,7 +114,7 @@ public:
 private:
   std::vector<ResourceParser*> parsers;
   ParserHelper* ptr;
-  StageContainer parserContainers;
+  TypelessContainer parserContainers;
 };
 
 class PhysicsContainer {
@@ -128,18 +128,18 @@ public:
     container(size) {}
     
   ~PhysicsContainer() {
-    if (broad != nullptr) container.destroyStage(broad);
-    if (narrow != nullptr) container.destroyStage(narrow);
-    if (solver != nullptr) container.destroyStage(solver);
-    if (sorter != nullptr) container.destroyStage(sorter);
-    if (physics != nullptr) container.destroyStage(physics);
+    if (broad != nullptr) container.destroy(broad);
+    if (narrow != nullptr) container.destroy(narrow);
+    if (solver != nullptr) container.destroy(solver);
+    if (sorter != nullptr) container.destroy(sorter);
+    if (physics != nullptr) container.destroy(physics);
   }
   
   template <typename T, typename ...Args> 
   T* createBroadphase(Args&&... args) {
     if (broad != nullptr) throw std::runtime_error("PhysicsContainer error: broadphase is already exist");
     
-    T* ptr = container.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = container.create<T>(std::forward<Args>(args)...);
     broad = ptr;
     
     return ptr;
@@ -149,7 +149,7 @@ public:
   T* createNarrowphase(Args&&... args) {
     if (narrow != nullptr) throw std::runtime_error("PhysicsContainer error: broadphase is already exist");
     
-    T* ptr = container.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = container.create<T>(std::forward<Args>(args)...);
     narrow = ptr;
     
     return ptr;
@@ -159,7 +159,7 @@ public:
   T* createSolver(Args&&... args) {
     if (solver != nullptr) throw std::runtime_error("PhysicsContainer error: broadphase is already exist");
     
-    T* ptr = container.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = container.create<T>(std::forward<Args>(args)...);
     solver = ptr;
     
     return ptr;
@@ -169,7 +169,7 @@ public:
   T* createPhysicsSorter(Args&&... args) {
     if (sorter != nullptr) throw std::runtime_error("PhysicsContainer error: broadphase is already exist");
     
-    T* ptr = container.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = container.create<T>(std::forward<Args>(args)...);
     sorter = ptr;
     
     return ptr;
@@ -179,7 +179,7 @@ public:
   T* createPhysicsEngine(Args&&... args) {
     if (physics != nullptr) throw std::runtime_error("PhysicsContainer error: broadphase is already exist");
     
-    T* ptr = container.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = container.create<T>(std::forward<Args>(args)...);
     physics = ptr;
     
     return ptr;
@@ -190,7 +190,7 @@ private:
   Solver* solver;
   PhysicsSorter* sorter;
   PhysicsEngine* physics;
-  StageContainer container;
+  TypelessContainer container;
 };
 
 class ArrayContainers {
@@ -198,20 +198,20 @@ public:
   ArrayContainers(const size_t &size) : container(size) {}
   ~ArrayContainers() {
     for (size_t i = 0; i < destructables.size(); ++i) {
-      container.destroyStage(destructables[i]);
+      container.destroy(destructables[i]);
     }
   }
     
   template <typename T, typename ...Args>
   T* add(Args&&... args) {
-    T* ptr = container.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = container.create<T>(std::forward<Args>(args)...);
     destructables.push_back(ptr);
     
     return ptr;
   }
 private:
   std::vector<Destructable*> destructables;
-  StageContainer container;
+  TypelessContainer container;
 };
 
 #endif

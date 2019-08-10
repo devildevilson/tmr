@@ -309,6 +309,8 @@ struct AttribChangeData {
   EntityAI* entity;
 };
 
+// нам гораздо лучше будет если вот эти вещи будут упакованы в типы, так мы сильно сократим использование памяти
+// таким же образом мы скорее всего сократим время на выделения памяти, но я не уверен пока что как это сделать
 struct AttributeReaction {
   enum class comparison {
     less,
@@ -354,14 +356,19 @@ public:
   void init(void* userData) override;
   
   template <typename Type>
-  const Attribute<Type>* get(const AttributeType<Type> &type);
+  const Attribute<Type>* get(const AttributeType<Type> &type) const;
+  
+  template <typename Type>
+  const Attribute<Type>* get(const TypelessAttributeType &type) const;
   
   template <typename Type>
   AttributeFinder<Attribute<Type>> get_finder() const;
   
   void change_attribute(const AttribChangeData &data);
-  const AttribChangeData* get_attribute_change(const TypelessAttributeType &type) const;
-  void clear_counter();
+  const AttribChangeData* get_attribute_change(const TypelessAttributeType &type, size_t &counter) const;
+//   void clear_counter();
+  
+  void addReaction(const AttributeReaction &reaction);
   
   size_t & internalIndex();
 private:
@@ -376,7 +383,7 @@ private:
   
   // массив изменений характеристик должен быть + многопоточность
 //   std::atomic<size_t> count;
-  size_t counter;
+//   size_t counter;
   std::vector<AttribChangeData> datas;
   std::vector<AttributeReaction> reactions;
   

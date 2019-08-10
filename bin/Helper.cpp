@@ -134,8 +134,8 @@ key::modificator key::action::type::key_modificator() const {
 }
 
 void key::action::type::set_changed(const bool value) {
-  const uint32_t mask = value << CHANGED_PLACE;
-  m_container |= mask;
+  const uint32_t mask = 1 << CHANGED_PLACE;
+  m_container = value ? m_container | mask : m_container & (~mask);
 }
 
 key::action::action() : m_time(0), m_key(0) {}
@@ -173,14 +173,15 @@ void key::action::execute(const std::vector<modificator> &mods, const int32_t &s
     }
     
     case key::state::press: {
-      const key::state old = m_current;
+//       const key::state old = m_current;
       const bool is_long_press = m_time > LONG_PRESS_TIME;
       
       const uint8_t inc = static_cast<uint8_t>(!key_pressed);
       m_current = static_cast<key::state>(static_cast<uint8_t>(m_current)+inc);
       m_current = is_long_press ? key::state::long_press : m_current;
       
-      m_type.set_changed(m_current != old);
+      //m_type.set_changed(m_current != old);
+      m_type.set_changed(true);
       break;
     }
     
@@ -200,7 +201,7 @@ void key::action::execute(const std::vector<modificator> &mods, const int32_t &s
     }
     
     case key::state::double_press: {
-      const key::state old = m_current;
+//       const key::state old = m_current;
       const bool is_double_clicked_time = m_time < DOUBLE_CLICK_TIME;
       
       const uint8_t inc = static_cast<uint8_t>(!key_pressed && is_double_clicked_time);
@@ -210,7 +211,8 @@ void key::action::execute(const std::vector<modificator> &mods, const int32_t &s
       m_current = just_press ? key::state::click : m_current;
       m_time = just_press ? time : m_time;
       
-      m_type.set_changed(m_current != old);
+//       m_type.set_changed(m_current != old);
+      m_type.set_changed(true);
       break;
     }
     
@@ -225,11 +227,12 @@ void key::action::execute(const std::vector<modificator> &mods, const int32_t &s
     }
     
     case key::state::long_press: {
-      const key::state old = m_current;
+//       const key::state old = m_current;
       
       m_current = !key_pressed ? key::state::long_click : m_current;
       
-      m_type.set_changed(m_current != old);
+//       m_type.set_changed(m_current != old);
+      m_type.set_changed(true);
       break;
     }
     
@@ -651,7 +654,7 @@ void nextnkFrame(Window* window, nk_context* ctx) {
 
     glfwSetInputMode(window->handle(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
   } else {
-    glfwSetInputMode(window->handle(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetInputMode(window->handle(), GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
   }
 
   // короче отрисовка наклира выглядит очень похоже на imgui
@@ -689,14 +692,20 @@ void nkOverlay(const SimpleOverlayData &data, nk_context* ctx) {
     }
 
     {
-      const auto &str = fmt::sprintf("Frame rendered in %lu mcs (%.2f fps)", data.frameComputeTime, 1000000.0f/float(data.frameComputeTime));
+      const size_t average_frame_time = float(data.frameComputeTime) / float(data.frameCount);
+      const auto &str = fmt::sprintf("Frame rendered in %lu mcs (%.2f fps)", average_frame_time, float(data.frameCount * TIME_PRECISION) / float(data.frameComputeTime));
+      // в скором сремени так уже будет нельзя считать фпс, во время отрисовки добавятся вычисления
+      // последний интервал тоже очень сильно изменился лол, что не так?
+      // это может быть связано с тем что у меня добавились вычисления ии, но чтоб на 1-2 мс странно
+      //  last interval frame time %lu mcs data.lastFrameComputeTime
 
 //       nk_layout_row_static(ctx, 30.0f, 300, 1);
       nk_label(ctx, str.c_str(), NK_TEXT_LEFT);
     }
 
     {
-      const auto &str = fmt::sprintf("Sleep between frames equals %lu mcs", data.frameSleepTime);
+      const size_t average_sleep_time = float(data.frameSleepTime) / float(data.frameCount);
+      const auto &str = fmt::sprintf("Sleep between frames equals %lu mcs", average_sleep_time);
 
 //       nk_layout_row_static(ctx, 30.0f, 300, 1);
       nk_label(ctx, str.c_str(), NK_TEXT_LEFT);
@@ -771,7 +780,7 @@ void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, Da
   GraphicComponent::setContainer(arrays.matrices);
   GraphicComponent::setContainer(arrays.rotations);
   GraphicComponent::setContainer(arrays.textures);
-  PhysicsComponent2::setContainer(arrays.externals);
+  PhysicsComponent::setContainer(arrays.externals);
   AnimationComponent::setStateContainer(arrays.animStates);
   
   yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
@@ -808,13 +817,13 @@ void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, Da
 //   std::cout << "transforms desc " << transforms->vector().descriptorSet()->handle() << '\n';
 }
 
-// void destroyDataArrays(StageContainer &arraysContainer, DataArrays &arrays) {
-//   arraysContainer.destroyStage(arrays.externals);
-//   arraysContainer.destroyStage(arrays.inputs);
-//   arraysContainer.destroyStage(arrays.matrices);
-//   arraysContainer.destroyStage(arrays.rotationCountBuffer);
-//   arraysContainer.destroyStage(arrays.rotations);
-//   arraysContainer.destroyStage(arrays.transforms);
+// void destroyDataArrays(TypelessContainer &arraysContainer, DataArrays &arrays) {
+//   arraysContainer.destroy(arrays.externals);
+//   arraysContainer.destroy(arrays.inputs);
+//   arraysContainer.destroy(arrays.matrices);
+//   arraysContainer.destroy(arrays.rotationCountBuffer);
+//   arraysContainer.destroy(arrays.rotations);
+//   arraysContainer.destroy(arrays.transforms);
 // }
 
 void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipelineStage*> &dynPipe) {
@@ -846,6 +855,9 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
   
   GraphicComponent::setOptimizer(monopt);
   GraphicComponentIndexes::setOptimizer(geoopt);
+
+  Global::render()->addOptimizerToClear(monopt);
+  Global::render()->addOptimizerToClear(geoopt);
 
   // короч для того чтобы перенести оптимизеры на гпу
   // мне нужно добавить много новых стейджев, может быть немного пересмотреть концепцию?
@@ -939,7 +951,7 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
 //       task,
 //       window
 //     };
-  //GuiStage* gui = render->addStage<GuiStage>(gInfo);
+  //GuiStage* gui = render->create<GuiStage>(gInfo);
   GuiStage* gui = postRender->addPart<GuiStage>(data.data);
   (void)gui;
 
@@ -962,7 +974,7 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
 //   };
 //   GeometryDebugStage* geoDebug = postRender->addPart<GeometryDebugStage>(gdInfo);
 
-  //data.render->addStage<EndTaskStage>(reinterpret_cast<yavf::TaskInterface**>(data.task));
+  //data.render->create<EndTaskStage>(reinterpret_cast<yavf::TaskInterface**>(data.task));
   data.render->addStage<EndTaskStage>(); // data.container->tasks3()
 }
 
@@ -1080,7 +1092,18 @@ void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystem
       return vert->goalDistanceEstimate(neighbor);
     }
   };
-  system->createPathfindingSystem<CPUPathFindingPhaseParallel>(pathInfo);
+  
+  CPUPathFindingPhaseParallel* path = system->createPathfindingSystem<CPUPathFindingPhaseParallel>(pathInfo);
+  path->registerPathType(Type::get("default"), [] (const vertex_t*, const vertex_t* neighbor, const edge_t* edge) -> bool {
+    if (edge->getAngle() > PASSABLE_ANGLE) return false;
+    const glm::vec4 norm = neighbor->getVertexData()->normal;
+    if (getAngle(-Global::physics()->getGravityNorm(), simd::vec4(&norm.x)) > PASSABLE_ANGLE) return false;
+    if (edge->getWidth() < 1.0f) return false;
+    if (edge->isFake() && edge->getHeight() > 1.0f) return false;
+    //if (edge.isFake()) return false;
+    
+    return true;
+  });
   
   Global g;
   g.setAISystem(system);
@@ -1092,7 +1115,13 @@ void createBehaviourTrees() {
   tree = builder.sequence()
                   .action([] (tb::Node* const& node, void* const& ptr) -> tb::Node::status {
                     (void)node;
+                    // у меня EntityAI класс смещен по сранвению с AIComponent
+                    // починил смещение
+                    //AIComponent* ai = reinterpret_cast<AIComponent*>(ptr);
                     EntityAI* ai = reinterpret_cast<EntityAI*>(ptr);
+                    
+//                     std::cout << "Start tree" << "\n";
+//                     std::cout << "target " << ai->target() << "\n";
                     
                     if (ai->hasTarget()) return tb::Node::status::success;
                           
@@ -1104,6 +1133,8 @@ void createBehaviourTrees() {
                     
                     const event e = ai->pushEvent(Type::get("find_path"), nullptr);
                     
+                    std::cout << "Finding path" << "\n";
+                    
                     if (e == running) return tb::Node::status::running;
                     if (e == success) return tb::Node::status::success;
                     
@@ -1114,6 +1145,8 @@ void createBehaviourTrees() {
                     EntityAI* ai = reinterpret_cast<EntityAI*>(ptr);
                     
                     const event e = ai->pushEvent(Type::get("move_path"), nullptr);
+                    
+                    std::cout << "Move path" << "\n";
                     
                     if (e == running) return tb::Node::status::running;
                     if (e == success) return tb::Node::status::success;
@@ -1246,6 +1279,32 @@ void createReactions(const ReactionsCreateInfo &info) {
 
     lastFocus = Global::data()->focusOnInterface;
   });
+  
+  auto brain = info.brain;
+  info.container->create("Set target", [brain, input] () {
+    const AIComponent* comp = static_cast<const AIComponent*>(brain);
+
+    //auto* phys = input->getEntity()->get<PhysicsComponent2>().get();
+    auto* phys = comp->components()->phys;
+    if (phys->getGround() == nullptr) {
+      const Object obj = Global::physics()->getObjectData(&phys->getIndexContainer());
+      std::cout << "obj index " << obj.objectId << "\n";
+      std::cout << "obj ground index " << obj.groundObjIndex << "\n";
+      throw std::runtime_error("phys->getGround() return nullptr");
+    }
+    auto data = reinterpret_cast<UserDataComponent*>(phys->getGround()->userData);
+    
+    if (data->aiComponent == nullptr) {
+      const Object obj = Global::physics()->getObjectData(&phys->getIndexContainer());
+      std::cout << "obj index " << obj.objectId << "\n";
+      std::cout << "obj ground index " << obj.groundObjIndex << "\n";
+      throw std::runtime_error("data->aiComponent return nullptr");
+    }
+    
+    std::cout << "setting target " << data->aiComponent << "\n";
+    
+    brain->setTarget(data->aiComponent);
+  });
 
   // а также use, attack, spells (1-9?), item use, hide weapon
   // и прочее
@@ -1270,6 +1329,8 @@ void setUpKeys(KeyContainer* container) {
   container->create({key::state::click}, true, key::modificator::none, GLFW_KEY_LEFT_ALT, container->config.reactions["Interface focus"]);
   
   container->create({key::state::click}, false, key::modificator::none, GLFW_KEY_ESCAPE, container->config.reactions["Menu"]);
+  
+  container->create({key::state::click}, true, key::modificator::none, GLFW_KEY_M, container->config.reactions["Set target"]);
 }
 
 void mouseInput(UserInputComponent* input, const uint64_t &time) {
@@ -1309,7 +1370,7 @@ void mouseInput(UserInputComponent* input, const uint64_t &time) {
 //   std::cout << "xpos: " << xpos << "\n";
 //   std::cout << "ypos: " << ypos << "\n";
 
-  input->mouseMove(horisontalAngle, verticalAngle);
+  input->mouseMove(horisontalAngle, verticalAngle, PhysicsEngine::getOrientation());
 }
 
 void keysCallbacks(KeyContainer* container, const uint64_t &time) {

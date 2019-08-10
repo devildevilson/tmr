@@ -9,6 +9,7 @@
 #include "PhysicsTemporary.h"
 #include "PhysicsUtils.h"
 #include "RenderStructures.h"
+#include "Type.h"
 
 #include <atomic>
 
@@ -81,17 +82,25 @@ private:
   
 };
 
+class vertex_t;
+
 // скорее всего количество данных для плоскости увеличится очень сильно
 struct CreateWallInfo {
   std::string name;
-  std::string shapeName;
+//   std::string shapeName;
+  Type shapeType;
   
   size_t indexOffset;
   size_t faceVertices;
   size_t faceIndex;
   
+  // TextureData
   Texture wallTexture;
+  float radius;
+  vertex_t* vertex;
 };
+
+class EntityAI;
 
 // нужно же добавить ResourceParser 
 class HardcodedEntityLoader : public Loader, public ResourceParser {
@@ -142,22 +151,25 @@ public:
   void create();
   void createWall(const CreateWallInfo &info);
   
-  yacs::Entity* getPlayer() const;
+  yacs::entity* getPlayer() const;
   TransformComponent* getPlayerTransform() const;
   CameraComponent* getCamera() const;
   UserInputComponent* getInput() const;
+  EntityAI* getEntityBrain() const;
 private:
   size_t state;
   std::atomic<size_t> accumulatedState;
   
-  yacs::Entity* player;
+  yacs::entity* player;
   TransformComponent* playerTransform;
   CameraComponent* camera;
   UserInputComponent* input;
   
+  EntityAI* brainAI;
+  
   TextureLoader* textureLoader;
   
-  yacs::World world;
+  yacs::world world;
 };
 
 class HardcodedMapLoader : public Loader, public ResourceParser {

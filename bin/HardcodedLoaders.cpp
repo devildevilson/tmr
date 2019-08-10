@@ -5,12 +5,22 @@
 
 #include "TextureLoader.h"
 
-#include "Components.h"
+//#include "Components.h"
+#include "TransformComponent.h"
+#include "PhysicsComponent.h"
+#include "InputComponent.h"
+#include "AIInputComponent.h"
+#include "InfoComponent.h"
 #include "GraphicComponets.h"
 #include "AnimationComponent.h"
 #include "AnimationSystem.h"
 #include "EventComponent.h"
 #include "SoundComponent.h"
+#include "AIComponent.h"
+#include "AISystem.h"
+#include "UserDataComponent.h"
+#include "Graph.h"
+#include "CameraComponent.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tinyobjloader/tiny_obj_loader.h>
@@ -140,7 +150,7 @@ HardcodedEntityLoader::HardcodedEntityLoader(const InitData &data) {
   GraphicComponent::setContainer(data.textureContainer);
   AnimationComponent::setStateContainer(data.stateContainer);
   InputComponent::setContainer(data.inputs);
-  PhysicsComponent2::setContainer(data.externalDatas);
+  PhysicsComponent::setContainer(data.externalDatas);
   
   state = 5504;
 }
@@ -231,95 +241,240 @@ void HardcodedEntityLoader::create() {
   // нам тут еще нужна возможность взять текстурки и еще какие то дополнительные вещи
   // нам нужно еще какие то данные инициализации
   // как их передать?
-  
+
+  const Type shape = Type::get("boxShape");
   {
     const RegisterNewShapeInfo info{
       {},
       {simd::vec4(0.5f, 0.5f, 0.5f, 0.0f)}
     };
     
-    Global::physics()->registerShape(Type::get("boxShape"), BBOX_TYPE, info);
+    Global::physics()->registerShape(shape, BBOX_TYPE, info);
   }
-  
-  InitComponents initData{
-    Type::get("boxShape"),
-    true,
-    BBOX_TYPE
+
+  PhysicsComponent::CreateInfo physInfo{
+    {
+      simd::vec4(0.0f, 0.0f, 0.0f, 0.0f),
+      7.0f, 80.0f, 0.0f, 0.0f
+    },
+    {
+      false,
+
+      PhysicsType(true, BBOX_TYPE, true, false, true, true),
+      1,     // collisionGroup
+      1,     // collisionFilter
+
+      0.5f,  // stairHeight
+      //40.0f, // acceleration
+      1.0f,  // overbounce
+      4.0f,  // groundFriction
+
+      0.0f,  // radius
+
+      UINT32_MAX,
+      UINT32_MAX,
+      UINT32_MAX,
+      UINT32_MAX,
+      UINT32_MAX,
+
+      //"boxShape"
+      shape
+    },
+    nullptr
   };
   
   {
-    yacs::Entity* ent1 = world.createEntity();
-    playerTransform = ent1->assign<TransformComponent>(simd::vec4(1.0f, 5.0f, 2.0f, 1.0f), simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f)).get();
+    // нужно будет у игрока сделать интеллектуальные анимации, то есть анимации переходят из одного состояния в другое сами собой и по заданым условиям
+    // например, анимация атаки у война (размашистый удар справа на лево) переходит в анимацию смены ориентации меча
+    // если какое то время меч находится в левом положении, то мы должны "переложить" его на правую сторону
+    // то есть при нажатии клавиши мы можем перейти в следующее состояние, которое, например, на какое то время заблокирует возможность двигаться 
+    // (или даже возможно передаст какие то дополнительные данные), это состояние перейдет в состояние смены положения, которое забокирует возможность атаковать
+    // сменив положение, игрок снова получит возможность атаковать, атака пройдет на этот раз слева на право
+    // не атаковав через какое то время запустится анимация смены положения меча,
+    // то есть [дефолт] -> [атака справа] -> [смена направления налево] -> [атака слева] -> [смена направления направо] -> [дефолт]
+    //                                                                  -> [перекладываем направо] -> [дефолт]
+    // у нас есть следующее измение по времени, и изменение по нажатым клавишам, изменение по условиям?
+    // должны быть еще координаты где рисовать текстурки (мы должны сымитировать движения как в думе)
+    
+    yacs::entity* ent1 = world.create_entity();
+    playerTransform = ent1->add<TransformComponent>(simd::vec4(1.0f, 5.0f, 2.0f, 1.0f),
+                                                    simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
+                                                    simd::vec4(1.0f, 1.0f, 1.0f, 0.0f)).get();
     
 //     std::cout << "HardcodedEntityLoader::create 01" << "\n";
     
-//     ent1->assign<InputComponent>();
+//     ent1->add<InputComponent>();
     
-    input = ent1->assign<UserInputComponent>().get();
-    camera = ent1->assign<CameraComponent>().get();
+    input = ent1->add<UserInputComponent>(UserInputComponent::CreateInfo{playerTransform}).get();
+
+    physInfo.physInfo.inputIndex = input->inputIndex;
+    physInfo.physInfo.transformIndex = playerTransform->index();
+    auto phys = ent1->add<PhysicsComponent>(physInfo);
+
+    camera = ent1->add<CameraComponent>(CameraComponent::CreateInfo{playerTransform, input, phys.get()}).get();
     
-//     std::cout << "input ptr " << input << "\n";
+    const AIBasicComponent::CreateInfo aiInfo{
+      0.5f,
+      nullptr
+    };
+    auto ai = ent1->add<AIBasicComponent>(aiInfo);
+
+    const UserDataComponent entData{
+      ent1,
+      playerTransform,
+      nullptr, // потом по идее в этом компоненте будем рисовать основной игровой интерфейс
+      phys.get(),
+      nullptr, // этот компонент для игрока тоже пригодится
+      nullptr,
+      ai.get(),
+      nullptr,
+      nullptr
+    };
+    auto usrData = ent1->add<UserDataComponent>(entData);
+    phys->setUserData(usrData.get());
     
-    ent1->assign<PhysicsComponent2>();
-    
-    ent1->init(&initData);
+//    ent1->init(&initData);
     player = ent1;
+    
+    // нужно будет еще задавать позиции, направление и прочее
   }
   
-  initData.dynamic = false; //552c34f8e3469
+//  initData.dynamic = false; //552c34f8e3469
   const Texture &noAnim = textureLoader->getTexture("14626771132270", 0);
 //   std::cout << "Texture: " << noAnim.imageArrayIndex << " " << noAnim.imageArrayLayer << "\n";
   
 //   throw std::runtime_error("check");
   
   {
-    yacs::Entity* ent2 = world.createEntity();
-    ent2->assign<TransformComponent>(simd::vec4(1.0f, 0.9f, 1.0f, 1.0f), simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-    ent2->assign<EventComponent>();
-    ent2->assign<StateController>();
-    ent2->assign<PhysicsComponent2>();
-    ent2->assign<InfoComponent>(Type::get("Testing entity 1"));
+    yacs::entity* ent2 = world.create_entity();
+    auto trans = ent2->add<TransformComponent>(simd::vec4(1.0f, 0.9f, 1.0f, 1.0f), simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
+                                               simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+    auto events = ent2->add<EventComponent>();
+//    ent2->add<StateController>();
+    physInfo.physInfo.type = PhysicsType(false, BBOX_TYPE, true, false, true, true);
+    physInfo.physInfo.inputIndex = UINT32_MAX;
+    physInfo.physInfo.transformIndex = trans->index();
+    auto phys = ent2->add<PhysicsComponent>(physInfo);
     
-    auto comp = ent2->assign<GraphicComponent>();
-    
-    ent2->init(&initData);
+    auto comp = ent2->add<GraphicComponent>(GraphicComponent::CreateInfo{trans->index()});
+
+    const UserDataComponent entData{
+      ent2,
+      trans.get(),
+      comp.get(),
+      phys.get(),
+      nullptr,
+      nullptr,
+      nullptr,
+      nullptr,
+      events.get()
+    };
+    auto usrData = ent2->add<UserDataComponent>(entData);
+    ent2->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Testing entity 1"), usrData.get()});
+    phys->setUserData(usrData.get());
     
     comp->setTexture(noAnim);
   }
   
   {
-    yacs::Entity* ent3 = world.createEntity();
-    ent3->assign<TransformComponent>(simd::vec4(1.0f, -0.1f, 0.0f, 1.0f), simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-    ent3->assign<EventComponent>();
-    ent3->assign<StateController>();
-    ent3->assign<PhysicsComponent2>();
-    ent3->assign<InfoComponent>(Type::get("Testing entity 2"));
+    yacs::entity* ent3 = world.create_entity();
+    auto trans = ent3->add<TransformComponent>(simd::vec4(1.0f, 0.1f, 0.0f, 1.0f), simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
+                                               simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+    auto events = ent3->add<EventComponent>();
+
+    physInfo.physInfo.inputIndex = UINT32_MAX;
+    physInfo.physInfo.transformIndex = trans->index();
+    auto phys = ent3->add<PhysicsComponent>(physInfo);
     
-    auto comp = ent3->assign<GraphicComponent>();
-    ent3->init(&initData);
+    auto comp = ent3->add<GraphicComponent>(GraphicComponent::CreateInfo{trans->index()});
+
+    const UserDataComponent entData{
+      ent3,
+      trans.get(),
+      comp.get(),
+      phys.get(),
+      nullptr,
+      nullptr,
+      nullptr,
+      nullptr,
+      events.get()
+    };
+    auto usrData = ent3->add<UserDataComponent>(entData);
+    ent3->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Testing entity 2"), usrData.get()});
+    phys->setUserData(usrData.get());
     
     comp->setTexture(noAnim);
   }
   
-  initData.dynamic = true;
+//  initData.dynamic = true;
   
   {
-    yacs::Entity* ent4 = world.createEntity();
-    ent4->assign<TransformComponent>(simd::vec4(2.0f, 3.5f, 1.0f, 1.0f), simd::vec4(1.0f, 0.0f, 0.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-    auto events = ent4->assign<EventComponent>();
-    ent4->assign<InputComponent>();
-    auto states = ent4->assign<StateController>();
-    ent4->assign<PhysicsComponent2>();
-    ent4->assign<InfoComponent>(Type::get("Entity with animation"));
-    auto anim = ent4->assign<AnimationComponent>();
-    // тут должен быть AnimationComponent
-    auto comp = ent4->assign<GraphicComponent>();
+    yacs::entity* ent4 = world.create_entity();
+    auto trans = ent4->add<TransformComponent>(simd::vec4(2.0f, 3.5f, 1.0f, 1.0f), simd::vec4(1.0f, 0.0f, 0.0f, 0.0f),
+                                  simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+    auto events = ent4->add<EventComponent>();
+    //ent4->add<InputComponent>();
+//     auto states = ent4->add<StateController>();
+
+    const AIInputComponent::CreateInfo aiInfo {
+      nullptr,
+      trans.get()
+    };
+    auto input = ent4->add<AIInputComponent>(aiInfo);
+
+    physInfo.physInfo.type = PhysicsType(true, BBOX_TYPE, true, false, true, true);
+    physInfo.physInfo.inputIndex = input->inputIndex;
+    physInfo.physInfo.transformIndex = trans->index();
+    auto phys = ent4->add<PhysicsComponent>(physInfo);
+    input->setPhysicsComponent(phys.get());
+
+    auto comp = ent4->add<GraphicComponent>(GraphicComponent::CreateInfo{trans->index()});
+
+    const AnimationComponent::CreateInfo animInfo{
+      events.get(),
+      trans.get(),
+      comp.get()
+    };
+    auto anim = ent4->add<AnimationComponent>(animInfo);
+
+    const SoundComponent::CreateInfo soundInfo{
+      trans.get(),
+      phys.get(),
+      events.get()
+    };
+    auto sound = ent4->add<SoundComponent>(soundInfo);
+
+    const UserDataComponent entData{
+      ent4,
+      trans.get(),
+      comp.get(),
+      phys.get(),
+      anim.get(),
+      nullptr,
+      nullptr,
+      nullptr,
+      events.get()
+    };
+    auto usrData = ent4->add<UserDataComponent>(entData);
     
-    auto sound = ent4->assign<SoundComponent>();
-    
-//     comp->setTexture(textureLoader->getTexture("n", 0));
-//     ai = ent4->assign<LoneAi>(tree, 1, 200000).get();
-    ent4->init(&initData);
+    const AIComponent::CreateInfo info{
+      0.5f,
+      HALF_SECOND,
+      nullptr,
+      Global::ai()->getBehaviourTreePointer(Type::get("simple_tree")),
+
+//      phys.get(),
+//      trans.get(),
+      input.get(),
+      usrData.get(),
+
+      Type::get("default")
+    };
+    brainAI = ent4->add<AIComponent>(info).get();
+    usrData->aiComponent = brainAI;
+
+    ent4->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Entity with animation"), usrData.get()});
+    phys->setUserData(usrData.get());
     
     const EventData data{
       nullptr,
@@ -329,14 +484,14 @@ void HardcodedEntityLoader::create() {
     const Type t = Type::get("walking");
     sound->setSound(t, ResourceID::get("default_sound"), 100.0f);
     anim->setAnimation(t, ResourceID::get("walking"));
-    states->registerState(t, false, false, 400000);
+//     states->registerState(t, false, false, 400000);
     events->fireEvent(t, data);
 //     
 //     states->changeState(t);
     //objWithAnimation = ent4;
   }
   
-  initData.dynamic = false;
+//  initData.dynamic = false;
   
   {
     const size_t objCount = 5000;
@@ -348,15 +503,31 @@ void HardcodedEntityLoader::create() {
     for (size_t i = 0; i < objCount; ++i) {
       const simd::vec4 pos = simd::vec4(dist(gen), dist(gen), dist(gen), 1.0f);
       
-      yacs::Entity* ent = world.createEntity();
-      ent->assign<TransformComponent>(pos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-      ent->assign<EventComponent>();
-      ent->assign<StateController>();
-      ent->assign<PhysicsComponent2>();
-      ent->assign<InfoComponent>(Type::get("Generated entity " + std::to_string(i)));
-      auto comp = ent->assign<GraphicComponent>();
-      ent->init(&initData);
-      
+      yacs::entity* ent = world.create_entity();
+      auto trans = ent->add<TransformComponent>(pos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+      auto events = ent->add<EventComponent>();
+      auto comp = ent->add<GraphicComponent>(GraphicComponent::CreateInfo{trans->index()});
+//      ent->add<StateController>();
+      physInfo.physInfo.type = PhysicsType(false, BBOX_TYPE, true, false, false, true);
+      physInfo.physInfo.inputIndex = UINT32_MAX;
+      physInfo.physInfo.transformIndex = trans->index();
+      auto phys = ent->add<PhysicsComponent>(physInfo);
+
+      const UserDataComponent entData{
+        ent,
+        trans.get(),
+        comp.get(),
+        phys.get(),
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        events.get()
+      };
+      auto usrData = ent->add<UserDataComponent>(entData);
+      ent->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Generated entity " + std::to_string(i)), usrData.get()});
+
+      phys->setUserData(usrData.get());
       comp->setTexture(noAnim);
     }
   }
@@ -370,45 +541,174 @@ void HardcodedEntityLoader::create() {
     std::uniform_real_distribution<> dist2(0,1);
     
     const simd::vec4 firstPos = simd::vec4(0.0f, 0.4f, 0.0f, 1.0f);
-    
-        yacs::Entity* ent = world.createEntity();
-    ent->assign<TransformComponent>(firstPos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-    ent->assign<Light>(2.0f, 0.1f, glm::vec3(1.0f, 1.0f, 1.0f));
-    ent->assign<InfoComponent>(Type::get("Generated light " + std::to_string(0)));
-    ent->init(nullptr);
+    const float lightRadius = 2.0f;
+
+    {
+      yacs::entity* ent = world.create_entity();
+      auto trans = ent->add<TransformComponent>(firstPos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+      physInfo.physInfo.type = PhysicsType(false, SPHERE_TYPE, false, false, false, true);
+      physInfo.physInfo.inputIndex = UINT32_MAX;
+      physInfo.physInfo.transformIndex = trans->index();
+      physInfo.physInfo.radius = lightRadius;
+      auto phys = ent->add<PhysicsComponent>(physInfo);
+
+      const Light::CreateInfo lightInfo{
+        {
+          {0.0f, 0.0f, 0.0f, lightRadius},
+          {1.0f, 1.0f, 1.0f, 0.1f}
+        },
+        trans->index()
+      };
+      auto light = ent->add<Light>(lightInfo);
+
+      const UserDataComponent entData{
+        ent,
+        trans.get(),
+        light.get(),
+        phys.get(),
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr
+      };
+      auto usrData = ent->add<UserDataComponent>(entData);
+      ent->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Generated light " + std::to_string(0)), usrData.get()});
+      phys->setUserData(usrData.get());
+    }
     
     for (size_t i = 0; i < lightSize; ++i) {
       const simd::vec4 pos = simd::vec4(dist(gen), dist(gen), dist(gen), 1.0f);
       glm::vec3 color = glm::vec3(dist2(gen), dist2(gen), dist2(gen));
       
-            yacs::Entity* ent = world.createEntity();
-      ent->assign<TransformComponent>(pos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-      ent->assign<Light>(2.0f, 0.1f, color);
-      ent->assign<InfoComponent>(Type::get("Generated light " + std::to_string(i+1)));
-      ent->init(nullptr);
+      yacs::entity* ent = world.create_entity();
+      auto trans = ent->add<TransformComponent>(pos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+      physInfo.physInfo.type = PhysicsType(false, SPHERE_TYPE, false, false, true, true);
+      physInfo.physInfo.inputIndex = UINT32_MAX;
+      physInfo.physInfo.transformIndex = trans->index();
+      physInfo.physInfo.radius = lightRadius;
+      auto phys = ent->add<PhysicsComponent>(physInfo);
+
+      const Light::CreateInfo lightInfo{
+        {
+          {0.0f, 0.0f, 0.0f, lightRadius},
+          {color.x, color.y, color.z, 0.1f}
+        },
+        trans->index()
+      };
+      auto light = ent->add<Light>(lightInfo);
+
+      const UserDataComponent entData{
+        ent,
+        trans.get(),
+        light.get(),
+        phys.get(),
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr
+      };
+      auto usrData = ent->add<UserDataComponent>(entData);
+      ent->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Generated light " + std::to_string(i+1)), usrData.get()});
+      phys->setUserData(usrData.get());
     }
   }
 }
 
 void HardcodedEntityLoader::createWall(const CreateWallInfo &info) {
-  yacs::Entity* wall = world.createEntity();
-  
-  wall->assign<InfoComponent>(Type::get(info.name));
-  wall->assign<PhysicsComponent2>();
-  auto comp = wall->assign<GraphicComponentIndexes, GraphicComponent>(info.indexOffset, info.faceVertices, info.faceIndex);
-  
-  InitComponents init{
-    Type::get(info.shapeName),
-    false,
-    POLYGON_TYPE
+  yacs::entity* wall = world.create_entity();
+
+  const PhysicsComponent::CreateInfo physInfo{
+    {
+      simd::vec4(0.0f, 0.0f, 0.0f, 0.0f),
+      7.0f, 80.0f, 0.0f, 0.0f
+    },
+    {
+      false,
+
+      PhysicsType(false, POLYGON_TYPE, true, false, true, true),
+      1,     // collisionGroup
+      1,     // collisionFilter
+
+      0.5f,  // stairHeight
+      //40.0f, // acceleration
+      1.0f,  // overbounce
+      4.0f,  // groundFriction
+
+      0.0f,  // radius
+
+      UINT32_MAX,
+      UINT32_MAX,
+      UINT32_MAX,
+      UINT32_MAX,
+      UINT32_MAX,
+
+      //"boxShape"
+      info.shapeType
+    },
+    nullptr
   };
 
-  wall->init(&init);
+  auto phys = wall->add<PhysicsComponent>(physInfo);
+  const GraphicComponentIndexes::CreateInfo gInfo{
+    info.indexOffset,
+    info.faceVertices,
+    static_cast<uint32_t>(info.faceIndex),
+    UINT32_MAX
+  };
+  auto comp = wall->add<GraphicComponentIndexes>(gInfo);
+
+  auto usrData = wall->add<UserDataComponent>();
   
+  const AIBasicComponent::CreateInfo aiInfo{
+    info.radius,
+    info.vertex,
+    usrData.get()
+  };
+  auto ai = wall->add<AIBasicComponent>(aiInfo).get();
+
+  usrData->entity = wall;
+  usrData->trans = nullptr;
+  usrData->graphic = comp.get();
+  usrData->phys = phys.get();
+  usrData->anim = nullptr;
+  usrData->decalContainer = nullptr;
+  usrData->aiComponent = ai;
+  usrData->vertex = info.vertex;
+  usrData->events = nullptr;
+
+  const UserDataComponent entData{
+    wall,
+    nullptr,
+    comp.get(),
+    phys.get(),
+    nullptr,
+    nullptr,
+    ai,
+    info.vertex,
+    nullptr
+  };
+  //auto usrData = wall->add<UserDataComponent>(entData);
+  wall->add<InfoComponent>(InfoComponent::CreateInfo{Type::get(info.name), usrData.get()});
+
+  phys->setUserData(usrData.get());
   comp->setTexture(info.wallTexture);
+  
+//   if (ai->vertex() == nullptr) {
+//     throw std::runtime_error("cdefvwdvsabsfbn");
+//   }
+  
+//   info.vertex->addObject(ai);
+  
+  // как будет выглядеть в итоге фактори для энтити? мне нужно передать информацию для создания во все энтити + информацию в инит
+  // может быть нужно запомнить все конструкторы в одной большой структуре, а дальше по ситуации создавать
+  // нет, лучше наверное узнавать из парсера карты что у нас определено для конкретного объекта
+  
+  (void)ai;
 }
 
-yacs::Entity* HardcodedEntityLoader::getPlayer() const {
+yacs::entity* HardcodedEntityLoader::getPlayer() const {
   return player;
 }
 
@@ -422,6 +722,10 @@ CameraComponent* HardcodedEntityLoader::getCamera() const {
 
 UserInputComponent* HardcodedEntityLoader::getInput() const {
   return input;
+}
+
+EntityAI* HardcodedEntityLoader::getEntityBrain() const {
+  return brainAI;
 }
 
 HardcodedMapLoader::HardcodedMapLoader(const CreateInfo &info) : state(0), device(info.device), entityLoader(info.entityLoader), textureLoader(info.loader) {
@@ -508,6 +812,8 @@ void HardcodedMapLoader::end() {
   
   //Type defaultType = Type::get("default");
   
+  Graph* graph = Global::ai()->getGraph();
+  
   std::vector<Vertex> verts;
   std::vector<uint32_t> globalIndicies;
   // Loop over shapes
@@ -583,7 +889,7 @@ void HardcodedMapLoader::end() {
       
       const simd::vec4 normal = shapeInfo.faces.back();
       float normalArr[4];
-      normal.store(normalArr);
+      normal.storeu(normalArr);
         
       if (fast_fabsf(normalArr[0]) < EPSILON && fast_fabsf(normalArr[1]) < EPSILON) {
         x = simd::vec4(1.0f, 0.0f, 0.0f, 0.0f);
@@ -639,24 +945,210 @@ void HardcodedMapLoader::end() {
         // нужно еще написать примерно такой же код для объектов (например, двери)
       }
       
+      simd::vec4 shapeMin = shapeInfo.points[0];
+      simd::vec4 shapeMax = shapeInfo.points[0];
+      simd::vec4 center;
+      for (size_t i = 0; i < shapeInfo.points.size(); ++i) {
+        center += shapeInfo.points[i];
+        shapeMin = simd::min(shapeMin, shapeInfo.points[i]);
+        shapeMax = simd::max(shapeMax, shapeInfo.points[i]);
+      }
+      center /= shapeInfo.points.size();
+      
       // так же нужно собрать граф, хотя возможно мы просто передаем какие нибудь данные создателю ии
       
+      glm::vec4 normalData;
+      glm::vec4 centerData;
+      normal.storeu(&normalData.x);
+      center.storeu(&centerData.x);
+      const GraphVertex data{
+        normalData,
+        centerData,
+        {}
+      };
+      vertex_t* vertex = graph->addVertex(data);
+      
+      for (size_t i = 0; i < graph->order(); ++i) {
+        vertex_t* vert = graph->vertex(i);
+        // вот и проблемы, в таком виде я не знаю точек вершины
+        if (vert->objCount() == 0) continue;
+        
+        const EntityAI* aiVert = vert->at(0);
+        //const AIBasicComponent* comp = static_cast<const AIBasicComponent*>(aiVert);
+        auto comp = static_cast<const AIBasicComponent*>(aiVert);
+        PhysicsComponent* phys = comp->components()->phys;
+//        yacs::entity* ent = comp->getEntity();
+//
+//        if (ent == nullptr) throw std::runtime_error("kjcvsdkvnaldnvsljbn");
+//
+//        const auto phys = ent->get<PhysicsComponent2>();
+        const uint32_t pointsCount = phys->getObjectShapePointsSize();
+        const simd::vec4* points = phys->getObjectShapePoints();
+        
+        simd::vec4 edgePoints[2];
+        uint8_t founded = 0;
+        for (uint32_t j = 0; j < pointsCount; ++j) {
+          for (uint32_t l = 0; l < shapeInfo.points.size(); ++l) {
+            if (founded > 1) break;
+            
+            const size_t nextJ = (j+1)%pointsCount;
+            const size_t nextL = (l+1)%shapeInfo.points.size();
+            
+            const bool config1 = (simd::distance2(points[j], shapeInfo.points[l]) < EPSILON) && (simd::distance2(points[nextJ], shapeInfo.points[nextL]) < EPSILON);
+            const bool config2 = (simd::distance2(points[j], shapeInfo.points[nextL]) < EPSILON) && (simd::distance2(points[nextJ], shapeInfo.points[l]) < EPSILON);
+            
+            if (config1) {
+              edgePoints[0] = points[j];
+              edgePoints[1] = points[nextJ];
+              founded = 10;
+            }
+            
+            if (config2) {
+              edgePoints[0] = points[j];
+              edgePoints[1] = points[nextJ];
+              founded = 10;
+            }
+            
+//             if (simd::distance2(points[j], shapeInfo.points[l]) < EPSILON) {
+// //               edgePoints[founded] = points[j];
+//               edgePoints[0] = points[j];
+// //               ++founded;
+//               
+//               if (simd::distance2(points[nextJ], shapeInfo.points[nextL]) < EPSILON) {
+//                 edgePoints[1] = points[nextJ];
+//                 founded = 10;
+//               }
+//             }
+          }
+          
+          if (founded > 1) break;
+        }
+        
+        if (founded > 1) {
+          glm::vec4 dir;
+          simd::vec4 simd_dir = simd::normalize(edgePoints[1] - edgePoints[0]);
+          simd_dir.storeu(&dir.x);
+          
+          glm::vec4 aP;
+          glm::vec4 bP;
+          edgePoints[0].storeu(&aP.x);
+          edgePoints[1].storeu(&bP.x);
+          
+          const EdgeData data{
+            false,
+            true, // кажется используется только в fake edge
+            getAngle(vertex->getVertexData()->normal, vert->getVertexData()->normal),
+            glm::distance(vertex->getVertexData()->center, vert->getVertexData()->center),
+            simd::distance(edgePoints[0], edgePoints[1]),
+            0.0f,
+            dir,
+            LineSegment(aP, bP)
+          };
+          
+          graph->addEdge(vertex, vert, data);
+        }
+      }
+      
       const std::string shapeName = "WallShape " + std::to_string(f);
-      Global::physics()->registerShape(Type::get(shapeName), POLYGON_TYPE, shapeInfo);
+      const Type shapeType = Type::get(shapeName);
+      Global::physics()->registerShape(shapeType, POLYGON_TYPE, shapeInfo);
+      
+      const float radius = simd::distance(shapeMin, shapeMax) / 2.0f;
       
       const CreateWallInfo info{
         "Wall " + std::to_string(f),
-        shapeName,
+//         shapeName,
+        shapeType,
         index_offset,
         fv,
         f,
-        textureLoader->getTexture("Rough Block Wall", 0)
+        textureLoader->getTexture("Rough Block Wall", 0),
+        radius,
+        vertex
       };
       entityLoader->createWall(info);
       
       index_offset += fv;
     }
   }
+  
+  std::cout << "Created " << graph->order() << " vertices" << "\n";
+  const size_t edges = graph->size();
+  std::cout << "Created " << edges << " edges" << "\n";
+  
+  // мы еще должны найти fake edges
+  // fake edge работают неверно (хотя возможно они создаются неверно)
+   for (size_t i = 0; i < graph->order(); ++i) {
+     vertex_t* vert1 = graph->vertex(i);
+
+     for (size_t j = 0; j < vert1->degree(); ++j) {
+       edge_t* edge = vert1->edge(j);
+
+       if (edge->getAngle() < PASSABLE_ANGLE) continue;
+
+       vertex_t* vert2 = edge->first() == vert1 ? edge->second() : edge->first();
+
+       for (size_t e = 0; e < vert2->degree(); ++e) {
+         edge_t* secondEdge = vert2->edge(e);
+
+         if (secondEdge->isFake()) continue;
+         if (secondEdge->first() == vert1 || secondEdge->second() == vert1) continue;
+
+         vertex_t* another = secondEdge->first() == vert1 ? secondEdge->second() : secondEdge->first();
+         if (vert1->hasEdge(another)) continue;
+
+         const float angle = getAngle(vert1->getVertexData()->normal, another->getVertexData()->normal);
+         if (angle >= PASSABLE_ANGLE) continue;
+
+         glm::vec4 left1, right1, left2, right2;
+         edge->getSegment().leftRight(vert1->getVertexData()->center, vert1->getVertexData()->normal, left1, right1);
+         secondEdge->getSegment().leftRight(vert1->getVertexData()->center, vert1->getVertexData()->normal, left2, right2);
+         float d1 = glm::distance(left1, left2);
+         float d2 = glm::distance(right1, right2);
+
+ //         const float height1 = glm::distance(edge->getSegment().a, secondEdge->getSegment().a);
+ //         const float height2 = glm::distance(edge->getSegment().a, secondEdge->getSegment().b);
+ //         const float height3 = glm::distance(edge->getSegment().b, secondEdge->getSegment().a);
+ //         const float height4 = glm::distance(edge->getSegment().b, secondEdge->getSegment().b);
+ //         const float height = std::min(std::min(height1, height2), std::min(height3, height4));
+
+         const float width1 = glm::distance(edge->getSegment().a, edge->getSegment().b);
+         const float width2 = glm::distance(secondEdge->getSegment().a, secondEdge->getSegment().b);
+
+ //         LineSegment line;
+ //
+ //         if (height == height1) {
+ //           line.a = edge->getSegment().a;
+ //           line.b = edge->getSegment().b;
+ //         } else if (height == height2) {
+ //           line.a = edge->getSegment().a;
+ //           line.b = edge->getSegment().b;
+ //         } else if (height == height3) {
+ //           line.a = edge->getSegment().b;
+ //           line.b = edge->getSegment().a;
+ //         } else {
+ //           line.a = edge->getSegment().b;
+ //           line.b = edge->getSegment().a;
+ //         }
+
+         const EdgeData data{
+           true,
+           true, // кажется используется только в fake edge, или не используется вообще
+           secondEdge->getAngle(),
+           glm::distance(vert1->getVertexData()->center, edge->getSegment().closestPoint(vert1->getVertexData()->center)) +
+             glm::distance(another->getVertexData()->center, secondEdge->getSegment().closestPoint(another->getVertexData()->center)),
+           std::min(width1, width2),
+           d1 > d2 ? d2 : d1,
+           d1 > d2 ? glm::normalize(left1 - right1) : glm::normalize(right1 - left1),
+           d1 > d2 ? LineSegment(right1, left1) : LineSegment(left1, right1)
+         };
+
+         graph->addEdge(vert1, another, data);
+       }
+     }
+   }
+  
+  std::cout << "Created " << (graph->size() - edges) << " fake edges" << "\n";
   
   // тут нужно перекопировать verts и globalIndicies в буферы
   yavf::Buffer stagingVert(device, yavf::BufferCreateInfo::buffer(verts.size()*sizeof(Vertex), 
