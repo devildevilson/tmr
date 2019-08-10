@@ -50,19 +50,19 @@ void Render::setCameraDim(const uint32_t &width, const uint32_t &height) {
 }
 
 simd::mat4 Render::getViewProj() const {
-  return matrices->camera.viewproj;
+  return matrices->camera.viewproj.get_simd();
 }
 
 simd::mat4 Render::getView() const {
-  return matrices->view;
+  return matrices->view.get_simd();
 }
 
 simd::mat4 Render::getPersp() const {
-  return matrices->persp;
+  return matrices->persp.get_simd();
 }
 
 simd::mat4 Render::getOrtho() const {
-  return matrices->ortho;
+  return matrices->ortho.get_simd();
 }
 
 VulkanRender::VulkanRender(const CreateInfo &info) : Render(info.stageContainerSize) {
@@ -134,6 +134,10 @@ void VulkanRender::setContext(RenderContext* context) {
   this->context = context;
 }
 
+void VulkanRender::addOptimizerToClear(Optimizer* opt) {
+  optimizers.push_back(opt);
+}
+
 void VulkanRender::updateCamera() {
   if (perspective) {
     matrices->matrixes.proj = matrices->persp;
@@ -141,12 +145,12 @@ void VulkanRender::updateCamera() {
     matrices->matrixes.proj = matrices->ortho;
   }
 
-  matrices->camera.viewproj = matrices->matrixes.proj * matrices->view;
+  matrices->camera.viewproj = matrices->matrixes.proj.get_simd() * matrices->view.get_simd();
   matrices->camera.view = matrices->view;
   matrices->matrixes.view = matrices->view;
-  matrices->matrixes.invView = simd::inverse(matrices->view);
-  matrices->matrixes.invProj = simd::inverse(matrices->matrixes.proj);
-  matrices->matrixes.invViewProj = simd::inverse(matrices->camera.viewproj);
+  matrices->matrixes.invView = simd::inverse(matrices->view.get_simd());
+  matrices->matrixes.invProj = simd::inverse(matrices->matrixes.proj.get_simd());
+  matrices->matrixes.invViewProj = simd::inverse(matrices->camera.viewproj.get_simd());
 
   memcpy(uniformCameraData->ptr(), &matrices->camera, sizeof(CameraData));
   memcpy(uniformMatrixes->ptr(), &matrices->matrixes, sizeof(MatBuffer));
@@ -155,11 +159,11 @@ void VulkanRender::updateCamera() {
 void VulkanRender::update(const uint64_t &time) {
   (void)time;
 
-  for(uint32_t i = 0; i < stages.size(); ++i) {
+  for (uint32_t i = 0; i < stages.size(); ++i) {
     stages[i]->begin();
   }
 
-  for(uint32_t i = 0; i < stages.size(); ++i) {
+  for (uint32_t i = 0; i < stages.size(); ++i) {
     stages[i]->doWork(context);
   }
 }
@@ -173,10 +177,13 @@ void VulkanRender::start() {
 }
 
 void VulkanRender::wait() {
-
   const VkResult res = vkWaitForFences(device->handle(), 1, &waitFence.fence, VK_TRUE, 1000000000);
   if (res != VK_SUCCESS) {
     throw std::runtime_error("hlqhvlgvuvfgowqvuqopquwvuonvev");
+  }
+
+  for (auto opt : optimizers) {
+    opt->clear();
   }
 }
 

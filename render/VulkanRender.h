@@ -3,6 +3,7 @@
 
 #include "Render.h"
 #include "yavf.h"
+#include "Optimizer.h"
 
 #include "ImageResourceContainer.h"
 
@@ -27,6 +28,8 @@ public:
   ~VulkanRender();
   
   void setContext(RenderContext* context);
+
+  void addOptimizerToClear(Optimizer* opt);
   
   void updateCamera() override;
   
@@ -53,6 +56,8 @@ private:
   yavf::Internal::Queue waitFence;
   
   uint32_t currentArrayElement = 0;
+
+  std::vector<Optimizer*> optimizers;
 };
 
 #endif

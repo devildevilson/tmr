@@ -7,10 +7,11 @@
 #include "Utility.h"
 #include "RenderStructures.h"
 #include "PhysicsTemporary.h"
+#include "Optimizer.h"
 
 #include <mutex>
 
-class MonsterGPUOptimizer : public RenderStage {
+class MonsterGPUOptimizer : public RenderStage, public Optimizer {
 public:
   struct InputBuffers {
     ArrayInterface<Transform>* transforms;
@@ -55,8 +56,10 @@ public:
   void begin() override;
   void doWork(RenderContext* context) override;
   void recreate(const uint32_t &width, const uint32_t &height) override;
-  
-  void clear();
+
+  void optimize() override;
+  void clear() override;
+  size_t size() const override;
 private:
 //   ArrayInterface<Transform>* transforms;
 //   ArrayInterface<simd::mat4>* matrices;
@@ -88,7 +91,7 @@ private:
   std::mutex mutex;
 };
 
-class GeometryGPUOptimizer : public RenderStage {
+class GeometryGPUOptimizer : public RenderStage, public Optimizer {
 public:
   struct InputBuffers {
     ArrayInterface<Transform>* transforms;
@@ -138,8 +141,10 @@ public:
   void begin() override;
   void doWork(RenderContext* context) override;
   void recreate(const uint32_t &width, const uint32_t &height) override;
-  
-  void clear();
+
+  void optimize() override;
+  void clear() override;
+  size_t size() const override;
 private:
   ArrayInterface<Transform>* transforms;
   ArrayInterface<simd::mat4>* matrices;

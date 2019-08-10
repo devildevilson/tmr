@@ -8,6 +8,8 @@
 #include "PhysicsTemporary.h"
 #include "ArrayInterface.h"
 
+#include <mutex>
+
 class VulkanRender;
 
 // че делать с текстурами? то есть понятное дело что должен быть какой то механизм 
@@ -202,10 +204,11 @@ private:
 class LightOptimizer : public Optimizer {
 public:
   struct LightRegisterInfo {
-    glm::vec3 pos;
-    float radius;
-    glm::vec3 color;
-    float cutoff;
+//    glm::vec3 pos;
+//    float radius;
+//    glm::vec3 color;
+//    float cutoff;
+    LightData light;
     
     uint32_t transformIndex;
   };
@@ -233,9 +236,9 @@ public:
   LightOptimizer();
   ~LightOptimizer();
   
-  uint32_t add(const LightRegisterInfo &info);
-  void remove(const uint32_t &index);
-  void markAsVisible(const uint32_t &index);
+  void add(const LightRegisterInfo &info);
+//  void remove(const uint32_t &index);
+//  void markAsVisible(const uint32_t &index);
   
   void setInputBuffers(const InputBuffers &buffers);
   void setOutputBuffers(const OutputBuffers &buffers);
@@ -247,8 +250,10 @@ public:
   void clear() override;
   size_t size() const override;
 private:
-  ArrayInterface<Transform>* transforms = nullptr;
-  ArrayInterface<LightData>* lights = nullptr;
+  std::mutex mutex;
+
+  ArrayInterface<Transform>* transforms;
+  ArrayInterface<LightData>* lights;
   
   uint32_t objCount;
   uint32_t freeIndex;

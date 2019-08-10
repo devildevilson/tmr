@@ -249,32 +249,44 @@ size_t GeometryOptimizer::size() const {
   return objs.size();
 }
 
-LightOptimizer::LightOptimizer() : objCount(0), freeIndex(UINT32_MAX) {}
+LightOptimizer::LightOptimizer() : transforms(nullptr), lights(nullptr), objCount(0), freeIndex(UINT32_MAX) {}
 LightOptimizer::~LightOptimizer() {}
 
-uint32_t LightOptimizer::add(const LightRegisterInfo &info) {
-  uint32_t index;
-  
-  if (freeIndex == UINT32_MAX) {
-    index = lightData.size();
-    lightData.push_back(info);
-  } else {
-    index = freeIndex;
-    freeIndex = glm::floatBitsToUint(lightData[index].pos.x);
-    lightData[index] = info;
+void LightOptimizer::add(const LightRegisterInfo &info) {
+  std::unique_lock<std::mutex> lock(mutex);
+
+  glm::uvec4* count = lights->structure_from_begin<glm::uvec4>();
+  if (lights->size() <= count->x + 1) {
+    lights->resize((count->x + 1) * 2);
+    count = lights->structure_from_begin<glm::uvec4>();
   }
-  
-  return index;
+
+  LightData* datas = lights->data_from<glm::uvec4>();
+
+  const Transform &trans = transforms->at(info.transformIndex);
+  const simd::vec4 vec = simd::vec4(info.light.pos.arr[0], info.light.pos.arr[1], info.light.pos.arr[2], 0.0f);
+  basic_vec4 finalVec = vec + trans.pos;
+  finalVec.arr[3] = info.light.pos.arr[3];
+  const LightData data{
+    finalVec,
+    info.light.color
+  };
+
+  datas[count->x] = data;
+  ++count->x;
+
+  // нужно придумать как и где запихать свет
+  // по идее нам просто нужно ресайзить ручками массив (в смысле вне метода push_back)
 }
 
-void LightOptimizer::remove(const uint32_t &index) {
-  lightData[index].pos.x = glm::uintBitsToFloat(freeIndex);
-  freeIndex = index;
-}
-
-void LightOptimizer::markAsVisible(const uint32_t &index) {
-  visible.push_back(index);
-}
+//void LightOptimizer::remove(const uint32_t &index) {
+//  lightData[index].pos.x = glm::uintBitsToFloat(freeIndex);
+//  freeIndex = index;
+//}
+//
+//void LightOptimizer::markAsVisible(const uint32_t &index) {
+//  visible.push_back(index);
+//}
 
 void LightOptimizer::setInputBuffers(const InputBuffers &buffers) {
   transforms = buffers.transforms;
@@ -302,25 +314,28 @@ void LightOptimizer::optimize() {
 //     };
 //   }
   
-  const size_t size = lightData.size() + 1;
-  if (size > lights->size()) lights->resize(size);
-  
-  glm::uvec4* count = lights->structure_from_begin<glm::uvec4>();
-  LightData* datas = lights->data_from<glm::uvec4>();
-  
-  count->x = lightData.size();
-  for (size_t i = 0; i < lightData.size(); ++i) {
-    datas[i] = {
-      lightData[i].pos,
-      lightData[i].radius,
-      lightData[i].color,
-      lightData[i].cutoff
-    };
-  }
+//  const size_t size = lightData.size() + 1;
+//  if (size > lights->size()) lights->resize(size);
+//
+//  glm::uvec4* count = lights->structure_from_begin<glm::uvec4>();
+//  LightData* datas = lights->data_from<glm::uvec4>();
+//
+//  count->x = lightData.size();
+//  for (size_t i = 0; i < lightData.size(); ++i) {
+//    datas[i] = {
+//      lightData[i].pos,
+//      lightData[i].radius,
+//      lightData[i].color,
+//      lightData[i].cutoff
+//    };
+//  }
 }
 
 void LightOptimizer::clear() {
-  lightData.clear();
+  glm::uvec4* count = lights->structure_from_begin<glm::uvec4>();
+  //PRINT_VAR("lights count", count->x)
+  memset(count, 0, sizeof(glm::uvec4));
+  //lightData.clear();
 }
 
 size_t LightOptimizer::size() const {
