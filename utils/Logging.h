@@ -5,6 +5,8 @@
 #include <string>
 #include <iostream>
 
+#include "shared_time_constant.h"
+
 class RegionLog {
 public:
 #ifdef _DEBUG
@@ -12,10 +14,10 @@ public:
     if (printStart) std::cout << name << " start" << "\n";
   }
   inline ~RegionLog() {
-    auto end = std::chrono::steady_clock::now() - tp;
-    auto mcs = std::chrono::duration_cast<std::chrono::microseconds>(end).count();
+    const auto end = std::chrono::steady_clock::now() - tp;
+    const auto mcs = std::chrono::duration_cast<CHRONO_TIME_TYPE>(end).count();
 
-    std::cout << name << " takes " << mcs << " mcs" << "\n";
+    std::cout << name << " takes " << mcs << " " << TIME_STRING << "\n";
   }
 
   std::chrono::steady_clock::time_point tp;

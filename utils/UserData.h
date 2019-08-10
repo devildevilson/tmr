@@ -2,7 +2,7 @@
 #define USER_DATA_H
 
 namespace yacs {
-  class Entity;
+  class entity;
 }
 
 class DecalContainerComponent;
@@ -12,7 +12,7 @@ class vertex_t;
 class EventComponent;
 
 struct PhysUserData {
-  yacs::Entity* ent;
+  yacs::entity* ent;
   DecalContainerComponent* decalContainer;
   GraphicComponent* graphicComponent;
   EntityAI* aiComponent;
