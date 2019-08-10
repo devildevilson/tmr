@@ -2,7 +2,7 @@
 #define MENU_H
 
 #include <vector>
-#include "StageContainer.h"
+#include "TypelessContainer.h"
 
 struct PressingData {
   uint32_t button;
@@ -50,7 +50,7 @@ public:
   
   template <typename T, typename... Args>
   T* addMenuItem(Args&&... args) {
-    T* ptr = menuContainer.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = menuContainer.create<T>(std::forward<Args>(args)...);
     items.push_back(ptr);
     
     return ptr;
@@ -61,7 +61,7 @@ private:
   
 //   nuklear_data* nuklear;
   
-  StageContainer menuContainer;
+  TypelessContainer menuContainer;
   std::vector<MenuItem*> items;
 };
 

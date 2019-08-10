@@ -5,7 +5,7 @@
 MenuStateMachine::MenuStateMachine(const size_t &size) : defaultItem(nullptr), currentItem(nullptr), menuContainer(size) {}
 MenuStateMachine::~MenuStateMachine() {
   for (auto item : items) {
-    menuContainer.destroyStage(item);
+    menuContainer.destroy(item);
   }
 }
 
