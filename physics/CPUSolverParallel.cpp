@@ -431,7 +431,7 @@ void CPUSolverParallel::solve() {
       const uint32_t staticPhysDataIndex = objects->at(objIndex).staticPhysicDataIndex;
       const uint32_t physDataIndex = staticPhysDatas->at(staticPhysDataIndex).physDataIndex;
 
-      if (physDataIndex == UINT32_MAX) return;
+      if (physDataIndex == UINT32_MAX) continue;
 
 //       const uint32_t transformIndex = datas->at(physDataIndex).transformIndex;
 
@@ -772,7 +772,8 @@ bool CPUSolverParallel::BoxBoxSAT(const float &treshold, const Object &first,  c
     project(axis, firstPos,  firstExt,  sys1,  minFirst,  maxFirst);
     project(axis, secondPos, secondExt, sys2, minSecond, maxSecond);
 
-    if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+//     if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+    if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
   }
 
   if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
@@ -806,7 +807,8 @@ bool CPUSolverParallel::BoxSphereSAT(const float &treshold, const Object &first,
     project(axis, firstPos,  firstExt,  sys,  minFirst,  maxFirst);
     project(axis, secondPos, radius, minSecond, maxSecond);
 
-    if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+//     if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+    if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
   }
 
   if (simd::dot(-delta, mtv) > 0.0f) mtv = -mtv;
@@ -855,7 +857,8 @@ bool CPUSolverParallel::BoxPolySAT(const float &treshold, const Object &first,  
     project(axis, firstPos,  firstExt,  sys,  minFirst,  maxFirst);
     project(axis, vert, vertSize, secondPos, invOrn,  minSecond, maxSecond);
 
-    if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+//     if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+    if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
   }
 
   if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
@@ -888,7 +891,8 @@ bool CPUSolverParallel::SphereSphereSAT(const float &treshold, const Object &fir
   project(axis, firstPos, firstRadius, minSecond, maxSecond);
   project(axis, secondPos, secondRadius, minSecond, maxSecond);
 
-  if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+//   if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+  if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
 
   if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
 
@@ -930,7 +934,8 @@ bool CPUSolverParallel::PolySphereSAT(const float &treshold, const Object &first
     project(axis, vert, vertSize, firstPos, invOrn, minSecond, maxSecond);
     project(axis, secondPos, secondRadius, minSecond, maxSecond);
 
-    if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+//     if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+    if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
   }
 
   if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
@@ -1000,7 +1005,8 @@ bool CPUSolverParallel::PolyPolySAT(const float &treshold, const Object &first, 
     project(axis, firstVert, firstVertSize, firstPos, invOrnFirst, minSecond, maxSecond);
     project(axis, secondVert, secondVertSize, secondPos, invOrnSecond, minSecond, maxSecond);
 
-    if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+//     if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
+    if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
   }
 
   if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
@@ -1182,7 +1188,7 @@ void CPUSolverParallel::computePair(const BroadphasePair& pair) {
   data.mtvDist.x = mtv.x;
   data.mtvDist.y = mtv.y;
   data.mtvDist.z = mtv.z;
-  data.mtvDist.w = dist;//glm::max(dist - threshold, 0.0f);
+  data.mtvDist.w = glm::max(dist - threshold, 0.0f);
 
   simd::vec4 objCenter[2] = {simd::vec4(0.0f, 0.0f, 0.0f, 0.0f), simd::vec4(0.0f, 0.0f, 0.0f, 0.0f)};
 
@@ -1221,7 +1227,7 @@ void CPUSolverParallel::computePair(const BroadphasePair& pair) {
       
       objCenter[index] = transform(verts->at(localCenter), dir, orn);
     } else {
-      objCenter[index] = transforms->at(transformIndex[1-index]).pos * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f) + simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+      objCenter[index] = transforms->at(transformIndex[1-index]).pos; //  * simd::vec4(1.0f, 1.0f, 1.0f, 0.0f) + simd::vec4(0.0f, 0.0f, 0.0f, 1.0f)
     }
 
     data.normals[index] = normal;
@@ -1291,7 +1297,7 @@ void CPUSolverParallel::computePairWithGround(const BroadphasePair &pair, const 
   data.mtvDist.x = mtv.x;
   data.mtvDist.y = mtv.y;
   data.mtvDist.z = mtv.z;
-  data.mtvDist.w = dist;//glm::max(dist - threshold, 0.0f);
+  data.mtvDist.w = glm::max(dist - threshold, 0.0f);
 
 //   simd::vec4 objCenter = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 //   const uint32_t objType = objects->at(objIndex[0]).objType.getObjType();
@@ -1358,6 +1364,9 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
 
   const bool wasOnGround[2] = {physDataIndex[0] == UINT32_MAX ? false : bool(datas->at(physDataIndex[0]).onGroundBits & 0x2),
                                physDataIndex[1] == UINT32_MAX ? false : bool(datas->at(physDataIndex[1]).onGroundBits & 0x2)};
+                               
+  const bool isOnGround[2]  = {physDataIndex[0] == UINT32_MAX ? false : bool(datas->at(physDataIndex[0]).onGroundBits & 0x1),
+                               physDataIndex[1] == UINT32_MAX ? false : bool(datas->at(physDataIndex[1]).onGroundBits & 0x1)};
 
   // тут мы должны в одном потоке сделать следующие действия
 //   const uint32_t objType1 = objects->at(objIndex[0]).objType.getObjType();
@@ -1365,14 +1374,22 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
 
   // это условие physDataIndex[1] != UINT32_MAX по идее должно защищать от случаев когда нормаль на карте расставлена неверно
   // вообще я сомневаюсь что я все учел здесь
-  if ((glm::uintBitsToFloat(data.pairData.w) < PI_Q) && physDataIndex[0] != UINT32_MAX) {
+  if ((glm::uintBitsToFloat(data.pairData.w) < PI_Q) && physDataIndex[0] != UINT32_MAX && !isOnGround[0]) {
     // если мы попали сюда то значит А стоит на B
+    
+    if (objIndex[0] == 3) {
+      std::cout << "ground " << objIndex[1] << "\n";
+    }
 
     objects->at(objIndex[0]).groundObjIndex = objIndex[1];
     datas->at(physDataIndex[0]).groundIndex = staticPhysDataIndex[1];
     datas->at(physDataIndex[0]).onGroundBits |= 0x1;
-  } else if ((glm::abs(glm::uintBitsToFloat(data.pairData.w) - PI) < PI_Q) && physDataIndex[1] != UINT32_MAX) {
+  } else if ((glm::abs(glm::uintBitsToFloat(data.pairData.w) - PI) < PI_Q) && physDataIndex[1] != UINT32_MAX && !isOnGround[1]) {
     // здесь учтем вариант когда B стоит на A
+    
+    if (objIndex[1] == 3) {
+      std::cout << "ground " << objIndex[0] << "\n";
+    }
 
     objects->at(objIndex[1]).groundObjIndex = objIndex[0];
     datas->at(physDataIndex[1]).groundIndex = staticPhysDataIndex[0]; //physDataIndex1;

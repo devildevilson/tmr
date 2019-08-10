@@ -2,22 +2,8 @@
 #define PHYSICS_TEMPORARY_H
 
 #include <cstdint>
-// #include <glm/glm.hpp>
 
 #include "Utility.h"
-
-#define EPSILON 0.000001f
-
-#define PI   3.1415926535897932384626433832795
-#define PI_2 6.28318530717958647693
-#define PI_H 1.57079632679489661923
-#define PI_Q 0.78539816339744830962
-#define PI_E (PI / 8)
-
-#define MCS_TO_SEC(dt) (float(dt) / 1000000.0f)
-
-#define DEG_TO_RAD(deg) ((deg * PI) / 180.0f)
-#define RAD_TO_DEG(rad) ((rad * 180.0f) / PI)
 
 struct RotationData {
   glm::vec3 anchorDir;

@@ -11,9 +11,6 @@
 #include <cstring>
 #include <chrono>
 
-#define PRINT_VEC4(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << " w: " << vec.w << "\n";
-#define PRINT_VEC3(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << "\n";
-
 CPUPhysicsParallel::CPUPhysicsParallel(const CreateInfo &info) : pool(info.pool), broad(info.b), narrow(info.n), solver(info.s), sorter(info.sorter), updateDelta(info.updateDelta), accumulator(0) {
   verts.vector().reserve(3000);
   verts.update();
@@ -67,7 +64,7 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
   // RegionLog rl("Physics", true);
 
   // какое тут должно быть максимальное время? нафига оно вообще мне здесь?
-  const size_t frameTime = std::min(time, size_t(250000));
+  const size_t frameTime = std::min(time, size_t(ACCUMULATOR_MAX_CONSTANT));
   accumulator += frameTime;
   
   if (accumulator > ACCUMULATOR_MAX_CONSTANT) {

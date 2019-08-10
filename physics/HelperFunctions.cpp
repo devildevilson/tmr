@@ -8,13 +8,13 @@
 
 //#include <glm/gtx/norm.hpp>
 
-float getAngle(const simd::vec4 &first, const simd::vec4 &second) {
-  const float dotV = simd::dot(first, second);
-  const float lenSq1 = simd::length2(first);
-  const float lenSq2 = simd::length2(second);
-
-  return glm::acos(dotV / glm::sqrt(lenSq1 * lenSq2));
-}
+// float getAngle(const simd::vec4 &first, const simd::vec4 &second) {
+//   const float dotV = simd::dot(first, second);
+//   const float lenSq1 = simd::length2(first);
+//   const float lenSq2 = simd::length2(second);
+// 
+//   return glm::acos(dotV / glm::sqrt(lenSq1 * lenSq2));
+// }
 
 void clipVelocity(const simd::vec4 &clipNormal, const float &bounce, simd::vec4 &vel) {
   const float backoff = simd::dot(vel, clipNormal) * bounce;
@@ -95,6 +95,22 @@ bool overlap(const float &treshold, const float &min1, const float &max1, const 
   if (test1 > 0.0f || test2 > 0.0f) return false;
 
   const float d = glm::max(glm::min(glm::abs(test1), glm::abs(test2)) - treshold, 0.0f);
+  
+  if (d < dist) {
+    mtv = axis;
+    dist = d;
+  }
+
+  return true;
+}
+
+bool overlap(const float &min1, const float &max1, const float &min2, const float &max2, const simd::vec4 &axis, simd::vec4 &mtv, float &dist) {
+  const float test1 = min1 - max2;
+  const float test2 = min2 - max1;
+
+  if (test1 > 0.0f || test2 > 0.0f) return false;
+
+  const float d = glm::min(glm::abs(test1), glm::abs(test2));
   
   if (d < dist) {
     mtv = axis;
