@@ -9,3 +9,5 @@ include_old/
 *.kate-swp
 */*.kate-swp
 CMakeLists.txt.user
+cmake-build-debug/
+.idea
