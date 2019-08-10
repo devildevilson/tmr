@@ -8,7 +8,7 @@
 #include "Optimizers.h"
 #include "GPUOptimizers.h"
 #include "DecalOptimizer.h"
-#include "StageContainer.h"
+#include "TypelessContainer.h"
 
 #include "Deferred.h"
 
@@ -117,7 +117,7 @@ public:
   
   template<typename T, typename... Args>
   T* addPart(Args&&... args) {
-    T* ptr = container.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = container.create<T>(std::forward<Args>(args)...);
     parallelParts.push_back(ptr);
     
     const GBufferPart::CreateInfo info{
@@ -157,7 +157,7 @@ private:
   // нужно ли их как нибудь приводить к общему виду? думаю что это невозможно
   // то есть для каждого оптимизера нам нужны разные входные выходные данные
   std::vector<GBufferPart*> parallelParts;
-  StageContainer container;
+  TypelessContainer container;
   
   //GeometryOptimizer* geometryOptimiser = nullptr;
   
@@ -255,115 +255,115 @@ private:
 
 // ЭТО КОСТЫЛЬ, ОТ НЕГО НУЖНО БУДЕТ ИЗБАВИТЬСЯ
 // TODO: избавиться от костыля
-class ComputeParticleGBufferStage : public GBufferPart {
-public:
-  struct StageCreateInfo {
-//     yavf::CombinedTask** task;
-    
-//     yavf::Buffer* uniformBuffer;
-    yavf::Buffer* particlesUniformBuffer;
-    yavf::Buffer* particles;
-    yavf::Buffer* particlesCount;
-    yavf::Buffer* matrixes;
-    
-    yavf::DescriptorSet* gbuffer;
-    yavf::DescriptorSetLayout gbufferLayout;
-  };
-  ComputeParticleGBufferStage(const StageCreateInfo &info);
-  ~ComputeParticleGBufferStage();
-  
-  void create(const CreateInfo &info) override;
-  
-  void recreatePipelines(ImageResourceContainer* data) override;
-  
-  void begin() override;
-  bool doWork(RenderContext* context) override;
-  
-  // тут мы также должны получить индирект буфер
-private:
-  yavf::Device* device;
-  yavf::Pipeline particlesPipe;
-  yavf::Pipeline sortPipe;
-  
-  yavf::CombinedTask** task;
-  
-  yavf::Buffer* uniformBuffer;
-  yavf::Buffer* particlesUniformBuffer;
-  yavf::Buffer* particles;
-  yavf::Buffer* particlesCount;
-  yavf::Buffer* matrixes;
-  
-  yavf::RenderTarget* target;
-  
-  yavf::DescriptorSet* gbuffer;
-  yavf::DescriptorSetLayout gbufferLayout;
-  
-  //yavf::DescriptorSet* particles;
-};
-
-// тут все стандартно
-class ParticleGBufferStage : public GBufferPart {
-public:
-  struct StageCreateInfo {
-    yavf::Buffer* particlesUniformBuffer;
-    yavf::Buffer* particles;
-    yavf::Buffer* particlesCount;
-  };
-  ParticleGBufferStage(const StageCreateInfo &info);
-  ~ParticleGBufferStage();
-  
-  void create(const CreateInfo &info) override;
-  
-  void recreatePipelines(ImageResourceContainer* data) override;
-  
-  void begin() override;
-  bool doWork(RenderContext* context) override;
-private:
-  yavf::Device* device;
-  yavf::Pipeline pipe;
-  
-  yavf::Buffer* uniformBuffer;
-  yavf::Buffer* particlesUniformBuffer;
-  yavf::Buffer* particles;
-  yavf::Buffer* particlesCount;
-  yavf::RenderTarget* target;
-  
-  yavf::DescriptorSet* images;
-  yavf::DescriptorSet* samplers;
-};
-
-#define DECALS_PIPELINE_LAYOUT_NAME "decals_layout"
-#define DECALS_PIPELINE_NAME "decals_pipeline"
-
-class DecalsGBufferStage : public GBufferPart {
-public:
-  DecalsGBufferStage(DecalOptimizer* optimizer);
-  ~DecalsGBufferStage();
-  
-  void create(const CreateInfo &info) override;
-  
-  void recreatePipelines(ImageResourceContainer* data) override;
-  
-  void begin() override;
-  bool doWork(RenderContext* context) override;
-private:
-  yavf::Device* device;
-  yavf::Pipeline pipe;
-  
-  // оптимизер декалей? по идее декаль должна вычисляться лишь единожды
-  // здесь нужен просто доступ к системе скорее всего
-  DecalOptimizer* optimizer;
-  
-  GPUArray<Vertex> vertices;
-  GPUArray<uint32_t> indices;
-  GPUArray<DecalOptimizer::InstanceData> instances;
-  
-  yavf::Buffer* uniformBuffer;
-  yavf::RenderTarget* target;
-  
-  yavf::DescriptorSet* images;
-  yavf::DescriptorSet* samplers;
-};
+//class ComputeParticleGBufferStage : public GBufferPart {
+//public:
+//  struct StageCreateInfo {
+////     yavf::CombinedTask** task;
+//
+////     yavf::Buffer* uniformBuffer;
+//    yavf::Buffer* particlesUniformBuffer;
+//    yavf::Buffer* particles;
+//    yavf::Buffer* particlesCount;
+//    yavf::Buffer* matrixes;
+//
+//    yavf::DescriptorSet* gbuffer;
+//    yavf::DescriptorSetLayout gbufferLayout;
+//  };
+//  ComputeParticleGBufferStage(const StageCreateInfo &info);
+//  ~ComputeParticleGBufferStage();
+//
+//  void create(const CreateInfo &info) override;
+//
+//  void recreatePipelines(ImageResourceContainer* data) override;
+//
+//  void begin() override;
+//  bool doWork(RenderContext* context) override;
+//
+//  // тут мы также должны получить индирект буфер
+//private:
+//  yavf::Device* device;
+//  yavf::Pipeline particlesPipe;
+//  yavf::Pipeline sortPipe;
+//
+//  yavf::CombinedTask** task;
+//
+//  yavf::Buffer* uniformBuffer;
+//  yavf::Buffer* particlesUniformBuffer;
+//  yavf::Buffer* particles;
+//  yavf::Buffer* particlesCount;
+//  yavf::Buffer* matrixes;
+//
+//  yavf::RenderTarget* target;
+//
+//  yavf::DescriptorSet* gbuffer;
+//  yavf::DescriptorSetLayout gbufferLayout;
+//
+//  //yavf::DescriptorSet* particles;
+//};
+//
+//// тут все стандартно
+//class ParticleGBufferStage : public GBufferPart {
+//public:
+//  struct StageCreateInfo {
+//    yavf::Buffer* particlesUniformBuffer;
+//    yavf::Buffer* particles;
+//    yavf::Buffer* particlesCount;
+//  };
+//  ParticleGBufferStage(const StageCreateInfo &info);
+//  ~ParticleGBufferStage();
+//
+//  void create(const CreateInfo &info) override;
+//
+//  void recreatePipelines(ImageResourceContainer* data) override;
+//
+//  void begin() override;
+//  bool doWork(RenderContext* context) override;
+//private:
+//  yavf::Device* device;
+//  yavf::Pipeline pipe;
+//
+//  yavf::Buffer* uniformBuffer;
+//  yavf::Buffer* particlesUniformBuffer;
+//  yavf::Buffer* particles;
+//  yavf::Buffer* particlesCount;
+//  yavf::RenderTarget* target;
+//
+//  yavf::DescriptorSet* images;
+//  yavf::DescriptorSet* samplers;
+//};
+//
+//#define DECALS_PIPELINE_LAYOUT_NAME "decals_layout"
+//#define DECALS_PIPELINE_NAME "decals_pipeline"
+//
+//class DecalsGBufferStage : public GBufferPart {
+//public:
+//  DecalsGBufferStage(DecalOptimizer* optimizer);
+//  ~DecalsGBufferStage();
+//
+//  void create(const CreateInfo &info) override;
+//
+//  void recreatePipelines(ImageResourceContainer* data) override;
+//
+//  void begin() override;
+//  bool doWork(RenderContext* context) override;
+//private:
+//  yavf::Device* device;
+//  yavf::Pipeline pipe;
+//
+//  // оптимизер декалей? по идее декаль должна вычисляться лишь единожды
+//  // здесь нужен просто доступ к системе скорее всего
+//  DecalOptimizer* optimizer;
+//
+//  GPUArray<Vertex> vertices;
+//  GPUArray<uint32_t> indices;
+//  GPUArray<DecalOptimizer::InstanceData> instances;
+//
+//  yavf::Buffer* uniformBuffer;
+//  yavf::RenderTarget* target;
+//
+//  yavf::DescriptorSet* images;
+//  yavf::DescriptorSet* samplers;
+//};
 
 #define WORKGROUP_SIZE 16
 
@@ -522,7 +522,7 @@ public:
   
   template<typename T, typename... Args>
   T* addPart(Args&&... args) {
-    T* ptr = container.addStage<T>(std::forward<Args>(args)...);
+    T* ptr = container.create<T>(std::forward<Args>(args)...);
     parts.push_back(ptr);
     
     const PostRenderPart::CreateInfo info{
@@ -549,7 +549,7 @@ protected:
   Window* window;
   
   std::vector<PostRenderPart*> parts;
-  StageContainer container;
+  TypelessContainer container;
 };
 
 struct nuklear_data;

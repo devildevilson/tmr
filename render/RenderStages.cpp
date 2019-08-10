@@ -70,7 +70,7 @@ GBufferStage::GBufferStage(const size_t &containerSize, const CreateInfo &info) 
 
 GBufferStage::~GBufferStage() {
   for (uint32_t i = 0; i < parallelParts.size(); ++i) {
-    container.destroyStage(parallelParts[i]);
+    container.destroy(parallelParts[i]);
   }
 }
 
@@ -268,7 +268,7 @@ bool MonsterGBufferStage::doWork(RenderContext* context) {
   task->setVertexBuffer(monsterDefault, 1);
   task->draw(monsterDefaultVerticesCount, instanceCount, 0, 0);
   
-  monsterOptimiser->clear();
+//  monsterOptimiser->clear();
   
   return true;
 }
@@ -307,9 +307,10 @@ void GeometryGBufferStage::create(const CreateInfo &info) {
     yavf::DescriptorLayoutMaker dlm(device);
     
     if (instances_layout == VK_NULL_HANDLE) {
-      instances_layout = dlm.binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT).
-                             binding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT).
-                             create("geometry_rendering_data");
+      instances_layout = dlm.binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                     VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT).
+              binding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT).
+              create("geometry_rendering_data");
     }
     
     yavf::DescriptorMaker dm(device);
@@ -322,15 +323,6 @@ void GeometryGBufferStage::create(const CreateInfo &info) {
     indices.vector().setDescriptor(desc, i);
   }
   
-  yavf::DescriptorSetLayout layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
-  {
-    yavf::DescriptorMaker dm(device);
-    
-    auto desc = dm.layout(layout).create(pool)[0];
-    const size_t i = desc->add({instances.vector().handle(), 0, instances.vector().buffer_size(), 0, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER});
-    instances.vector().setDescriptor(desc, i);
-  }
-  
   opt->setOutputBuffers({&indices, &instances});
 }
   
@@ -339,7 +331,10 @@ void GeometryGBufferStage::recreatePipelines(ImageResourceContainer* data) {
   this->samplers = data->samplerDescriptor();
   
   yavf::DescriptorSetLayout uniform_layout = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
-  yavf::DescriptorSetLayout storage_layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
+//  yavf::DescriptorSetLayout storage_layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
+
+  yavf::DescriptorSetLayout instances_layout = device->setLayout("geometry_rendering_data");
+//  PRINT_VAR("instances_layout", instances_layout)
   
   yavf::PipelineLayout deferred_layout2 = device->layout(GEOMETRY_PIPELINE_LAYOUT_NAME);
   if (deferred_layout2 != VK_NULL_HANDLE) {
@@ -353,7 +348,8 @@ void GeometryGBufferStage::recreatePipelines(ImageResourceContainer* data) {
     deferred_layout2 = plm.addDescriptorLayout(uniform_layout)
                           .addDescriptorLayout(data->samplerSetLayout())
                           .addDescriptorLayout(data->imageSetLayout())
-                          .addDescriptorLayout(storage_layout)
+                          //.addDescriptorLayout(storage_layout)
+                          .addDescriptorLayout(instances_layout)
                           .create(GEOMETRY_PIPELINE_LAYOUT_NAME);
   }
   
@@ -365,14 +361,14 @@ void GeometryGBufferStage::recreatePipelines(ImageResourceContainer* data) {
   }
   
   {
-    yavf::raii::ShaderModule vertex (device, Global::getGameDir() + "shaders/deferred.vert.spv");
-    yavf::raii::ShaderModule fagment(device, Global::getGameDir() + "shaders/deferred.frag.spv");
+    yavf::raii::ShaderModule vertex  (device, Global::getGameDir() + "shaders/deferred.vert.spv");
+    yavf::raii::ShaderModule fragment(device, Global::getGameDir() + "shaders/deferred.frag.spv");
     
     yavf::PipelineMaker pm(device);
     pm.clearBlending();
     
     pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, vertex)
-             .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, fagment)
+             .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, fragment)
                .addSpecializationEntry(0, 0, sizeof(uint32_t))
                .addSpecializationEntry(1, sizeof(uint32_t), sizeof(uint32_t))
                .addData(2*sizeof(uint32_t), constants)
@@ -411,7 +407,7 @@ bool GeometryGBufferStage::doWork(RenderContext* context) {
   task->setIndexBuffer(indices.vector().handle());
   task->drawIndexed(indexCount, 1, 0, 0, 0);
   
-  opt->clear();
+//  opt->clear();
   
   ASSERT(task->getFamily() < 4);
   
@@ -426,314 +422,314 @@ GPUArray<GeometryGPUOptimizer::InstanceData>* GeometryGBufferStage::getInstanceD
   return &instances;
 }
 
-ComputeParticleGBufferStage::ComputeParticleGBufferStage(const StageCreateInfo &info) : 
-  device(nullptr),
-//   task(info.task), 
-  uniformBuffer(nullptr),
-  particlesUniformBuffer(info.particlesUniformBuffer), 
-  particles(info.particles), 
-  particlesCount(info.particlesCount), 
-  matrixes(info.matrixes), 
-  gbuffer(info.gbuffer), 
-  gbufferLayout(info.gbufferLayout) {}
-
-ComputeParticleGBufferStage::~ComputeParticleGBufferStage() {}
-
-void ComputeParticleGBufferStage::create(const CreateInfo &info) {
-  this->device = info.device;
-  this->target = info.target;
-  this->uniformBuffer = info.uniformBuffer;
-  
-//   yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
-  yavf::DescriptorSetLayout layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
-  yavf::DescriptorSetLayout uniformLayout = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
-  yavf::PipelineLayout pipeLayout = VK_NULL_HANDLE;
-  yavf::PipelineLayout sortLayout = VK_NULL_HANDLE;
-  {
-    yavf::PipelineLayoutMaker plm(device);
-    
-    pipeLayout = plm.addDescriptorLayout(uniformLayout)
-                    .addDescriptorLayout(uniformLayout)
-                    .addDescriptorLayout(layout)
-                    .addDescriptorLayout(layout)
-                    .addDescriptorLayout(uniformLayout)
-                    .addDescriptorLayout(gbufferLayout)
-                    .create("compute_particle_pipeline_layout");
-                    
-    sortLayout = plm.addDescriptorLayout(layout).addDescriptorLayout(layout).create("sorting_particle_pipeline_layout");
-  }
-  
-  {
-    yavf::ComputePipelineMaker cpm(device);
-    
-    yavf::raii::ShaderModule particlesShader(device, Global::getGameDir() + "shaders/particles.comp.spv");
-    
-    particlesPipe = cpm.shader(particlesShader).create("compute_particle_pipeline", pipeLayout);
-    
-    yavf::raii::ShaderModule sortingShader(device, Global::getGameDir() + "shaders/particlesSorting.comp.spv");
-    
-    sortPipe = cpm.shader(sortingShader).create("sorting_particle_pipeline", sortLayout);
-  }
-}
-
-void ComputeParticleGBufferStage::recreatePipelines(ImageResourceContainer* data) { (void)data; }
-
-void ComputeParticleGBufferStage::begin() {}
-
-bool ComputeParticleGBufferStage::doWork(RenderContext* context) {
-  const size_t particlesCountVariable = Global::particles()->count();
-  if (particlesCountVariable == 0) return true;
-  
-  yavf::CombinedTask* task = context->combined();
-  
-  task->endRenderPass();
-  
-  // тут у нас две вещи:
-  // компут шейдер с данными геометрии
-  // сортировка всех частиц
-  
-  // естественно все на гпу
-  
-  //const size_t particlesCount = reinterpret_cast<Transform*>(particlesCount->ptr());
-  #define PARTICLES_WORKGROUP_SIZE 256
-  const uint32_t dispatchX = std::ceil(float(particlesCountVariable) / float(PARTICLES_WORKGROUP_SIZE));
-  
-  task->setPipeline(particlesPipe);
-  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), 
-                              particlesUniformBuffer->descriptorSet()->handle(), 
-                              particles->descriptorSet()->handle(), 
-                              particlesCount->descriptorSet()->handle(), 
-                              matrixes->descriptorSet()->handle(), 
-                              gbuffer->handle()}, 0);
-  task->dispatch(dispatchX, 1, 1); // тут мы разделим общее количество на блоки по 256 (512? 1024?) 
-  
-  task->setBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                          VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT);
-  
-  task->setPipeline(sortPipe);
-  task->setDescriptor({particles->descriptorSet()->handle(), particlesCount->descriptorSet()->handle()}, 0);
-  task->dispatch(1, 1, 1);
-  
-  task->beginRenderPass();
-  
-  return true;
-}
-
-ParticleGBufferStage::ParticleGBufferStage(const StageCreateInfo &info) : particlesUniformBuffer(info.particlesUniformBuffer), particles(info.particles), particlesCount(info.particlesCount) {}
-
-ParticleGBufferStage::~ParticleGBufferStage() {}
-
-void ParticleGBufferStage::create(const CreateInfo &info) {
-  this->device = info.device;
-  this->target = info.target;
-  this->uniformBuffer = info.uniformBuffer;
-//   this->localTask = info.task;
-}
-
-void ParticleGBufferStage::recreatePipelines(ImageResourceContainer* data) {
-  images = data->imageDescriptor();
-  samplers = data->samplerDescriptor();
-  
-  yavf::PipelineLayout layout = device->layout("particle_gbuffer_pipeline_layout");
-  
-  if (layout != VK_NULL_HANDLE) {
-    device->destroyLayout("particle_gbuffer_pipeline_layout");
-    layout = VK_NULL_HANDLE;
-  }
-  
-  yavf::DescriptorSetLayout uniformLayout = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
-//   yavf::DescriptorSetLayout storageLayout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
-  {
-    yavf::PipelineLayoutMaker plm(device);
-    
-    layout = plm.addDescriptorLayout(uniformLayout)
-                .addDescriptorLayout(uniformLayout)
-                .addDescriptorLayout(data->imageSetLayout())
-                .addDescriptorLayout(data->samplerSetLayout())
-                .create("particle_gbuffer_pipeline_layout");
-  }
-  
-  if (pipe.handle() != VK_NULL_HANDLE) {
-    device->destroy(pipe);
-    pipe = yavf::Pipeline(VK_NULL_HANDLE, VK_NULL_HANDLE);
-  }
-  
-  {
-    yavf::PipelineMaker pm(device);
-    pm.clearBlending();
-    
-    yavf::raii::ShaderModule vert(device, Global::getGameDir() + "shaders/particles.vert.spv");
-    yavf::raii::ShaderModule geom(device, Global::getGameDir() + "shaders/particles.geom.spv");
-    yavf::raii::ShaderModule frag(device, Global::getGameDir() + "shaders/particles.frag.spv");
-    
-    uint32_t constants[2] = {data->samplerCount(), data->imageCount()};
-    
-    pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, vert).
-              addShader(VK_SHADER_STAGE_GEOMETRY_BIT, geom).
-              addShader(VK_SHADER_STAGE_FRAGMENT_BIT, frag).
-                addSpecializationEntry(0, 0, sizeof(uint32_t)).
-                addSpecializationEntry(1, sizeof(uint32_t), sizeof(uint32_t)).
-                addData(2*sizeof(uint32_t), constants).
-              vertexBinding(0, sizeof(Particle)).
-                vertexAttribute(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Particle, cur)).
-                vertexAttribute(1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Particle, vel)).
-                vertexAttribute(2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Particle, col)).
-                vertexAttribute(3, 0, VK_FORMAT_R32G32B32A32_UINT,   offsetof(Particle, currentTime)).
-                vertexAttribute(4, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Particle, maxScale)).
-                vertexAttribute(5, 0, VK_FORMAT_R32G32B32A32_UINT,   offsetof(Particle, texture)).
-              depthTest(VK_TRUE).
-              depthWrite(VK_TRUE).
-//                          .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN)
-              assembly(VK_PRIMITIVE_TOPOLOGY_POINT_LIST).
-              viewport().
-              scissor().
-              dynamicState(VK_DYNAMIC_STATE_VIEWPORT).
-              dynamicState(VK_DYNAMIC_STATE_SCISSOR).
-              colorBlendBegin(VK_FALSE).
-                colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT).
-              colorBlendBegin(VK_FALSE).
-                colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT).
-              create("particle_gbuffer_pipeline", layout, target->renderPass());
-  }
-}
-
-void ParticleGBufferStage::begin() {}
-
-bool ParticleGBufferStage::doWork(RenderContext* context) {
-  const size_t particlesCountVariable = Global::particles()->count();
-  if (particlesCountVariable == 0) return true;
-  
-  yavf::GraphicTask* task = context->graphics();
-  
-  task->setPipeline(pipe);
-  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), particlesUniformBuffer->descriptorSet()->handle(), images->handle(), samplers->handle()}, 0);
-  task->setVertexBuffer(particles, 0);
-  task->drawIndirect(particlesCount, 1);
-  
-  return true;
-}
-
-DecalsGBufferStage::DecalsGBufferStage(DecalOptimizer* optimizer) : device(nullptr), optimizer(optimizer), uniformBuffer(nullptr), target(nullptr), images(nullptr), samplers(nullptr) {}
-DecalsGBufferStage::~DecalsGBufferStage() {}
-
-void DecalsGBufferStage::create(const CreateInfo &info) {
-  this->device = info.device;
-  this->uniformBuffer = info.uniformBuffer;
-//   this->images = info.images;
-//   this->samplers = info.samplers;
-  this->target = info.target;
-  
-//   localTask = device->allocateGraphicTask(1, false);
-//   localTask->setRenderTarget(info.target, false);
-//   this->localTask = info.task;
-  
-  vertices.construct(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 100);
-  indices.construct(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 100);
-  instances.construct(device, 100);
-  
-  yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
-  yavf::DescriptorSetLayout layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
-  {
-    yavf::DescriptorMaker dm(device);
-    
-    auto desc = dm.layout(layout).create(pool)[0];
-    const size_t i = desc->add({instances.vector().handle(), 0, instances.vector().buffer_size(), 0, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER});
-    instances.vector().setDescriptor(desc, i);
-  }
-  
-  optimizer->setOutputBuffers({&vertices, &indices, &instances});
-}
-
-void DecalsGBufferStage::recreatePipelines(ImageResourceContainer* data) {
-  this->images = data->imageDescriptor();
-  this->samplers = data->samplerDescriptor();
-  
-  yavf::DescriptorSetLayout uniform_layout = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
-  yavf::DescriptorSetLayout storage_layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
-  
-  yavf::PipelineLayout deferred_layout2 = device->layout(DECALS_PIPELINE_LAYOUT_NAME);
-  if (deferred_layout2 != VK_NULL_HANDLE) {
-    device->destroyLayout(DECALS_PIPELINE_LAYOUT_NAME);
-    deferred_layout2 = VK_NULL_HANDLE;
-  }
-  
-  {
-    yavf::PipelineLayoutMaker plm(device);
-    
-    deferred_layout2 = plm.addDescriptorLayout(uniform_layout)
-                          .addDescriptorLayout(data->samplerSetLayout())
-                          .addDescriptorLayout(data->imageSetLayout())
-                          .addDescriptorLayout(storage_layout)
-                          .create(DECALS_PIPELINE_LAYOUT_NAME);
-  }
-  
-  uint32_t constants[2] = {data->samplerCount(), data->imageCount()};
-  
-  if (pipe.handle() != VK_NULL_HANDLE) {
-    device->destroyPipeline(DECALS_PIPELINE_NAME);
-    pipe = yavf::Pipeline(VK_NULL_HANDLE, VK_NULL_HANDLE);
-  }
-  
-  {
-    yavf::raii::ShaderModule vertex (device, Global::getGameDir() + "shaders/deferred.vert.spv");
-    yavf::raii::ShaderModule fagment(device, Global::getGameDir() + "shaders/deferred.frag.spv");
-    
-    yavf::PipelineMaker pm(device);
-    pm.clearBlending();
-    
-    // по идее ничего особо не поменяется здесь по сравнению с рендерингом геометрии
-    pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, vertex)
-             .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, fagment)
-               .addSpecializationEntry(0, 0, sizeof(uint32_t))
-               .addSpecializationEntry(1, sizeof(uint32_t), sizeof(uint32_t))
-               .addData(2*sizeof(uint32_t), constants)
-             .vertexBinding(0, sizeof(Vertex))
-               .vertexAttribute(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, pos))
-               .vertexAttribute(1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, color))
-               .vertexAttribute(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, texCoord))
-             .depthTest(VK_TRUE)
-             .depthWrite(VK_TRUE)
-//                          .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN)
-             .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN, VK_TRUE)
-             .viewport()
-             .scissor()
-             .dynamicState(VK_DYNAMIC_STATE_VIEWPORT)
-             .dynamicState(VK_DYNAMIC_STATE_SCISSOR)
-             .colorBlendBegin(VK_FALSE)
-               .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
-             .colorBlendBegin(VK_FALSE)
-               .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
-//                          .rasterizationSamples(VK_SAMPLE_COUNT_8_BIT)
-             .create(GEOMETRY_PIPELINE_NAME, deferred_layout2, target->renderPass());
-  }
-}
-
-void DecalsGBufferStage::begin() {
-  optimizer->optimize();
-}
-
-bool DecalsGBufferStage::doWork(RenderContext* context) {
-  const uint32_t indexCount = optimizer->getIndicesCount();
-  if (indexCount == 0) return false;
-  
-  yavf::GraphicTask* task = context->graphics();
-  
-  task->setPipeline(pipe);
-  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), samplers->handle(), images->handle(), instances.vector().descriptorSet()->handle()}, 0);
-  task->setVertexBuffer(vertices.vector().handle(), 0);
-  task->setIndexBuffer(indices.vector().handle());
-  
-  // нужно будет это установить в пайплайне
-  //localTask[index]->setDepthBias(EPSILON, 0.0f, 1.0f);
-  
-  task->drawIndexed(indexCount, 1, 0, 0, 0);
-  
-  optimizer->clear();
-  
-  ASSERT(task->getFamily() < 4);
-  
-  return true;
-}
+//ComputeParticleGBufferStage::ComputeParticleGBufferStage(const StageCreateInfo &info) :
+//  device(nullptr),
+////   task(info.task),
+//  uniformBuffer(nullptr),
+//  particlesUniformBuffer(info.particlesUniformBuffer),
+//  particles(info.particles),
+//  particlesCount(info.particlesCount),
+//  matrixes(info.matrixes),
+//  gbuffer(info.gbuffer),
+//  gbufferLayout(info.gbufferLayout) {}
+//
+//ComputeParticleGBufferStage::~ComputeParticleGBufferStage() {}
+//
+//void ComputeParticleGBufferStage::create(const CreateInfo &info) {
+//  this->device = info.device;
+//  this->target = info.target;
+//  this->uniformBuffer = info.uniformBuffer;
+//
+////   yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
+//  yavf::DescriptorSetLayout layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
+//  yavf::DescriptorSetLayout uniformLayout = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
+//  yavf::PipelineLayout pipeLayout = VK_NULL_HANDLE;
+//  yavf::PipelineLayout sortLayout = VK_NULL_HANDLE;
+//  {
+//    yavf::PipelineLayoutMaker plm(device);
+//
+//    pipeLayout = plm.addDescriptorLayout(uniformLayout)
+//                    .addDescriptorLayout(uniformLayout)
+//                    .addDescriptorLayout(layout)
+//                    .addDescriptorLayout(layout)
+//                    .addDescriptorLayout(uniformLayout)
+//                    .addDescriptorLayout(gbufferLayout)
+//                    .create("compute_particle_pipeline_layout");
+//
+//    sortLayout = plm.addDescriptorLayout(layout).addDescriptorLayout(layout).create("sorting_particle_pipeline_layout");
+//  }
+//
+//  {
+//    yavf::ComputePipelineMaker cpm(device);
+//
+//    yavf::raii::ShaderModule particlesShader(device, Global::getGameDir() + "shaders/particles.comp.spv");
+//
+//    particlesPipe = cpm.shader(particlesShader).create("compute_particle_pipeline", pipeLayout);
+//
+//    yavf::raii::ShaderModule sortingShader(device, Global::getGameDir() + "shaders/particlesSorting.comp.spv");
+//
+//    sortPipe = cpm.shader(sortingShader).create("sorting_particle_pipeline", sortLayout);
+//  }
+//}
+//
+//void ComputeParticleGBufferStage::recreatePipelines(ImageResourceContainer* data) { (void)data; }
+//
+//void ComputeParticleGBufferStage::begin() {}
+//
+//bool ComputeParticleGBufferStage::doWork(RenderContext* context) {
+//  const size_t particlesCountVariable = Global::particles()->count();
+//  if (particlesCountVariable == 0) return true;
+//
+//  yavf::CombinedTask* task = context->combined();
+//
+//  task->endRenderPass();
+//
+//  // тут у нас две вещи:
+//  // компут шейдер с данными геометрии
+//  // сортировка всех частиц
+//
+//  // естественно все на гпу
+//
+//  //const size_t particlesCount = reinterpret_cast<Transform*>(particlesCount->ptr());
+//  #define PARTICLES_WORKGROUP_SIZE 256
+//  const uint32_t dispatchX = std::ceil(float(particlesCountVariable) / float(PARTICLES_WORKGROUP_SIZE));
+//
+//  task->setPipeline(particlesPipe);
+//  task->setDescriptor({uniformBuffer->descriptorSet()->handle(),
+//                              particlesUniformBuffer->descriptorSet()->handle(),
+//                              particles->descriptorSet()->handle(),
+//                              particlesCount->descriptorSet()->handle(),
+//                              matrixes->descriptorSet()->handle(),
+//                              gbuffer->handle()}, 0);
+//  task->dispatch(dispatchX, 1, 1); // тут мы разделим общее количество на блоки по 256 (512? 1024?)
+//
+//  task->setBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+//                          VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT);
+//
+//  task->setPipeline(sortPipe);
+//  task->setDescriptor({particles->descriptorSet()->handle(), particlesCount->descriptorSet()->handle()}, 0);
+//  task->dispatch(1, 1, 1);
+//
+//  task->beginRenderPass();
+//
+//  return true;
+//}
+//
+//ParticleGBufferStage::ParticleGBufferStage(const StageCreateInfo &info) : particlesUniformBuffer(info.particlesUniformBuffer), particles(info.particles), particlesCount(info.particlesCount) {}
+//
+//ParticleGBufferStage::~ParticleGBufferStage() {}
+//
+//void ParticleGBufferStage::create(const CreateInfo &info) {
+//  this->device = info.device;
+//  this->target = info.target;
+//  this->uniformBuffer = info.uniformBuffer;
+////   this->localTask = info.task;
+//}
+//
+//void ParticleGBufferStage::recreatePipelines(ImageResourceContainer* data) {
+//  images = data->imageDescriptor();
+//  samplers = data->samplerDescriptor();
+//
+//  yavf::PipelineLayout layout = device->layout("particle_gbuffer_pipeline_layout");
+//
+//  if (layout != VK_NULL_HANDLE) {
+//    device->destroyLayout("particle_gbuffer_pipeline_layout");
+//    layout = VK_NULL_HANDLE;
+//  }
+//
+//  yavf::DescriptorSetLayout uniformLayout = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
+////   yavf::DescriptorSetLayout storageLayout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
+//  {
+//    yavf::PipelineLayoutMaker plm(device);
+//
+//    layout = plm.addDescriptorLayout(uniformLayout)
+//                .addDescriptorLayout(uniformLayout)
+//                .addDescriptorLayout(data->imageSetLayout())
+//                .addDescriptorLayout(data->samplerSetLayout())
+//                .create("particle_gbuffer_pipeline_layout");
+//  }
+//
+//  if (pipe.handle() != VK_NULL_HANDLE) {
+//    device->destroy(pipe);
+//    pipe = yavf::Pipeline(VK_NULL_HANDLE, VK_NULL_HANDLE);
+//  }
+//
+//  {
+//    yavf::PipelineMaker pm(device);
+//    pm.clearBlending();
+//
+//    yavf::raii::ShaderModule vert(device, Global::getGameDir() + "shaders/particles.vert.spv");
+//    yavf::raii::ShaderModule geom(device, Global::getGameDir() + "shaders/particles.geom.spv");
+//    yavf::raii::ShaderModule frag(device, Global::getGameDir() + "shaders/particles.frag.spv");
+//
+//    uint32_t constants[2] = {data->samplerCount(), data->imageCount()};
+//
+//    pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, vert).
+//              addShader(VK_SHADER_STAGE_GEOMETRY_BIT, geom).
+//              addShader(VK_SHADER_STAGE_FRAGMENT_BIT, frag).
+//                addSpecializationEntry(0, 0, sizeof(uint32_t)).
+//                addSpecializationEntry(1, sizeof(uint32_t), sizeof(uint32_t)).
+//                addData(2*sizeof(uint32_t), constants).
+//              vertexBinding(0, sizeof(Particle)).
+//                vertexAttribute(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Particle, cur)).
+//                vertexAttribute(1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Particle, vel)).
+//                vertexAttribute(2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Particle, col)).
+//                vertexAttribute(3, 0, VK_FORMAT_R32G32B32A32_UINT,   offsetof(Particle, currentTime)).
+//                vertexAttribute(4, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Particle, maxScale)).
+//                vertexAttribute(5, 0, VK_FORMAT_R32G32B32A32_UINT,   offsetof(Particle, texture)).
+//              depthTest(VK_TRUE).
+//              depthWrite(VK_TRUE).
+////                          .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN)
+//              assembly(VK_PRIMITIVE_TOPOLOGY_POINT_LIST).
+//              viewport().
+//              scissor().
+//              dynamicState(VK_DYNAMIC_STATE_VIEWPORT).
+//              dynamicState(VK_DYNAMIC_STATE_SCISSOR).
+//              colorBlendBegin(VK_FALSE).
+//                colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT).
+//              colorBlendBegin(VK_FALSE).
+//                colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT).
+//              create("particle_gbuffer_pipeline", layout, target->renderPass());
+//  }
+//}
+//
+//void ParticleGBufferStage::begin() {}
+//
+//bool ParticleGBufferStage::doWork(RenderContext* context) {
+//  const size_t particlesCountVariable = Global::particles()->count();
+//  if (particlesCountVariable == 0) return true;
+//
+//  yavf::GraphicTask* task = context->graphics();
+//
+//  task->setPipeline(pipe);
+//  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), particlesUniformBuffer->descriptorSet()->handle(), images->handle(), samplers->handle()}, 0);
+//  task->setVertexBuffer(particles, 0);
+//  task->drawIndirect(particlesCount, 1);
+//
+//  return true;
+//}
+//
+//DecalsGBufferStage::DecalsGBufferStage(DecalOptimizer* optimizer) : device(nullptr), optimizer(optimizer), uniformBuffer(nullptr), target(nullptr), images(nullptr), samplers(nullptr) {}
+//DecalsGBufferStage::~DecalsGBufferStage() {}
+//
+//void DecalsGBufferStage::create(const CreateInfo &info) {
+//  this->device = info.device;
+//  this->uniformBuffer = info.uniformBuffer;
+////   this->images = info.images;
+////   this->samplers = info.samplers;
+//  this->target = info.target;
+//
+////   localTask = device->allocateGraphicTask(1, false);
+////   localTask->setRenderTarget(info.target, false);
+////   this->localTask = info.task;
+//
+//  vertices.construct(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 100);
+//  indices.construct(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 100);
+//  instances.construct(device, 100);
+//
+//  yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
+//  yavf::DescriptorSetLayout layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
+//  {
+//    yavf::DescriptorMaker dm(device);
+//
+//    auto desc = dm.layout(layout).create(pool)[0];
+//    const size_t i = desc->add({instances.vector().handle(), 0, instances.vector().buffer_size(), 0, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER});
+//    instances.vector().setDescriptor(desc, i);
+//  }
+//
+//  optimizer->setOutputBuffers({&vertices, &indices, &instances});
+//}
+//
+//void DecalsGBufferStage::recreatePipelines(ImageResourceContainer* data) {
+//  this->images = data->imageDescriptor();
+//  this->samplers = data->samplerDescriptor();
+//
+//  yavf::DescriptorSetLayout uniform_layout = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
+//  yavf::DescriptorSetLayout storage_layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
+//
+//  yavf::PipelineLayout deferred_layout2 = device->layout(DECALS_PIPELINE_LAYOUT_NAME);
+//  if (deferred_layout2 != VK_NULL_HANDLE) {
+//    device->destroyLayout(DECALS_PIPELINE_LAYOUT_NAME);
+//    deferred_layout2 = VK_NULL_HANDLE;
+//  }
+//
+//  {
+//    yavf::PipelineLayoutMaker plm(device);
+//
+//    deferred_layout2 = plm.addDescriptorLayout(uniform_layout)
+//                          .addDescriptorLayout(data->samplerSetLayout())
+//                          .addDescriptorLayout(data->imageSetLayout())
+//                          .addDescriptorLayout(storage_layout)
+//                          .create(DECALS_PIPELINE_LAYOUT_NAME);
+//  }
+//
+//  uint32_t constants[2] = {data->samplerCount(), data->imageCount()};
+//
+//  if (pipe.handle() != VK_NULL_HANDLE) {
+//    device->destroyPipeline(DECALS_PIPELINE_NAME);
+//    pipe = yavf::Pipeline(VK_NULL_HANDLE, VK_NULL_HANDLE);
+//  }
+//
+//  {
+//    yavf::raii::ShaderModule vertex (device, Global::getGameDir() + "shaders/deferred.vert.spv");
+//    yavf::raii::ShaderModule fagment(device, Global::getGameDir() + "shaders/deferred.frag.spv");
+//
+//    yavf::PipelineMaker pm(device);
+//    pm.clearBlending();
+//
+//    // по идее ничего особо не поменяется здесь по сравнению с рендерингом геометрии
+//    pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, vertex)
+//             .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, fagment)
+//               .addSpecializationEntry(0, 0, sizeof(uint32_t))
+//               .addSpecializationEntry(1, sizeof(uint32_t), sizeof(uint32_t))
+//               .addData(2*sizeof(uint32_t), constants)
+//             .vertexBinding(0, sizeof(Vertex))
+//               .vertexAttribute(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, pos))
+//               .vertexAttribute(1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, color))
+//               .vertexAttribute(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, texCoord))
+//             .depthTest(VK_TRUE)
+//             .depthWrite(VK_TRUE)
+////                          .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN)
+//             .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN, VK_TRUE)
+//             .viewport()
+//             .scissor()
+//             .dynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+//             .dynamicState(VK_DYNAMIC_STATE_SCISSOR)
+//             .colorBlendBegin(VK_FALSE)
+//               .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+//             .colorBlendBegin(VK_FALSE)
+//               .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+////                          .rasterizationSamples(VK_SAMPLE_COUNT_8_BIT)
+//             .create(GEOMETRY_PIPELINE_NAME, deferred_layout2, target->renderPass());
+//  }
+//}
+//
+//void DecalsGBufferStage::begin() {
+//  optimizer->optimize();
+//}
+//
+//bool DecalsGBufferStage::doWork(RenderContext* context) {
+//  const uint32_t indexCount = optimizer->getIndicesCount();
+//  if (indexCount == 0) return false;
+//
+//  yavf::GraphicTask* task = context->graphics();
+//
+//  task->setPipeline(pipe);
+//  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), samplers->handle(), images->handle(), instances.vector().descriptorSet()->handle()}, 0);
+//  task->setVertexBuffer(vertices.vector().handle(), 0);
+//  task->setIndexBuffer(indices.vector().handle());
+//
+//  // нужно будет это установить в пайплайне
+//  //localTask[index]->setDepthBias(EPSILON, 0.0f, 1.0f);
+//
+//  task->drawIndexed(indexCount, 1, 0, 0, 0);
+//
+////  optimizer->clear();
+//
+//  ASSERT(task->getFamily() < 4);
+//
+//  return true;
+//}
 
 DefferedLightStage::DefferedLightStage(const CreateInfo &info) : lightArray(info.device) {
   this->device = info.device;
@@ -829,7 +825,7 @@ DefferedLightStage::~DefferedLightStage() {
 }
 
 void DefferedLightStage::begin() {
-  optimizer->optimize();
+  //optimizer->optimize();
 }
 
 void DefferedLightStage::doWork(RenderContext* context) {
@@ -844,8 +840,6 @@ void DefferedLightStage::doWork(RenderContext* context) {
   const uint32_t xCount = glm::ceil(static_cast<float>(output->info().extent.width)  / static_cast<float>(WORKGROUP_SIZE));
   const uint32_t yCount = glm::ceil(static_cast<float>(output->info().extent.height) / static_cast<float>(WORKGROUP_SIZE));
   task->dispatch(xCount, yCount, 1);
-  
-  // баррьер?
   
   task->setBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                    VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT);
@@ -929,8 +923,6 @@ void ToneMappingStage::doWork(RenderContext* context) {
   const uint32_t xCount = glm::ceil(static_cast<float>(output->info().extent.width)  / static_cast<float>(WORKGROUP_SIZE));
   const uint32_t yCount = glm::ceil(static_cast<float>(output->info().extent.height) / static_cast<float>(WORKGROUP_SIZE));
   task->dispatch(xCount, yCount, 1);
-  
-  // барьер?
   
   task->setBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                    VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT);
@@ -1017,7 +1009,7 @@ PostRenderStage::PostRenderStage(const size_t &containerSize, const CreateInfo &
 
 PostRenderStage::~PostRenderStage() {
   for (size_t i = 0; i < parts.size(); ++i) {
-    container.destroyStage(parts[i]);
+    container.destroy(parts[i]);
   }
 }
 
@@ -1439,7 +1431,7 @@ void MonsterDebugStage::doWork(RenderContext* context) {
   task->setVertexBuffer(monsterDebug, 1);
   task->draw(cubeStripVerticesCount, instanceCount, 0, 0);
   
-  optimizer->clear();
+//  optimizer->clear();
 }
 
 GeometryDebugStage::GeometryDebugStage(const CreateInfo &info) : indexCount(0) {
@@ -1549,5 +1541,5 @@ void GeometryDebugStage::doWork(RenderContext* context) {
   
   task->drawIndexed(indexCount, 1, 0, 0, 0);
   
-  optimizer->clear();
+//  optimizer->clear();
 }
