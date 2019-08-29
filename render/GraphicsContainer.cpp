@@ -6,7 +6,7 @@
 
 #include "Utility.h"
 #include "Globals.h"
-#include "Settings.h"
+#include "../resources/Settings.h"
 
 static const std::vector<const char*> instanceLayers = {
   "VK_LAYER_LUNARG_standard_validation",

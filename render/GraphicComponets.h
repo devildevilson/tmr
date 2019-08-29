@@ -17,7 +17,7 @@ class GraphicComponent : public Editable {
 public:
   static void setContainer(Container<simd::mat4>* matrices);
   static void setContainer(Container<RotationData>* rotationDatas);
-  static void setContainer(Container<TextureData>* textureContainer);
+  static void setContainer(Container<Texture>* textureContainer);
   
   // тут по идее мы тем же макаром добавляем оптимизер
   static void setOptimizer(MonsterGPUOptimizer* mon);
@@ -25,6 +25,7 @@ public:
 
 //   GraphicComponent(const uint32_t &pipelineIndex);
   struct CreateInfo {
+    Texture t;
     uint32_t transformIndex;
   };
   GraphicComponent(const CreateInfo &info);
@@ -39,12 +40,15 @@ public:
   virtual void drawBoundingShape(const simd::vec4 &color) const;
   
   // это нужно в основном для того чтобы не городить анимационный компонент для каждого энтити
+  void setImage(const Image &t);
   void setTexture(const Texture &t);
-  void setTexture(const TextureData &t);
 
   uint32_t getMatrixIndex() const;
   uint32_t getRotationDataIndex() const;
   uint32_t getTextureContainerIndex() const;
+
+  Texture & getTexture();
+  const Texture & getTexture() const;
 protected:
   uint32_t matrixIndex;
   uint32_t rotationDataIndex;
@@ -61,7 +65,7 @@ protected:
   // городить тогда абстракцию? ладно оставлю пока здесь (хотя это и не очевидно)
   static Container<simd::mat4>* matrices;
   static Container<RotationData>* rotationDatas;
-  static Container<TextureData>* textureContainer;
+  static Container<Texture>* textureContainer;
   
   static MonsterGPUOptimizer* optimizer;
   static MonsterDebugOptimizer* debugOptimizer;

@@ -1463,7 +1463,7 @@ namespace yavf {
     return pointer;
   }
   
-  DescriptorSet::DescriptorSet(Device* device, VkDescriptorSet h) : freeData(SIZE_MAX), device(device), h(h) {}
+  DescriptorSet::DescriptorSet(Device* device, VkDescriptorSet h) : freeData(UINT32_MAX), device(device), h(h) {}
   DescriptorSet::~DescriptorSet() {
     // тут наверное неплохо было бы резетить
   }
@@ -1473,7 +1473,7 @@ namespace yavf {
       
 //     assert(freeData == SIZE_MAX);
     
-    if (freeData == SIZE_MAX) {
+    if (freeData == UINT32_MAX) {
       index = datas.size();
       datas.push_back(data);
     } else {
@@ -1537,6 +1537,12 @@ namespace yavf {
     }
     
     du.update();
+  }
+
+  void DescriptorSet::resize(const size_t &size) {
+    if (datas.size() == size) return;
+
+    datas.resize(size);
   }
   
   size_t DescriptorSet::size() const {

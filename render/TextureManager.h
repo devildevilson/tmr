@@ -1,7 +1,7 @@
 #ifndef TEXTURE_MANAGER_H
 #define TEXTURE_MANAGER_H
 
-#include "ResourceManager.h"
+#include "../resources/ResourceManager.h"
 #include "VulkanRender2.h"
 
 struct FullInfo {

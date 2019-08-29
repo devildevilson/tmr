@@ -3,57 +3,13 @@
 
 #ifdef __cplusplus
 #include <cstdint>
-#include <cstring>
-#include "Utility.h"
+#include "basic_tri.h"
 
 #define DEFAULT_DESCRIPTOR_POOL_NAME "default_descriptor_pool"
 #define UNIFORM_BUFFER_LAYOUT_NAME "uniform_layout"
 #define MATRICES_BUFFER_LAYOUT_NAME "matrixes_layout"
 #define STORAGE_BUFFER_LAYOUT_NAME "storage_layout"
 #define SAMPLED_IMAGE_LAYOUT_NAME "sampled_image_layout"
-
-struct basic_mat4 {
-  float arr[16];
-
-  basic_mat4();
-  basic_mat4(const glm::mat4 &mat);
-  basic_mat4(const simd::mat4 &mat);
-  basic_mat4(const float arr[16]);
-  basic_mat4(const float &m11, const float &m12, const float &m13, const float &m14,
-             const float &m21, const float &m22, const float &m23, const float &m24,
-             const float &m31, const float &m32, const float &m33, const float &m34,
-             const float &m41, const float &m42, const float &m43, const float &m44);
-//  basic_mat4(const basic_mat4 &mat);
-
-  void set(const glm::mat4 &mat);
-  void set(const simd::mat4 &mat);
-  glm::mat4 get_glm() const;
-  simd::mat4 get_simd() const;
-
-  basic_mat4 & operator=(const glm::mat4 &mat);
-  basic_mat4 & operator=(const simd::mat4 &mat);
-//  basic_mat4 & operator=(const basic_mat4 &mat);
-};
-
-struct basic_vec4 {
-  float arr[4];
-
-  basic_vec4();
-  basic_vec4(const glm::vec4 &vec);
-  basic_vec4(const simd::vec4 &vec);
-  basic_vec4(const float arr[4]);
-  basic_vec4(const float &x, const float &y, const float &z, const float &w);
-//  basic_vec4(const basic_vec4 &vec);
-
-  void set(const glm::vec4 &vec);
-  void set(const simd::vec4 &vec);
-  glm::vec4 get_glm() const;
-  simd::vec4 get_simd() const;
-
-  basic_vec4 & operator=(const glm::vec4 &vec);
-  basic_vec4 & operator=(const simd::vec4 &vec);
-//  basic_vec4 & operator=(const basic_vec4 &vec);
-};
 
 typedef uint32_t uint;
 typedef basic_mat4 mat4;
@@ -64,18 +20,37 @@ typedef glm::vec3 vec3;
 
 #endif
 
-struct Texture {
-  uint imageArrayIndex;
-  uint imageArrayLayer;
-  uint samplerIndex;
+// в интерфейсе нужно будет сразу взять несколько структур с текстурами
+// и мы можем передавать указатели на них nuklear
+// сэмплер хоть и не относится к картинке, но всюду ее сопровождает
+// что мне вообще в текстуре потребуется?
+// изображение, сэмлер, корректировка uv (например для перемещения текстуры), ???
+// текстура будет составляться на месте, например, в компоненте
+
+struct Image {
+  uint index;
+  uint layer;
 };
 
-struct TextureData {
-  Texture t;
-  //uint32_t sampler;
+struct Texture {
+  Image image;
+  uint sampler;
   float movementU;
   float movementV;
 };
+
+//struct Texture {
+//  uint imageArrayIndex;
+//  uint imageArrayLayer;
+//  uint samplerIndex;
+//};
+//
+//struct TextureData {
+//  Texture t;
+//  //uint32_t sampler;
+//  float movementU;
+//  float movementV;
+//};
 
 struct Vertex {
   vec4 pos;
