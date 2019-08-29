@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
                                   sizeof(GPUBuffer<uint32_t>) +
                                   sizeof(GPUContainer<RotationData>) +
                                   sizeof(GPUContainer<Transform>) +
-                                  sizeof(GPUContainer<TextureData>) +
+                                  sizeof(GPUContainer<Texture>) +
                                   sizeof(GPUContainer<AnimationState>));
                                   //sizeof(GPUArray<BroadphasePair>));
   createDataArrays(graphicsContainer.device(), arraysContainer, arrays);
@@ -190,38 +190,25 @@ int main(int argc, char** argv) {
 //
 //    decalSystem = systemContainer.addSystem<DecalSystem>();
     // глобальный указатель?
-    
-    TimeLogDestructor soundSystemLog("Sound system initialization");
-    SoundSystem* soundSystem = systemContainer.addSystem<SoundSystem>();
-    g.setSound(soundSystem);
-  }
-  
-  {
-    const SoundLoadingData data{
-      Global::getGameDir() + "tmrdata/sound/Curio feat. Lucy - Ten Feet (Daxten Remix).mp3",
-      SOUND_TYPE_MP3,
-      false,
-      false,
-      true,
-      false,
-      false
-    };
-    Global::sound()->loadSound(ResourceID::get("default_sound"), data);
   }
 
   // создадим лоадер (лоадер бы лучше в контейнере создавать) sizeof(ParserHelper) +
-  const size_t loaderContainerSize = sizeof(TextureLoader) + sizeof(HardcodedEntityLoader) + sizeof(HardcodedMapLoader) + sizeof(HardcodedAnimationLoader);
+  const size_t loaderContainerSize = sizeof(ImageLoader) + sizeof(HardcodedEntityLoader) + sizeof(HardcodedMapLoader) + sizeof(HardcodedAnimationLoader) + sizeof(ModificationContainer);
   ParserContainer loaderContainer(loaderContainerSize);
-  TextureLoader* textureLoader = nullptr;
+  ImageLoader* textureLoader = nullptr;
+  SoundLoader* soundLoader = nullptr;
   HardcodedAnimationLoader* animationLoader = nullptr;
   HardcodedEntityLoader* entityLoader = nullptr;
   HardcodedMapLoader* mapLoader = nullptr;
-  ParserHelper* parser = nullptr;
+//  ParserHelper* parser = nullptr;
+  ModificationContainer* mods = nullptr;
   {
-    const TextureLoader::CreateInfo tInfo{
+    const ImageLoader::CreateInfo tInfo{
       graphicsContainer.device()
     };
-    textureLoader = loaderContainer.add<TextureLoader>(tInfo);
+    textureLoader = loaderContainer.add<ImageLoader>(tInfo);
+
+    soundLoader = loaderContainer.add<SoundLoader>();
 
     entityLoader = loaderContainer.add<HardcodedEntityLoader>(textureLoader);
 
@@ -232,18 +219,53 @@ int main(int argc, char** argv) {
     };
     mapLoader = loaderContainer.add<HardcodedMapLoader>(mInfo);
 
-    const ParserHelper::CreateInfo pInfo{
-      Global::getGameDir(),
-      textureLoader,
-      entityLoader,
-      mapLoader
-    };
-    parser = loaderContainer.addParserHelper(pInfo);
-
     const HardcodedAnimationLoader::CreateInfo aInfo{
       textureLoader
     };
     animationLoader = loaderContainer.add<HardcodedAnimationLoader>(aInfo);
+
+    const ModificationContainer::CreateInfo pInfo{
+      0
+    };
+    mods = loaderContainer.addModParser<ModificationContainer>(pInfo);
+
+    mods->addParser(textureLoader);
+    mods->addParser(soundLoader);
+    mods->addParser(animationLoader);
+    mods->addParser(entityLoader);
+    mods->addParser(mapLoader);
+  }
+
+  {
+    TimeLogDestructor soundSystemLog("Sound system initialization");
+    // где создать лоадер?
+
+    const SoundSystem::CreateInfo sInfo {
+      &threadPool,
+      soundLoader
+    };
+    auto* soundSystem = systemContainer.addSystem<SoundSystem>(sInfo);
+    Global g;
+    g.setSound(soundSystem);
+
+    const SoundLoader::LoadData sound{
+      "default_sound",
+      Global::getGameDir() + "tmrdata/sound/Curio feat. Lucy - Ten Feet (Daxten Remix).mp3",
+      false,
+      false
+    };
+    soundLoader->load(sound);
+
+//    const SoundLoadingData data{
+//      Global::getGameDir() + "tmrdata/sound/Curio feat. Lucy - Ten Feet (Daxten Remix).mp3",
+//      SOUND_TYPE_MP3,
+//      false,
+//      false,
+//      true,
+//      false,
+//      false
+//    };
+//    Global::sound()->loadSound(ResourceID::get("default_sound"), data);
   }
 
   nuklear_data data;
@@ -276,8 +298,26 @@ int main(int argc, char** argv) {
   TransformComponent* playerTransform = nullptr;
   EntityAI* entityWithBrain = nullptr;
   {
+    // теперь мы сначало грузим какие нибудь данные мода
+    auto mod = mods->loadModData(Global::getGameDir() + "tmrdata/main.json");
+
+    PRINT_VAR("mod name", mod->name())
+    PRINT_VAR("mod description", mod->description())
+    PRINT_VAR("mod author", mod->author())
+    PRINT_VAR("mod path", mod->path())
+
+    // теперь парсим мод
+    mods->parseModification(mod);
+
+    PRINT_VAR("resource count", mod->resources().size())
+
+    // теперь сгружаем это все дело в лоадер
+    for (size_t i = 0; i < mod->resources().size(); ++i) {
+      textureLoader->load(mods, mod->resources()[i]);
+    }
+
     // попытаемся че нибудь загрузить
-    parser->loadPlugin("tmrdata/main.json");
+//    parser->loadPlugin("tmrdata/main.json");
     // тут список модов к загрузке
     // мы их парсим с помощью parser
 
@@ -287,24 +327,24 @@ int main(int argc, char** argv) {
     // как тогда загружать мапу? (мне номер какой-то нужен и что то такое)
     // ну то есть парсер хелпер должен все распарсить, данные должны оказаться в нужных лоадерах,
     // и затем мы должны вызвать что нибудь вроде лоад дефаулт левел
-    if (!textureLoader->load("texture")) throw std::runtime_error("Cannot load texture");
-    if (!textureLoader->load("Rough Block Wall")) throw std::runtime_error("Cannot load Rough Block Wall");
-    if (!textureLoader->load("552c34f8e3469")) throw std::runtime_error("Cannot load 552c34f8e3469");
-    if (!textureLoader->load("14626771132270")) throw std::runtime_error("Cannot load 14626771132270");
-    if (!textureLoader->load("7037.970")) throw std::runtime_error("Cannot load 7037.970");
-    if (!textureLoader->load("n")) throw std::runtime_error("Cannot load n");
-    if (!textureLoader->load("ne")) throw std::runtime_error("Cannot load ne");
-    if (!textureLoader->load("e")) throw std::runtime_error("Cannot load e");
-    if (!textureLoader->load("se")) throw std::runtime_error("Cannot load se");
-    if (!textureLoader->load("s")) throw std::runtime_error("Cannot load s");
-    if (!textureLoader->load("sw")) throw std::runtime_error("Cannot load sw");
-    if (!textureLoader->load("w")) throw std::runtime_error("Cannot load w");
-    if (!textureLoader->load("nw")) throw std::runtime_error("Cannot load nw");
+//    if (!textureLoader->load("texture")) throw std::runtime_error("Cannot load texture");
+//    if (!textureLoader->load("Rough Block Wall")) throw std::runtime_error("Cannot load Rough Block Wall");
+//    if (!textureLoader->load("552c34f8e3469")) throw std::runtime_error("Cannot load 552c34f8e3469");
+//    if (!textureLoader->load("14626771132270")) throw std::runtime_error("Cannot load 14626771132270");
+//    if (!textureLoader->load("7037.970")) throw std::runtime_error("Cannot load 7037.970");
+//    if (!textureLoader->load("n")) throw std::runtime_error("Cannot load n");
+//    if (!textureLoader->load("ne")) throw std::runtime_error("Cannot load ne");
+//    if (!textureLoader->load("e")) throw std::runtime_error("Cannot load e");
+//    if (!textureLoader->load("se")) throw std::runtime_error("Cannot load se");
+//    if (!textureLoader->load("s")) throw std::runtime_error("Cannot load s");
+//    if (!textureLoader->load("sw")) throw std::runtime_error("Cannot load sw");
+//    if (!textureLoader->load("w")) throw std::runtime_error("Cannot load w");
+//    if (!textureLoader->load("nw")) throw std::runtime_error("Cannot load nw");
 
 //     std::cout << "texture loading" << "\n";
     
     // карта по умолчанию - главное меню, несколько текстур, интерфейс, одна плоскость
-    mapLoader->load("default");
+//    mapLoader->load("default");
     //levelLoader->load(0);
 
 //     std::cout << "map loading" << "\n";
@@ -327,7 +367,9 @@ int main(int argc, char** argv) {
     // и этот же механизм нам должен загрузить вещи необходимые для меню (да и вообще для ui)
 
     // после того как все загрузили чистим загрузчики
-    parser->clear();
+//    parser->clear();
+
+    textureLoader->clear();
 
 //     std::cout << "clearing" << "\n";
 

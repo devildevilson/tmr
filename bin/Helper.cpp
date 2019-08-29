@@ -769,7 +769,7 @@ void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, Da
   GPUContainer<Transform>* transforms = arraysContainer.add<GPUContainer<Transform>>(device);
   arrays.transforms = transforms;
   
-  GPUContainer<TextureData>* textures = arraysContainer.add<GPUContainer<TextureData>>(device);
+  GPUContainer<Texture>* textures = arraysContainer.add<GPUContainer<Texture>>(device);
   arrays.textures = textures;
   
   arrays.animStates = arraysContainer.add<CPUContainer<AnimationState>>();

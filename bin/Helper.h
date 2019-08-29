@@ -20,13 +20,8 @@
 #include "Optimizers.h"
 #include "GPUOptimizers.h"
 
-// #include "CPUAnimationSystem.h"
 #include "CPUAnimationSystemParallel.h"
 #include "AnimationComponent.h"
-
-#include "ResourceManager.h"
-#include "TextureLoader.h"
-#include "HardcodedLoaders.h"
 
 #include "PhysicsUtils.h"
 #include "CPUPhysicsParallel.h"
@@ -39,7 +34,6 @@
 
 #include "ThreadPool.h"
 
-//#include "Components.h"
 #include "TransformComponent.h"
 #include "PhysicsComponent.h"
 #include "InputComponent.h"
@@ -47,10 +41,18 @@
 #include "AIInputComponent.h"
 #include "CameraComponent.h"
 #include "GraphicComponets.h"
+#include "SoundComponent.h"
 
 #include "ParticleSystem.h"
 #include "DecalSystem.h"
 #include "SoundSystem.h"
+
+//#include "../resources/ResourceManager.h"
+#include "ModificationContainer.h"
+#include "Modification.h"
+#include "ImageLoader.h"
+#include "SoundLoader.h"
+#include "HardcodedLoaders.h"
 
 #include "Menu.h"
 #include "MenuItems.h"
@@ -131,7 +133,7 @@ struct DataArrays {
   ArrayInterface<uint32_t>* rotationCountBuffer;
   Container<RotationData>* rotations;
   Container<ExternalData>* externals;
-  Container<TextureData>* textures;
+  Container<Texture>* textures;
   Container<AnimationState>* animStates;
 //   ArrayInterface<BroadphasePair>* broadphasePairs;
 };

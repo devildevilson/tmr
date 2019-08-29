@@ -4,19 +4,30 @@
 #include "Engine.h"
 #include "TypelessContainer.h"
 #include "Optimizer.h"
-#include "Manager.h"
-#include "ResourceManager.h"
+//#include "../resources/Manager.h"
+//#include "../resources/ResourceManager.h"
+//#include "ResourceParser.h"
+//#include "ModificationParser.h"
 
 #include "ArrayInterface.h"
 
-#include "Physics.h"
-#include "BroadphaseInterface.h"
-#include "Solver.h"
-#include "NarrowphaseInterface.h"
-#include "PhysicsSorter.h"
+// названия то различаюся, нужно переделать
+//#include "Physics.h"
+//#include "BroadphaseInterface.h"
+//#include "Solver.h"
+//#include "NarrowphaseInterface.h"
+//#include "PhysicsSorter.h"
 
 #include <vector>
 #include <cstdint>
+
+class PhysicsEngine;
+class Broadphase;
+class Solver;
+class Narrowphase;
+class PhysicsSorter;
+class ResourceParser;
+class ModificationParser;
 
 // это все что нужно скорее всего
 // другое дело что некоторые системы у меня еще не готовы
@@ -82,13 +93,15 @@ class ParserContainer {
 public:
   ParserContainer(const size_t &size) : ptr(nullptr), parserContainers(size) {}
   ~ParserContainer() {
-    if (ptr != nullptr) {
-      delete ptr;
-    }
+//    if (ptr != nullptr) {
+//      delete ptr;
+//    }
     
-    for (size_t i = 0; i < parsers.size(); ++i) {
-      parserContainers.destroy(parsers[i]);
+    for (auto & parser : parsers) {
+      parserContainers.destroy(parser);
     }
+
+    parserContainers.destroy(ptr);
   }
   
   template <typename T, typename ...Args>
@@ -99,13 +112,15 @@ public:
     return ptr;
   }
   
-  template <typename ...Args>
-  ParserHelper* addParserHelper(Args&&... args) {
+  template <typename T, typename ...Args>
+  T* addModParser(Args&&... args) {
     if (ptr != nullptr) throw std::runtime_error("ParserContainer error: ptr is already exist");
+
+//    auto* ret = new T(std::forward<Args>(args)...);
+    auto* ret = parserContainers.create<T>(std::forward<Args>(args)...);
+    ptr = ret;
     
-    ptr = new ParserHelper(std::forward<Args>(args)...);
-    
-    return ptr;
+    return ret;
   }
   
   size_t size() const {
@@ -113,7 +128,7 @@ public:
   }
 private:
   std::vector<ResourceParser*> parsers;
-  ParserHelper* ptr;
+  ModificationParser* ptr;
   TypelessContainer parserContainers;
 };
 

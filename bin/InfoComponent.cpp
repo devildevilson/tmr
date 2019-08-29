@@ -8,5 +8,5 @@ void InfoComponent::edit() {
 }
 
 std::string InfoComponent::getType() const {
-  return type.getName();
+  return type.name();
 }
