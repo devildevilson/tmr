@@ -34,6 +34,7 @@ public:
   
   simd::vec4 getVelocity() const;
   float getSpeed() const;
+  float getMaxSpeed() const;
   
   uint32_t getObjectShapePointsSize() const;
   const simd::vec4* getObjectShapePoints() const; // может потребоваться изменить точки или поверхности

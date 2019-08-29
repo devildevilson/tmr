@@ -3,7 +3,6 @@
 #include <chrono>
 #include <iostream>
 #include <stdexcept>
-#include <glm/gtx/norm.hpp>
 #include <cstring>
 
 #include <HelperFunctions.h>

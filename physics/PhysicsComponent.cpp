@@ -48,6 +48,12 @@ float PhysicsComponent::getSpeed() const {
   return speed;
 }
 
+float PhysicsComponent::getMaxSpeed() const {
+  if (externalDataIndex == UINT32_MAX) return 0.0f;
+
+  return externalDatas->at(externalDataIndex).maxSpeed;
+}
+
 uint32_t PhysicsComponent::getObjectShapePointsSize() const {
   return Global::physics()->getObjectShapePointsSize(&container);
 }

@@ -219,7 +219,7 @@ void CPUPhysicsParallel::setBuffers(const PhysicsExternalBuffers &buffers) {
 
 void CPUPhysicsParallel::registerShape(const Type &type, const uint32_t shapeType, const RegisterNewShapeInfo &info) {
   auto itr = shapes.find(type);
-  if (itr != shapes.end()) throw std::runtime_error("Shape type " + type.getName() + " is already exist!");
+  if (itr != shapes.end()) throw std::runtime_error("Shape type " + type.name() + " is already exist!");
 
   if (shapeType == SPHERE_TYPE) throw std::runtime_error("Dont need to register sphere");
   if (!(shapeType == BBOX_TYPE || shapeType == POLYGON_TYPE)) throw std::runtime_error("This type is not supported yet");
@@ -415,7 +415,7 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
 
   if (info.type.getObjType() != SPHERE_TYPE) {
     auto itr = shapes.find(info.shapeType);
-    if (itr == shapes.end()) throw std::runtime_error("Shape " + info.shapeType.getName() + " was not registered");
+    if (itr == shapes.end()) throw std::runtime_error("Shape " + info.shapeType.name() + " was not registered");
     if (itr->second.shapeType != info.type.getObjType()) throw std::runtime_error("Wrong shape for object");
 
     objects[container->objectDataIndex].vertexOffset = itr->second.offset;
