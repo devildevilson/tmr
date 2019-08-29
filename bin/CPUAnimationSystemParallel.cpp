@@ -63,26 +63,27 @@ void CPUAnimationSystemParallel::removeAnimationUnit(AnimationComponent* compone
 //  components.pop_back();
 }
 
-uint32_t CPUAnimationSystemParallel::createAnimation(const ResourceID &animId, const AnimationCreateInfoNewFrames &info) {
-  if (info.frames.empty()) throw std::runtime_error("empty animation data");
+uint32_t CPUAnimationSystemParallel::createAnimation(const ResourceID &animId, const Animation::CreateInfo &info) {
+  if (info.frames.empty()) throw std::runtime_error("Empty animation data");
   
   const size_t frameSize = info.frames[0].size();
-  if (frameSize > 256) throw std::runtime_error("frame size > 256 is not allowed");
-  if (frameSize == 0) throw std::runtime_error("frames size == 0");
+  if (frameSize > 256) throw std::runtime_error("Frame size > 256 is not allowed");
+  if (frameSize == 0) throw std::runtime_error("Frames size == 0");
   
   for (uint32_t i = 1; i < info.frames.size(); ++i) {
-    if (info.frames[i].size() != frameSize) throw std::runtime_error("frame size must be the same across animation");
+    if (info.frames[i].size() != frameSize) throw std::runtime_error("Frame size must be the same across animation");
   }
   
   auto itr = animationIdx.find(animId);
-  if (itr != animationIdx.end()) throw std::runtime_error("Animation with " + animId.name() + " already exist");
+  if (itr != animationIdx.end()) throw std::runtime_error("Animation with name " + animId.name() + " is already exist");
   
-  const size_t size = info.frames.size() * frameSize;
-  const AnimType type(info.repeated, frameSize, false);
-  const Animation a(type, info.animationTime, textures.size(), size);
+//  const size_t size = info.frames.size() * frameSize;
+//  const AnimType type(info.repeated, frameSize, false);
+//  const Animation a(type, info.animationTime, textures.size(), size);
   
   uint32_t id = animations.size();
-  animations.push_back(a);
+  //animations.push_back(a);
+  animations.emplace_back(textures.size(), frameSize, 0, info.frames.size());
   animationIdx[animId] = id;
   
   for (uint32_t i = 0; i < info.frames.size(); ++i) {
@@ -94,12 +95,24 @@ uint32_t CPUAnimationSystemParallel::createAnimation(const ResourceID &animId, c
   return id;
 }
 
-uint32_t CPUAnimationSystemParallel::createAnimation(const ResourceID &animId, const AnimationCreateInfoFromExisting &info) {
-  // тут нужно добавить еще парочку переменных в анимацию, поэтому пока это не работает
-  (void)animId;
-  (void)info;
-  throw std::runtime_error("not implemented yet");
-  return 0;
+uint32_t CPUAnimationSystemParallel::createAnimation(const ResourceID &animId, const Animation::DependantInfo &info) {
+  auto itr = animationIdx.find(info.existingId);
+  if (itr == animationIdx.end()) throw std::runtime_error("Animation with name " + info.existingId.name() + " is not exist");
+
+  const uint32_t animIndex = itr->second;
+  const uint32_t count = std::max(info.animStart, info.animEnd);
+
+  const Animation &anim = animations[animIndex];
+  if (count > anim.frameCount()) throw std::runtime_error("Could not create animation " + animId.name() +
+                                                          " from " + info.existingId.name() +
+                                                          " cause info frame count" + std::to_string(count) +
+                                                          " > existing animation frame count " + std::to_string(anim.frameCount()));
+
+  uint32_t id = animations.size();
+  animations.emplace_back(anim.offset(), anim.frameSize(), info.animStart, info.animEnd);
+  animationIdx[animId] = id;
+
+  return id;
 }
 
 uint32_t CPUAnimationSystemParallel::getAnimationId(const ResourceID &animId) const {
@@ -121,19 +134,19 @@ Animation & CPUAnimationSystemParallel::getAnimationByName(const ResourceID &ani
   auto itr = animationIdx.find(animId);
   // может не надо кидать эксепшон? хотя едва ли мне может пригодиться ситуация когда я по имени не нашел анимацию
   // точнее это может быть полезным для чеканья ошибок в моде
-  if (itr == animationIdx.end()) throw std::runtime_error("there is no animation with name " + animId.name());
+  if (itr == animationIdx.end()) throw std::runtime_error("Animation with name " + animId.name() + " is not exist");
   
   return animations[itr->second];
 }
 
 const Animation & CPUAnimationSystemParallel::getAnimationByName(const ResourceID &animId) const {
   auto itr = animationIdx.find(animId);
-  if (itr == animationIdx.end()) throw std::runtime_error("there is no animation with name " + animId.name());
+  if (itr == animationIdx.end()) throw std::runtime_error("Animation with name " + animId.name() + " is not exist");
   
   return animations[itr->second];
 }
 
-TextureData CPUAnimationSystemParallel::getAnimationTextureData(const size_t &index) const {
+Animation::Image CPUAnimationSystemParallel::getAnimationTextureData(const size_t &index) const {
   ASSERT(textures.size() > index);
   return textures[index];
 }

@@ -46,38 +46,63 @@
 // это по идее быстрая проверка радиусов, то есть супер дешевая операция
 // здесь главное правильно раскидать по тредам
 
-struct AnimType {
-  uint32_t container;
-  
-  AnimType();
-  AnimType(const bool &repeated, const uint8_t &frameCount, const bool &dependant);
-  
-  void makeType(const bool &repeated, const uint8_t &frameSize, const bool &dependant);
-  
-  bool isRepeated() const;
-  uint8_t frameSize() const;
-  bool isDependant() const;
-};
+//struct AnimType {
+//  uint32_t container;
+//
+//  AnimType();
+//  AnimType(const bool &repeated, const uint8_t &frameCount, const bool &dependant);
+//
+//  void makeType(const bool &repeated, const uint8_t &frameSize, const bool &dependant);
+//
+//  bool isRepeated() const;
+//  uint8_t frameSize() const;
+//  bool isDependant() const;
+//};
 
 // нужно будет изменить для гпу
 // с другой стороны возможно не нужно их получать из основного класса
 class Animation {
 public:
-  Animation(const AnimType &type, const size_t &animTime, const size_t &textureOffset, const size_t &animSize);
+  struct Image {
+    ::Image image;
+    bool flipU;
+    bool flipV;
+  };
+
+  // по сути мне нужны теперь только фреймы, время и наверное свойства (только одно: повторение?) я буду передавать иначе
+  struct CreateInfo {
+    std::vector<std::vector<Animation::Image>> frames;
+  };
+
+  struct DependantInfo {
+    ResourceID existingId;
+    uint32_t animStart;
+    uint32_t animEnd; // animEnd = lastIndex + 1, или size
+  };
+
+  Animation(const size_t &imageOffset, const uint8_t &animFrameSize, const size_t &frameStart, const size_t &frameCount);
   
-  bool isFinished(const size_t &time) const;
-  bool isRepeated() const;
+//  bool isFinished(const size_t &time) const;
+//  bool isRepeated() const;
   uint8_t frameSize() const;  // скорее всего один на всю анимацию
+  uint32_t frameStart() const;
   uint32_t frameCount() const;
-  
-  size_t getCurrentFrameOffset(const size_t &time) const; // возвращаем старт фрейма, к которому прибавляем нужную сторону
+  size_t offset() const;
+  size_t imagesCount() const;
+
+  // нужно передавать текущее время и общее время
+//  size_t getCurrentFrameOffset(const size_t &time) const; // возвращаем старт фрейма, к которому прибавляем нужную сторону
+  size_t getCurrentFrameOffset(const size_t &currentTime, const size_t &animTime) const;
 private:
-  AnimType type;
-  size_t frameTime;
-  
-  size_t textureOffset;
-  size_t animSize; // может ли быть что у анимации встречаются как и 8 фреймов так и 16 тиак и 1 (но эт бред какой то)
-  // тут нужно добавить еще одну переменную
+//  AnimType type; // тип сократится до frameSize
+  uint8_t animFrameSize;
+//  size_t frameTime;
+
+  uint32_t animFrameStart;
+  uint32_t animFrameCount;
+  // если animStart > animSize то мы идем в обратную сторону
+
+  size_t imageOffset;
 };
 
 typedef uint32_t AnimationState;
@@ -128,22 +153,22 @@ public:
 //     uint32_t internalIndex;
 //   };
   
-  struct AnimationCreateInfoNewFrames {
-    bool repeated;
-    uint32_t animationTime; // может size_t?
-    std::vector<std::vector<TextureData>> frames;
-  };
-  
-  struct AnimationCreateInfoFromExisting {
-    bool repeated;
-    uint32_t animationTime; // может size_t?
-    //uint32_t textureOffset;
-    uint32_t existingId;
-    uint32_t animSize;
-  };
+//  struct AnimationCreateInfoNewFrames {
+//    bool repeated;
+//    uint32_t animationTime; // может size_t?
+//    std::vector<std::vector<Animation::Image>> frames;
+//  };
+//
+//  struct AnimationCreateInfoFromExisting {
+//    bool repeated;
+//    uint32_t animationTime; // может size_t?
+//    //uint32_t textureOffset;
+//    uint32_t existingId;
+//    uint32_t animSize;
+//  };
   
   //AnimationSystem();
-  virtual ~AnimationSystem() {}
+  virtual ~AnimationSystem() = default;
   
 //   virtual void setInputBuffers(const InputBuffers &buffers) = 0;
 //   virtual void setOutputBuffers(const OutputBuffers &buffers) = 0;
@@ -160,8 +185,8 @@ public:
   
   // вообще мне кажется что такие вещи как анимации текстурки и прочее (то есть ресурсы игры с диска... как то так)
   // лучше бы создавать и получать по какому-нибудь интерфесу
-  virtual uint32_t createAnimation(const ResourceID &animId, const AnimationCreateInfoNewFrames &info) = 0;
-  virtual uint32_t createAnimation(const ResourceID &animId, const AnimationCreateInfoFromExisting &info) = 0;
+  virtual uint32_t createAnimation(const ResourceID &animId, const Animation::CreateInfo &info) = 0;
+  virtual uint32_t createAnimation(const ResourceID &animId, const Animation::DependantInfo &info) = 0;
   
   virtual uint32_t getAnimationId(const ResourceID &animId) const = 0;
   
@@ -171,7 +196,7 @@ public:
   virtual Animation & getAnimationByName(const ResourceID &animId) = 0;
   virtual const Animation & getAnimationByName(const ResourceID &animId) const = 0;
   
-  virtual TextureData getAnimationTextureData(const size_t &index) const = 0;
+  virtual Animation::Image getAnimationTextureData(const size_t &index) const = 0;
 };
 
 #endif
