@@ -3,7 +3,7 @@
 #include "Globals.h"
 #include "Utility.h"
 
-#include "TextureLoader.h"
+#include "ImageLoader.h"
 
 //#include "Components.h"
 #include "TransformComponent.h"
@@ -31,96 +31,118 @@ HardcodedAnimationLoader::HardcodedAnimationLoader(const CreateInfo &info) : tex
 
 HardcodedAnimationLoader::~HardcodedAnimationLoader() {}
 
-bool HardcodedAnimationLoader::parse(const std::string &pathPrefix, 
-                                     const std::string &forcedNamePrefix, 
-                                     const nlohmann::json &data, 
-                                     std::vector<Resource*> &resource, 
-                                     std::vector<ErrorDesc> &errors, 
+bool HardcodedAnimationLoader::canParse(const std::string &key) const {
+  // animations ?
+  return key == "animations";
+}
+
+bool HardcodedAnimationLoader::parse(const Modification* mod,
+                                     const std::string &pathPrefix,
+                                     const nlohmann::json &data,
+                                     std::vector<Resource*> &resource,
+                                     std::vector<ErrorDesc> &errors,
                                      std::vector<WarningDesc> &warnings) {
+  (void)mod;
+  (void)pathPrefix;
+  (void)data;
+  (void)resource;
+  (void)errors;
+  (void)warnings;
+
   // тут нужно загрузить данные из json
   // в общем то ничего необычного, 
   // кроме того что мне нужно еще придумать как реализовать анимацию передвигающихся текстур
   return false;
 }
 
-bool HardcodedAnimationLoader::forget(const std::string &name) {
+bool HardcodedAnimationLoader::forget(const ResourceID &name) {
+  (void)name;
   return false;
 }
 
-std::unordered_map<std::string, Resource*> HardcodedAnimationLoader::getLoadedResource() {
-  return std::unordered_map<std::string, Resource*>();
+Resource* HardcodedAnimationLoader::getParsedResource(const ResourceID &id) {
+  (void)id;
+  return nullptr;
 }
 
-std::unordered_map<std::string, Conflict*> HardcodedAnimationLoader::getConflicts() {
-  return std::unordered_map<std::string, Conflict*>();
+const Resource* HardcodedAnimationLoader::getParsedResource(const ResourceID &id) const {
+  (void)id;
+  return nullptr;
 }
 
-bool HardcodedAnimationLoader::load(const std::string &name) {
+bool HardcodedAnimationLoader::load(const ModificationParser* modifications, const Resource* resource) {
+  (void)modifications;
+  (void)resource;
+
+  // вот тут как раз пример использования иерархии загрузки
+  // у всех переданных сюда ресурсов депенденси мы передаем в textureLoader
+
+  // а потом грузим собственно анимацию
+
   return false;
 }
 
-bool HardcodedAnimationLoader::unload(const std::string &name) {
+bool HardcodedAnimationLoader::unload(const ResourceID &id) {
+  (void)id;
   return false;
 }
 
 void HardcodedAnimationLoader::end() {
-  const auto &texture1  = textureLoader->getTextures("texture");
-  const auto &texture2  = textureLoader->getTextures("Rough Block Wall");
-  const auto &texture3  = textureLoader->getTextures("552c34f8e3469");
-  const auto &texture4  = textureLoader->getTextures("14626771132270");
-  const auto &texture5  = textureLoader->getTextures("7037.970");
-  const auto &texture6  = textureLoader->getTextures("n");
-  const auto &texture7  = textureLoader->getTextures("ne");
-  const auto &texture8  = textureLoader->getTextures("e");
-  const auto &texture9  = textureLoader->getTextures("se");
-  const auto &texture10 = textureLoader->getTextures("s");
-  const auto &texture11 = textureLoader->getTextures("sw");
-  const auto &texture12 = textureLoader->getTextures("w");
-  const auto &texture13 = textureLoader->getTextures("nw");
+  const auto &texture1  = textureLoader->resourceData(ResourceID::get("texture"));
+  const auto &texture2  = textureLoader->resourceData(ResourceID::get("Rough Block Wall"));
+  const auto &texture3  = textureLoader->resourceData(ResourceID::get("552c34f8e3469"));
+  const auto &texture4  = textureLoader->resourceData(ResourceID::get("14626771132270"));
+  const auto &texture5  = textureLoader->resourceData(ResourceID::get("7037.970"));
+  const auto &texture6  = textureLoader->resourceData(ResourceID::get("n"));
+  const auto &texture7  = textureLoader->resourceData(ResourceID::get("ne"));
+  const auto &texture8  = textureLoader->resourceData(ResourceID::get("e"));
+  const auto &texture9  = textureLoader->resourceData(ResourceID::get("se"));
+  const auto &texture10 = textureLoader->resourceData(ResourceID::get("s"));
+  const auto &texture11 = textureLoader->resourceData(ResourceID::get("sw"));
+  const auto &texture12 = textureLoader->resourceData(ResourceID::get("w"));
+  const auto &texture13 = textureLoader->resourceData(ResourceID::get("nw"));
   
-  const AnimationSystem::AnimationCreateInfoNewFrames animationInfo{
-    true,
-    400000,
+  const Animation::CreateInfo animationInfo{
     {
       {
-        { texture6[0], 0.0f, 0.0f },
-        { texture7[0], 0.0f, 0.0f },
-        { texture8[0], 0.0f, 0.0f },
-        { texture9[0], 0.0f, 0.0f },
-        { texture10[0], 0.0f, 0.0f },
-        { texture11[0], 0.0f, 0.0f },
-        { texture12[0], 0.0f, 0.0f },
-        { texture13[0], 0.0f, 0.0f },
+        { texture6->images[0], false, false },
+        { texture7->images[0], false, false },
+        { texture8->images[0], false, false },
+        { texture9->images[0], false, false },
+        { texture10->images[0], false, false },
+        { texture11->images[0], false, false },
+        { texture12->images[0], false, false },
+        { texture13->images[0], false, false },
       },
       {
-        { texture6[1], 0.0f, 0.0f },
-        { texture7[1], 0.0f, 0.0f },
-        { texture8[1], 0.0f, 0.0f },
-        { texture9[1], 0.0f, 0.0f },
-        { texture10[1], 0.0f, 0.0f },
-        { texture11[1], 0.0f, 0.0f },
-        { texture12[1], 0.0f, 0.0f },
-        { texture13[1], 0.0f, 0.0f },
+        { texture6->images[1], false, false },
+        { texture7->images[1], false, false },
+        { texture8->images[1], false, false },
+        { texture9->images[1], false, false },
+        { texture10->images[1], false, false },
+        { texture11->images[1], false, false },
+        { texture12->images[1], false, false },
+        { texture13->images[1], false, false },
       },
       {
-        { texture6[2], 0.0f, 0.0f },
-        { texture7[2], 0.0f, 0.0f },
-        { texture8[2], 0.0f, 0.0f },
-        { texture9[2], 0.0f, 0.0f },
-        { texture10[2], 0.0f, 0.0f },
-        { texture11[2], 0.0f, 0.0f },
-        { texture12[2], 0.0f, 0.0f },
-        { texture13[2], 0.0f, 0.0f },
+        { texture6->images[2], false, false },
+        { texture7->images[2], false, false },
+        { texture8->images[2], false, false },
+        { texture9->images[2], false, false },
+        { texture10->images[2], false, false },
+        { texture11->images[2], false, false },
+        { texture12->images[2], false, false },
+        { texture13->images[2], false, false },
       },
       {
-        { texture6[3], 0.0f, 0.0f },
-        { texture7[3], 0.0f, 0.0f },
-        { texture8[3], 0.0f, 0.0f },
-        { texture9[3], 0.0f, 0.0f },
-        { texture10[3], 0.0f, 0.0f },
-        { texture11[3], 0.0f, 0.0f },
-        { texture12[3], 0.0f, 0.0f },
-        { texture13[3], 0.0f, 0.0f },
+        { texture6->images[3], false, false },
+        { texture7->images[3], false, false },
+        { texture8->images[3], false, false },
+        { texture9->images[3], false, false },
+        { texture10->images[3], false, false },
+        { texture11->images[3], false, false },
+        { texture12->images[3], false, false },
+        { texture13->images[3], false, false },
       }
     }
   };
@@ -143,19 +165,19 @@ std::string HardcodedAnimationLoader::hint() const {
   
 }
 
-HardcodedEntityLoader::HardcodedEntityLoader(const InitData &data) {
-  TransformComponent::setContainer(data.transforms);
-  GraphicComponent::setContainer(data.matrices);
-  GraphicComponent::setContainer(data.rotationDatas);
-  GraphicComponent::setContainer(data.textureContainer);
-  AnimationComponent::setStateContainer(data.stateContainer);
-  InputComponent::setContainer(data.inputs);
-  PhysicsComponent::setContainer(data.externalDatas);
-  
-  state = 5504;
-}
+//HardcodedEntityLoader::HardcodedEntityLoader(const InitData &data) {
+//  TransformComponent::setContainer(data.transforms);
+//  GraphicComponent::setContainer(data.matrices);
+//  GraphicComponent::setContainer(data.rotationDatas);
+//  GraphicComponent::setContainer(data.textureContainer);
+//  AnimationComponent::setStateContainer(data.stateContainer);
+//  InputComponent::setContainer(data.inputs);
+//  PhysicsComponent::setContainer(data.externalDatas);
+//
+//  state = 5504;
+//}
 
-HardcodedEntityLoader::HardcodedEntityLoader(TextureLoader* textureLoader) : player(nullptr), playerTransform(nullptr), camera(nullptr), input(nullptr), textureLoader(textureLoader) {
+HardcodedEntityLoader::HardcodedEntityLoader(ImageLoader* textureLoader) : player(nullptr), playerTransform(nullptr), camera(nullptr), input(nullptr), textureLoader(textureLoader) {
   state = 5504;
   
   Global g;
@@ -166,11 +188,15 @@ HardcodedEntityLoader::~HardcodedEntityLoader() {
   
 }
 
-bool HardcodedEntityLoader::parse(const std::string &pathPrefix, 
-                                  const std::string &forcedNamePrefix, 
-                                  const nlohmann::json &data, 
-                                  std::vector<Resource*> &resource, 
-                                  std::vector<ErrorDesc> &errors, 
+bool HardcodedEntityLoader::canParse(const std::string &key) const {
+  // ?
+}
+
+bool HardcodedEntityLoader::parse(const Modification* mod,
+                                  const std::string &pathPrefix,
+                                  const nlohmann::json &data,
+                                  std::vector<Resource*> &resource,
+                                  std::vector<ErrorDesc> &errors,
                                   std::vector<WarningDesc> &warnings) {
   // здесь мы чекаем json его как то 
   // то есть мы должны пропарсить и выделить ресурсы 
@@ -180,22 +206,22 @@ bool HardcodedEntityLoader::parse(const std::string &pathPrefix,
   return false;
 }
 
-bool HardcodedEntityLoader::forget(const std::string &name) {
+bool HardcodedEntityLoader::forget(const ResourceID &name) {
   // тут мы просто забываем старые ресурсы чтобы потом мы не могли загрузить их по имени
   // например когда мы отключаем мод
   
   return false;
 }
 
-std::unordered_map<std::string, Resource*> HardcodedEntityLoader::getLoadedResource() {
-  return std::unordered_map<std::string, Resource*>();
+Resource* HardcodedEntityLoader::getParsedResource(const ResourceID &id) {
+  return nullptr;
 }
 
-std::unordered_map<std::string, Conflict*> HardcodedEntityLoader::getConflicts() {
-  return std::unordered_map<std::string, Conflict*>();
+const Resource* HardcodedEntityLoader::getParsedResource(const ResourceID &id) const {
+  return nullptr;
 }
 
-bool HardcodedEntityLoader::load(const std::string &name) {
+bool HardcodedEntityLoader::load(const ModificationParser* modifications, const Resource* resource) {
   // здесь мы по метоинформации загружаем необходимый ресурс
   // либо мы помечаем этот ресурс к загрузке
   // ну в общем мы делаем какие то вещи которые подходят для конкретного типа ресурса
@@ -209,8 +235,9 @@ bool HardcodedEntityLoader::load(const std::string &name) {
   return false;
 }
 
-bool HardcodedEntityLoader::unload(const std::string &name) {
+bool HardcodedEntityLoader::unload(const ResourceID &id) {
   // это может ли потребоваться?
+  // может
   
   return false;
 }
@@ -340,7 +367,13 @@ void HardcodedEntityLoader::create() {
   }
   
 //  initData.dynamic = false; //552c34f8e3469
-  const Texture &noAnim = textureLoader->getTexture("14626771132270", 0);
+  const Image &noAnim = textureLoader->image(ResourceID::get("14626771132270"), 0);
+  const Texture noAnimT = {
+    noAnim,
+    0,
+    0.0f,
+    0.0f
+  };
 //   std::cout << "Texture: " << noAnim.imageArrayIndex << " " << noAnim.imageArrayLayer << "\n";
   
 //   throw std::runtime_error("check");
@@ -356,7 +389,7 @@ void HardcodedEntityLoader::create() {
     physInfo.physInfo.transformIndex = trans->index();
     auto phys = ent2->add<PhysicsComponent>(physInfo);
     
-    auto comp = ent2->add<GraphicComponent>(GraphicComponent::CreateInfo{trans->index()});
+    auto comp = ent2->add<GraphicComponent>(GraphicComponent::CreateInfo{noAnimT, trans->index()});
 
     const UserDataComponent entData{
       ent2,
@@ -373,7 +406,7 @@ void HardcodedEntityLoader::create() {
     ent2->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Testing entity 1"), usrData.get()});
     phys->setUserData(usrData.get());
     
-    comp->setTexture(noAnim);
+//    comp->setTexture(noAnim);
   }
   
   {
@@ -386,7 +419,7 @@ void HardcodedEntityLoader::create() {
     physInfo.physInfo.transformIndex = trans->index();
     auto phys = ent3->add<PhysicsComponent>(physInfo);
     
-    auto comp = ent3->add<GraphicComponent>(GraphicComponent::CreateInfo{trans->index()});
+    auto comp = ent3->add<GraphicComponent>(GraphicComponent::CreateInfo{noAnimT, trans->index()});
 
     const UserDataComponent entData{
       ent3,
@@ -402,8 +435,6 @@ void HardcodedEntityLoader::create() {
     auto usrData = ent3->add<UserDataComponent>(entData);
     ent3->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Testing entity 2"), usrData.get()});
     phys->setUserData(usrData.get());
-    
-    comp->setTexture(noAnim);
   }
   
 //  initData.dynamic = true;
@@ -428,11 +459,11 @@ void HardcodedEntityLoader::create() {
     auto phys = ent4->add<PhysicsComponent>(physInfo);
     input->setPhysicsComponent(phys.get());
 
-    auto comp = ent4->add<GraphicComponent>(GraphicComponent::CreateInfo{trans->index()});
+    auto comp = ent4->add<GraphicComponent>(GraphicComponent::CreateInfo{noAnimT, trans->index()});
 
     const AnimationComponent::CreateInfo animInfo{
-      events.get(),
       trans.get(),
+      phys.get(),
       comp.get()
     };
     auto anim = ent4->add<AnimationComponent>(animInfo);
@@ -440,7 +471,6 @@ void HardcodedEntityLoader::create() {
     const SoundComponent::CreateInfo soundInfo{
       trans.get(),
       phys.get(),
-      events.get()
     };
     auto sound = ent4->add<SoundComponent>(soundInfo);
 
@@ -481,11 +511,32 @@ void HardcodedEntityLoader::create() {
       nullptr
     };
     
-    const Type t = Type::get("walking");
-    sound->setSound(t, ResourceID::get("default_sound"), 100.0f);
-    anim->setAnimation(t, ResourceID::get("walking"));
+//    const Type t = Type::get("walking");
+    // это задавать по идее нужно через стейт
+    const SoundComponent::PlayInfo sInfo {
+      ResourceID::get("default_sound"),
+      400000,
+      false,
+      true,
+      false,
+      true,
+      {0.0f, 0.0f, 0.0f, 0.0f},
+      100.0f,
+      1.0f,
+      1.0f,
+      1.0f
+    };
+    sound->play(sInfo);
+
+    const AnimationComponent::PlayInfo aInfo {
+      ResourceID::get("walking"),
+      1.0f,
+      1600000,
+      true
+    };
+    anim->play(aInfo);
 //     states->registerState(t, false, false, 400000);
-    events->fireEvent(t, data);
+//    events->fireEvent(t, data);
 //     
 //     states->changeState(t);
     //objWithAnimation = ent4;
@@ -506,7 +557,7 @@ void HardcodedEntityLoader::create() {
       yacs::entity* ent = world.create_entity();
       auto trans = ent->add<TransformComponent>(pos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
       auto events = ent->add<EventComponent>();
-      auto comp = ent->add<GraphicComponent>(GraphicComponent::CreateInfo{trans->index()});
+      auto comp = ent->add<GraphicComponent>(GraphicComponent::CreateInfo{noAnimT, trans->index()});
 //      ent->add<StateController>();
       physInfo.physInfo.type = PhysicsType(false, BBOX_TYPE, true, false, false, true);
       physInfo.physInfo.inputIndex = UINT32_MAX;
@@ -528,7 +579,7 @@ void HardcodedEntityLoader::create() {
       ent->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Generated entity " + std::to_string(i)), usrData.get()});
 
       phys->setUserData(usrData.get());
-      comp->setTexture(noAnim);
+//      comp->setTexture(noAnim);
     }
   }
   
@@ -738,12 +789,16 @@ HardcodedMapLoader::~HardcodedMapLoader() {
   device->destroy(indices);
 }
 
-bool HardcodedMapLoader::parse(const std::string &pathPrefix, 
-            const std::string &forcedNamePrefix, 
-            const nlohmann::json &data, 
-            std::vector<Resource*> &resource, 
-            std::vector<ErrorDesc> &errors, 
-            std::vector<WarningDesc> &warnings) {
+bool HardcodedMapLoader::canParse(const std::string &key) const {
+  return false;
+}
+
+bool HardcodedMapLoader::parse(const Modification* mod,
+                               const std::string &pathPrefix,
+                               const nlohmann::json &data,
+                               std::vector<Resource*> &resource,
+                               std::vector<ErrorDesc> &errors,
+                               std::vector<WarningDesc> &warnings) {
   // здесь мы должны парсить все дополнитеьные данные карт
   // такие как название, настройки, возможно какие то особые варианты загрузки, ну и путь до файла
   // тут наверное будет накладно парсить сразу все карты, да и не нужно
@@ -751,25 +806,25 @@ bool HardcodedMapLoader::parse(const std::string &pathPrefix,
   return false;
 }
 
-bool HardcodedMapLoader::forget(const std::string &name) {
+bool HardcodedMapLoader::forget(const ResourceID &name) {
   return false;
 }
 
-std::unordered_map<std::string, Resource*> HardcodedMapLoader::getLoadedResource() {
-  return std::unordered_map<std::string, Resource*>();
+Resource* HardcodedMapLoader::getParsedResource(const ResourceID &id) {
+  return nullptr;
 }
 
-std::unordered_map<std::string, Conflict*> HardcodedMapLoader::getConflicts() {
-  return std::unordered_map<std::string, Conflict*>();
+const Resource* HardcodedMapLoader::getParsedResource(const ResourceID &id) const {
+  return nullptr;
 }
 
-bool HardcodedMapLoader::load(const std::string &name) {
+bool HardcodedMapLoader::load(const ModificationParser* modifications, const Resource* resource) {
   // грузим карту по имени
   
-  return name.compare("default") == 0;
+  return resource->id() == ResourceID::get("default");
 }
 
-bool HardcodedMapLoader::unload(const std::string &name) {
+bool HardcodedMapLoader::unload(const ResourceID &id) {
   // не особ понятно что делаем
   
   return false;
@@ -852,7 +907,7 @@ void HardcodedMapLoader::end() {
 //         ++offset;
       }
       
-      shapeInfo.faces.push_back(simd::vec4(0.0f, 0.0f, 0.0f, 0.0f));
+      shapeInfo.faces.emplace_back(0.0f, 0.0f, 0.0f, 0.0f);
       // где то еще вычисляем нормаль
       for (size_t i = 0; i < shapeInfo.points.size(); i++) {
         const size_t j = (i+1) % shapeInfo.points.size();
@@ -941,7 +996,7 @@ void HardcodedMapLoader::end() {
         float arr[4];
         normSide.store(arr);
 
-        shapeInfo.faces.push_back(simd::vec4(arr[0], arr[1], arr[2], glm::uintBitsToFloat(i)));
+        shapeInfo.faces.emplace_back(arr[0], arr[1], arr[2], glm::uintBitsToFloat(i));
         // нужно еще написать примерно такой же код для объектов (например, двери)
       }
       
@@ -1062,7 +1117,10 @@ void HardcodedMapLoader::end() {
         index_offset,
         fv,
         f,
-        textureLoader->getTexture("Rough Block Wall", 0),
+        {
+          textureLoader->image(ResourceID::get("Rough Block Wall"), 0),
+          0,0.0f,0.0f
+        },
         radius,
         vertex
       };

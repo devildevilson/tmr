@@ -1,8 +1,9 @@
 #ifndef HARDCODED_LOADERS_H
 #define HARDCODED_LOADERS_H
 
-#include "../resources/Loader.h"
-#include "../resources/Manager.h"
+#include "Loader.h"
+#include "ResourceParser.h"
+//#include "Manager.h"
 
 #include "EntityComponentSystem.h"
 #include "ArrayInterface.h"
@@ -25,7 +26,7 @@
 class TransformComponent;
 class CameraComponent;
 class UserInputComponent;
-class TextureLoader;
+class ImageLoader;
 class AnimationSystem;
 
 namespace yavf {
@@ -37,26 +38,27 @@ namespace yavf {
 class HardcodedAnimationLoader : public Loader, public ResourceParser {
 public:
   struct CreateInfo {
-//     AnimationSystem* system;
-    TextureLoader* textureLoader;
+    ImageLoader* textureLoader;
   };
   
   HardcodedAnimationLoader(const CreateInfo &info);
   ~HardcodedAnimationLoader();
+
+  bool canParse(const std::string &key) const override;
   
-  bool parse(const std::string &pathPrefix, 
-             const std::string &forcedNamePrefix, 
+  bool parse(const Modification* mod,
+             const std::string &pathPrefix,
              const nlohmann::json &data, 
              std::vector<Resource*> &resource, 
              std::vector<ErrorDesc> &errors, 
              std::vector<WarningDesc> &warnings) override;
-  bool forget(const std::string &name) override;
+  bool forget(const ResourceID &name) override;
 
-  std::unordered_map<std::string, Resource*> getLoadedResource() override;
-  std::unordered_map<std::string, Conflict*> getConflicts() override;
+  Resource* getParsedResource(const ResourceID &id) override;
+  const Resource* getParsedResource(const ResourceID &id) const override;
   
-  bool load(const std::string &name) override;
-  bool unload(const std::string &name) override;
+  bool load(const ModificationParser* modifications, const Resource* resource) override;
+  bool unload(const ResourceID &id) override;
   void end() override;
   
   void clear() override;
@@ -71,7 +73,7 @@ private:
   std::atomic<size_t> accumulatedState;
   
 //   AnimationSystem* system;
-  TextureLoader* textureLoader;
+  ImageLoader* textureLoader;
 };
 
 // пачка материалов
@@ -105,35 +107,24 @@ class EntityAI;
 // нужно же добавить ResourceParser 
 class HardcodedEntityLoader : public Loader, public ResourceParser {
 public:
-  struct InitData {
-    Container<Transform>* transforms;
-    Container<InputData>* inputs;
-    Container<RotationData>* rotationDatas;
-    Container<simd::mat4>* matrices;
-    Container<ExternalData>* externalDatas;
-    Container<TextureData>* textureContainer;
-    Container<uint32_t>* stateContainer;
-    
-    TextureLoader* textureLoader;
-  };
-  
-  HardcodedEntityLoader(const InitData &data);
-  HardcodedEntityLoader(TextureLoader* textureLoader);
+  HardcodedEntityLoader(ImageLoader* textureLoader);
   ~HardcodedEntityLoader();
-  
-  bool parse(const std::string &pathPrefix, 
-             const std::string &forcedNamePrefix, 
-             const nlohmann::json &data, 
-             std::vector<Resource*> &resource, 
-             std::vector<ErrorDesc> &errors, 
-             std::vector<WarningDesc> &warnings) override;
-  bool forget(const std::string &name) override;
 
-  std::unordered_map<std::string, Resource*> getLoadedResource() override;
-  std::unordered_map<std::string, Conflict*> getConflicts() override;
+  bool canParse(const std::string &key) const override;
   
-  bool load(const std::string &name) override;
-  bool unload(const std::string &name) override;
+  bool parse(const Modification* mod,
+             const std::string &pathPrefix,
+             const nlohmann::json &data,
+             std::vector<Resource*> &resource,
+             std::vector<ErrorDesc> &errors,
+             std::vector<WarningDesc> &warnings) override;
+  bool forget(const ResourceID &name) override;
+
+  Resource* getParsedResource(const ResourceID &id) override;
+  const Resource* getParsedResource(const ResourceID &id) const override;
+
+  bool load(const ModificationParser* modifications, const Resource* resource) override;
+  bool unload(const ResourceID &id) override;
   void end() override;
   
   void clear() override;
@@ -167,7 +158,7 @@ private:
   
   EntityAI* brainAI;
   
-  TextureLoader* textureLoader;
+  ImageLoader* textureLoader;
   
   yacs::world world;
 };
@@ -178,25 +169,27 @@ public:
     yavf::Device* device;
     
     HardcodedEntityLoader* entityLoader;
-    TextureLoader* loader;
+    ImageLoader* loader;
   };
   
   HardcodedMapLoader(const CreateInfo &info);
   ~HardcodedMapLoader();
-  
-  bool parse(const std::string &pathPrefix, 
-             const std::string &forcedNamePrefix, 
-             const nlohmann::json &data, 
-             std::vector<Resource*> &resource, 
-             std::vector<ErrorDesc> &errors, 
-             std::vector<WarningDesc> &warnings) override;
-  bool forget(const std::string &name) override;
 
-  std::unordered_map<std::string, Resource*> getLoadedResource() override;
-  std::unordered_map<std::string, Conflict*> getConflicts() override;
-  
-  bool load(const std::string &name) override;
-  bool unload(const std::string &name) override;
+  bool canParse(const std::string &key) const override;
+
+  bool parse(const Modification* mod,
+             const std::string &pathPrefix,
+             const nlohmann::json &data,
+             std::vector<Resource*> &resource,
+             std::vector<ErrorDesc> &errors,
+             std::vector<WarningDesc> &warnings) override;
+  bool forget(const ResourceID &name) override;
+
+  Resource* getParsedResource(const ResourceID &id) override;
+  const Resource* getParsedResource(const ResourceID &id) const override;
+
+  bool load(const ModificationParser* modifications, const Resource* resource) override;
+  bool unload(const ResourceID &id) override;
   void end() override;
   
   void clear() override;
@@ -228,7 +221,7 @@ private:
   
   // нужно организовать виртуальный класс для этого
   HardcodedEntityLoader* entityLoader;
-  TextureLoader* textureLoader;
+  ImageLoader* textureLoader;
   
   // здесь у нас буду храниться все вершины карты
   yavf::Buffer* vertices;
