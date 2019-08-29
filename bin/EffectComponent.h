@@ -3,6 +3,8 @@
 
 #include "EntityComponentSystem.h"
 #include "AttributesComponent.h"
+#include "MemoryPool.h"
+#include "EventFunctor.h"
 
 // все эффекты по идее должны быть зарегистрированы заранее
 // эффект должен включать в себя иконку, название и описание как минимум
@@ -13,15 +15,17 @@ struct EffectType {
   
   EffectType();
   EffectType(const EffectType &type);
-  EffectType(const bool raw, const bool add, const bool remove, const bool periodicaly_apply, const bool compute_effect, const bool resist);
-  void make(const bool raw, const bool add, const bool remove, const bool periodicaly_apply, const bool compute_effect, const bool resist);
+  EffectType(const bool raw, const bool add, const bool remove, const bool periodically_apply, const bool compute_effect, const bool resist);
+  void make(const bool raw, const bool add, const bool remove, const bool periodically_apply, const bool compute_effect, const bool resist);
   
   bool raw() const;
   bool add() const;
   bool remove() const;
-  bool periodicaly_apply() const;
+  bool periodically_apply() const;
   bool compute_effect() const;
   bool can_be_resisted() const;
+
+  bool one_time_effect() const; // нужно очень быстро это обработать
 };
 
 struct BonusType {
@@ -35,18 +39,21 @@ struct EffectFuncRet {
   std::vector<BonusType> bonusTypes; // копирование std vector портит вообще все
 };
 
-class Effect {
+class Effect : public EventFunctor {
 public:
   struct CreateInfo {
+    Type id;
+
     EffectType effectType;
     size_t baseEffectTime;
     size_t basePeriodTime;
-    Type id;
+
     std::string name;
     std::string description;
     std::vector<BonusType> types;
     std::function<EffectFuncRet(const size_t&, const size_t&, const std::vector<BonusType>&, const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&)> compute;
     std::function<EffectFuncRet(const size_t&, const size_t&, const std::vector<BonusType>&, const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&)> resist;
+    std::function<event(const Type&, const EventData&, yacs::entity* entity)> eventFunc;
   };
   Effect(const CreateInfo &info);
   ~Effect();
@@ -62,6 +69,8 @@ public:
   
   EffectFuncRet compute(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_attrib, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_attrib) const;
   EffectFuncRet resist(const size_t &time, const size_t &period_time, const std::vector<BonusType> &bonuses, const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_attribs, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_attribs);
+
+  event call(const Type &type, const EventData &data, yacs::entity* entity) override;
 private:
   // тип: рав не рав, инт не инт, нужно ли его удалять наверное, что еще? переодическое использование 
   // как сделать силу эффекта зависимую от характеристик? то есть изменения коснуться Bonus'а и времени эффекта
@@ -95,8 +104,10 @@ private:
   std::function<EffectFuncRet(const size_t&, const size_t&, const std::vector<BonusType>&, const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&)> resistfunc;
   
   // иконка - просто текстурка, мы ее будем рисовать в специальном месте
-  
-  // где хранить то это дело?
+
+  // может быть мне здесь нужно подписываться на интеракцию
+  // почему бы и нет
+  std::function<event(const Type&, const EventData&, yacs::entity* entity)> eventFunc;
 };
 
 // как передать эффект от одного объекта к другому? 
@@ -107,20 +118,19 @@ private:
 // скорее всего накладываемых эффектов будет не то чтобы очень много, и в принципе работать скорее всего это будет быстро
 
 class EntityAI;
-class EffectSystem;
+//class EffectSystem;
 
-class EffectComponent : public yacs::Component {
+class EffectComponent {
 public:
-  CLASS_TYPE_DECLARE
-  
   struct CreateInfo {
-    EffectSystem* system;
+//    EffectSystem* system;
+    AttributeComponent* attribs;
   };
   EffectComponent(const CreateInfo &info);
   ~EffectComponent();
   
-  void update(const size_t &time = 0) override;
-  void init(void* userData) override;
+  void update(const size_t &time = 0);
+  void init(void* userData);
   
   void addEffect(const EffectFuncRet &effectData, Effect* effect, EntityAI* entity);
   void removeEffect(Effect* effect);
@@ -128,9 +138,9 @@ public:
   void addEventEffect(const Type &event, Effect* effect);
   void removeEventEffect(const Type &event, Effect* effect);
   
-  Effect* getNextEventEffect(const Type &event);
+  Effect* getNextEventEffect(const Type &event, size_t &counter);
   
-  size_t & index();
+//  size_t & index();
 private:
   struct TimeEffect {
     size_t currentTime;
@@ -145,16 +155,15 @@ private:
     Effect* effect;
   };
   
-  size_t systemIndex;
-  EffectSystem* system;
+//  size_t systemIndex;
+//  EffectSystem* system;
   AttributeComponent* attribs;
   std::vector<TimeEffect> effects;
-  
-  size_t counter;
+
   std::vector<EffectData> eventsEffects;
 };
 
-class EffectSystem : public Engine {
+class EffectSystem : public Engine, public yacs::system {
 public:
   struct CreateInfo {
     dt::thread_pool* pool;
@@ -162,14 +171,21 @@ public:
   EffectSystem(const CreateInfo &info);
   ~EffectSystem();
   
-  void update(const uint64_t &time) override;
+  void update(const size_t &time) override;
   
-  void addEffectComponent(EffectComponent* comp);
-  void removeEffectComponent(EffectComponent* comp);
+//  void addEffectComponent(EffectComponent* comp);
+//  void removeEffectComponent(EffectComponent* comp);
+
+  // создание удаление эффектов будет здесь наверное
+  Effect* get(const Type &type) const;
+  Effect* create(const Effect::CreateInfo &info);
+  void destroy(const Type &type);
 private:
   dt::thread_pool* pool;
-  
-  std::vector<EffectComponent*> components;
+
+  std::unordered_map<Type, Effect*> effects;
+  MemoryPool<Effect, sizeof(Effect)*20> effectsPool;
+//  std::vector<EffectComponent*> components;
 };
 
 #endif

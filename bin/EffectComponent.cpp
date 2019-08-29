@@ -11,16 +11,16 @@ enum EffectTypeEnum {
 
 EffectType::EffectType() : container(0) {}
 EffectType::EffectType(const EffectType &type) : container(type.container) {}
-EffectType::EffectType(const bool raw, const bool add, const bool remove, const bool periodicaly_apply, const bool compute_effect, const bool resist) : container(0) {
-  make(raw, add, remove, periodicaly_apply, compute_effect, resist);
+EffectType::EffectType(const bool raw, const bool add, const bool remove, const bool periodically_apply, const bool compute_effect, const bool resist) : container(0) {
+  make(raw, add, remove, periodically_apply, compute_effect, resist);
 }
 
-void EffectType::make(const bool raw, const bool add, const bool remove, const bool periodicaly_apply, const bool compute_effect, const bool resist) {
-  container |= (raw * EFFECT_TYPE_RAW) | 
-               (add * EFFECT_TYPE_ADD) | 
-               (remove * EFFECT_TYPE_REMOVE) | 
-               (periodicaly_apply * EFFECT_TYPE_PERIODICALY_APPLY) | 
-               (compute_effect * EFFECT_TYPE_COMPUTE_EFFECT) | 
+void EffectType::make(const bool raw, const bool add, const bool remove, const bool periodically_apply, const bool compute_effect, const bool resist) {
+  container |= (raw * EFFECT_TYPE_RAW) |
+               (add * EFFECT_TYPE_ADD) |
+               (remove * EFFECT_TYPE_REMOVE) |
+               (periodically_apply * EFFECT_TYPE_PERIODICALY_APPLY) |
+               (compute_effect * EFFECT_TYPE_COMPUTE_EFFECT) |
                (resist * EFFECT_TYPE_CAN_RESIST);
 }
 
@@ -36,7 +36,7 @@ bool EffectType::remove() const {
   return (container & EFFECT_TYPE_REMOVE) == EFFECT_TYPE_REMOVE;
 }
 
-bool EffectType::periodicaly_apply() const {
+bool EffectType::periodically_apply() const {
   return (container & EFFECT_TYPE_PERIODICALY_APPLY) == EFFECT_TYPE_PERIODICALY_APPLY;
 }
 
@@ -97,14 +97,18 @@ EffectFuncRet Effect::resist(const size_t &time, const size_t &period_time, cons
   return resistfunc(time, period_time, bonuses, float_attribs, int_attribs);
 }
 
-CLASS_TYPE_DEFINE_WITH_NAME(EffectComponent, "EffectComponent")
+event Effect::call(const Type &type, const EventData &data, yacs::entity* entity) {
+  return eventFunc(type, data, entity);
+}
 
-EffectComponent::EffectComponent(const CreateInfo &info) : systemIndex(0), system(info.system), attribs(nullptr), counter(0) {
-  system->addEffectComponent(this);
+//CLASS_TYPE_DEFINE_WITH_NAME(EffectComponent, "EffectComponent")
+
+EffectComponent::EffectComponent(const CreateInfo &info) : attribs(info.attribs), counter(0) {
+//  system->addEffectComponent(this);
 }
 
 EffectComponent::~EffectComponent() {
-  system->removeEffectComponent(this);
+//  system->removeEffectComponent(this);
 }
 
 void EffectComponent::update(const size_t &time) {
@@ -140,7 +144,7 @@ void EffectComponent::update(const size_t &time) {
     
     const bool period = (effects[i].currentTime % effects[i].effectData.period_time) <= time;
     //effects[i].currentTime >= effects[i].effectData.period_time
-    if (effects[i].effect->type().periodicaly_apply() && period) {
+    if (effects[i].effect->type().periodically_apply() && period) {
       const std::vector<BonusType> &v = effects[i].effectData.bonusTypes;
         
       for (size_t j = 0; j < v.size(); ++j) {
@@ -227,7 +231,7 @@ void EffectComponent::removeEventEffect(const Type &event, Effect* effect) {
   }
 }
 
-Effect* EffectComponent::getNextEventEffect(const Type &event) {
+Effect* EffectComponent::getNextEventEffect(const Type &event, size_t &counter) {
   Effect* effect = nullptr;
   while (effect == nullptr) {
     if (counter >= eventsEffects.size()) {
@@ -243,24 +247,27 @@ Effect* EffectComponent::getNextEventEffect(const Type &event) {
   return effect;
 }
 
-size_t & EffectComponent::index() {
-  return systemIndex;
-}
+//size_t & EffectComponent::index() {
+//  return systemIndex;
+//}
 
 EffectSystem::EffectSystem(const CreateInfo &info) : pool(info.pool) {}
 EffectSystem::~EffectSystem() {}
 
-void EffectSystem::update(const uint64_t &time) {
+void EffectSystem::update(const size_t &time) {
   static const auto func = [&] (const size_t &start, const size_t &count) {
     for (size_t i = start; i < start+count; ++i) {
-      components[i]->update(time);
+//      components[i]->update(time);
+      auto handle = Global::world()->get_component<EffectComponent>(i);
+      handle->update(time);
     }
   };
-  
-  const size_t count = std::ceil(float(components.size()) / float(pool->size()+1));
+
+  const size_t &componentsCount = Global::world()->count_components<EffectComponent>();
+  const size_t count = std::ceil(float(componentsCount) / float(pool->size()+1));
   size_t start = 0;
   for (uint32_t i = 0; i < pool->size()+1; ++i) {
-    const size_t jobCount = std::min(count, components.size()-start);
+    const size_t jobCount = std::min(count, componentsCount-start);
     if (jobCount == 0) break;
 
     pool->submitnr(func, start, jobCount);
@@ -272,13 +279,37 @@ void EffectSystem::update(const uint64_t &time) {
   pool->wait();
 }
 
-void EffectSystem::addEffectComponent(EffectComponent* comp) {
-  comp->index() = components.size();
-  components.push_back(comp);
+Effect* EffectSystem::get(const Type &type) const {
+  auto itr = effects.find(type);
+  if (itr == effects.end()) return nullptr;
+
+  return itr->second;
 }
 
-void EffectSystem::removeEffectComponent(EffectComponent* comp) {
-  components.back()->index() = comp->index();
-  std::swap(components[comp->index()], components.back());
-  components.pop_back();
+Effect* EffectSystem::create(const Effect::CreateInfo &info) {
+  auto itr = effects.find(info.id);
+  if (itr != effects.end()) throw std::runtime_error("Effect with type " + info.id.name() + " is already created");
+
+  Effect* effect = effectsPool.newElement(info);
+  effects[info.id] = effect;
+  return effect;
 }
+
+void EffectSystem::destroy(const Type &type) {
+  auto itr = effects.find(type);
+  if (itr == effects.end()) return;
+
+  effectsPool.deleteElement(itr->second);
+  effects.erase(itr);
+}
+
+//void EffectSystem::addEffectComponent(EffectComponent* comp) {
+//  comp->index() = components.size();
+//  components.push_back(comp);
+//}
+//
+//void EffectSystem::removeEffectComponent(EffectComponent* comp) {
+//  components.back()->index() = comp->index();
+//  std::swap(components[comp->index()], components.back());
+//  components.pop_back();
+//}
