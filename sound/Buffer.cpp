@@ -29,7 +29,7 @@ bool Buffer::isBufferDataStaticPresent() {
 }
   
 Buffer::Buffer() : alId(UINT32_MAX) {}
-Buffer::Buffer(const Buffer &buffer) : alId(buffer.id()) {}
+//Buffer::Buffer(const Buffer &buffer) : alId(buffer.id()) {}
 Buffer::Buffer(const uint32_t &id) : alId(id) {
 //   if (alId == UINT32_MAX) {
 //     alGenBuffers(1, &alId);
@@ -105,11 +105,11 @@ uint32_t Buffer::id() const {
   return alId;
 }
 
-Buffer & Buffer::operator=(const Buffer &other) {
-  alId = other.alId;
-  
-  return *this;
-}
+//Buffer & Buffer::operator=(const Buffer &other) {
+//  alId = other.alId;
+//
+//  return *this;
+//}
 
 bool Buffer::operator==(const Buffer &other) {
   return alId == other.alId;

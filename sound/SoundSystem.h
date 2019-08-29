@@ -5,6 +5,7 @@
 #include "Utility.h"
 #include "MemoryPool.h"
 #include "EntityComponentSystem.h"
+#include "ThreadPool.h"
 
 #include <vector>
 #include <string>
@@ -28,8 +29,7 @@
 
 // class Source;
 // class Buffer;
-class BufferAllocator;
-
+//class BufferAllocator;
 
 struct ALCdevice_struct;
 typedef struct ALCdevice_struct ALCdevice;
@@ -69,6 +69,8 @@ typedef struct ALCcontext_struct ALCcontext;
 // class SoundChannelData;
 // class SoundData;
 
+class SoundLoader;
+
 struct ListenerData {
   simd::vec4 pos;
   simd::vec4 velocity;
@@ -78,22 +80,22 @@ struct ListenerData {
 
 struct Buffers {
   Buffers() : buffers{Buffer(UINT32_MAX), Buffer(UINT32_MAX)} {}
-  Buffers(const Buffers &buffers) : buffers{buffers.buffers[0], buffers.buffers[1]} {}
+//  Buffers(const Buffers &buffers) : buffers{buffers.buffers[0], buffers.buffers[1]} {}
   Buffers(const Buffer &b1, const Buffer &b2) : buffers{b1, b2} {}
   ~Buffers() {}
   
-  Buffers & operator=(const Buffers &buffers) {
-    this->buffers[0] = buffers.buffers[0];
-    this->buffers[1] = buffers.buffers[1];
-    return *this;
-  }
+//  Buffers & operator=(const Buffers &buffers) {
+//    this->buffers[0] = buffers.buffers[0];
+//    this->buffers[1] = buffers.buffers[1];
+//    return *this;
+//  }
   
   Buffer buffers[2];
 };
 
 struct SoundOutput {
   ResourceID id;
-  SoundData* sound;
+  const SoundData* sound;
   
   Source source;
   Buffers buffers;
@@ -105,20 +107,21 @@ struct QueueSoundType {
   uint32_t container;
   
   QueueSoundType();
-  QueueSoundType(const bool relative, const bool deleteAfterPlayed, const bool playAnyway);
+  QueueSoundType(const bool relative, const bool deleteAfterPlayed, const bool playAnyway, const bool looping);
   
-  void makeType(const bool relative, const bool deleteAfterPlayed, const bool playAnyway);
+  void makeType(const bool relative, const bool deleteAfterPlayed, const bool playAnyway, const bool looping);
   
   bool isRelative() const;
   bool deleteAfterPlayed() const;
   bool playAnyway() const; // это в основном нужно чтобы проиграть хотя бы раз (супер редко)
-  // повтор?
+  bool looping() const;
   // запустить звук с какого нибудь определенного места
   // для этого скорее всего достаточно будет одного байта
   
   void setRelative(const bool enable);
   void setDeleteAfterPlayed(const bool enable);
   void setPlayAnyway(const bool enable);
+  void setLooping(const bool enable);
 };
 
 struct QueueSoundData {
@@ -131,6 +134,8 @@ struct QueueSoundData {
   float gain;
   float maxDist;
   float maxGain;
+  float rolloff;
+  float refDist;
   
   float pos[4];
   float vel[4];
@@ -138,64 +143,20 @@ struct QueueSoundData {
   
   QueueSoundType type;
   
-  SoundData* data;
+  const SoundData* data;
   
   float priority;
   Source source;
   Buffers buffers;
   
-  QueueSoundData() :
-    loadedSize(0), 
-    pitch(1.0f), 
-    gain(0.1f), 
-    maxDist(1.0f), 
-    maxGain(1.0f), 
-    pos{0.0f, 0.0f, 0.0f, 1.0f}, 
-    vel{0.0f, 0.0f, 0.0f, 0.0f}, 
-    dir{0.0f, 0.0f, 0.0f, 0.0f}, 
-    type(false, true, false), 
-    data(nullptr), 
-    priority(100000.0f), 
-    source(UINT32_MAX), 
-    buffers(UINT32_MAX, UINT32_MAX) {}
+  QueueSoundData();
+  QueueSoundData(const ResourceID &id);
   
-  QueueSoundData(const ResourceID &id) : 
-    id(id), 
-    loadedSize(0), 
-    pitch(1.0f), 
-    gain(0.1f), 
-    maxDist(1.0f), 
-    maxGain(1.0f), 
-    pos{0.0f, 0.0f, 0.0f, 1.0f}, 
-    vel{0.0f, 0.0f, 0.0f, 0.0f}, 
-    dir{0.0f, 0.0f, 0.0f, 0.0f}, 
-    type(false, true, false), 
-    data(nullptr), 
-    priority(100000.0f), 
-    source(UINT32_MAX), 
-    buffers(UINT32_MAX, UINT32_MAX) {}
+  ~QueueSoundData();
   
-  ~QueueSoundData() {}
-  
-  void updateSource() {
-    if (!source.isValid()) return;
-    
-    source.relative(type.isRelative());
-    source.setPitch(pitch);
-    source.setGain(gain);
-    source.setMaxDist(maxDist);
-    source.setMaxGain(maxGain);
-    
-    source.setPos(pos);
-    source.setDir(dir);
-    source.setVel(vel);
-  }
-  
-  void queueBuffers() {
-    if (!source.isValid()) return;
-    
-    source.queueBuffers(2, buffers.buffers);
-  }
+  void updateSource();
+  void queueBuffers();
+  float playingPosition() const;
   
   // может быть пригодится еще тип звука
   // приоритет посчитаем на основе позиции
@@ -222,14 +183,20 @@ class SoundComponent;
 // тут нужно бы мультитрединг запилить
 class SoundSystem : public Engine, public yacs::system {
 public:
-  SoundSystem();
+  static void updateListener(const ListenerData &data);
+
+  struct CreateInfo {
+    dt::thread_pool* pool;
+    SoundLoader* loader;
+    // добавятся методы загрузки звуков
+    // да и в общем изменится подход ко звукам
+  };
+  SoundSystem(const CreateInfo &info);
   ~SoundSystem();
   
   // нужно еще сделать выбор разных устройств вывода звука
   
   // да и вообще у каждого engine наверное нужно сделать какой-нибудь релоад
-  
-  void updateListener(const ListenerData &data);
   
   void update(const uint64_t &time) override;
   
@@ -242,21 +209,16 @@ public:
   size_t getBackgroundSoundDuration() const; // микросекунды
   float getBackgroundSoundPosition() const;
   void setBackgroundSoundPosition(const float &pos);
-  // тут еще будут методы для того чтобы поставить звук в очередь, для этого нам потребуется 
-  // позиция, скорость, направление, максимальная дистанция и прочее
-  // и нам еще потребуется обновить местоположение звука, как это сделать?
-  // передавать какой-нибудь уникальный индентификатор именно звука в очереди???
-  // это несложно по идее
+
   QueueSoundData* queueSound(const ResourceID &id);
   void unqueueSound(QueueSoundData* ptr);
-  // нам нужно еще менять свойства звука, мы можем просто еще раз засовывать в эту функцию
-  // потом искать по id звуки и менять свойства источника
   
   // методы для загрузки и удаления звуков
   // теперь если звук не isLazyPreloaded, то мне сложно его удалить
-  void loadSound(const ResourceID &id, const SoundLoadingData &data);
-  void unloadSound(const ResourceID &id);
-  SoundData* getSound(const ResourceID &id) const;
+  //void loadSound(const ResourceID &id, const SoundLoadingData &data);
+//  void loadSound(const ResourceID &id, const LoadedSoundData &data);
+//  void unloadSound(const ResourceID &id);
+//  const SoundData* getSound(const ResourceID &id) const;
   
 //  void addComponent(SoundComponent* ptr);
 //  void removeComponent(SoundComponent* ptr);
@@ -264,11 +226,13 @@ public:
   size_t sourcesCount() const;
   size_t activeSourcesCount() const;
 private:
-  struct ContainerData {
-    size_t offset;
-    size_t size1; // это по идее в байтах должно быть 
-    size_t size2;
-  };
+//  struct ContainerData {
+//    size_t offset;
+//    size_t size1; // это по идее в байтах должно быть
+//    size_t size2;
+//  };
+
+  dt::thread_pool* pool;
   
   ALCdevice* device;
   ALCcontext* ctx;
@@ -281,17 +245,22 @@ private:
   
   std::vector<QueueSoundData*> soundQueue;
 //  std::vector<SoundComponent*> components;
-  
+
+  std::mutex mutex;
   std::vector<Source> freeSources;
   std::vector<Buffers> sourceBuffers;
   
-  std::vector<char> container; // данные подгруженных заранее звуков
-  
+//  std::vector<char> container; // данные подгруженных заранее звуков
+  SoundLoader* loader;
+
   // тут наверное нужно использовать хеш названия
-  std::unordered_map<ResourceID, SoundData*> datas;
-  std::unordered_map<ResourceID, ContainerData> cachedBuffers;
-  MemoryPool<SoundData, sizeof(SoundData)*50> soundsPool;
+//  std::unordered_map<ResourceID, SoundData*> datas;
+//  std::unordered_map<ResourceID, ContainerData> cachedBuffers;
+//  MemoryPool<SoundData, sizeof(SoundData)*50> soundsPool;
   MemoryPool<QueueSoundData, sizeof(QueueSoundData)*50> queueDataPool;
+
+  void freeSource(QueueSoundData* ptr);
+  void setSource(QueueSoundData* ptr);
 };
 
 #endif

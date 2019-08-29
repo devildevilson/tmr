@@ -35,8 +35,8 @@ public:
 //   };
   
   Source();
-  Source(const Source &source);
-  Source(const uint32_t &id);
+//  Source(const Source &source);
+  explicit Source(const uint32_t &id);
 //   Source(const CreateInfo &info);
 //   Source(Source &&source);
   ~Source();
@@ -124,7 +124,7 @@ public:
   uint32_t id() const;
   
   //Source & operator=(Source &&other);
-  Source & operator=(const Source &other);
+//  Source & operator=(const Source &other);
   bool operator==(const Source &other);
   bool operator!=(const Source &other);
 private:
