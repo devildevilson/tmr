@@ -5,6 +5,7 @@
 #include "ResourceParser.h"
 #include "ImageResourceContainer.h"
 #include "RenderStructures.h"
+#include "Resource.h"
 
 #include "MemoryPool.h"
 
@@ -15,6 +16,72 @@
 #define DEFAULT_TEXTURE_DATA_COUNT 100
 
 #define TEXTURE_MAX_LAYER_COUNT 2048
+
+VK_DEFINE_HANDLE(VkDescriptorPool)
+
+namespace yavf {
+  namespace Internal {
+    struct ImageInfo;
+  }
+
+  class Image;
+  class Buffer;
+  class Device;
+  class Sampler;
+
+  typedef VkDescriptorPool DescriptorPool;
+}
+
+class ImagePool {
+public:
+  static uint32_t slotsCount();
+
+  struct ImageCreateInfo {
+    VkExtent2D extent;
+    uint32_t   mipLevels;
+  };
+
+  struct CreateInfo {
+    uint32_t imageLayerCount;
+    uint32_t createImages;
+
+    yavf::Device* device;
+    ImageCreateInfo imageInfo;
+  };
+  ImagePool(const CreateInfo &info);
+  ~ImagePool();
+
+  Image pop();
+  void pop(const size_t &size, Image* memory);
+  void release(const Image &img);
+  void release(const size_t &size, Image* memory);
+
+  const yavf::Internal::ImageInfo* getInfo() const;
+  yavf::Image* getImageArray(const uint32_t &index) const;
+  yavf::Image* getImageArray(const Image &data) const;
+
+  constexpr uint32_t layers() const;
+  uint32_t freeImagesCount() const;
+  uint32_t imageArraysCount() const;
+
+  void addImageArrays(const uint32_t &count);
+
+  void updateDescriptorData(yavf::DescriptorSet* set);
+private:
+  struct ImageSlot {
+    yavf::Image* image;
+    uint32_t slot;
+  };
+
+  const uint32_t imageLayerCount;
+  yavf::Device* device;
+  std::vector<ImageSlot> images;
+  std::vector<Image> freePlaces;
+
+  // как быть с дескриптором? мне нужны сторого определенные, но не последовательные слоты для изображений
+  // статик переменная? это достаточно простой вариант
+  static uint32_t descriptorSlot;
+};
 
 namespace std {
   template<>
@@ -32,6 +99,22 @@ namespace std {
   };
 }
 
+static bool operator==(const VkExtent2D &right, const VkExtent2D &left);
+
+// по size и mipLevels мы можем узнать к какому пулу принадлежит изображение
+struct ImageContainerData {
+  ResourceID id;
+  Image* images;
+  size_t count;
+  VkExtent2D size;
+  uint32_t mipLevels;
+};
+
+struct SamplerContainerData {
+  ResourceID id;
+  uint32_t sampler;
+};
+
 class ImageContainer {
 public:
   virtual ~ImageContainer() {}
@@ -40,31 +123,60 @@ public:
   virtual size_t hostSize() const = 0;
   virtual size_t deviceSize() const = 0;
   
-  virtual std::vector<Image> images(const ResourceID &id) const = 0;
+  virtual const ImageContainerData* resourceData(const ResourceID &id) const = 0;
   virtual Image image(const ResourceID &id, const uint32_t &index) const = 0;
+
+  virtual uint32_t sampler(const ResourceID &id) const = 0;
 };
 
-class TextureLoader : public Loader, public ImageResourceContainer, public ImageContainer, public ResourceParser {
+struct VulkanRelatedData {
+  uint32_t imagesCount;
+  uint32_t samplersCount;
+  yavf::DescriptorSet* set;
+  yavf::DescriptorSetLayout layout;
+
+  yavf::DescriptorPool pool;
+};
+
+struct ImageData {
+  Image image;
+  VkExtent2D size;
+  uint32_t mipLevels;
+};
+
+class ImageLoader : public Loader, public ImageResourceContainer, public ImageContainer, public ResourceParser {
 public:
-  // по идее это нам тоже не особ нужно после загрузки
-  // так как все эти данные мы должны восстановить из json'а
-  struct LoadingData {
-    std::string name;
-    std::string path;
-    std::string sampler;
-    uint32_t rows;
-    uint32_t columns;
-    uint32_t count;
-    VkExtent3D size;
-    
-    // что еще?
+  class LoadingData : public Resource {
+  public:
+    struct CreateInfo {
+      Resource::CreateInfo resInfo;
+
+      uint32_t rows;
+      uint32_t columns;
+      uint32_t count;
+      uint32_t mipLevelsVar;
+      VkExtent3D size;
+    };
+    LoadingData(const CreateInfo &info);
+
+    uint32_t rows() const;
+    uint32_t columns() const;
+    uint32_t count() const;
+    uint32_t mipLevels() const;
+    VkExtent3D imageSize() const;
+  private:
+    uint32_t rowsVar;
+    uint32_t columnsVar;
+    uint32_t countVar;
+    uint32_t mipLevelsVar;
+    VkExtent3D sizeVar;
   };
   
   struct Data {
     ~Data();
     
-    MemoryPool<Resource, sizeof(Resource)> resourcePool;
-    MemoryPool<Conflict, sizeof(Conflict)> conflictPool;
+//    MemoryPool<Resource, sizeof(Resource)> resourcePool;
+//    MemoryPool<Conflict, sizeof(Conflict)> conflictPool;
     MemoryPool<LoadingData, sizeof(LoadingData)> textureDataPool;
     
 //     std::vector<Resource*> resources;
@@ -75,13 +187,20 @@ public:
     // хотя нет нужен
     
     // нужно ли тут именовать эти данные?
-    std::unordered_map<std::string, Resource*> resources;
-    std::unordered_map<std::string, Conflict*> conflicts;
-    std::unordered_map<std::string, LoadingData*> textureDatas;
+//    std::unordered_map<ResourceID, Resource*> resources;
+//    std::unordered_map<std::string, Conflict*> conflicts;
+    std::unordered_map<ResourceID, LoadingData*> textureDatas;
     
-    std::vector<std::string> load;
-    std::vector<std::string> unload;
-    
+    //std::vector<ResourceID> load;
+    //std::vector<ResourceID> unload;
+
+    // тут еще должны быть стейджинг изображения которые и будут хранить непосредственно данные
+    // или потом создать?
+    std::vector<ImageContainerData> loadData;
+
+
+    // я подозреваю что map можно заменить на вектор
+    // и будет достаточно быстро
     std::unordered_map<VkExtent2D, uint32_t> layerCount;
     
     // вообще можно оставить TextureData для того чтобы проще блоы бы загружать новые уровни
@@ -95,13 +214,14 @@ public:
   struct CreateInfo {
     yavf::Device* device;
   };
-  
-  TextureLoader(const CreateInfo &info);
-  ~TextureLoader();
+  ImageLoader(const CreateInfo &info);
+  ~ImageLoader();
   
   // тут еще нужно сделать возможность пересобрать новые данные о текстуре
   // то есть у нас есть Texture в котором записаны данные об хранении текстуры в одном блоке текстур в памяти компа
   // и при каждой перезагрузки нам нужно передать изменения, как это сделать?
+
+  bool canParse(const std::string &key) const override;
   
   bool parse(const Modification *mod,
              const std::string &pathPrefix,
@@ -111,11 +231,11 @@ public:
              std::vector<WarningDesc> &warnings) override;
   bool forget(const ResourceID &id) override;
 
-  std::unordered_map<std::string, Resource*> getLoadedResource() override;
-  std::unordered_map<std::string, Conflict*> getConflicts() override;
+  Resource* getParsedResource(const ResourceID &id) override;
+  const Resource* getParsedResource(const ResourceID &id) const override;
   
-  bool load(const std::string &name) override;
-  bool unload(const std::string &name) override;
+  bool load(const ModificationParser* modifications, const Resource* resource) override;
+  bool unload(const ResourceID &id) override;
   void end() override;
   
   void clear() override;
@@ -126,25 +246,39 @@ public:
   
   size_t hostSize() const override;
   size_t deviceSize() const override;
-  
-  std::vector<Texture> getTextures(const std::string &name) const override;
-  Texture getTexture(const std::string &name, const uint32_t &index) const override;
-  
-  uint32_t imageCount() const override;
-  yavf::DescriptorSet* imageDescriptor() const override;
-  yavf::DescriptorSetLayout imageSetLayout() const override;
-  
-  uint32_t samplerCount() const override;
-  yavf::DescriptorSet* samplerDescriptor() const override;
-  yavf::DescriptorSetLayout samplerSetLayout() const override;
+
+  const ImageContainerData* resourceData(const ResourceID &id) const override;
+  Image image(const ResourceID &id, const uint32_t &index) const override;
+
+  uint32_t sampler(const ResourceID &id) const override;
+
+  uint32_t imagesCount() const override;
+  uint32_t samplersCount() const override;
+
+  yavf::DescriptorSet* resourceDescriptor() const override;
+  yavf::DescriptorSetLayout resourceLayout() const override;
+
+  // лучше наверное вынести на уровень выше
+  bool needRecreatePipelines() const;
 private:
-  struct ImageArrayData {
-    yavf::Image* texture;
-    uint32_t currentLayer;
-    uint32_t descriptorIndex;
-    // тут наверное еще нужно указать где хранится эта картинка
-    // хотя мы можем это узнать неявно из texture при наличие ptr()
-  };
+//  struct ImageArrayData {
+//    yavf::Image* texture;
+//    uint32_t currentLayer;
+//    uint32_t descriptorIndex;
+//    // тут наверное еще нужно указать где хранится эта картинка
+//    // хотя мы можем это узнать неявно из texture при наличие ptr()
+//    // не device local текстурки сильно ограничены, поэтому это бессмысленно
+//
+//    size_t prevDataIndex;
+//  };
+
+//  struct CurrentSizeIndex {
+//    VkExtent2D size;
+//    uint32_t mipLevels;
+//    size_t currentIndex;
+//
+//    bool equal(const VkExtent2D &otherSize, const uint32_t &otherMip) const;
+//  };
   
   // тут нужно удалить Resource'ы после конца загрузки
   
@@ -153,24 +287,27 @@ private:
   
   // неплохой вариант сохранить данные после загрузки для дебага например или еще чего нибудь
   Data* data;
-  
-  std::unordered_map<std::string, std::vector<Texture>> textureMap;
-  std::unordered_map<std::string, uint32_t> samplerMap;
-  std::unordered_map<VkExtent2D, std::vector<size_t>> arrayIndices;
-  std::vector<ImageArrayData> arrays;
+
+  // можем ли мы и тут вектор сделать? у сэмлеров легко, текстуры?
+  // часто ли у нас вообще обращение к обычным текстурам происходит? не очень
+  std::vector<ImageContainerData> imagesContainer;
+  std::vector<SamplerContainerData> samplersContainer;
+//  std::vector<CurrentSizeIndex> currentIndices;
+
+//  std::unordered_map<ResourceID, std::vector<Texture>> textureMap;
+//  std::unordered_map<ResourceID, uint32_t> samplerMap;
+//  std::unordered_map<VkExtent2D, std::vector<size_t>> arrayIndices; // это понятно для чего, но я и это заменю наверное
+  std::vector<ImagePool> arrays;
   
   yavf::Device* device;
-  
-  yavf::Sampler sampler;
-  
-  yavf::DescriptorPool pool;
-  
-  uint32_t imagesCount;
-  uint32_t samplersCount;
-  yavf::DescriptorSet* images;
-  yavf::DescriptorSet* samplers;
-  yavf::DescriptorSetLayout imageLayout;
-  yavf::DescriptorSetLayout samplerLayout;
+
+  yavf::Sampler* samplers;
+
+  uint32_t oldImagesCount;
+  VulkanRelatedData renderData;
+
+  // у нас здесь много что поменяется, нам нужен пример способ получить информацию ОБ изображении
+  // размеры, есть ли мип уровни, ??
   
   void createData();
   
