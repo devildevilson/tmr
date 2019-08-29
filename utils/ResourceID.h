@@ -12,12 +12,13 @@ public:
   
   ResourceID();
   ResourceID(const std::string &name);
-  ResourceID(const ResourceID &other);
-  
+//  ResourceID(const ResourceID &other);
+
+  bool valid() const;
   size_t id() const;
   std::string name() const;
   
-  ResourceID & operator=(const ResourceID &other);
+//  ResourceID & operator=(const ResourceID &other);
   bool operator==(const ResourceID &other) const;
   bool operator!=(const ResourceID &other) const;
 private:

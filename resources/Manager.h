@@ -62,41 +62,6 @@
 #define DEFAULT_CONFLICT_COUNT 100
 #define DEFAULT_RESOURCE_COUNT 1000
 
-enum ErrorType {
-  // gamedata errors
-  DUBLICATE_ERROR = 0,
-  DUBLICATE_PREFIX,
-  COULD_NOT_LOAD_FILE,
-  // texture errors
-  MISSED_TEXTURE_PATH,
-  TOO_MUCH_TEXTURE_COUNT,
-  MISSED_TEXTURE_SIZE,
-  BAD_TEXTURE_TYPE,
-  NUM_ERRORS
-};
-
-enum WarningType {
-  MISSED_TEXTURE_NAME = 0,
-  REDUNDANT_DATA,
-  NUM_WARNINGS
-};
-
-struct ErrorDesc {
-  ErrorDesc() {}
-  ErrorDesc(const ErrorType &type, const std::string &desc) : type(type), description(desc) {}
-  
-  ErrorType type;
-  std::string description;
-};
-
-struct WarningDesc {
-  WarningDesc() {}
-  WarningDesc(const WarningType &type, const std::string &desc) : type(type), description(desc) {}
-  
-  WarningType type;
-  std::string description;
-};
-
 class Conflict;
 
 struct Resource {
@@ -225,37 +190,7 @@ class PluginParser;
 // в общем нужны дополнительные данные
 // конфликты и ресурсы поди нужно возвращать по именам
 
-class ResourceParser {
-public:
-  virtual ~ResourceParser() {}
-  
-  virtual bool parse(const std::string &pathPrefix, 
-                     const std::string &forcedNamePrefix, 
-                     const nlohmann::json &data, 
-                     std::vector<Resource*> &resource, 
-                     std::vector<ErrorDesc> &errors, 
-                     std::vector<WarningDesc> &warnings) = 0;
-  virtual bool forget(const std::string &name) = 0;
-  
-  //virtual bool load(Conflict* res) = 0;
-  //virtual bool unload(Conflict* res) = 0;
-  //virtual bool unload(const std::string &name) = 0;
-  //virtual void unloadAll() = 0;
-  //virtual void end() = 0; // фиксируем изменения
-  
-  //virtual void clear() = 0;
-  
-  //virtual std::vector<std::string> getLoadedResourceNames() = 0;
-//   virtual std::vector<Resource*> getLoadedResource() = 0;
-//   virtual std::vector<Conflict*> getConflicts() = 0;
-  
-  virtual std::unordered_map<std::string, Resource*> getLoadedResource() = 0;
-  virtual std::unordered_map<std::string, Conflict*> getConflicts() = 0;
-  
-  //virtual size_t overallState() const = 0;
-  //virtual size_t loadingState() const = 0;
-  //virtual std::string hint() const = 0;
-};
+
 
 // class Parser {
 // public:

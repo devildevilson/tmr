@@ -51,6 +51,7 @@ PhysUserData* TargetInteraction::get_next() {
 
 RayInteraction::RayInteraction(const CreateInfo &info) 
   : Interaction(Interaction::type::ray, info.event, info.userData),
+    interaction_type(info.interaction_type),
     rayIndex(UINT32_MAX),
     lastPos{info.pos[0], info.pos[1], info.pos[2], info.pos[3]},
     lastDir{info.dir[0], info.dir[1], info.dir[2], info.dir[3]},
@@ -528,6 +529,17 @@ bool InteractionComponent::has(const enum Interaction::type &type, const Type &e
   }
   
   return false;
+}
+
+void InteractionComponent::remove(const enum Interaction::type &type, const Type &event) {
+  for (size_t i = 0; i < interactions.size(); ++i) {
+    if (interactions[i]->type() == type && interactions[i]->event_type() == event) {
+      deleteInteraction(interactions[i]);
+      std::swap(interactions[i], interactions.back());
+      interactions.pop_back();
+      break;
+    }
+  }
 }
   
 void InteractionComponent::create(const TargetInteraction::CreateInfo &info) {

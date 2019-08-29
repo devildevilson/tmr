@@ -25,3 +25,6 @@
 [submodule "include/tiny_behaviour"]
 	path = include/tiny_behaviour
 	url = https://github.com/devildevilson/tiny_behaviour.git
+[submodule "include/filesystem"]
+	path = include/filesystem
+	url = https://github.com/wjakob/filesystem.git

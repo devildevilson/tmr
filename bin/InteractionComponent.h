@@ -6,8 +6,13 @@
 #include "EntityComponentSystem.h"
 #include "Type.h"
 #include "Physics.h"
+#include "MemoryPool.h"
 
 #include "ThreadPool.h"
+#include "UserDataComponent.h"
+#include "Attributes.h"
+
+#include "Interaction.h"
 
 #include <unordered_set>
 #include <unordered_map>
@@ -68,54 +73,6 @@ class TransformComponent;
 class InteractionSystem;
 class EntityAI;
 
-class Interaction {
-public:
-  static void setContainers(Container<Transform>* transforms, Container<simd::mat4>* matrices, Container<RotationData>* rotationDatas);
-  
-  enum class type {
-    target,
-    ray,
-    physics,
-    projectile,
-    aura,
-    collision
-  };
-  
-  Interaction(const type &t, const Type &eventType, void* userData) : t(t), eventType(eventType), userData(userData), finished(false) {}
-  virtual ~Interaction() {}
-  
-  struct NewData {
-    simd::vec4 pos;
-    simd::vec4 dir;
-  };
-  virtual void update_data(const NewData &data) = 0;
-  virtual void update(const size_t &time) = 0;
-  virtual void cancel() = 0;
-  
-  // в большинстве случаев, объектов для которых нужно вызвать эвент будет 1
-  // и вообще можно сделать примерно также как мы делали для EntityAI то есть 
-  // выдавать указатель на PhysicsIndexContainer (спорно) пока не nullptr
-  // вообще можно выдвавать сразу юзер дату, но может ли нам что нибудь еще пригодиться?
-  virtual PhysUserData* get_next() = 0;
-  
-  enum type type() const { return t; }
-  Type event_type() const { return eventType; }
-  void* user_data() const { return userData; }
-  bool isFinished() const { return finished; }
-private:
-  enum type t;
-  Type eventType;
-  void* userData;
-  
-protected:
-  bool finished;
-  
-  // нам тут нужен доступ к данным о матрицах, поворотах и позиции объекта
-  static Container<Transform>* transforms;
-  static Container<simd::mat4>* matrices;
-  static Container<RotationData>* rotationDatas;
-};
-
 // общее у них: время взаимодействия, промежуточный стейт, направление начала, направление конца, функция действия при пересечении/взаимодействии
 // вообще у нас длительное по времени взаимодействие только у PhysicsInteraction, остальные скорее всего удалятся после одного раза
 // это классы помошники, само взаимодействие у нас будет отдельно
@@ -123,7 +80,7 @@ class TargetInteraction : public Interaction {
 public:
   struct CreateInfo {
     size_t delayTime;
-    yacs::Entity* entity;
+    yacs::entity* entity;
     
     Type event;
     void* userData;
@@ -134,20 +91,28 @@ public:
   void update_data(const NewData &data) override;
   void update(const size_t &time) override;
   void cancel() override;
-  
-  PhysUserData* get_next() override;
+
+  UserDataComponent* get_next() override;
 private:
   // тут по идее только один объект
   // и все, как его сюда добавить? просто передать при создании
   uint32_t index;
   size_t delayTime;
   size_t currentTime;
-  yacs::Entity* entity;
+  yacs::entity* entity;
 };
 
 class RayInteraction : public Interaction {
 public:
+  enum class type {
+    first_min,
+    first_max,
+    any
+  };
+
   struct CreateInfo {
+    enum type interaction_type;
+
     float pos[4];
     float dir[4];
     float maxDist;
@@ -166,11 +131,13 @@ public:
   void update(const size_t &time) override;
   void cancel() override;
   
-  PhysUserData* get_next() override;
+  UserDataComponent* get_next() override;
 private:
   // создаем луч (или несколько лучей? несколько лучей полезно создавать когда мы стреляем из автомата)
   // (и мы тогда интерполируем и несколько лучей создаем по движению камеры, чтобы правильно все сделать, лучи нам нужно создавать в update_data)
   // количество лучей?
+  enum type interaction_type;
+
   uint32_t rayIndex;
   float lastPos[4];
   float lastDir[4];
@@ -224,8 +191,8 @@ public:
   void update_data(const NewData &data) override;
   void update(const size_t &time) override;
   void cancel() override;
-  
-  PhysUserData* get_next() override;
+
+  UserDataComponent* get_next() override;
   
   // нам отсюда нужно будет получить данные, чтобы потом вывести точку пересечения
 private:
@@ -275,14 +242,16 @@ public:
   void update_data(const NewData &data) override;
   void update(const size_t &time) override;
   void cancel() override;
-  
-  PhysUserData* get_next() override;
+
+  UserDataComponent* get_next() override;
 private:
   // пока что самый непонятный класс
   // get_next скорее всего всегда будет возвращать нулл
   // создаваться проджектайлы наверное будут в update
   // создаваться проджект тайлы должны из какой-нибудь фабрики
   // фабрики будут создаваться в лоадерах и описываться в json я так понимаю
+
+  // просто нужно сделать так чтобы этот класс продуцировал определенные энтити
 };
 
 class AuraInteraction : public Interaction {
@@ -309,13 +278,13 @@ public:
   void update_data(const NewData &data) override;
   void update(const size_t &time) override;
   void cancel() override;
-  
-  PhysUserData* get_next() override;
+
+  UserDataComponent* get_next() override;
   
 private:
   uint32_t physicsObjectID;
   
-  std::function<void(const yacs::Entity*, yacs::Entity*)> func;
+  std::function<void(const yacs::entity*, yacs::entity*)> func;
 };
 
 template <typename T, size_t N>
@@ -327,18 +296,76 @@ struct MultithreadingMemoryPool {
 // у каждого компонента рекция на эвент атака будет примерно одинаковая, как бы мне сохранить память?
 // я так полагаю что это как раз тот случай когда либо удобно, либо мало памяти жрет (возможно)
 
-class InteractionComponent : public yacs::Component {
+// смысла делать удаляемые интеракции особого нет, гораздо лучше будет если сделать разные компоненты под это дело
+// хотя для разного оружия поди было бы удобно создавать каждый раз - во первых легко менять данные
+// но при этом так ли мне нужен InteractionComponent? я могу с тем же успехом создавать интеракции
+// в компоненте с оружием, там мне даже будет это удобнее делать
+// как быть с использованием чего либо? очень просто отдельный компонент, который просто иногда создает лучи
+// эвент вызываем в том же кадре
+
+// как у монстров то сделать?
+
+struct Weapon {
+  PhysicsInteraction::PhysicsInteractionType type;
+
+  float thickness;
+  float attackAngle;
+  float plane[4];
+
+  uint32_t tickCount;
+  uint32_t ticklessObjectsType;
+
+  size_t delayTime;
+  size_t attackTime;
+  size_t tickTime;
+
+  // патроны? по идее характеристика, указатель на характеристику? нет, скорее указатель на итем в инвентаре
+  // патроны вполне могут быть характеристикой, так как они однотипны и очень просты
+};
+
+class WeaponComponent {
+public:
+
+private:
+  // interaction?
+  uint32_t current;
+  const uint32_t weaponsCount;
+  Weapon* weapons;
+
+  Attribute<INT_ATTRIBUTE_TYPE>* blocked;
+};
+
+class UseInteractionComponent {
+public:
+  UseInteractionComponent();
+  ~UseInteractionComponent();
+
+  void update();
+
+
+private:
+  uint32_t ignoreObj;
+  uint32_t filter;
+  float dist;
+  uint32_t rayIndex;
+
+  TransformComponent* trans;
+  EventComponent* events;
+  yacs::entity* entity;
+};
+
+class InteractionComponent {
 public:
   CLASS_TYPE_DECLARE
   
   struct CreateInfo {
-    InteractionSystem* system;
+//    InteractionSystem* system;
   };
   InteractionComponent(const CreateInfo &info);
   ~InteractionComponent();
   
-  void update(const size_t &time = 0) override;
-  void init(void* userData) override;
+  void update(const size_t &time);
+  void init(void* userData);
   
   // этот способ не позволяет использовать например разное оружее (то есть использовать разные данные на один эвент)
   // для оружия в этом случае самым логичным решением будет создать специальный компонент который будет разные ситуации в одном эвенте обрабатывать
@@ -350,16 +377,17 @@ public:
   // удалять? не думаю, возможно потребуется найти, а потом провзаимодействовать с отдельным элементом
   // но не факт
   bool has(const enum Interaction::type &type, const Type &event);
+  void remove(const enum Interaction::type &type, const Type &event);
   
   void create(const TargetInteraction::CreateInfo &info);
   void create(const RayInteraction::CreateInfo &info);
   void create(const PhysicsInteraction::CreateInfo &info);
   
-  size_t & index();
+//  size_t & index();
 private:
   void deleteInteraction(Interaction* inter);
   
-  size_t systemIndex;
+//  size_t systemIndex;
   
   InteractionSystem* system;
   EventComponent* events;
@@ -413,8 +441,8 @@ public:
 //   };
 //   void addInteractionPair(const PairData &data);
   
-  void addInteractionComponent(InteractionComponent* comp);
-  void removeInteractionComponent(InteractionComponent* comp);
+//  void addInteractionComponent(InteractionComponent* comp);
+//  void removeInteractionComponent(InteractionComponent* comp);
 private:
 //   struct UniquePairData {
 //     uint32_t start;
@@ -426,7 +454,7 @@ private:
   
 //   std::mutex mutex;
   
-  std::vector<InteractionComponent*> components;
+//  std::vector<InteractionComponent*> components;
 //   std::vector<PairData> pairs;
 //   std::vector<UniquePairData> uniqueData;
 };

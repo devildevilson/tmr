@@ -30,8 +30,12 @@ ResourceID::ResourceID(const std::string &name) {
   }
 }
 
-ResourceID::ResourceID(const ResourceID &other) {
-  resourceId = other.resourceId;
+//ResourceID::ResourceID(const ResourceID &other) {
+//  resourceId = other.resourceId;
+//}
+
+bool ResourceID::valid() const {
+  return resourceId != SIZE_MAX;
 }
 
 size_t ResourceID::id() const {
@@ -46,10 +50,10 @@ std::string ResourceID::name() const {
   return "";
 }
 
-ResourceID & ResourceID::operator=(const ResourceID &other) {
-  resourceId = other.resourceId;
-  return *this;
-}
+//ResourceID & ResourceID::operator=(const ResourceID &other) {
+//  resourceId = other.resourceId;
+//  return *this;
+//}
 
 bool ResourceID::operator==(const ResourceID &other) const {
   return resourceId == other.resourceId;

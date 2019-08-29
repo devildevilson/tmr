@@ -1,8 +1,8 @@
 #ifndef HARDCODED_LOADERS_H
 #define HARDCODED_LOADERS_H
 
-#include "Loader.h"
-#include "Manager.h"
+#include "../resources/Loader.h"
+#include "../resources/Manager.h"
 
 #include "EntityComponentSystem.h"
 #include "ArrayInterface.h"

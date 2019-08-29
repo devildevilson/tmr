@@ -2,9 +2,9 @@
 #define TEXTURE_LOADER_H
 
 #include "Loader.h"
+#include "ResourceParser.h"
 #include "ImageResourceContainer.h"
 #include "RenderStructures.h"
-#include "Manager.h"
 
 #include "MemoryPool.h"
 
@@ -32,20 +32,19 @@ namespace std {
   };
 }
 
-class TextureContainer {
+class ImageContainer {
 public:
-  virtual ~TextureContainer() {}
+  virtual ~ImageContainer() {}
   
   // в принципе можно здесь подсчитывать количество памяти
   virtual size_t hostSize() const = 0;
   virtual size_t deviceSize() const = 0;
   
-  virtual std::vector<Texture> getTextures(const std::string &name) const = 0;
-  virtual Texture getTexture(const std::string &name, const uint32_t &index) const = 0;
-  // тут еще нужно разобраться с сэмплерами
+  virtual std::vector<Image> images(const ResourceID &id) const = 0;
+  virtual Image image(const ResourceID &id, const uint32_t &index) const = 0;
 };
 
-class TextureLoader : public Loader, public ImageResourceContainer, public TextureContainer, public ResourceParser {
+class TextureLoader : public Loader, public ImageResourceContainer, public ImageContainer, public ResourceParser {
 public:
   // по идее это нам тоже не особ нужно после загрузки
   // так как все эти данные мы должны восстановить из json'а
@@ -104,13 +103,13 @@ public:
   // то есть у нас есть Texture в котором записаны данные об хранении текстуры в одном блоке текстур в памяти компа
   // и при каждой перезагрузки нам нужно передать изменения, как это сделать?
   
-  bool parse(const std::string &pathPrefix, 
-             const std::string &forcedNamePrefix, 
+  bool parse(const Modification *mod,
+             const std::string &pathPrefix,
              const nlohmann::json &data, 
              std::vector<Resource*> &resources, 
              std::vector<ErrorDesc> &errors, 
              std::vector<WarningDesc> &warnings) override;
-  bool forget(const std::string &name) override;
+  bool forget(const ResourceID &id) override;
 
   std::unordered_map<std::string, Resource*> getLoadedResource() override;
   std::unordered_map<std::string, Conflict*> getConflicts() override;

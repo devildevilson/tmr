@@ -10,27 +10,34 @@ public:
   static bool has(const std::string &name);
   
   Type();
-  Type(const Type &type);
-  Type(const std::string &name);
+  Type(const Type &type) = default;
+  Type(const size_t &type);
+//  Type(const std::string &name);
+
+  bool valid() const;
+  size_t type() const;
+  std::string name() const;
   
-  size_t getType() const;
-  std::string getName() const;
-  
-  Type & operator=(const Type &other);
-  bool operator==(const Type &other) const;
-  bool operator!=(const Type &other) const;
+  Type & operator=(const Type &other) = default;
 private:
-  size_t type;
+  size_t m_type;
   
   static size_t newType;
-  static std::unordered_map<std::string, Type> nameToType;
+  static std::unordered_map<std::string, size_t> nameToType;
 };
+
+bool operator==(const Type &first, const Type &second);
+bool operator!=(const Type &first, const Type &second);
+bool operator<(const Type &first, const Type &second);
+bool operator>(const Type &first, const Type &second);
+bool operator<=(const Type &first, const Type &second);
+bool operator>=(const Type &first, const Type &second);
 
 namespace std {
   template<> 
   struct hash<Type> {
     size_t operator() (const Type &t) const {
-      return hash<size_t>()(t.getType());
+      return hash<size_t>()(t.type());
     }
   };
 }

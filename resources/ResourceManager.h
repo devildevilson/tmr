@@ -1,7 +1,7 @@
 #ifndef RESOURCE_MANAGER_H
 #define RESOURCE_MANAGER_H
 
-#include "Manager.h"
+#include "../resources/Manager.h"
 
 // как я понял, мне нужен такой плагин парсер который я после парсинга могу удалить
 // и вообще ненужные данные мне после нужно удалять
