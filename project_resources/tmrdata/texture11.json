@@ -1,6 +1,7 @@
 {
+  "id": "ne",
   "path": "textures/ne.png",
-  "name": "ne",
+  "create_mipmaps": true,
   "count": 4,
   "rows": 1,
   "columns": 4,

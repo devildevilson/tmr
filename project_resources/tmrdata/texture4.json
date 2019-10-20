@@ -1,4 +1,5 @@
 {
+  "id": "Rough Block Wall",
   "path": "textures/rough_block_wall.jpg",
-  "name": "Rough Block Wall"
+  "create_mipmaps": true
 }

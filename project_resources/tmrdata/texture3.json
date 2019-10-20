@@ -1,4 +1,5 @@
 {
+  "id": "texture",
   "path": "textures/texture.jpg",
-  "name": "texture"
+  "create_mipmaps": true
 }
