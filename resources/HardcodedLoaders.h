@@ -28,6 +28,7 @@ class CameraComponent;
 class UserInputComponent;
 class ImageLoader;
 class AnimationSystem;
+class UniversalDataContainer;
 
 namespace yavf {
   class Buffer;
@@ -140,6 +141,7 @@ public:
   // мне нужны контейнеры с данными
   
   void create();
+  yacs::entity* create(const Type &type, yacs::entity* parent, const UniversalDataContainer* container);
   void createWall(const CreateWallInfo &info);
   
   yacs::entity* getPlayer() const;
@@ -161,6 +163,8 @@ private:
   ImageLoader* textureLoader;
   
   yacs::world world;
+  
+  std::unordered_map<Type, const yacs::entity*> types;
 };
 
 class HardcodedMapLoader : public Loader, public ResourceParser {

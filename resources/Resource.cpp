@@ -1,6 +1,6 @@
 #include "Resource.h"
 
-Resource::Resource(const CreateInfo &info) : resLoaderMark(info.resLoaderMark), resId(info.resId), pathStr(info.pathStr), resSize(info.resSize), resGPUSize(info.resGPUSize), parsedBy(info.parsedBy), mod(info.mod), relatedConflict(info.relatedConflict) {}
+Resource::Resource(const CreateInfo &info) : resId(info.resId), pathStr(info.pathStr), resSize(info.resSize), resGPUSize(info.resGPUSize), parsedBy(info.parsedBy), mod(info.mod) {}
 Resource::~Resource() {}
 
 ResourceID Resource::id() const {

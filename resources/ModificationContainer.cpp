@@ -98,7 +98,7 @@ void ModificationContainer::parseModification(const Modification* mod) {
     // нужно взять префикс пути
   }
 
-  const std::string prefix = modPath.parent_path().str();
+  const std::string prefix = modPath.parent_path().str() + "/";
   PRINT_VAR("prefix", prefix)
 
   std::ifstream file(mod->path());
@@ -126,7 +126,7 @@ void ModificationContainer::parseModification(const Modification* mod) {
     if (itr.value().is_object() && itr.key() == "data") {
       for (auto parser : parsers) {
         for (auto dataIt = itr.value().begin(); dataIt != itr.value().end(); ++dataIt) {
-          if (parser->canParse(dataIt.value())) {
+          if (parser->canParse(dataIt.key())) {
             // этот парсер нужно поставить как текущий
 
             // если обрабатываем zip то мы должны передать указатель на него, вместо префикса
@@ -143,6 +143,10 @@ void ModificationContainer::parseModification(const Modification* mod) {
 
   // где мы выводим ошибки на экран?
   // наверное сразу при парсинге
+  
+//   for (const auto &error : errors) {
+//     std::cout << error.description << "\n";
+//   }
 
   if (!errors.empty()) throw std::runtime_error("There are "+std::to_string(errors.size())+" parsing errors");
 

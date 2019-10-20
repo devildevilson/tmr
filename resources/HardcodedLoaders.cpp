@@ -3,6 +3,8 @@
 #include "Globals.h"
 #include "Utility.h"
 
+#include "yavf.h"
+
 #include "ImageLoader.h"
 
 //#include "Components.h"
@@ -21,6 +23,9 @@
 #include "UserDataComponent.h"
 #include "Graph.h"
 #include "CameraComponent.h"
+
+#include "ComponentCreator.h"
+#include "ComponentCreators.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tinyobjloader/tiny_obj_loader.h>
@@ -182,6 +187,33 @@ HardcodedEntityLoader::HardcodedEntityLoader(ImageLoader* textureLoader) : playe
   
   Global g;
   g.setWorld(&world);
+  
+  std::vector<CreateComponent*> creators;
+  
+  auto wallCreator = world.create_entity();
+  const PhysicsComponentCreator::CreateInfo info{
+    1,
+    1,
+    1.0f,
+    4.0f,
+    0.0f,
+    0.0f,
+    0.0f
+  };
+  CreateComponent* comp = wallCreator->add<PhysicsComponentCreator>(info).get();
+  creators.push_back(comp);
+  comp = wallCreator->add<GraphicsIndexedComponentCreator>().get();
+  creators.push_back(comp);
+  comp = wallCreator->add<UserDataComponentCreator>().get();
+  creators.push_back(comp);
+  comp = wallCreator->add<AIBasicComponentCreator>().get();
+  creators.push_back(comp);
+  comp = wallCreator->add<InfoComponentCreator>().get();
+  creators.push_back(comp);
+  
+  wallCreator->add<CreatorComponent>(CreatorComponent::CreateInfo{creators});
+  
+  types[Type::get("wall_creator")] = wallCreator;
 }
 
 HardcodedEntityLoader::~HardcodedEntityLoader() {
@@ -190,6 +222,7 @@ HardcodedEntityLoader::~HardcodedEntityLoader() {
 
 bool HardcodedEntityLoader::canParse(const std::string &key) const {
   // ?
+  return false;
 }
 
 bool HardcodedEntityLoader::parse(const Modification* mod,
@@ -281,7 +314,7 @@ void HardcodedEntityLoader::create() {
 
   PhysicsComponent::CreateInfo physInfo{
     {
-      simd::vec4(0.0f, 0.0f, 0.0f, 0.0f),
+      {0.0f, 0.0f, 0.0f, 0.0f},
       7.0f, 80.0f, 0.0f, 0.0f
     },
     {
@@ -339,12 +372,6 @@ void HardcodedEntityLoader::create() {
     auto phys = ent1->add<PhysicsComponent>(physInfo);
 
     camera = ent1->add<CameraComponent>(CameraComponent::CreateInfo{playerTransform, input, phys.get()}).get();
-    
-    const AIBasicComponent::CreateInfo aiInfo{
-      0.5f,
-      nullptr
-    };
-    auto ai = ent1->add<AIBasicComponent>(aiInfo);
 
     const UserDataComponent entData{
       ent1,
@@ -353,12 +380,20 @@ void HardcodedEntityLoader::create() {
       phys.get(),
       nullptr, // этот компонент для игрока тоже пригодится
       nullptr,
-      ai.get(),
+      nullptr,
       nullptr,
       nullptr
     };
     auto usrData = ent1->add<UserDataComponent>(entData);
     phys->setUserData(usrData.get());
+
+    const AIBasicComponent::CreateInfo aiInfo{
+      0.5f,
+      nullptr,
+      usrData.get()
+    };
+    auto ai = ent1->add<AIBasicComponent>(aiInfo);
+    usrData->aiComponent = ai.get();
     
 //    ent1->init(&initData);
     player = ent1;
@@ -382,7 +417,7 @@ void HardcodedEntityLoader::create() {
     yacs::entity* ent2 = world.create_entity();
     auto trans = ent2->add<TransformComponent>(simd::vec4(1.0f, 0.9f, 1.0f, 1.0f), simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
                                                simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-    auto events = ent2->add<EventComponent>();
+    auto events = ent2->add<EventComponent>(EventComponent::CreateInfo{ent2});
 //    ent2->add<StateController>();
     physInfo.physInfo.type = PhysicsType(false, BBOX_TYPE, true, false, true, true);
     physInfo.physInfo.inputIndex = UINT32_MAX;
@@ -413,7 +448,7 @@ void HardcodedEntityLoader::create() {
     yacs::entity* ent3 = world.create_entity();
     auto trans = ent3->add<TransformComponent>(simd::vec4(1.0f, 0.1f, 0.0f, 1.0f), simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
                                                simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-    auto events = ent3->add<EventComponent>();
+    auto events = ent3->add<EventComponent>(EventComponent::CreateInfo{ent3});
 
     physInfo.physInfo.inputIndex = UINT32_MAX;
     physInfo.physInfo.transformIndex = trans->index();
@@ -443,7 +478,7 @@ void HardcodedEntityLoader::create() {
     yacs::entity* ent4 = world.create_entity();
     auto trans = ent4->add<TransformComponent>(simd::vec4(2.0f, 3.5f, 1.0f, 1.0f), simd::vec4(1.0f, 0.0f, 0.0f, 0.0f),
                                   simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-    auto events = ent4->add<EventComponent>();
+    auto events = ent4->add<EventComponent>(EventComponent::CreateInfo{ent4});
     //ent4->add<InputComponent>();
 //     auto states = ent4->add<StateController>();
 
@@ -556,7 +591,7 @@ void HardcodedEntityLoader::create() {
       
       yacs::entity* ent = world.create_entity();
       auto trans = ent->add<TransformComponent>(pos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-      auto events = ent->add<EventComponent>();
+      auto events = ent->add<EventComponent>(EventComponent::CreateInfo{ent});
       auto comp = ent->add<GraphicComponent>(GraphicComponent::CreateInfo{noAnimT, trans->index()});
 //      ent->add<StateController>();
       physInfo.physInfo.type = PhysicsType(false, BBOX_TYPE, true, false, false, true);
@@ -667,27 +702,152 @@ void HardcodedEntityLoader::create() {
   }
 }
 
-void HardcodedEntityLoader::createWall(const CreateWallInfo &info) {
-  yacs::entity* wall = world.create_entity();
+yacs::entity* HardcodedEntityLoader::create(const Type &type, yacs::entity* parent, const UniversalDataContainer* container) {
+  auto itr = types.find(type);
+  if (itr == types.end()) throw std::runtime_error("Creator with type "+type.name()+" doesnt exist");
+  
+  auto creatorEnt = itr->second;
+  auto creatorComp = creatorEnt->get<CreatorComponent>();
+  
+  auto ent = world.create_entity();
+  creatorComp->create(parent, ent, container);
+  
+  return ent;
+}
 
-  const PhysicsComponent::CreateInfo physInfo{
-    {
-      simd::vec4(0.0f, 0.0f, 0.0f, 0.0f),
-      7.0f, 80.0f, 0.0f, 0.0f
-    },
+#define UINT32_DEFAULT_VALUE UINT32_MAX
+#define FLOAT_DEFAULT_VALUE glm::uintBitsToFloat(UINT32_MAX)
+#define SIZE_T_DEFAULT_VALUE SIZE_MAX
+
+void HardcodedEntityLoader::createWall(const CreateWallInfo &info) {
+//   yacs::entity* wall = world.create_entity();
+// 
+//   // как быть с физическим компонентом? нужно видимо сделать отложенную инициализацию
+//   // теперь мы можем создать UniversalDataContainer и пихнуть туда все необходимые данные
+//   // мы можем так сделать данные, но нам теперь нужно понять что нам конкретно может понадобиться
+//   // максимальное количество необходимых данных у объектов будет разное
+//   // это можно задать в типе создаваемого энтити
+//   // у нас же еще будут данные по умолчанию, они задаются в типе - правда
+//   // остальные данные приходят из карты или из абилки, строго определенные структуры
+//   // минимальное количество физических данных нужное мне для создания стены:
+//   // пересечение, видимость, динамика, триггер, коллизия, шейп, фриктион
+//   
+//   PhysicsComponent::CreateInfo physInfo{
+//     {
+//       simd::vec4(0.0f, 0.0f, 0.0f, 0.0f),
+//       7.0f, 80.0f, 0.0f, 0.0f
+//     },
+//     {
+//       false,
+// 
+//       PhysicsType(false, POLYGON_TYPE, true, false, true, true),
+//       1,     // collisionGroup
+//       1,     // collisionFilter
+// 
+//       0.5f,  // stairHeight
+//       //40.0f, // acceleration
+//       1.0f,  // overbounce
+//       4.0f,  // groundFriction
+// 
+//       0.0f,  // radius
+// 
+//       UINT32_MAX,
+//       UINT32_MAX,
+//       UINT32_MAX,
+//       UINT32_MAX,
+//       UINT32_MAX,
+// 
+//       //"boxShape"
+//       info.shapeType
+//     },
+//     nullptr
+//   };
+//   
+//   UniversalDataContainer container(UniversalDataContainer::CreateInfo{
+//     {
+//       UniversalDataContainer::DataInfo{
+//         DataIdentifier(PHYSICS_COMPONENT_INFO_DATA_IDENTIFIER),
+//         sizeof(PhysicsComponent::CreateInfo),
+//         &physInfo
+//       }
+//     }
+//   });
+// 
+//   auto phys = wall->add<PhysicsComponent>(physInfo);
+//   const GraphicComponentIndexes::CreateInfo gInfo{
+//     info.indexOffset,
+//     info.faceVertices,
+//     static_cast<uint32_t>(info.faceIndex),
+//     info.wallTexture,
+//     UINT32_MAX
+//   };
+//   auto comp = wall->add<GraphicComponentIndexes>(gInfo);
+// 
+//   auto usrData = wall->add<UserDataComponent>();
+//   
+//   const AIBasicComponent::CreateInfo aiInfo{
+//     info.radius,
+//     info.vertex,
+//     usrData.get()
+//   };
+//   auto ai = wall->add<AIBasicComponent>(aiInfo).get();
+// 
+//   usrData->entity = wall;
+//   usrData->trans = nullptr;
+//   usrData->graphic = comp.get();
+//   usrData->phys = phys.get();
+//   usrData->anim = nullptr;
+//   usrData->decalContainer = nullptr;
+//   usrData->aiComponent = ai;
+//   usrData->vertex = info.vertex;
+//   usrData->events = nullptr;
+// 
+//   const UserDataComponent entData{
+//     wall,
+//     nullptr,
+//     comp.get(),
+//     phys.get(),
+//     nullptr,
+//     nullptr,
+//     ai,
+//     info.vertex,
+//     nullptr
+//   };
+//   //auto usrData = wall->add<UserDataComponent>(entData);
+//   wall->add<InfoComponent>(InfoComponent::CreateInfo{Type::get(info.name), usrData.get()});
+// 
+//   phys->setUserData(usrData.get());
+// //   comp->setTexture(info.wallTexture);
+//   
+// //   if (ai->vertex() == nullptr) {
+// //     throw std::runtime_error("cdefvwdvsabsfbn");
+// //   }
+//   
+// //   info.vertex->addObject(ai);
+//   
+//   // как будет выглядеть в итоге фактори для энтити? мне нужно передать информацию для создания во все энтити + информацию в инит
+//   // может быть нужно запомнить все конструкторы в одной большой структуре, а дальше по ситуации создавать
+//   // нет, лучше наверное узнавать из парсера карты что у нас определено для конкретного объекта
+//   
+//   (void)ai;
+  
+  PhysicsComponentCreator::type t = PhysicsComponentCreator::type::wall;
+  
+  PhysicsComponent::CreateInfo physInfo{
+    {},
     {
       false,
 
       PhysicsType(false, POLYGON_TYPE, true, false, true, true),
-      1,     // collisionGroup
-      1,     // collisionFilter
+      UINT32_DEFAULT_VALUE,     // collisionGroup
+      UINT32_DEFAULT_VALUE,     // collisionFilter
 
-      0.5f,  // stairHeight
+      FLOAT_DEFAULT_VALUE,  // stairHeight
       //40.0f, // acceleration
-      1.0f,  // overbounce
-      4.0f,  // groundFriction
+      FLOAT_DEFAULT_VALUE,  // overbounce
+      FLOAT_DEFAULT_VALUE,  // groundFriction
 
-      0.0f,  // radius
+      FLOAT_DEFAULT_VALUE,  // radius
 
       UINT32_MAX,
       UINT32_MAX,
@@ -700,63 +860,54 @@ void HardcodedEntityLoader::createWall(const CreateWallInfo &info) {
     },
     nullptr
   };
-
-  auto phys = wall->add<PhysicsComponent>(physInfo);
-  const GraphicComponentIndexes::CreateInfo gInfo{
+  
+  GraphicComponentIndexes::CreateInfo graphInfo{
     info.indexOffset,
     info.faceVertices,
     static_cast<uint32_t>(info.faceIndex),
+    info.wallTexture,
     UINT32_MAX
   };
-  auto comp = wall->add<GraphicComponentIndexes>(gInfo);
-
-  auto usrData = wall->add<UserDataComponent>();
   
-  const AIBasicComponent::CreateInfo aiInfo{
+  AIBasicComponent::CreateInfo aiInfo {
     info.radius,
-    info.vertex,
-    usrData.get()
-  };
-  auto ai = wall->add<AIBasicComponent>(aiInfo).get();
-
-  usrData->entity = wall;
-  usrData->trans = nullptr;
-  usrData->graphic = comp.get();
-  usrData->phys = phys.get();
-  usrData->anim = nullptr;
-  usrData->decalContainer = nullptr;
-  usrData->aiComponent = ai;
-  usrData->vertex = info.vertex;
-  usrData->events = nullptr;
-
-  const UserDataComponent entData{
-    wall,
-    nullptr,
-    comp.get(),
-    phys.get(),
-    nullptr,
-    nullptr,
-    ai,
     info.vertex,
     nullptr
   };
-  //auto usrData = wall->add<UserDataComponent>(entData);
-  wall->add<InfoComponent>(InfoComponent::CreateInfo{Type::get(info.name), usrData.get()});
-
-  phys->setUserData(usrData.get());
-  comp->setTexture(info.wallTexture);
   
-//   if (ai->vertex() == nullptr) {
-//     throw std::runtime_error("cdefvwdvsabsfbn");
-//   }
+  Type name = Type::get(info.name);
   
-//   info.vertex->addObject(ai);
+  UniversalDataContainer container(UniversalDataContainer::CreateInfo{
+    {
+      {
+        DataIdentifier(PHYSICS_COMPONENT_TYPE_DATA_IDENTIFIER),
+        sizeof(PhysicsComponentCreator::type),
+        &t
+      },
+      {
+        DataIdentifier(PHYSICS_COMPONENT_INFO_DATA_IDENTIFIER),
+        sizeof(PhysicsComponent::CreateInfo),
+        &physInfo
+      },
+      {
+        DataIdentifier(GRAPHICS_INDEXED_COMPONENT_DATA_IDENTIFIER),
+        sizeof(GraphicComponentIndexes::CreateInfo),
+        &graphInfo
+      },
+      {
+        DataIdentifier(AI_BASIC_COMPONENT_DATA_IDENTIFIER),
+        sizeof(AIBasicComponent::CreateInfo),
+        &aiInfo
+      },
+      {
+        DataIdentifier(INFO_COMPONENT_DATA_IDENTIFIER),
+        sizeof(Type),
+        &name
+      }
+    }
+  });
   
-  // как будет выглядеть в итоге фактори для энтити? мне нужно передать информацию для создания во все энтити + информацию в инит
-  // может быть нужно запомнить все конструкторы в одной большой структуре, а дальше по ситуации создавать
-  // нет, лучше наверное узнавать из парсера карты что у нас определено для конкретного объекта
-  
-  (void)ai;
+  create(Type::get("wall_creator"), nullptr, &container);
 }
 
 yacs::entity* HardcodedEntityLoader::getPlayer() const {
