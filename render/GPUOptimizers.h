@@ -18,12 +18,12 @@ public:
     ArrayInterface<simd::mat4>* matrices;
 //     ArrayInterface<uint32_t>* rotationDatasCount;
 //     ArrayInterface<RotationData>* rotationDatas;
-    ArrayInterface<TextureData>* textures;
+    ArrayInterface<Texture>* textures;
   };
   
   struct InstanceData {
     glm::mat4 mat;
-    TextureData textureData;
+    Texture textureData;
     uint32_t dummy[3];
   };
   
@@ -74,7 +74,7 @@ private:
 //   yavf::Buffer* instDatas;
   ArrayInterface<Transform>* transforms;
   ArrayInterface<simd::mat4>* matrices;
-  ArrayInterface<TextureData>* textures;
+  ArrayInterface<Texture>* textures;
   ArrayInterface<InstanceData>* instDatasArray;
   
   GPUArray<GraphicsIndices> indices;
@@ -98,12 +98,12 @@ public:
     ArrayInterface<simd::mat4>* matrices;
     ArrayInterface<uint32_t>* rotationDatasCount;
     ArrayInterface<RotationData>* rotationDatas;
-    ArrayInterface<TextureData>* textures;
+    ArrayInterface<Texture>* textures;
   };
   
   struct InstanceData {
 //     glm::mat4 mat; // добавится обязательно
-    TextureData textureData;
+    Texture textureData;
   };
   
   struct OutputBuffers {
@@ -150,7 +150,7 @@ private:
   ArrayInterface<simd::mat4>* matrices;
   ArrayInterface<uint32_t>* rotationDatasCount;
   ArrayInterface<RotationData>* rotationDatas;
-  ArrayInterface<TextureData>* textures;
+  ArrayInterface<Texture>* textures;
   ArrayInterface<uint32_t>* indicesArray;
   ArrayInterface<InstanceData>* instanceDatas;
   

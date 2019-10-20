@@ -63,7 +63,7 @@ public:
     ArrayInterface<RotationData>* rotationDatas;
     //ArrayInterface<glm::uvec4>* textures;
     //ArrayInterface<Texture>* textures;
-    ArrayInterface<TextureData>* textures;
+    ArrayInterface<Texture>* textures;
     
 //     ArrayInterface<BroadphasePair>* frustumPairs; // тут скорее всего это все же ненужно
   };
@@ -73,7 +73,7 @@ public:
 //     uint32_t imageIndex;
 //     uint32_t imageLayer;
 //     uint32_t samplerIndex;
-    TextureData textureData;
+    Texture textureData;
   };
   
   struct OutputBuffers {
@@ -111,7 +111,7 @@ private:
   ArrayInterface<uint32_t>* rotationDatasCount = nullptr;
   ArrayInterface<RotationData>* rotationDatas = nullptr;
 //   ArrayInterface<glm::uvec4>* textures = nullptr;
-  ArrayInterface<TextureData>* textures = nullptr;
+  ArrayInterface<Texture>* textures = nullptr;
   
 //   ArrayInterface<BroadphasePair>* frustumPairs = nullptr; 
   
@@ -136,7 +136,7 @@ public:
     ArrayInterface<RotationData>* rotationDatas;
     //ArrayInterface<glm::uvec4>* textures;
     //ArrayInterface<Texture>* textures;
-    ArrayInterface<TextureData>* textures;
+    ArrayInterface<Texture>* textures;
     
 //     ArrayInterface<BroadphasePair>* frustumPairs; // тут скорее всего это все же ненужно
   };
@@ -144,7 +144,7 @@ public:
   struct InstanceData {
 //     glm::uvec4 textureIndices;
 //     Texture texture;
-    TextureData textureData;
+    Texture textureData;
   };
   
   struct OutputBuffers {
@@ -186,7 +186,7 @@ private:
   ArrayInterface<uint32_t>* rotationDatasCount = nullptr;
   ArrayInterface<RotationData>* rotationDatas = nullptr;
   //ArrayInterface<Texture>* textures = nullptr;
-  ArrayInterface<TextureData>* textures = nullptr;
+  ArrayInterface<Texture>* textures = nullptr;
   
 //   ArrayInterface<BroadphasePair>* frustumPairs = nullptr; 
   

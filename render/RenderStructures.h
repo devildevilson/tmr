@@ -34,7 +34,7 @@ struct Image {
 
 struct Texture {
   Image image;
-  uint sampler;
+  uint samplerIndex;
   float movementU;
   float movementV;
 };

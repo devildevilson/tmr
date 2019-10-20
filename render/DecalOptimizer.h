@@ -15,7 +15,7 @@ namespace yavf {
 class DecalOptimizer : public Optimizer {
 public:
   struct InputBuffers {
-    ArrayInterface<TextureData>* textures;
+    ArrayInterface<Texture>* textures;
     ArrayInterface<Transform>* transforms;
     ArrayInterface<simd::mat4>* matrices;
     ArrayInterface<RotationData>* rotations;
@@ -23,7 +23,7 @@ public:
   
   struct InstanceData {
     simd::mat4 matrix;
-    TextureData textureData;
+    Texture textureData;
   };
   
   struct OutputBuffers {
@@ -74,7 +74,7 @@ private:
     size_t vertCount;
   };
   
-  ArrayInterface<TextureData>* textures;
+  ArrayInterface<Texture>* textures;
   ArrayInterface<Transform>* transforms;
   ArrayInterface<simd::mat4>* matrices;
   ArrayInterface<RotationData>* rotations;

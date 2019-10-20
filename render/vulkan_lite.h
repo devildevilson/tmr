@@ -1,6 +1,8 @@
 #ifndef VULKAN_LITE_H
 #define VULKAN_LITE_H
 
+//#ifndef VULKAN_H_
+
 #include <cstdint>
 
 #ifndef VK_DEFINE_HANDLE
@@ -17,27 +19,31 @@
 
 #define VK_NULL_HANDLE 0
 
+namespace Vk {
+  struct Offset2D {
+    int32_t x;
+    int32_t y;
+  };
+
+  struct Extent2D {
+    uint32_t width;
+    uint32_t height;
+  };
+
+  struct Rect2D {
+    Offset2D offset;
+    Extent2D extent;
+  };
+
+  struct Extent3D {
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+  };
+}
+
 typedef uint64_t VkDeviceSize;
 
-typedef struct VkOffset2D {
-  int32_t    x;
-  int32_t    y;
-} VkOffset2D;
-
-typedef struct VkExtent2D {
-  uint32_t    width;
-  uint32_t    height;
-} VkExtent2D;
-
-typedef struct VkRect2D {
-  VkOffset2D    offset;
-  VkExtent2D    extent;
-} VkRect2D;
-
-typedef struct VkExtent3D {
-  uint32_t    width;
-  uint32_t    height;
-  uint32_t    depth;
-} VkExtent3D;
+//#endif
 
 #endif //VULKAN_LITE_H

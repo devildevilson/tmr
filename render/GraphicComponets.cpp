@@ -3,6 +3,9 @@
 //#include "Components.h"
 //#include "TransformComponent.h"
 
+#include "Optimizers.h"
+#include "GPUOptimizers.h"
+
 void GraphicComponent::setContainer(Container<simd::mat4>* matrices) {
   GraphicComponent::matrices = matrices;
 }
@@ -97,7 +100,7 @@ Container<Texture>* GraphicComponent::textureContainer = nullptr;
 MonsterGPUOptimizer* GraphicComponent::optimizer = nullptr;
 MonsterDebugOptimizer* GraphicComponent::debugOptimizer = nullptr;
 
-GraphicComponentIndexes::GraphicComponentIndexes(const CreateInfo &info) : GraphicComponent({info.transformIndex}), faceIndex(info.faceIndex), offset(info.offset), elemCount(info.elemCount) {}
+GraphicComponentIndexes::GraphicComponentIndexes(const CreateInfo &info) : GraphicComponent({info.t, info.transformIndex}), faceIndex(info.faceIndex), offset(info.offset), elemCount(info.elemCount) {}
 GraphicComponentIndexes::~GraphicComponentIndexes() {}
 
 void GraphicComponentIndexes::setOptimizer(GeometryGPUOptimizer* geo) {
@@ -142,7 +145,7 @@ void Light::setOptimizer(LightOptimizer* optimiser) {
   Light::optimiser = optimiser;
 }
 
-Light::Light(const CreateInfo &info) : GraphicComponent({info.transformIndex}), data(info.data) {}
+Light::Light(const CreateInfo &info) : data(info.data), transformIndex(info.transformIndex) {}
 Light::~Light() {}
 
 void Light::update() {

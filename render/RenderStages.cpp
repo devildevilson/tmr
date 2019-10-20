@@ -175,8 +175,9 @@ void MonsterGBufferStage::create(const CreateInfo &info) {
 }
 
 void MonsterGBufferStage::recreatePipelines(ImageResourceContainer* data) {
-  this->images = data->imageDescriptor();
-  this->samplers = data->samplerDescriptor();
+//  this->images = data->imageDescriptor();
+//  this->samplers = data->samplerDescriptor();
+  this->imagesSet = data->resourceDescriptor();
   
   yavf::DescriptorSetLayout uniform_layout = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
   //VkDescriptorSetLayout storage_layout = device->setLayout("storage_layout");
@@ -191,13 +192,14 @@ void MonsterGBufferStage::recreatePipelines(ImageResourceContainer* data) {
     yavf::PipelineLayoutMaker plm(device);
     
     deferred_layout = plm.addDescriptorLayout(uniform_layout)
-                         .addDescriptorLayout(data->samplerSetLayout())
-                         .addDescriptorLayout(data->imageSetLayout())
+                         .addDescriptorLayout(data->resourceLayout())
+//                         .addDescriptorLayout(data->imageSetLayout())
 //                          .addDescriptorLayout(minmax_layout)
                          .create(MONSTER_PIPELINE_LAYOUT_NAME);
   }
-  
-  uint32_t constants[2] = {data->samplerCount(), data->imageCount()};
+
+  //uint32_t constants[2] = {data->samplerCount(), data->imageCount()};
+  uint32_t constants[2] = {data->imagesCount(), data->samplersCount()};
   
   if (pipe.handle() != VK_NULL_HANDLE) {
     device->destroyPipeline(MONSTER_PIPELINE_NAME);
@@ -205,8 +207,8 @@ void MonsterGBufferStage::recreatePipelines(ImageResourceContainer* data) {
   }
   
   {
-    yavf::raii::ShaderModule vertex (device, Global::getGameDir() + "shaders/deferredObj.vert.spv");
-    yavf::raii::ShaderModule fagment(device, Global::getGameDir() + "shaders/deferredObj.frag.spv");
+    yavf::raii::ShaderModule vertex  (device, Global::getGameDir() + "shaders/deferredObj.vert.spv");
+    yavf::raii::ShaderModule fragment(device, Global::getGameDir() + "shaders/deferredObj.frag.spv");
     
     yavf::PipelineMaker pm(device);
     pm.clearBlending();
@@ -217,7 +219,7 @@ void MonsterGBufferStage::recreatePipelines(ImageResourceContainer* data) {
     // возможно что нужно переустановить драйверы и vulkan, надо кстати на венде проверить выравнивание по 16 байт
     
     pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, vertex)
-             .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, fagment)
+             .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, fragment)
                .addSpecializationEntry(0, 0, sizeof(uint32_t))
                .addSpecializationEntry(1, sizeof(uint32_t), sizeof(uint32_t))
                .addData(2*sizeof(uint32_t), constants)
@@ -226,13 +228,13 @@ void MonsterGBufferStage::recreatePipelines(ImageResourceContainer* data) {
                .vertexAttribute(1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(MonsterGPUOptimizer::InstanceData, mat) + sizeof(glm::vec4)*1)
                .vertexAttribute(2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(MonsterGPUOptimizer::InstanceData, mat) + sizeof(glm::vec4)*2)
                .vertexAttribute(3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(MonsterGPUOptimizer::InstanceData, mat) + sizeof(glm::vec4)*3)
-               .vertexAttribute(4, 0, VK_FORMAT_R32_UINT,   offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(TextureData, t) + offsetof(Texture, imageArrayIndex))
-               .vertexAttribute(5, 0, VK_FORMAT_R32_UINT,   offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(TextureData, t) + offsetof(Texture, imageArrayLayer))
-               .vertexAttribute(6, 0, VK_FORMAT_R32_UINT,   offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(TextureData, t) + offsetof(Texture, samplerIndex))
+               .vertexAttribute(4, 0, VK_FORMAT_R32_UINT,   offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(Texture, image) + offsetof(Image, index))
+               .vertexAttribute(5, 0, VK_FORMAT_R32_UINT,   offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(Texture, image) + offsetof(Image, layer))
+               .vertexAttribute(6, 0, VK_FORMAT_R32_UINT,   offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(Texture, samplerIndex))
                //.vertexAttribute(7,  0, VK_FORMAT_R32_SFLOAT, offsetof(MonsterOptimizer::InstanceData, textureData) + offsetof(TextureData, mirroredU))
                //.vertexAttribute(8,  0, VK_FORMAT_R32_SFLOAT, offsetof(MonsterOptimizer::InstanceData, textureData) + offsetof(TextureData, mirroredV))
-               .vertexAttribute(7, 0, VK_FORMAT_R32_SFLOAT, offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(TextureData, movementU))
-               .vertexAttribute(8, 0, VK_FORMAT_R32_SFLOAT, offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(TextureData, movementV))
+               .vertexAttribute(7, 0, VK_FORMAT_R32_SFLOAT, offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(Texture, movementU))
+               .vertexAttribute(8, 0, VK_FORMAT_R32_SFLOAT, offsetof(MonsterGPUOptimizer::InstanceData, textureData) + offsetof(Texture, movementV))
              .vertexBinding(1, sizeof(Vertex))
                .vertexAttribute(9,  1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, pos))
                .vertexAttribute(10, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, color))
@@ -263,7 +265,8 @@ bool MonsterGBufferStage::doWork(RenderContext* context) {
   yavf::GraphicTask* task = context->graphics();
   
   task->setPipeline(pipe);
-  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), samplers->handle(), images->handle()}, 0);
+  //task->setDescriptor({uniformBuffer->descriptorSet()->handle(), samplers->handle(), images->handle()}, 0);
+  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), imagesSet->handle()}, 0);
   task->setVertexBuffer(instanceData.vector().handle(), 0);
   task->setVertexBuffer(monsterDefault, 1);
   task->draw(monsterDefaultVerticesCount, instanceCount, 0, 0);
@@ -327,8 +330,9 @@ void GeometryGBufferStage::create(const CreateInfo &info) {
 }
   
 void GeometryGBufferStage::recreatePipelines(ImageResourceContainer* data) {
-  this->images = data->imageDescriptor();
-  this->samplers = data->samplerDescriptor();
+//  this->images = data->imageDescriptor();
+//  this->samplers = data->samplerDescriptor();
+  this->imagesSet = data->resourceDescriptor();
   
   yavf::DescriptorSetLayout uniform_layout = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
 //  yavf::DescriptorSetLayout storage_layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
@@ -346,14 +350,14 @@ void GeometryGBufferStage::recreatePipelines(ImageResourceContainer* data) {
     yavf::PipelineLayoutMaker plm(device);
     
     deferred_layout2 = plm.addDescriptorLayout(uniform_layout)
-                          .addDescriptorLayout(data->samplerSetLayout())
-                          .addDescriptorLayout(data->imageSetLayout())
+                          .addDescriptorLayout(data->resourceLayout())
+//                          .addDescriptorLayout(data->imageSetLayout())
                           //.addDescriptorLayout(storage_layout)
                           .addDescriptorLayout(instances_layout)
                           .create(GEOMETRY_PIPELINE_LAYOUT_NAME);
   }
   
-  uint32_t constants[2] = {data->samplerCount(), data->imageCount()};
+  uint32_t constants[2] = {data->imagesCount(), data->samplersCount()};
   
   if (pipe.handle() != VK_NULL_HANDLE) {
     device->destroyPipeline(GEOMETRY_PIPELINE_NAME);
@@ -402,7 +406,8 @@ bool GeometryGBufferStage::doWork(RenderContext* context) {
   yavf::GraphicTask* task = context->graphics();
   
   task->setPipeline(pipe);
-  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), samplers->handle(), images->handle(), instances.vector().descriptorSet()->handle()}, 0);
+  //task->setDescriptor({uniformBuffer->descriptorSet()->handle(), samplers->handle(), images->handle(), instances.vector().descriptorSet()->handle()}, 0);
+  task->setDescriptor({uniformBuffer->descriptorSet()->handle(), imagesSet->handle(), instances.vector().descriptorSet()->handle()}, 0);
   task->setVertexBuffer(worldMapVertex, 0);
   task->setIndexBuffer(indices.vector().handle());
   task->drawIndexed(indexCount, 1, 0, 0, 0);

@@ -96,7 +96,7 @@ void MonsterOptimizer::optimize() {
     const uint32_t textureIndex = objs[objIndex].texture;
     ASSERT(textures->size() > textureIndex);
     ASSERT(instDatas->size() > i);
-    const TextureData &text = textures->at(textureIndex);
+    const Texture &text = textures->at(textureIndex);
     instDatas->at(i).textureData = text;
     
 //     std::cout << "textureIndex " << textureIndex << "\n";
@@ -228,7 +228,7 @@ void GeometryOptimizer::optimize() {
 //     const glm::uvec4 &text = textures->at(objs[visIndex].texture);
     const uint32_t textureIndex = objs[visIndex].texture;
     ASSERT(textures->size() > textureIndex);
-    const TextureData &text = textures->at(textureIndex);
+    const Texture &text = textures->at(textureIndex);
     instanceDatas->at(objs[visIndex].faceIndex).textureData = text;
     
 //     instanceDatas->at(objs[visIndex].faceIndex).textureIndices.x = text.imageArrayIndex;

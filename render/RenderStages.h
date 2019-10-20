@@ -200,8 +200,9 @@ private:
   yavf::Buffer* uniformBuffer = nullptr;
   yavf::RenderTarget* target = nullptr;
   
-  yavf::DescriptorSet* images;
-  yavf::DescriptorSet* samplers;
+//  yavf::DescriptorSet* images;
+//  yavf::DescriptorSet* samplers;
+  yavf::DescriptorSet* imagesSet;
 };
 
 #define GEOMETRY_PIPELINE_LAYOUT_NAME "deferred_layout2"
@@ -234,8 +235,9 @@ private:
   
   yavf::Buffer* worldMapVertex = nullptr;
   
-  yavf::DescriptorSet* images;
-  yavf::DescriptorSet* samplers;
+//  yavf::DescriptorSet* images;
+//  yavf::DescriptorSet* samplers;
+  yavf::DescriptorSet* imagesSet;
 };
 
 // нам по идее нужен еще рисовальщик частиц и декалей

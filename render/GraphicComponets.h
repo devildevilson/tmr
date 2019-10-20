@@ -1,19 +1,34 @@
 #ifndef GRAPHIC_COMPONENTS_H
 #define GRAPHIC_COMPONENTS_H
 
-#include "Optimizers.h"
-#include "GPUOptimizers.h"
-
 #include "Editable.h"
 
-class TransformComponent;
+#include "Utility.h"
+#include "ArrayInterface.h"
+#include "RenderStructures.h"
+#include "PhysicsTemporary.h"
 
 // короче RotationData нужно обновлять где-то здесь
 // иначе получается какая то херня, для этого, конечно,
 // нужно бы как нибудь это использовать
 // пока пусть это полежит на затворках
 
-class GraphicComponent : public Editable {
+class GraphicUpdater {
+public:
+  virtual ~GraphicUpdater() = default;
+
+  virtual void update() = 0;
+  virtual void drawBoundingShape(const simd::vec4 &color) const = 0;
+};
+
+class TransformComponent;
+class MonsterGPUOptimizer;
+class MonsterDebugOptimizer;
+class GeometryGPUOptimizer;
+class GeometryDebugOptimizer;
+class LightOptimizer;
+
+class GraphicComponent : public Editable, public GraphicUpdater {
 public:
   static void setContainer(Container<simd::mat4>* matrices);
   static void setContainer(Container<RotationData>* rotationDatas);
@@ -31,13 +46,13 @@ public:
   GraphicComponent(const CreateInfo &info);
   virtual ~GraphicComponent();
 
-  virtual void update();
+  void update() override;
 //  void update(const uint64_t &time = 0) override;
 //  void init(void* userData) override;
   
   void uiDraw() override;
   
-  virtual void drawBoundingShape(const simd::vec4 &color) const;
+  void drawBoundingShape(const simd::vec4 &color) const override;
   
   // это нужно в основном для того чтобы не городить анимационный компонент для каждого энтити
   void setImage(const Image &t);
@@ -81,6 +96,7 @@ public:
     size_t elemCount;
     uint32_t faceIndex;
 
+    Texture t;
     uint32_t transformIndex;
   };
   GraphicComponentIndexes(const CreateInfo &info);
@@ -102,7 +118,7 @@ protected:
   static GeometryDebugOptimizer* debugOptimizer;
 };
 
-class Light : public GraphicComponent {
+class Light : public Editable, public GraphicUpdater {
 public:
   static void setOptimizer(LightOptimizer* optimiser);
 
@@ -120,6 +136,7 @@ public:
   void drawBoundingShape(const simd::vec4 &color) const override;
 protected:
   LightData data;
+  uint32_t transformIndex;
 
   static LightOptimizer* optimiser;
 };
