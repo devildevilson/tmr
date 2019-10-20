@@ -26,28 +26,30 @@ if(NOT EXISTS "${PROJECT_SOURCE_DIR}/include/fmt/CMakeLists.txt")
   message(FATAL_ERROR "The submodules were not downloaded! GIT_SUBMODULE was turned off or failed. Please update submodules and try again.")
 endif()
 
-set(STB_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/include/stb)
-set(TINYOBJ_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/include/tinyobjloader)
+set(STB_INCLUDE_PATH include/stb)
+set(TINYOBJ_INCLUDE_PATH include/tinyobjloader)
 
 # директории, где компилятор ищет хедеры
 include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/
-  ${CMAKE_CURRENT_SOURCE_DIR}/sound/
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/include/
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/json/include/
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/VulkanMemoryAllocator/src/
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/glm/
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/cppfs/source/cppfs/include
+  bin/
+  render/
+  physics/
+  utils/
+  sound/
+  ai/
+  resources/
+  include/
+  include/fmt/include/
+  include/json/include/
+  include/VulkanMemoryAllocator/src/
+  include/glm/
+  include/cppfs/source/cppfs/include
+  include/filesystem/
   ${STB_INCLUDE_PATH}
   ${TINYOBJ_INCLUDE_PATH}
   #                     /home/mikuhatsune/gwc/testingApp/include/libleaktracer/include
-  #                     ${CMAKE_CURRENT_SOURCE_DIR}/include/imgui/
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/TinyBehavior/
+  #                     include/imgui/
+  include/TinyBehavior/
 )
 
 link_directories(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}) # директории, где компилятор ищет библиотечки
@@ -77,7 +79,7 @@ if (WIN32)
     ${CPPFS_LIB_PATH}
   )
 else()
-  set(CPPFS_LIB_PATH ${CMAKE_CURRENT_SOURCE_DIR}/libs)
+  set(CPPFS_LIB_PATH libs)
 
   # находим указанные зависимости (нужно чекнуть все ли это зависимости?)
   # вместо glm у меня установлен gli
@@ -106,68 +108,68 @@ set(COMPILED_SHADERS_PATH ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders)
 file(MAKE_DIRECTORY ${COMPILED_SHADERS_PATH})
 
 file(GLOB_RECURSE GLSL_SOURCE_FILES
-#     "${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/*.vert"
-#     "${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/*.frag"
-#     "${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/*.comp"
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/simple.vert
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/simple.frag
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/simpleUV.vert
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/simpleUV.frag
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/simpleAABB.vert
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/simpleAABB.frag
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/simplePoly.vert
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/simplePoly.frag
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/gui.vert
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/gui.frag
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/occlusion.vert
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/occlusion.frag
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/occludee.vert
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/occlusion2.frag
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/deferred.vert
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/deferred.frag
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/deferredObj.vert
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/deferredObj.frag
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/tiling.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/toneMapping.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/calcRotationMatrix.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/velocity.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/recalculateAABB.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/updateOctree.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/preUpdateNodeIdx.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/updateNodeIdx.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/updateNodeIdx2.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/octree.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/octree3.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/pairsToPowerOfTwo.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/octreeRay.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/octreeFrustum.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/octreeFrustum2.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/iterativeFrustum.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/frustumPowerOfTwo.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/islands.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/batching.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/checkSamePairs.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/islands2.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/batching2.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/checkSamePairs2.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/computeIslandsSize.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/sorting.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/sortingOverlapping1.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/sortingOverlapping2.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/posRecalc.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/calcOverlappingDataToSolver.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/newSolver.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/solver2.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/searchAndAddPair.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/calcOverlappingData.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/calcRayIntersect.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/particles.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/particlesSorting.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/particles.vert
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/particles.geom
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/particles.frag
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/monsterOptimizer.comp
-    ${CMAKE_CURRENT_SOURCE_DIR}/rawShaders/geometryOptimizer.comp
+#     "rawShaders/*.vert"
+#     "rawShaders/*.frag"
+#     "rawShaders/*.comp"
+    rawShaders/simple.vert
+    rawShaders/simple.frag
+    rawShaders/simpleUV.vert
+    rawShaders/simpleUV.frag
+    rawShaders/simpleAABB.vert
+    rawShaders/simpleAABB.frag
+    rawShaders/simplePoly.vert
+    rawShaders/simplePoly.frag
+    rawShaders/gui.vert
+    rawShaders/gui.frag
+    rawShaders/occlusion.vert
+    rawShaders/occlusion.frag
+    rawShaders/occludee.vert
+    rawShaders/occlusion2.frag
+    rawShaders/deferred.vert
+    rawShaders/deferred.frag
+    rawShaders/deferredObj.vert
+    rawShaders/deferredObj.frag
+    rawShaders/tiling.comp
+    rawShaders/toneMapping.comp
+    rawShaders/calcRotationMatrix.comp
+    rawShaders/velocity.comp
+    rawShaders/recalculateAABB.comp
+    rawShaders/updateOctree.comp
+    rawShaders/preUpdateNodeIdx.comp
+    rawShaders/updateNodeIdx.comp
+    rawShaders/updateNodeIdx2.comp
+    rawShaders/octree.comp
+    rawShaders/octree3.comp
+    rawShaders/pairsToPowerOfTwo.comp
+    rawShaders/octreeRay.comp
+    rawShaders/octreeFrustum.comp
+    rawShaders/octreeFrustum2.comp
+    rawShaders/iterativeFrustum.comp
+    rawShaders/frustumPowerOfTwo.comp
+    rawShaders/islands.comp
+    rawShaders/batching.comp
+    rawShaders/checkSamePairs.comp
+    rawShaders/islands2.comp
+    rawShaders/batching2.comp
+    rawShaders/checkSamePairs2.comp
+    rawShaders/computeIslandsSize.comp
+    rawShaders/sorting.comp
+    rawShaders/sortingOverlapping1.comp
+    rawShaders/sortingOverlapping2.comp
+    rawShaders/posRecalc.comp
+    rawShaders/calcOverlappingDataToSolver.comp
+    rawShaders/newSolver.comp
+    rawShaders/solver2.comp
+    rawShaders/searchAndAddPair.comp
+    rawShaders/calcOverlappingData.comp
+    rawShaders/calcRayIntersect.comp
+    rawShaders/particles.comp
+    rawShaders/particlesSorting.comp
+    rawShaders/particles.vert
+    rawShaders/particles.geom
+    rawShaders/particles.frag
+    rawShaders/monsterOptimizer.comp
+    rawShaders/geometryOptimizer.comp
     )
 
 foreach(GLSL ${GLSL_SOURCE_FILES})
@@ -187,7 +189,7 @@ add_custom_target(
     DEPENDS ${SPIRV_BINARY_FILES}
     )
 
-set(RESOURCE_DIR ${CMAKE_SOURCE_DIR}/resources)
+set(RESOURCE_DIR ${CMAKE_SOURCE_DIR}/project_resources)
 set(RESOURCE_DEST ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 file(GLOB PROJECT_RESOURCE_FILES
@@ -228,9 +230,9 @@ foreach(RESOURCE ${PROJECT_RESOURCE_FILES})
 endforeach()
 
 add_custom_target(
-    resources
-    DEPENDS ${COPYING_RESOURCES}
-    )
+  project_resources
+  DEPENDS ${COPYING_RESOURCES}
+)
 
 IF( NOT CMAKE_BUILD_TYPE )
    SET( CMAKE_BUILD_TYPE Debug ... FORCE )
@@ -239,7 +241,6 @@ ENDIF()
 if (CMAKE_BUILD_TYPE MATCHES "Debug")
   add_definitions(-D_DEBUG) # пользовательские флаги
   #-fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize=undefined
-  # -march=native флажок для автоматического определения процессорных инструкций
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.2 -std=c++11 -Wall -Wextra -g")
 else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.2 -std=c++11 -Wall -Wextra -O3 -s")
@@ -252,271 +253,310 @@ SET(BUILD_SHARED_LIBS ON) # все библиотеки по дефолту ко
 
 # UTILS
 set(SRC_LIST
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/CmdMgr.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Variable.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Console.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/TimeMeter.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Globals.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Utility.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Event.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/EventComponent.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/UniqueID.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Type.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Frustum.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/ResourceID.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/EntityComponentSystem.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/utils/JobSystem.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Random.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/utils/State.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/ThreadPool.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/TransformComponent.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/Settings.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/src/format.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/src/posix.cc
+  utils/CmdMgr.cpp
+  utils/Variable.cpp
+  utils/Console.cpp
+  utils/TimeMeter.cpp
+  utils/Globals.cpp
+  utils/Utility.cpp
+  utils/Event.cpp
+  utils/EventComponent.cpp
+  utils/UniqueID.cpp
+  utils/Type.cpp
+  utils/Frustum.cpp
+  utils/ResourceID.cpp
+  utils/EntityComponentSystem.cpp
+  #              utils/JobSystem.cpp
+  utils/Random.cpp
+  #              utils/State.cpp
+  utils/ThreadPool.cpp
+  utils/TransformComponent.cpp
+  resources/Settings.cpp
+  include/fmt/src/format.cc
+  include/fmt/src/posix.cc
   #              utils/ResourceManager.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/FileTools.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/InputComponent.cpp
+  utils/FileTools.cpp
+  utils/InputComponent.cpp
+  utils/Attributes.cpp
+  bin/StateController.cpp
+  utils/Interaction.cpp
+  utils/StateControllerType.cpp
+  utils/basic_tri.cpp
+  utils/DelayedWorkSystem.cpp
+  utils/InventoryComponent.cpp
 )
 set(HDR_LIST
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/CmdMgr.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Variable.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Console.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/TimeMeter.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Globals.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Utility.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Event.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/EventComponent.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/UniqueID.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Type.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Frustum.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/ResourceID.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/EntityComponentSystem.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/utils/JobSystem.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/Random.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/utils/State.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/ThreadPool.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/TransformComponent.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/Settings.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/include/fmt/format.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/fmt/include/fmt/posix.h
+  utils/CmdMgr.h
+  utils/Variable.h
+  utils/Console.h
+  utils/TimeMeter.h
+  utils/Globals.h
+  utils/Utility.h
+  utils/Event.h
+  utils/EventComponent.h
+  utils/UniqueID.h
+  utils/Type.h
+  utils/Frustum.h
+  utils/ResourceID.h
+  utils/EntityComponentSystem.h
+  #              utils/JobSystem.h
+  utils/Random.h
+  #              utils/State.h
+  utils/ThreadPool.h
+  utils/TransformComponent.h
+  resources/Settings.h
+  include/fmt/include/fmt/format.h
+  include/fmt/include/fmt/posix.h
   #              utils/ResourceManager.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/FileTools.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/yacs.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/yacs_pool.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/yacs_component.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/InputComponent.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/TypelessContainer.h
+  utils/FileTools.h
+  utils/yacs.h
+  utils/yacs_pool.h
+  utils/yacs_component.h
+  utils/InputComponent.h
+  utils/TypelessContainer.h
+  utils/Transition.h
+  utils/Attributes.h
+  utils/EventFunctor.h
+  utils/InventoryComponent.h
+  utils/Interaction.h
+  utils/StateControllerType.h
+  utils/basic_tri.h
+  utils/shared_loaders_header.h
+  utils/DelayedWorkSystem.h
 )
 add_library(utils ${SRC_LIST} ${HDR_LIST}) # именно add_library объявляет цель в cmake (затем это имя мы используем как переменную в других функциях)
 target_link_libraries(utils) # например здесь fmt
 
 # PHYSICS
 set(SRC_LIST
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsUtils.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/Physics.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/BroadphaseInterface.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysics.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUPhysicsParallel.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUOctreeBroadphase.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUOctreeBroadphase.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUOctreeBroadphaseParallel.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUNarrowphase.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUNarrowphase.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUNarrowphaseParallel.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUSolver.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolver.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolverParallel.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysicsSorter.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUPhysicsSorter.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/HelperFunctions.cpp
-#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/Graph.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsComponent.cpp
+  physics/PhysicsUtils.cpp
+  physics/Physics.cpp
+  physics/BroadphaseInterface.cpp
+  #              physics/GPUPhysics.cpp
+  physics/CPUPhysicsParallel.cpp
+  #              physics/GPUOctreeBroadphase.cpp
+  #              physics/CPUOctreeBroadphase.cpp
+  physics/CPUOctreeBroadphaseParallel.cpp
+  #              physics/GPUNarrowphase.cpp
+  #              physics/CPUNarrowphase.cpp
+  physics/CPUNarrowphaseParallel.cpp
+  #              physics/GPUSolver.cpp
+  #              physics/CPUSolver.cpp
+  physics/CPUSolverParallel.cpp
+  #              physics/GPUPhysicsSorter.cpp
+  physics/CPUPhysicsSorter.cpp
+  physics/HelperFunctions.cpp
+#              physics/Graph.cpp
+  physics/PhysicsComponent.cpp
 )
 set(HDR_LIST
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsUtils.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/Physics.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/BroadphaseInterface.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysics.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUPhysicsParallel.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUOctreeBroadphase.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUOctreeBroadphase.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUOctreeBroadphaseParallel.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/ArrayInterface.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUArray.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/NarrowphaseInterface.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUNarrowphase.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUNarrowphase.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUNarrowphaseParallel.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/Solver.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUSolver.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolver.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUSolverParallel.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsSorter.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/physics/GPUPhysicsSorter.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/CPUPhysicsSorter.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/HelperFunctions.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/physics/PhysicsComponent.h
-#              ${CMAKE_CURRENT_SOURCE_DIR}/physics/Graph.h
+  physics/PhysicsUtils.h
+  physics/Physics.h
+  physics/BroadphaseInterface.h
+  #              physics/GPUPhysics.h
+  physics/CPUPhysicsParallel.h
+  #              physics/GPUOctreeBroadphase.h
+  #              physics/CPUOctreeBroadphase.h
+  physics/CPUOctreeBroadphaseParallel.h
+  physics/ArrayInterface.h
+  physics/GPUArray.h
+  physics/NarrowphaseInterface.h
+  #              physics/GPUNarrowphase.h
+  #              physics/CPUNarrowphase.h
+  physics/CPUNarrowphaseParallel.h
+  physics/Solver.h
+  #              physics/GPUSolver.h
+  #              physics/CPUSolver.h
+  physics/CPUSolverParallel.h
+  physics/PhysicsSorter.h
+  #              physics/GPUPhysicsSorter.h
+  physics/CPUPhysicsSorter.h
+  physics/HelperFunctions.h
+  physics/PhysicsComponent.h
+#              physics/Graph.h
 )
 add_library(physics ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(physics render utils)
 
 # RENDER
 set(SRC_LIST
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/VulkanRender.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Optimizers.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/GPUOptimizers.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/RenderStages.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/RenderStructures.cpp
-  # ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicComponets.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Window.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Deferred.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicsContainer.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/render/Occlusion.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Core.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Tasks.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Internal.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Makers.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Types.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/RAII.cpp
-#  ${CMAKE_CURRENT_SOURCE_DIR}/render/DecalSystem.cpp
-#  ${CMAKE_CURRENT_SOURCE_DIR}/render/DecalOptimizer.cpp
-#  ${CMAKE_CURRENT_SOURCE_DIR}/render/DecalComponent.cpp
-#  ${CMAKE_CURRENT_SOURCE_DIR}/render/ParticleSystem.cpp
-#  ${CMAKE_CURRENT_SOURCE_DIR}/render/ParticleEmitterComponent.cpp
+  render/VulkanRender.cpp
+  render/Optimizers.cpp
+  render/GPUOptimizers.cpp
+  render/RenderStages.cpp
+#   render/RenderStructures.cpp
+  render/GraphicComponets.cpp
+  # render/GraphicComponets.cpp
+  render/Window.cpp
+  render/Deferred.cpp
+  render/GraphicsContainer.cpp
+  #              render/Occlusion.cpp
+  render/Core.cpp
+  render/Tasks.cpp
+  render/Internal.cpp
+  render/Makers.cpp
+  render/Types.cpp
+  render/RAII.cpp
+#  render/DecalSystem.cpp
+#  render/DecalOptimizer.cpp
+#  render/DecalComponent.cpp
+#  render/ParticleSystem.cpp
+#  render/ParticleEmitterComponent.cpp
 #              render/TextureManager.cpp
 #              render/stbi_image_impl.cpp
 )
 set(HDR_LIST
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Render.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/VulkanRender.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Optimizer.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/GPUOptimizers.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Optimizers.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/RenderStages.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/RenderStage.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/RenderStructures.h
-  # ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicComponets.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Window.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Deferred.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicsContainer.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/nuklear_header.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/render/Occlusion.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/yavf.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Core.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Tasks.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Internal.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Makers.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/Types.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/RAII.h
-#  ${CMAKE_CURRENT_SOURCE_DIR}/render/DecalSystem.h
-#  ${CMAKE_CURRENT_SOURCE_DIR}/render/DecalOptimizer.h
-#  ${CMAKE_CURRENT_SOURCE_DIR}/render/DecalComponent.h
-#  ${CMAKE_CURRENT_SOURCE_DIR}/render/ParticleSystem.h
-#  ${CMAKE_CURRENT_SOURCE_DIR}/render/ParticleEmitterComponent.h
-#  ${CMAKE_CURRENT_SOURCE_DIR}/render/Emitter.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/render/vk_mem_alloc.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/VulkanMemoryAllocator/src/vk_mem_alloc.h
+  render/Render.h
+  render/VulkanRender.h
+  render/Optimizer.h
+  render/GPUOptimizers.h
+  render/Optimizers.h
+  render/RenderStages.h
+  render/RenderStage.h
+  render/RenderStructures.h
+  render/GraphicComponets.h
+  # render/GraphicComponets.h
+  render/Window.h
+  render/Deferred.h
+  render/GraphicsContainer.h
+  render/nuklear_header.h
+  #              render/Occlusion.h
+  render/yavf.h
+  render/Core.h
+  render/Tasks.h
+  render/Internal.h
+  render/Makers.h
+  render/Types.h
+  render/RAII.h
+#  render/DecalSystem.h
+#  render/DecalOptimizer.h
+#  render/DecalComponent.h
+#  render/ParticleSystem.h
+#  render/ParticleEmitterComponent.h
+#  render/Emitter.h
+  #              render/vk_mem_alloc.h
+  include/VulkanMemoryAllocator/src/vk_mem_alloc.h
 #              render/TextureManager.h
 #              render/stbi_image_header.h
-)
+  render/vulkan_lite.h)
 add_library(render ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(render utils ${VULKAN_LIB_NAME} ${GLFW3_LIBRARIES})
 
 # SOUND
 set(SRC_LIST 
-  ${CMAKE_CURRENT_SOURCE_DIR}/sound/alHelpers.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/sound/Buffer.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/sound/Source.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundData.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundComponent.cpp
+  sound/alHelpers.cpp
+  sound/Buffer.cpp
+  sound/Source.cpp
+  sound/SoundData.cpp
+  sound/SoundSystem.cpp
+  sound/SoundComponent.cpp
+  sound/SoundDecoder.cpp
+  sound/SoundLoader.cpp
 )
 set(HDR_LIST 
-  ${CMAKE_CURRENT_SOURCE_DIR}/sound/alHelpers.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/sound/Buffer.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/sound/Source.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundData.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundComponent.h
+  sound/alHelpers.h
+  sound/Buffer.h
+  sound/Source.h
+  sound/SoundData.h
+  sound/SoundSystem.h
+  sound/SoundComponent.h
+  sound/SoundDecoder.h
+  sound/SoundLoader.h
 )
-
 add_library(sound ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(sound utils openal)
 
 # AI
 set(SRC_LIST 
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/EntityAI.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/AIComponent.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/Graph.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/CPUPathFindingPhaseParallel.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/AISystem.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/AStarSearch.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/AIInputComponent.cpp
+  ai/EntityAI.cpp
+  ai/AIComponent.cpp
+  ai/Graph.cpp
+  ai/CPUPathFindingPhaseParallel.cpp
+  ai/AISystem.cpp
+  ai/AStarSearch.cpp
+  ai/AIInputComponent.cpp
 )
 set(HDR_LIST 
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/EntityAI.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/AIComponent.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/Graph.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/CPUPathFindingPhaseParallel.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/AISystem.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/AStarSearch.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/MoveEventData.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/PathFindingPhase.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/ai/AIInputComponent.h
+  ai/EntityAI.h
+  ai/AIComponent.h
+  ai/Graph.h
+  ai/CPUPathFindingPhaseParallel.h
+  ai/AISystem.h
+  ai/AStarSearch.h
+  ai/MoveEventData.h
+  ai/PathFindingPhase.h
+  ai/AIInputComponent.h
 )
-
 add_library(ai ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(ai utils physics)
 
+# RESOURCES
+set(SRC_LIST
+  resources/Conflict.cpp
+  resources/Resource.cpp
+  resources/Modification.cpp
+  resources/HardcodedLoaders.cpp
+#  resources/ResourceManager.cpp
+  resources/ModificationContainer.cpp
+  resources/ComponentCreators.cpp
+  resources/ComponentCreator.cpp
+  resources/ImageLoader.cpp
+)
+set(HDR_LIST
+  resources/ResourceParser.h
+  resources/Resource.h
+  resources/Conflict.h
+  resources/Modification.h
+  resources/ModificationParser.h
+  resources/HardcodedLoaders.h
+#  resources/ResourceManager.h
+  resources/ModificationContainer.h
+  resources/ComponentCreators.h
+  resources/ComponentCreator.h
+  resources/ImageLoader.h
+)
+add_library(resources ${SRC_LIST} ${HDR_LIST})
+target_link_libraries(resources ai sound render physics utils cppfs)
+# нужно ли лоадеры пихать в ресурсы? или оставить в других библиотеках?
+
 # BINARY
 set(SRC_LIST
-#  ${CMAKE_CURRENT_SOURCE_DIR}/bin/Components.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicComponets.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/AnimationComponent.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/sound/alHelpers.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/sound/Buffer.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/sound/Source.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundData.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/HardcodedLoaders.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/TextureLoader.cpp
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/bin/CPUAnimationSystem.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/CPUAnimationSystemParallel.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/AnimationSystem.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/PostPhysics.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/MenuItems.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/Menu.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/ResourceManager.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/Helper.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/main.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/CameraComponent.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/InfoComponent.cpp
+  bin/AnimationComponent.cpp
+  bin/AttributesComponent.cpp
+  bin/EffectComponent.cpp
+#   bin/InteractionComponent.cpp
+  bin/CPUAnimationSystemParallel.cpp
+  bin/AnimationSystem.cpp
+  bin/PostPhysics.cpp
+  bin/MenuItems.cpp
+  bin/Menu.cpp
+  bin/Helper.cpp
+  bin/main.cpp
+  bin/CameraComponent.cpp
+  bin/InfoComponent.cpp
+  bin/Interactions.cpp 
+  bin/SkillComponent.cpp
+#   utils/InventoryComponent.cpp
 )
-
 set(HDR_LIST
-#  ${CMAKE_CURRENT_SOURCE_DIR}/bin/Components.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/render/GraphicComponets.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/sound/alHelpers.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/sound/Buffer.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/sound/Source.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundData.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundSystem.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/AnimationComponent.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/HardcodedLoaders.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/TextureLoader.h
-  #              ${CMAKE_CURRENT_SOURCE_DIR}/bin/CPUAnimationSystem.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/CPUAnimationSystemParallel.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/AnimationSystem.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/PostPhysics.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/MenuItems.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/Menu.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/ResourceManager.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/Helper.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/CameraComponent.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/InfoComponent.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/bin/UserDataComponent.h
+  bin/AttributesComponent.h
+  bin/EffectComponent.h
+#   bin/InteractionComponent.h
+  bin/AnimationComponent.h
+  bin/CPUAnimationSystemParallel.h
+  bin/AnimationSystem.h
+  bin/PostPhysics.h
+  bin/MenuItems.h
+  bin/Menu.h
+  bin/Helper.h
+  bin/CameraComponent.h
+  bin/InfoComponent.h
+  bin/UserDataComponent.h
+  bin/StateController.h
+  bin/SkillComponent.h 
+  bin/Interactions.h
+#   utils/InventoryComponent.h
 )
 add_executable(${TARGET_NAME} ${SRC_LIST} ${HDR_LIST})
-target_link_libraries(${TARGET_NAME} ai sound render physics utils cppfs)
-add_dependencies(${TARGET_NAME} shaders resources)
+target_link_libraries(${TARGET_NAME} ai sound render physics resources utils)
+add_dependencies(${TARGET_NAME} shaders project_resources)
