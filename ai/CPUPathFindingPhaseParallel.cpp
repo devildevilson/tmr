@@ -195,7 +195,7 @@ CPUPathFindingPhaseParallel::~CPUPathFindingPhaseParallel() {
 // добавим запрос на путь
 void CPUPathFindingPhaseParallel::registerPathType(const Type &type, const std::function<bool(const vertex_t*, const vertex_t*, const edge_t*)> &predicate) {
   auto itr = types.find(type);
-  if (itr != types.end()) throw std::runtime_error("Path finding type with name " + type.getName() + " is already registered");
+  if (itr != types.end()) throw std::runtime_error("Path finding type with name " + type.name() + " is already registered");
   
   types[type].predicate = predicate;
 }

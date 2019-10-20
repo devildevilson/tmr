@@ -3,6 +3,7 @@
 
 #include "EntityAI.h"
 #include "PathFindingPhase.h"
+#include "EventFunctor.h"
 
 namespace tb {
   class BehaviorTree;
@@ -60,7 +61,7 @@ protected:
 // мне могут потребоваться какие-то дополнительные функции этого класса
 // можно ли их сделать как-нибудь по другому? я пока еще не знаю что ме может потребоваться лол
 // нужно сделать еще какое то специальное хранилище у компонента для промежуточных данных
-class AIComponent : public AIBasicComponent {
+class AIComponent : public AIBasicComponent, public EventFunctor {
   friend class AISystem;
 public:
   struct CreateInfo {
@@ -86,6 +87,8 @@ public:
   void updateAIData();
   
   void releasePath();
+
+  event call(const Type &type, const EventData &data, yacs::entity* entity) override;
 protected:
   struct PathData {
     RawPath* path;

@@ -66,182 +66,184 @@ AIComponent::AIComponent(const CreateInfo &info)
   states.setOnGround(aiData.vertex != nullptr);
 //  localEvents = info.events;
 
+  usrData->events->registerEvent(Type(), this);
+
   // move_to_target в таком виде наверное не будет существовать
-  usrData->events->registerEvent(Type::get("move_to_target"), [&] (const Type & type, const EventData &data) {
-    (void)type;
-    (void)data;
-
-    if (target() == nullptr) return failure;
-
-    // для начала мы должны разделить движение по пути и движение к объекту
-    // тут будет просто движение к объекту
-    // как его сделать? нам нужено поведение преследования
-    // по идее нам нужно просто вызвать функцию в инпуте
-    input->seek(target()->position());
-    input->setMovement(1.0f, 0.0f, 0.0f);
-    const simd::vec4 velocity = usrData->phys->getVelocity();
-    const float dot = simd::dot(velocity, velocity);
-    if (dot > EPSILON) {
-      usrData->trans->rot() = velocity / std::sqrt(dot);
-    }
-
-    return running;
-  });
-
-  usrData->events->registerEvent(Type::get("move_path"), [&] (const Type & type, const EventData &data) {
-    (void)type;
-    (void)data;
-
-    if (target() == nullptr) return failure;
-    if (this->vertex() == target()->vertex()) {
-      releasePath();
-      return success;
-    }
-    if (foundPath.path == nullptr && oldPath.path == nullptr) return failure;
-
-    // тут мы пытаемся идти по пути
-    // нужно ли вообще хранить путь в таком виде?
-    // здесь мы можем преобразовать путь с помощью фуннела
-    // фуннел будем выполнять при поиске
-    // теперь по идее мы должны передать путь в инпут компонент и по нему мы должны пройти
-
-    // предиктион тайм? вообще наверное по хорошему надо бы объеденить независимость от времени ИИ и физики
-    // но в текущем случае сделать это сложно, является ли это большой проблемой?
-    // тут определяется какие данные нужно взять для инпута чтобы потом двигаться в нужную сторону
-
-    RawPath* path = foundPath.path == nullptr ? oldPath.path : foundPath.path;
-    const size_t lastIndex = path->funnelData().size()-1;
-
-    if (lastIndex < currentPathSegment) {
-      releasePath();
-
-      states.setPathExisting(false);
-
-      std::cout << "path moving success" << "\n";
-
-      return success;
-    }
-
-    // нужно сделать проверку в правильном ли мы месте сейчас, как?
-
-    const simd::vec4 nextPos =
-            input->followPath(Global::ai()->getUpdateDelta(), path, currentPathSegment);
-    input->setMovement(1.0f, 0.0f, 0.0f);
-    //trans->rot() = simd::normalize(input->front());
-    const simd::vec4 velocity = usrData->phys->getVelocity();
-    const float dot = simd::dot(velocity, velocity);
-    if (dot > EPSILON) {
-      usrData->trans->rot() = velocity / std::sqrt(dot);
-    }
-
-    const simd::vec4 point = projectPointOnPlane(-PhysicsEngine::getGravityNorm(), usrData->trans->pos(), nextPos);
-    const float tolerance = 0.4f;
-    if (simd::distance2(usrData->trans->pos(), point) < tolerance) ++currentPathSegment;
-
-    PRINT_VAR("currentPathSegment", currentPathSegment)
-    PRINT_VAR("lastIndex   ", lastIndex)
-
-    std::cout << "path moving" << "\n";
-
-    return running;
-  });
-
-  usrData->events->registerEvent(Type::get("move"), [&] (const Type & type, const EventData &data) {
-    (void)type;
-    // не помешает еще сделать пользовательское движение в какие-нибудь стороны
-    // какие данные нужны? и нужно ли их хранить? хотя если мы будем вызывать это дело каждый кадр, то может и нет
-    // пока будем возвращать раннинг будем делать каждый раз при обновлении компонента
-
-    MoveEventData* move = reinterpret_cast<MoveEventData*>(data.userData);
-    if (move->type == MoveEvent::point) {
-      input->seek(simd::vec4(move->arr));
-    } else if (move->type == MoveEvent::direction) {
-      input->front() = simd::vec4(move->arr);
-    }
-
-    input->setMovement(1.0f, 0.0f, 0.0f);
-    const simd::vec4 velocity = usrData->phys->getVelocity();
-    const float dot = simd::dot(velocity, velocity);
-    if (dot > EPSILON) {
-      usrData->trans->rot() = velocity / std::sqrt(dot);
-    }
-
-    return running;
-  });
-
-  usrData->events->registerEvent(Type::get("find_path"), [&] (const Type & type, const EventData &data) {
-    (void)type;
-    (void)data;
-
-    const size_t currentTime = Global::mcsSinceEpoch();
-    if (foundPath.path != nullptr && (currentTime - pathfindingTime) > HALF_SECOND) { // HALF_SECOND
-      oldPath.path = foundPath.path;
-      oldPath.req = foundPath.req;
-
-      foundPath.path = nullptr;
-      foundPath.req.end = nullptr;
-      foundPath.req.start = nullptr;
-
-      states.setPathExisting(false);
-    }
-
-    if (target() == nullptr) return failure;
-    if (target()->vertex() == nullptr) return failure;
-    if (target()->vertex() == this->vertex()) return success;
-
-    if (foundPath.path == nullptr) {
-      if (foundPath.req.start != nullptr && foundPath.req.end != nullptr) {
-        const auto &pathData = Global::ai()->pathfindingSystem()->getPath(foundPath.req);
-
-        if (pathData.state == path_finding_state::delayed) return running;
-        else if (pathData.state == path_finding_state::has_path) {
-          if (oldPath.path != nullptr) {
-            Global::ai()->pathfindingSystem()->releasePath(oldPath.req);
-            oldPath.path = nullptr;
-          }
-
-          foundPath.path = pathData.path;
-
-          states.setPathExisting(true);
-          currentPathSegment = 1;
-
-          std::cout << "path finding success" << "\n";
-
-          return success;
-        } else if (pathData.state == path_finding_state::path_not_exist) {
-          states.setPathExisting(false);
-
-          if ((currentTime - pathfindingTime) > QUARTER_SECOND) {
-            Global::ai()->pathfindingSystem()->releasePath(foundPath.req);
-            foundPath.req.end = nullptr;
-            foundPath.req.start = nullptr;
-          }
-
-          std::cout << "path finding failed" << "\n";
-
-          return failure;
-        }
-      }
-
-      const FindRequest req{
-              pathFindType,
-              this->vertex(),
-              target()->vertex()
-      };
-      Global::ai()->pathfindingSystem()->queueRequest(req);
-
-      pathfindingTime = currentTime;
-      foundPath.req = req;
-
-      std::cout << "path finding running" << "\n";
-
-      return running;
-    }
-
-    std::cout << "path already fouded" << "\n";
-
-    return success;
-  });
+//  usrData->events->registerEvent(Type::get("move_to_target"), [&] (const Type & type, const EventData &data) {
+//    (void)type;
+//    (void)data;
+//
+//    if (target() == nullptr) return failure;
+//
+//    // для начала мы должны разделить движение по пути и движение к объекту
+//    // тут будет просто движение к объекту
+//    // как его сделать? нам нужено поведение преследования
+//    // по идее нам нужно просто вызвать функцию в инпуте
+//    input->seek(target()->position());
+//    input->setMovement(1.0f, 0.0f, 0.0f);
+//    const simd::vec4 velocity = usrData->phys->getVelocity();
+//    const float dot = simd::dot(velocity, velocity);
+//    if (dot > EPSILON) {
+//      usrData->trans->rot() = velocity / std::sqrt(dot);
+//    }
+//
+//    return running;
+//  });
+//
+//  usrData->events->registerEvent(Type::get("move_path"), [&] (const Type & type, const EventData &data) {
+//    (void)type;
+//    (void)data;
+//
+//    if (target() == nullptr) return failure;
+//    if (this->vertex() == target()->vertex()) {
+//      releasePath();
+//      return success;
+//    }
+//    if (foundPath.path == nullptr && oldPath.path == nullptr) return failure;
+//
+//    // тут мы пытаемся идти по пути
+//    // нужно ли вообще хранить путь в таком виде?
+//    // здесь мы можем преобразовать путь с помощью фуннела
+//    // фуннел будем выполнять при поиске
+//    // теперь по идее мы должны передать путь в инпут компонент и по нему мы должны пройти
+//
+//    // предиктион тайм? вообще наверное по хорошему надо бы объеденить независимость от времени ИИ и физики
+//    // но в текущем случае сделать это сложно, является ли это большой проблемой?
+//    // тут определяется какие данные нужно взять для инпута чтобы потом двигаться в нужную сторону
+//
+//    RawPath* path = foundPath.path == nullptr ? oldPath.path : foundPath.path;
+//    const size_t lastIndex = path->funnelData().size()-1;
+//
+//    if (lastIndex < currentPathSegment) {
+//      releasePath();
+//
+//      states.setPathExisting(false);
+//
+//      std::cout << "path moving success" << "\n";
+//
+//      return success;
+//    }
+//
+//    // нужно сделать проверку в правильном ли мы месте сейчас, как?
+//
+//    const simd::vec4 nextPos =
+//            input->followPath(Global::ai()->getUpdateDelta(), path, currentPathSegment);
+//    input->setMovement(1.0f, 0.0f, 0.0f);
+//    //trans->rot() = simd::normalize(input->front());
+//    const simd::vec4 velocity = usrData->phys->getVelocity();
+//    const float dot = simd::dot(velocity, velocity);
+//    if (dot > EPSILON) {
+//      usrData->trans->rot() = velocity / std::sqrt(dot);
+//    }
+//
+//    const simd::vec4 point = projectPointOnPlane(-PhysicsEngine::getGravityNorm(), usrData->trans->pos(), nextPos);
+//    const float tolerance = 0.4f;
+//    if (simd::distance2(usrData->trans->pos(), point) < tolerance) ++currentPathSegment;
+//
+//    PRINT_VAR("currentPathSegment", currentPathSegment)
+//    PRINT_VAR("lastIndex   ", lastIndex)
+//
+//    std::cout << "path moving" << "\n";
+//
+//    return running;
+//  });
+//
+//  usrData->events->registerEvent(Type::get("move"), [&] (const Type & type, const EventData &data) {
+//    (void)type;
+//    // не помешает еще сделать пользовательское движение в какие-нибудь стороны
+//    // какие данные нужны? и нужно ли их хранить? хотя если мы будем вызывать это дело каждый кадр, то может и нет
+//    // пока будем возвращать раннинг будем делать каждый раз при обновлении компонента
+//
+//    MoveEventData* move = reinterpret_cast<MoveEventData*>(data.userData);
+//    if (move->type == MoveEvent::point) {
+//      input->seek(simd::vec4(move->arr));
+//    } else if (move->type == MoveEvent::direction) {
+//      input->front() = simd::vec4(move->arr);
+//    }
+//
+//    input->setMovement(1.0f, 0.0f, 0.0f);
+//    const simd::vec4 velocity = usrData->phys->getVelocity();
+//    const float dot = simd::dot(velocity, velocity);
+//    if (dot > EPSILON) {
+//      usrData->trans->rot() = velocity / std::sqrt(dot);
+//    }
+//
+//    return running;
+//  });
+//
+//  usrData->events->registerEvent(Type::get("find_path"), [&] (const Type & type, const EventData &data) {
+//    (void)type;
+//    (void)data;
+//
+//    const size_t currentTime = Global::mcsSinceEpoch();
+//    if (foundPath.path != nullptr && (currentTime - pathfindingTime) > HALF_SECOND) { // HALF_SECOND
+//      oldPath.path = foundPath.path;
+//      oldPath.req = foundPath.req;
+//
+//      foundPath.path = nullptr;
+//      foundPath.req.end = nullptr;
+//      foundPath.req.start = nullptr;
+//
+//      states.setPathExisting(false);
+//    }
+//
+//    if (target() == nullptr) return failure;
+//    if (target()->vertex() == nullptr) return failure;
+//    if (target()->vertex() == this->vertex()) return success;
+//
+//    if (foundPath.path == nullptr) {
+//      if (foundPath.req.start != nullptr && foundPath.req.end != nullptr) {
+//        const auto &pathData = Global::ai()->pathfindingSystem()->getPath(foundPath.req);
+//
+//        if (pathData.state == path_finding_state::delayed) return running;
+//        else if (pathData.state == path_finding_state::has_path) {
+//          if (oldPath.path != nullptr) {
+//            Global::ai()->pathfindingSystem()->releasePath(oldPath.req);
+//            oldPath.path = nullptr;
+//          }
+//
+//          foundPath.path = pathData.path;
+//
+//          states.setPathExisting(true);
+//          currentPathSegment = 1;
+//
+//          std::cout << "path finding success" << "\n";
+//
+//          return success;
+//        } else if (pathData.state == path_finding_state::path_not_exist) {
+//          states.setPathExisting(false);
+//
+//          if ((currentTime - pathfindingTime) > QUARTER_SECOND) {
+//            Global::ai()->pathfindingSystem()->releasePath(foundPath.req);
+//            foundPath.req.end = nullptr;
+//            foundPath.req.start = nullptr;
+//          }
+//
+//          std::cout << "path finding failed" << "\n";
+//
+//          return failure;
+//        }
+//      }
+//
+//      const FindRequest req{
+//              pathFindType,
+//              this->vertex(),
+//              target()->vertex()
+//      };
+//      Global::ai()->pathfindingSystem()->queueRequest(req);
+//
+//      pathfindingTime = currentTime;
+//      foundPath.req = req;
+//
+//      std::cout << "path finding running" << "\n";
+//
+//      return running;
+//    }
+//
+//    std::cout << "path already fouded" << "\n";
+//
+//    return success;
+//  });
 }
                                                    
 AIComponent::~AIComponent() {
@@ -370,6 +372,173 @@ void AIComponent::releasePath() {
     foundPath.req.end = nullptr;
     foundPath.req.start = nullptr;
   }
+}
+
+const Type move_to_target = Type::get("move_to_target");
+const Type move_path = Type::get("move_path");
+const Type move = Type::get("move");
+const Type find_path = Type::get("find_path");
+
+event AIComponent::call(const Type &type, const EventData &data, yacs::entity* entity) {
+  (void)entity;
+
+  if (type == move_to_target) {
+    if (target() == nullptr) return failure;
+
+    // для начала мы должны разделить движение по пути и движение к объекту
+    // тут будет просто движение к объекту
+    // как его сделать? нам нужено поведение преследования
+    // по идее нам нужно просто вызвать функцию в инпуте
+    input->seek(target()->position());
+    input->setMovement(1.0f, 0.0f, 0.0f);
+    const simd::vec4 velocity = usrData->phys->getVelocity();
+    const float dot = simd::dot(velocity, velocity);
+    if (dot > EPSILON) {
+      usrData->trans->rot() = velocity / std::sqrt(dot);
+    }
+
+    return running;
+  } else if (type == move_path) {
+    if (target() == nullptr) return failure;
+    if (this->vertex() == target()->vertex()) {
+      releasePath();
+      return success;
+    }
+    if (foundPath.path == nullptr && oldPath.path == nullptr) return failure;
+
+    // тут мы пытаемся идти по пути
+    // нужно ли вообще хранить путь в таком виде?
+    // здесь мы можем преобразовать путь с помощью фуннела
+    // фуннел будем выполнять при поиске
+    // теперь по идее мы должны передать путь в инпут компонент и по нему мы должны пройти
+
+    // предиктион тайм? вообще наверное по хорошему надо бы объеденить независимость от времени ИИ и физики
+    // но в текущем случае сделать это сложно, является ли это большой проблемой?
+    // тут определяется какие данные нужно взять для инпута чтобы потом двигаться в нужную сторону
+
+    RawPath* path = foundPath.path == nullptr ? oldPath.path : foundPath.path;
+    const size_t lastIndex = path->funnelData().size()-1;
+
+    if (lastIndex < currentPathSegment) {
+      releasePath();
+
+      states.setPathExisting(false);
+
+      std::cout << "path moving success" << "\n";
+
+      return success;
+    }
+
+    // нужно сделать проверку в правильном ли мы месте сейчас, как?
+
+    const simd::vec4 nextPos =
+      input->followPath(Global::ai()->getUpdateDelta(), path, currentPathSegment);
+    input->setMovement(1.0f, 0.0f, 0.0f);
+    //trans->rot() = simd::normalize(input->front());
+    const simd::vec4 velocity = usrData->phys->getVelocity();
+    const float dot = simd::dot(velocity, velocity);
+    if (dot > EPSILON) {
+      usrData->trans->rot() = velocity / std::sqrt(dot);
+    }
+
+    const simd::vec4 point = projectPointOnPlane(-PhysicsEngine::getGravityNorm(), usrData->trans->pos(), nextPos);
+    const float tolerance = 0.4f;
+    if (simd::distance2(usrData->trans->pos(), point) < tolerance) ++currentPathSegment;
+
+    PRINT_VAR("currentPathSegment", currentPathSegment)
+    PRINT_VAR("lastIndex   ", lastIndex)
+
+    std::cout << "path moving" << "\n";
+
+    return running;
+  } else if (type == move) {
+    MoveEventData* move = reinterpret_cast<MoveEventData*>(data.userData);
+    if (move->type == MoveEvent::point) {
+      input->seek(simd::vec4(move->arr));
+    } else if (move->type == MoveEvent::direction) {
+      input->front() = simd::vec4(move->arr);
+    }
+
+    input->setMovement(1.0f, 0.0f, 0.0f);
+    const simd::vec4 velocity = usrData->phys->getVelocity();
+    const float dot = simd::dot(velocity, velocity);
+    if (dot > EPSILON) {
+      usrData->trans->rot() = velocity / std::sqrt(dot);
+    }
+
+    return running;
+  } else if (type == find_path) {
+    const size_t currentTime = Global::mcsSinceEpoch();
+    if (foundPath.path != nullptr && (currentTime - pathfindingTime) > HALF_SECOND) { // HALF_SECOND
+      oldPath.path = foundPath.path;
+      oldPath.req = foundPath.req;
+
+      foundPath.path = nullptr;
+      foundPath.req.end = nullptr;
+      foundPath.req.start = nullptr;
+
+      states.setPathExisting(false);
+    }
+
+    if (target() == nullptr) return failure;
+    if (target()->vertex() == nullptr) return failure;
+    if (target()->vertex() == this->vertex()) return success;
+
+    if (foundPath.path == nullptr) {
+      if (foundPath.req.start != nullptr && foundPath.req.end != nullptr) {
+        const auto &pathData = Global::ai()->pathfindingSystem()->getPath(foundPath.req);
+
+        if (pathData.state == path_finding_state::delayed) return running;
+        else if (pathData.state == path_finding_state::has_path) {
+          if (oldPath.path != nullptr) {
+            Global::ai()->pathfindingSystem()->releasePath(oldPath.req);
+            oldPath.path = nullptr;
+          }
+
+          foundPath.path = pathData.path;
+
+          states.setPathExisting(true);
+          currentPathSegment = 1;
+
+          std::cout << "path finding success" << "\n";
+
+          return success;
+        } else if (pathData.state == path_finding_state::path_not_exist) {
+          states.setPathExisting(false);
+
+          if ((currentTime - pathfindingTime) > QUARTER_SECOND) {
+            Global::ai()->pathfindingSystem()->releasePath(foundPath.req);
+            foundPath.req.end = nullptr;
+            foundPath.req.start = nullptr;
+          }
+
+          std::cout << "path finding failed" << "\n";
+
+          return failure;
+        }
+      }
+
+      const FindRequest req{
+        pathFindType,
+        this->vertex(),
+        target()->vertex()
+      };
+      Global::ai()->pathfindingSystem()->queueRequest(req);
+
+      pathfindingTime = currentTime;
+      foundPath.req = req;
+
+      std::cout << "path finding running" << "\n";
+
+      return running;
+    }
+
+    std::cout << "path already fouded" << "\n";
+
+    return success;
+  }
+
+  return success;
 }
 
 //PhysicsComponent* AIComponent::phys() const {

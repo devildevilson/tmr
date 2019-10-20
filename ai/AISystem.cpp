@@ -240,14 +240,14 @@ size_t CPUAISystem::getUpdateDelta() const {
 
 void CPUAISystem::setBehaviourTreePointer(const Type &name, tb::BehaviorTree* tree) {
   auto itr = treesPtr.find(name);
-  if (itr != treesPtr.end()) throw std::runtime_error("Behaviour tree with name " + name.getName() + " is already exist");
+  if (itr != treesPtr.end()) throw std::runtime_error("Behaviour tree with name " + name.name() + " is already exist");
   
   treesPtr[name] = tree;
 }
 
 tb::BehaviorTree* CPUAISystem::getBehaviourTreePointer(const Type &name) const {
   auto itr = treesPtr.find(name);
-  if (itr == treesPtr.end()) throw std::runtime_error("Behaviour tree with name " + name.getName() + " is not exist");
+  if (itr == treesPtr.end()) throw std::runtime_error("Behaviour tree with name " + name.name() + " is not exist");
   
   return itr->second;
 }
