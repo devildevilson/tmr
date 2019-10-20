@@ -8,21 +8,42 @@
 #include <stb_image.h>
 
 #include <fstream>
+#include <locale>
 
 #include "shared_loaders_header.h"
+
+VkOffset2D toVk(const Vk::Offset2D &offset2D) {
+  return {offset2D.x, offset2D.y};
+}
+
+VkExtent2D toVk(const Vk::Extent2D &extent2D) {
+  return {extent2D.width, extent2D.height};
+}
+
+VkRect2D toVk(const Vk::Rect2D &rect2D) {
+  return {toVk(rect2D.offset), toVk(rect2D.extent)};
+}
+
+VkExtent3D toVk(const Vk::Extent3D &extent3D) {
+  return {extent3D.width, extent3D.height, extent3D.depth};
+}
+
+bool operator==(const Vk::Extent2D &left, const Vk::Extent2D &right) {
+  return left.width == right.width && left.height == right.height;
+}
 
 uint32_t ImagePool::slotsCount() {
   return descriptorSlot;
 }
 
 ImagePool::ImagePool(const CreateInfo &info) : imageLayerCount(info.imageLayerCount), device(info.device), images(info.createImages, {nullptr, 0}), freePlaces(info.imageLayerCount * info.createImages) {
-  const yavf::ImageCreateInfo imgInfo = yavf::ImageCreateInfo::texture2D(info.imageInfo.extent,
-                                                                         VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+  if (imageLayerCount > TEXTURE_MAX_LAYER_COUNT) throw std::runtime_error("Too many image layers");
+  
+  const yavf::ImageCreateInfo imgInfo = yavf::ImageCreateInfo::texture2D(toVk(info.imageInfo.extent),
+                                                                         VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
                                                                          VK_FORMAT_R8G8B8A8_UNORM,
                                                                          imageLayerCount,
                                                                          info.imageInfo.mipLevels);
-
-  if (imageLayerCount > TEXTURE_MAX_LAYER_COUNT) throw std::runtime_error("Too many image layers");
 
   for (uint32_t i = 0; i < images.size(); ++i) {
     auto image = device->create(imgInfo, VMA_MEMORY_USAGE_GPU_ONLY);
@@ -39,9 +60,12 @@ ImagePool::ImagePool(const CreateInfo &info) : imageLayerCount(info.imageLayerCo
   }
 }
 
-ImagePool::~ImagePool() {
+ImagePool::~ImagePool() {}
+
+void ImagePool::destroy() {
   for (auto & pair : images) {
     device->destroy(pair.image);
+    pair.image = nullptr;
   }
 }
 
@@ -105,9 +129,9 @@ yavf::Image* ImagePool::getImageArray(const Image &data) const {
   return nullptr;
 }
 
-constexpr uint32_t ImagePool::layers() const {
-  return imageLayerCount;
-}
+//constexpr uint32_t ImagePool::layers() const {
+//  return imageLayerCount;
+//}
 
 uint32_t ImagePool::freeImagesCount() const {
   return freePlaces.size();
@@ -124,7 +148,7 @@ void ImagePool::addImageArrays(const uint32_t &count) {
   };
 
   const yavf::ImageCreateInfo imgInfo = yavf::ImageCreateInfo::texture2D(ext,
-                                                                         VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                                                         VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
                                                                          VK_FORMAT_R8G8B8A8_UNORM,
                                                                          imageLayerCount,
                                                                          getInfo()->mipLevels);
@@ -366,10 +390,10 @@ bool getTextureData(const std::string &pathPrefix, const nlohmann::json &j, Imag
   }
 
   info.size = {hasSize ? width : loadedWidth, hasSize ? height : loadedHeight, 1};
-  info.count = count;
-  info.columns = columns;
-  info.rows = rows;
-  info.resInfo.pathStr = texturePath;
+  info.count = hasCount ? count : 1;
+  info.columns = columns == 0 ? 1 : columns;
+  info.rows = rows == 0 ? 1 : rows;
+  info.resInfo.pathStr = pathPrefix + texturePath;
   info.resInfo.resSize = 0;
   info.mipLevelsVar = mipmaps ? static_cast<uint32_t>(std::floor(std::log2(std::max(info.size.width, info.size.height)))) + 1 : 0;
 
@@ -502,7 +526,7 @@ uint32_t ImageLoader::LoadingData::mipLevels() const {
   return mipLevelsVar;
 }
 
-VkExtent3D ImageLoader::LoadingData::imageSize() const {
+Vk::Extent3D ImageLoader::LoadingData::imageSize() const {
   return sizeVar;
 }
 
@@ -574,14 +598,16 @@ ImageLoader::ImageLoader(const CreateInfo &info) :
 }
 
 ImageLoader::~ImageLoader() {
-  // удалить все
-  
   if (data != nullptr) {
     delete data;
   }
 
   for (size_t i = 0; i < renderData.samplersCount; ++i) {
     device->destroy(samplers[i]);
+  }
+  
+  for (auto & array : arrays) {
+    array.destroy();
   }
 
   delete [] samplers;
@@ -674,7 +700,8 @@ bool ImageLoader::parse(const Modification *mod,
     this->data->textureDatas[info.resInfo.resId] = l;
     resources.push_back(l);
 
-    std::cout << "parsed " << info.resInfo.resId.name() << " mod " << mod->name() << "\n";
+    std::cout << "parsed: " << info.resInfo.resId.name() << " mod: " << mod->name() << "\n";
+    ASSERT(l->count() > 0);
   }
 
 //  bool validData = false;
@@ -1050,7 +1077,7 @@ const Resource* ImageLoader::getParsedResource(const ResourceID &id) const {
   return itr->second;
 }
 
-bool equal(const ImagePool &pool, const VkExtent2D &size, const uint32_t &mipLevels) {
+bool equal(const ImagePool &pool, const Vk::Extent2D &size, const uint32_t &mipLevels) {
   return pool.getInfo()->extent.width == size.width && pool.getInfo()->extent.height == size.height && pool.getInfo()->mipLevels == mipLevels;
 }
 
@@ -1061,6 +1088,14 @@ bool ImageLoader::load(const ModificationParser* modifications, const Resource* 
   // на этом этапе ничего не будет загружено, но уже можно брать инфу об изображениях
   
   if (data == nullptr) throw std::runtime_error("Not in loading state");
+  
+  if (arrays.empty()) {
+    for (const auto &pair : data->textureDatas) {
+      const ImagePool::CreateInfo info{
+        
+      };
+    }
+  }
 
   //if (resource->loaderMark() != mark()) return false;
   if (resource->parser() != this) return false;
@@ -1079,7 +1114,7 @@ bool ImageLoader::load(const ModificationParser* modifications, const Resource* 
     if (i.id == loadingData.id()) return true;
   }
 
-  const VkExtent2D imageSize{
+  const Vk::Extent2D imageSize{
     loadingData.imageSize().width,
     loadingData.imageSize().height
   };
@@ -1118,14 +1153,8 @@ bool ImageLoader::load(const ModificationParser* modifications, const Resource* 
 //  // мы должны посчитать не вышли ли мы за пределы
 //  ImageArrayData &imageArrayData = arrays[index];
 
-  size_t index = SIZE_MAX;
-  for (size_t i = 0; i < arrays.size(); ++i) {
-    if (equal(arrays[i], imageSize, loadingData.mipLevels())) {
-      index = i;
-      break;
-    }
-  }
-
+  ASSERT(loadingData.count() > 0);
+  
   ImageContainerData imageConcrete{
     loadingData.id(),
     new Image[loadingData.count()],
@@ -1138,9 +1167,18 @@ bool ImageLoader::load(const ModificationParser* modifications, const Resource* 
 //    imageConcrete.images[i] = arrays[index].pop();
 //  }
 
-  arrays[index].pop(imageConcrete.count, imageConcrete.images);
-
   data->loadData.push_back(imageConcrete);
+  
+  // ошибка в том что arrays в этот момент не инициализирован
+//   size_t index = SIZE_MAX;
+//   for (size_t i = 0; i < arrays.size(); ++i) {
+//     if (equal(arrays[i], imageSize, loadingData.mipLevels())) {
+//       index = i;
+//       break;
+//     }
+//   }
+//   
+//   arrays[index].pop(imageConcrete.count, imageConcrete.images);
 
   // как то так мы подготавливаем данные к дальнейшему копированию
   
@@ -1241,7 +1279,7 @@ yavf::Image* createImage(yavf::Device* device, const uint32_t &width, const uint
                         VMA_MEMORY_USAGE_GPU_ONLY);
 }
 
-void copy(const uint32_t &startingLayer, const uint32_t &startIndex, const uint32_t &count, const uint32_t &rows, const uint32_t &columns, const VkExtent3D &size, std::vector<VkImageCopy> &copies) {
+void copy(const uint32_t &startingLayer, const uint32_t &startIndex, const uint32_t &count, const uint32_t &rows, const uint32_t &columns, const Vk::Extent3D &size, std::vector<VkImageCopy> &copies) {
   uint32_t counter = 0;
   uint32_t width = 0;
   uint32_t height = 0;
@@ -1273,7 +1311,7 @@ void copy(const uint32_t &startingLayer, const uint32_t &startIndex, const uint3
           0, (counter-1) + startingLayer, 1
         },
         {0, 0, 0},
-        size
+        toVk(size)
       };
 
       copies.push_back(copy);
@@ -1281,7 +1319,7 @@ void copy(const uint32_t &startingLayer, const uint32_t &startIndex, const uint3
   }
 }
 
-void copy(const size_t &imageCount, const Image* memory, const uint32_t &count, const uint32_t &rows, const uint32_t &columns, const VkExtent3D &size, std::vector<VkImageCopy> &copies) {
+void copy(const size_t &imageCount, const Image* memory, const uint32_t &count, const uint32_t &rows, const uint32_t &columns, const Vk::Extent3D &size, std::vector<VkImageCopy> &copies) {
   uint32_t width = 0, height = 0, counter = 0;
 
   for (uint32_t i = 0; i < rows; ++i) {
@@ -1305,7 +1343,7 @@ void copy(const size_t &imageCount, const Image* memory, const uint32_t &count, 
           0, memory[counter].layer, 1
         },
         {0, 0, 0},
-        size
+        toVk(size)
       };
 
       ++counter;
@@ -1319,7 +1357,8 @@ void blit(const uint32_t &mipLevels, const uint32_t &layersCount, const VkExtent
   //  эта формула - это макисальное количество мип уровней? похоже на то
   // по такой формуле посчитаются мип уровни вплоть до 1х1 по идее
   // дольше в них нет необходимости
-  ASSERT(mipLevelsCheck < mipLevels);
+  
+  ASSERT(mipLevelsCheck == mipLevels);
 #endif
 
   int32_t mipWidth = size.width;
@@ -1331,7 +1370,7 @@ void blit(const uint32_t &mipLevels, const uint32_t &layersCount, const VkExtent
         i-1, 0, layersCount
       },
       {
-        {0, 0, 0}, {mipWidth, mipHeight, 0}
+        {0, 0, 0}, {mipWidth, mipHeight, 1}
       },
       {
         VK_IMAGE_ASPECT_COLOR_BIT,
@@ -1408,30 +1447,75 @@ void ImageLoader::end() {
 
   if (data == nullptr) throw std::runtime_error("Not in loading state");
 
-  // удалять изображения теперь не нужно
-  //
+  struct Tmp {
+    Vk::Extent2D extent;
+    uint32_t mipLevels;
+    uint32_t count;
+  };
+  std::vector<Tmp> tmpArray;
+  
+  for (const auto &loadingData : data->loadData) {
+    bool founded = false;
+    for (size_t i = 0; i < tmpArray.size(); ++i) {
+      if (tmpArray[i].extent == loadingData.size && tmpArray[i].mipLevels == loadingData.mipLevels) {
+        tmpArray[i].count += loadingData.count;
+        founded = true;
+        break;
+      }
+    }
+    
+    if (!founded) tmpArray.push_back({loadingData.size, loadingData.mipLevels, static_cast<uint32_t>(loadingData.count)});
+  }
+  
+  // нужно будет когда нибудь потом сделать свой вектор с плейсмент нью и без вечного оператора присвоения
+  for (const auto &tmp : tmpArray) {
+    arrays.emplace_back(ImagePool::CreateInfo{std::min(tmp.count, IMAGE_POOL_MAX_TEXTURE_LAYER_COUNT), static_cast<uint32_t>(std::ceil(float(tmp.count) / float(IMAGE_POOL_MAX_TEXTURE_LAYER_COUNT))), device, {tmp.extent, tmp.mipLevels}});
+  }
+  
+//   for (size_t i = 0; i < arrays.size(); ++i) {
+//     for (size_t k = 0; k < arrays[i].imageArraysCount(); ++k) {
+//       std::cout << "image handle " << arrays[i].getImageArray(k)->handle() << "\n";
+//     }
+//     
+//     std::cout << "free images count " << arrays[i].freeImagesCount() << "\n";
+//   }
 
   std::vector<LoadingTexture> dataToLoad;
   for (auto & loadData : data->loadData) {
     const LoadingData &resource = *data->textureDatas[loadData.id];
-
-//    const VkExtent2D imageSize{
+    
+//     const Vk::Extent2D imageSize{
 //      resource.imageSize().width,
 //      resource.imageSize().height
 //    };
+    
+    size_t index = SIZE_MAX;
+    for (size_t i = 0; i < arrays.size(); ++i) {
+      if (equal(arrays[i], loadData.size, loadData.mipLevels)) {
+        index = i;
+        break;
+      }
+    }
+    
+//     std::cout << "loadData.count " << loadData.count << "\n";
+//     std::cout << "loadData.id.name() " << loadData.id.name() << "\n";
+//     std::cout << "loadData.images " << loadData.images << "\n";
+//     std::cout << "loadData.mipLevels " << loadData.mipLevels << "\n";
+//     std::cout << "loadData.size " << loadData.size.width << " " << loadData.size.height << "\n";
+    
+    arrays[index].pop(loadData.count, loadData.images);
 
     // грузим изображениие в дополнительную память
     int texWidth, texHeight, texChannels;
     uint8_t* pixels = stbi_load(resource.path().c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
     const VkDeviceSize imageBytes = texWidth * texHeight * 4;
-
+    
     if (pixels == nullptr) {
-      throw std::runtime_error("failed to load image " + resource.id().name() + " path: " + resource.path() + "!");
+      throw std::runtime_error("failed to load image " + resource.id().name() + " path: " + resource.path());
     }
-
+    
     yavf::Image* staging = device->create(yavf::ImageCreateInfo::texture2DStaging({uint32_t(texWidth), uint32_t(texHeight)}), VMA_MEMORY_USAGE_CPU_ONLY);
     memcpy(staging->ptr(), pixels, imageBytes);
-
     stbi_image_free(pixels);
 
     // собираем VkImageCopy в кучу
@@ -1458,6 +1542,8 @@ void ImageLoader::end() {
         }
       }
 
+      if (dst == nullptr) throw std::runtime_error("dslmkvwdvpajiovjdiopvw");
+      
       // найдем уже созданный LoadingTexture
       size_t index = SIZE_MAX;
       for (size_t j = 0; j < dataToLoad.size(); ++j) {
@@ -1469,18 +1555,24 @@ void ImageLoader::end() {
 
       if (index == SIZE_MAX) {
         index = dataToLoad.size();
-        dataToLoad.push_back({staging, dst, {copies[i]}, std::vector<VkImageBlit>(dst->info().mipLevels-1)});
+        dataToLoad.push_back({staging, dst, {copies[i]}, std::vector<VkImageBlit>()}); //dst->info().mipLevels-1
       } else {
         dataToLoad[index].copies.push_back(copies[i]);
       }
 
       if (dataToLoad[index].dst->info().mipLevels > 1 && dataToLoad[index].blits.empty()) {
+        dataToLoad[index].blits.resize(dataToLoad[index].dst->info().mipLevels-1);
         blit(dataToLoad[index].dst->info().mipLevels, dataToLoad[index].dst->info().arrayLayers, dataToLoad[index].dst->info().extent, dataToLoad[index].blits);
       }
+      
+      ASSERT(dataToLoad[index].dst->info().mipLevels > 1 && !dataToLoad[index].blits.empty());
     }
 
     imagesContainer.push_back(loadData);
   }
+  
+  // проблема с мипмаппингом, ниарест фильтрация выглядит всрато
+  // а линейная - размывает текстуру
 
   yavf::GraphicTask* task = device->allocateGraphicTask();
 
@@ -1499,7 +1591,15 @@ void ImageLoader::end() {
       };
 
       task->setBarrier(i.dst->handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, range);
-      task->copyBlit(i.dst, i.dst, i.blits[j-1], VK_FILTER_NEAREST);
+      task->copyBlit(i.dst, i.dst, i.blits[j-1], VK_FILTER_NEAREST); //VK_FILTER_NEAREST
+    }
+    
+    if (i.dst->info().mipLevels > 1) {
+      const VkImageSubresourceRange range{
+        VK_IMAGE_ASPECT_COLOR_BIT,
+        i.dst->info().mipLevels-1, 1, 0, i.dst->info().arrayLayers
+      };
+      task->setBarrier(i.dst->handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, range);
     }
 
     i.dst->info().initialLayout = i.dst->info().mipLevels > 1 ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL : i.dst->info().initialLayout;
@@ -1528,8 +1628,8 @@ void ImageLoader::end() {
   // как понять нужно ли мне пересоздавать пайплайны?
   oldImagesCount = renderData.imagesCount;
   if (renderData.imagesCount != ImagePool::slotsCount()) {
-    recreateDescriptorPool();
     renderData.imagesCount = ImagePool::slotsCount();
+    recreateDescriptorPool();
   }
   
 //  for (uint32_t i = 0; i < arrays.size(); ++i) {
@@ -1842,9 +1942,9 @@ bool ImageLoader::needRecreatePipelines() const {
 //  return samplerLayout;
 //}
 
-bool ImageLoader::CurrentSizeIndex::equal(const VkExtent2D &otherSize, const uint32_t &otherMip) const {
-  return size == otherSize && mipLevels == otherMip;
-}
+//bool ImageLoader::CurrentSizeIndex::equal(const VkExtent2D &otherSize, const uint32_t &otherMip) const {
+//  return size == otherSize && mipLevels == otherMip;
+//}
 
 void ImageLoader::createData() {
   data = new Data();

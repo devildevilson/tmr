@@ -16,6 +16,7 @@
 #define DEFAULT_TEXTURE_DATA_COUNT 100
 
 #define TEXTURE_MAX_LAYER_COUNT 2048
+#define IMAGE_POOL_MAX_TEXTURE_LAYER_COUNT uint32_t(512)
 
 VK_DEFINE_HANDLE(VkDescriptorPool)
 
@@ -37,7 +38,7 @@ public:
   static uint32_t slotsCount();
 
   struct ImageCreateInfo {
-    VkExtent2D extent;
+    Vk::Extent2D extent;
     uint32_t   mipLevels;
   };
 
@@ -50,6 +51,8 @@ public:
   };
   ImagePool(const CreateInfo &info);
   ~ImagePool();
+  
+  void destroy();
 
   Image pop();
   void pop(const size_t &size, Image* memory);
@@ -60,7 +63,7 @@ public:
   yavf::Image* getImageArray(const uint32_t &index) const;
   yavf::Image* getImageArray(const Image &data) const;
 
-  constexpr uint32_t layers() const;
+  constexpr uint32_t layers() const { return imageLayerCount; }
   uint32_t freeImagesCount() const;
   uint32_t imageArraysCount() const;
 
@@ -85,28 +88,28 @@ private:
 
 namespace std {
   template<>
-  struct hash<VkExtent2D> {
-    size_t operator() (const VkExtent2D &extent) const {
+  struct hash<Vk::Extent2D> {
+    size_t operator() (const Vk::Extent2D &extent) const {
       return (extent.width + extent.height) * (extent.width + extent.height + 1) / 2 + extent.height;
     }
   };
   
   template<>
-  struct equal_to<VkExtent2D> {
-    bool operator() (const VkExtent2D &right, const VkExtent2D &left) const {
+  struct equal_to<Vk::Extent2D> {
+    bool operator() (const Vk::Extent2D &right, const Vk::Extent2D &left) const {
       return right.width == left.width && right.height == left.height;
     }
   };
 }
 
-static bool operator==(const VkExtent2D &right, const VkExtent2D &left);
+bool operator==(const Vk::Extent2D &right, const Vk::Extent2D &left);
 
 // по size и mipLevels мы можем узнать к какому пулу принадлежит изображение
 struct ImageContainerData {
   ResourceID id;
   Image* images;
   size_t count;
-  VkExtent2D size;
+  Vk::Extent2D size;
   uint32_t mipLevels;
 };
 
@@ -140,7 +143,7 @@ struct VulkanRelatedData {
 
 struct ImageData {
   Image image;
-  VkExtent2D size;
+  Vk::Extent2D size;
   uint32_t mipLevels;
 };
 
@@ -155,7 +158,7 @@ public:
       uint32_t columns;
       uint32_t count;
       uint32_t mipLevelsVar;
-      VkExtent3D size;
+      Vk::Extent3D size;
     };
     LoadingData(const CreateInfo &info);
 
@@ -163,13 +166,13 @@ public:
     uint32_t columns() const;
     uint32_t count() const;
     uint32_t mipLevels() const;
-    VkExtent3D imageSize() const;
+    Vk::Extent3D imageSize() const;
   private:
     uint32_t rowsVar;
     uint32_t columnsVar;
     uint32_t countVar;
     uint32_t mipLevelsVar;
-    VkExtent3D sizeVar;
+    Vk::Extent3D sizeVar;
   };
   
   struct Data {
@@ -201,7 +204,7 @@ public:
 
     // я подозреваю что map можно заменить на вектор
     // и будет достаточно быстро
-    std::unordered_map<VkExtent2D, uint32_t> layerCount;
+    std::unordered_map<Vk::Extent2D, uint32_t> layerCount;
     
     // вообще можно оставить TextureData для того чтобы проще блоы бы загружать новые уровни
     // тогда по идее не придется репарсить все моды
