@@ -36,7 +36,9 @@ public:
 //  void init(void* userData) override;
   
   void registerEvent(const Type &type, EventFunctor* func);
+  void removeEvent(EventFunctor* func);
   bool hasEvent(const Type &type) const;
+  // логично передавать все же энтити от которого пришел вызов эвента на константной основе
   event fireEvent(const Type &type, const EventData &data);
   
   void registerEvent_save(const Type &type, EventFunctor* func);
@@ -49,8 +51,9 @@ private:
   // и добавить безопасные функции которые будут вызывать мьютекс
   mutable std::mutex local_mutex;
   //std::unordered_map<Type, std::vector<std::function<event(const Type &, const EventData &)>>> events;
-  std::unordered_map<Type, std::vector<EventFunctor*>> events;
+  //std::unordered_map<Type, std::vector<EventFunctor*>> events;
   // я хочу поменять на просто std::vector
+  std::vector<EventFunctor*> events;
 };
 
 #endif

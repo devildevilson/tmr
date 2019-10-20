@@ -49,6 +49,12 @@ struct StateData {
   ResourceID sound;
   // тут еще поди может потребоваться указать relative sound pos
 
+  // нужны доп данные для анимаций и звука
+
+//   size_t animationDelay;
+//   size_t soundDelay;
+//   size_t interactionDelay;
+
 //  enum Interaction::type interactionType;
 //  Type interactionEvent;
   // двигать оружее по синусоиде - анимационный компонент

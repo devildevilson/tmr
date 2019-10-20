@@ -71,6 +71,29 @@ namespace yacs {
   private:
     T* ptr;
   };
+
+  template <typename T>
+  class const_component_handle {
+  public:
+    const_component_handle() : ptr(nullptr) {}
+    const_component_handle(const T* ptr) : ptr(ptr) {}
+
+    bool valid() const { return ptr != nullptr; }
+
+    const T* get() const { return ptr; }
+
+    const T* operator->() const { return ptr; }
+
+    bool operator==(const const_component_handle &handle) const {
+      return ptr == handle.get();
+    }
+
+    bool operator!=(const const_component_handle &handle) const {
+      return ptr != handle.get();
+    }
+  private:
+    const T* ptr;
+  };
 }
 
 #endif //YACS_COMPONENT_H

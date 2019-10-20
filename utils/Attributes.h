@@ -130,8 +130,8 @@ public:
   DataType data_type() const noexcept { return funcs[type].type; }
 
 //  AttributeType & operator=(const AttributeType &type) { this->type = type.type; }
-  bool operator==(const AttributeType &type) const noexcept { this->type == type.type; }
-  bool operator!=(const AttributeType &type) const noexcept { this->type != type.type; }
+  bool operator==(const AttributeType &type) const noexcept { return this->type == type.type; }
+  bool operator!=(const AttributeType &type) const noexcept { return this->type != type.type; }
 private:
   // тут будут еще дополнительный характеристики
   // например, описание, название (не техническое), иконка, ???
@@ -160,9 +160,11 @@ std::vector<std::string> AttributeType<Type>::idToName;
 class TypelessAttributeType {
 public:
 //  TypelessAttributeType(const TypelessAttributeType &type);
+  TypelessAttributeType() noexcept;
   TypelessAttributeType(const AttributeType<FLOAT_ATTRIBUTE_TYPE> &type) noexcept;
   TypelessAttributeType(const AttributeType<INT_ATTRIBUTE_TYPE> &type) noexcept;
 
+  bool valid() const;
   bool float_type() const noexcept;
   bool int_type() const noexcept;
 

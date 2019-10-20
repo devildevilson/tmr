@@ -3,8 +3,13 @@
 const size_t LAST_SIZE_T_BIT = size_t(1) << (SIZE_WIDTH - 1);
 
 //TypelessAttributeType::TypelessAttributeType(const TypelessAttributeType &type) : data(type.data) {}
+TypelessAttributeType::TypelessAttributeType() noexcept : data(SIZE_MAX) {}
 TypelessAttributeType::TypelessAttributeType(const AttributeType<FLOAT_ATTRIBUTE_TYPE> &type) noexcept : data(type.id() | LAST_SIZE_T_BIT) {}
 TypelessAttributeType::TypelessAttributeType(const AttributeType<INT_ATTRIBUTE_TYPE> &type) noexcept : data(type.id() & (~LAST_SIZE_T_BIT)) {}
+
+bool TypelessAttributeType::valid() const {
+  return data != SIZE_MAX;
+}
 
 bool TypelessAttributeType::float_type() const noexcept {
   return (data & LAST_SIZE_T_BIT) == LAST_SIZE_T_BIT;

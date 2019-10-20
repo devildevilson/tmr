@@ -113,7 +113,16 @@ namespace yacs {
     bool has() const;
 
     template <typename T>
-    component_handle<T> get() const;
+    component_handle<T> get();
+
+    template <typename T>
+    const_component_handle<T> get() const;
+
+    template <typename T>
+    void set(const component_handle<T> &comp);
+
+    template <typename T>
+    void unset();
 
     size_t id() const;
   private:
@@ -205,9 +214,9 @@ namespace yacs {
     auto itr = m_components.find(component_storage<T>::type);
     if (itr == m_components.end()) return;
 
-    T* ptr = static_cast<T*>(itr->second);
-    m_world->emit(component_destroyed<T>{this, component_handle<T>(ptr)});
-    m_world->destroy_component(component_handle<T>(ptr));
+    auto* ptr = static_cast<component_storage<T>*>(itr->second);
+    m_world->emit(component_destroyed<T>{this, component_handle<T>(ptr->ptr())});
+    m_world->destroy_component(component_handle<T>(ptr->ptr()));
   }
 
   template <typename T>
@@ -223,12 +232,39 @@ namespace yacs {
   }
 
   template <typename T>
-  component_handle<T> entity::get() const {
+  component_handle<T> entity::get() {
     auto itr = m_components.find(component_storage<T>::type);
     if (itr == m_components.end()) return component_handle<T>(nullptr);
 
-    T* ptr = static_cast<T*>(itr->second);
-    return component_handle<T>(ptr);
+    auto* ptr = static_cast<component_storage<T>*>(itr->second);
+    return component_handle<T>(ptr->ptr());
+  }
+
+  template <typename T>
+  const_component_handle<T> entity::get() const {
+    auto itr = m_components.find(component_storage<T>::type);
+    if (itr == m_components.end()) return const_component_handle<T>(nullptr);
+
+    const auto* ptr = static_cast<const component_storage<T>*>(itr->second);
+    return const_component_handle<T>(ptr->ptr());
+  }
+
+  template <typename T>
+  void entity::set(const component_handle<T> &comp) {
+    const size_t type = component_storage<T>::type;
+    auto itr = m_components.find(type);
+    if (itr != m_components.end()) {
+      // че делать в этом случае? можно возвращать булево значение
+      throw std::runtime_error("component with type already exist");
+    }
+
+    component_storage<T>* ptr = world::get_component_storage(comp);
+    m_components[type] = ptr;
+  }
+
+  template <typename T>
+  void entity::unset() {
+    m_components.erase(component_storage<T>::type);
   }
 
   template <typename T>

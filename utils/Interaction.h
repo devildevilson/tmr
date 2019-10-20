@@ -15,36 +15,36 @@ public:
   enum class type {
     target,
     ray,
-    physics,
-    projectile,
+//    physics,
+    slashing,
+    stabbing,
+//    projectile,
     aura,
-    collision
+    impact
   };
 
-  Interaction(const type &t, const Type &eventType, void* userData);
+  Interaction(const type &t, const Type &eventType);
   virtual ~Interaction();
 
-  struct NewData {
-    simd::vec4 pos;
-    simd::vec4 dir;
-  };
-  virtual void update_data(const NewData &data) = 0;
+//  struct NewData {
+//    simd::vec4 pos;
+//    simd::vec4 dir;
+//  };
+//  virtual void update_data(const NewData &data) = 0;
   virtual void update(const size_t &time) = 0;
-  virtual void cancel() = 0;
+//  virtual void cancel() = 0;
 
   // в большинстве случаев, объектов для которых нужно вызвать эвент будет 1
   // и вообще можно сделать примерно также как мы делали для EntityAI то есть
   // выдавать указатель на PhysicsIndexContainer (спорно) пока не nullptr
   // вообще можно выдвавать сразу юзер дату, но может ли нам что нибудь еще пригодиться?
-  virtual UserDataComponent* get_next() = 0;
+//  virtual UserDataComponent* get_next() = 0;
 
   enum type type() const;
   Type event_type() const;
-  void* user_data() const;
   bool isFinished() const;
 private:
   Type eventType;
-  void* userData;
   enum type t;
 
 protected:

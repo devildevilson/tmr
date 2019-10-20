@@ -6,12 +6,11 @@ void Interaction::setContainers(Container<Transform>* transforms, Container<simd
   Interaction::rotationDatas = rotationDatas;
 }
 
-Interaction::Interaction(const enum Interaction::type &t, const Type &eventType, void* userData) : eventType(eventType), userData(userData), t(t), finished(false) {}
+Interaction::Interaction(const enum Interaction::type &t, const Type &eventType) : eventType(eventType), t(t), finished(false) {}
 Interaction::~Interaction() {}
 
 enum Interaction::type Interaction::type() const { return t; }
 Type Interaction::event_type() const { return eventType; }
-void* Interaction::user_data() const { return userData; }
 bool Interaction::isFinished() const { return finished; }
 
 Container<Transform>* Interaction::transforms = nullptr;

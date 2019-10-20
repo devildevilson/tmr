@@ -8,6 +8,7 @@
 #include "Type.h"
 #include "Attributes.h"
 #include "MemoryPool.h"
+#include "Interaction.h"
 
 #include "EventFunctor.h"
 
@@ -44,6 +45,53 @@
 // в этом случае нужно решить вопрос со строгой последовательностью
 // + с передачей данных о энтити, хотя может эта идея и не очень
 
+// честно я все больше склоняюсь к тому что необходимо отделить оружие от итема
+// в пользу этого говорит то что итем используется независимо ни от чего
+// я вполне могу его использовать во время атаки
+// с другой стороны в оружии добавится не очень много уникальных данных
+
+// главная причина моего такого долгого зависания на этой теме в том,
+// что я пытаюсь приладить все это дело к системе эвентов, и это у меня в упор не хочет прилаживаться
+// видимо неочень хорошее было решение с эвентами, проблема заключается в том что мне нужно часто общаться между компонентами
+// энтити, а эвенты не могут гарантировать мне порядок этого общения, а так же адекватную проверку условий
+// иное решение заключается в том чтобы продумать интерфейсы ко всем возможным формам взаимодействий
+// то есть интерфейсы: скиллы, атака (или атака должна быть в скиллах?), итемы, движение,
+// эти интерфейсы видимо будут менять состояния объекта
+// атака сама по себе может быть и в скиллах, но вот оружее должно быть где-то около предметов
+// что нам это дает? во впервых никаких эвент компонентов, во вторых ии использует только определенные интерфейсы
+// новые интерфейсы добавить будет сложнее, нужны ли они мне? я так не думаю
+// что теперь? интерфейс скиллов, и предметов нужен
+// такие базовые вещи как звук, анимация в ue4 делаются где то уровнем ниже
+// все равно не очень понимаю как связать одно с другим
+// в ue4 анимация сообщает о том когда нужно запусить какой то эффект (звук, частицы)
+// ну и стейт соответственно привязан к анимации, вообще у меня примерно та же история
+// то есть при определенных анимациях нужно запускать звук
+// короче, в состоянии будет только анимация, звук, состояние мы меняем в разных местах (скиллы, движение)
+// в скиллах должно быть начальное состояние с характеристиками
+// видимо в данный момент у меня будет 3 интерфейса: скиллы, инвентарь, движение
+// что с эвентами? видимо ничего, не нужны
+// что в будущем с таким подходом меня ожидает? в будущем 2 важных преобразования намечается:
+// скелетная анимация ... и большая часть взаимодействий будут коллизией (важно ли?)
+// первое усложняет работу с состояниями, второе кажется ничего особенного не представляет из себя
+// у скелетной анимации появляется необходимость плавного перехода между состояниями + несколько состояний параллельно
+// впрочем скорее всего интерфейсы над этим не изменятся
+
+// единственное что давали мне эвенты - это способ как организовать реакцию на атаку у стен и декора
+// еще эвентами можно было ограничить функции от исполнения в разных потоках
+// в этом случае видимо придется делать компонент синхронизации (структура с мьютексом? видимо да)
+// смерть? ну видимо еще один компонент должен все это дело брать на себя
+
+// интерфейсы? skills, inventory, motion ... ? эффекты - ридонли
+
+//class InventoryInterface {
+//public:
+//  virtual ~InventoryInterface() = default;
+//
+//  // смена оружия, использование предметов
+//  // врядли будет сильно отличаться от компонента
+//  // думаю что лучше именно с компонентом работать
+//};
+
 namespace yacs{
   class entity;
 }
@@ -54,6 +102,29 @@ class InteractionComponent;
 class Effect;
 class StateControllerType;
 
+struct WeaponItemData {
+  // я хочу сделать еще магические атаки
+  // эти атаки появляются из-за того что игрок нажал на определенный скилл
+  // короче еще должна быть тема со скиллами
+  // что мне нужно для простого оружия? патроны - может быть даже двух типов
+  // для этого явно не нужен вектор
+  //std::vector<AttributeType<INT_ATTRIBUTE_TYPE>> ammoTypes;
+  TypelessAttributeType ammoType;
+
+  const Effect* weaponEffect; // эффект накладывается при атаке
+  const StateControllerType* player;
+  const StateControllerType* other;
+};
+
+struct InteractionData {
+  float angle;
+  float plane[4];
+  uint32_t tickCount;
+
+};
+
+// наложение эффекта по идее может менять не только характеристики, а также добавлять дополнительные эффекты к урону
+
 class ItemType {
 public:
   struct CreateInfo {
@@ -63,9 +134,15 @@ public:
     std::string name;
     std::string description;
 
-    std::vector<TypelessAttributeType> compareTypes;
+    const Effect* itemEffect;
 
-    std::function<event(const std::vector<AttributeType<INT_ATTRIBUTE_TYPE>>&, AttributesComponent*, InteractionComponent*)> func;
+    Type itemEvent;
+    enum Interaction::type itemType;
+    InteractionData interactionData;
+    WeaponItemData weaponData;
+//    std::vector<TypelessAttributeType> compareTypes;
+
+//    std::function<event(const std::vector<AttributeType<INT_ATTRIBUTE_TYPE>>&, AttributesComponent*, InteractionComponent*)> func;
   };
   ItemType(const CreateInfo &info);
   ~ItemType() = default;
@@ -76,16 +153,31 @@ public:
   std::string name() const;
   std::string description() const;
 
-  const std::vector<TypelessAttributeType> & compareAttributeTypes() const;
+//  const std::vector<TypelessAttributeType> & compareAttributeTypes() const;
 
-  event interaction(AttributesComponent* attribs, InteractionComponent* inter) const;
+  // придется наверное вытащить интеракцию отсюда
+//  event interaction(AttributesComponent* attribs, InteractionComponent* inter) const;
 
   // может потребоваться отменить интеракцию, когда отменить? у кого отменить?
-  // если у игрока то врядли, монстр не исполльзует это
-  void cancel_interaction(InteractionComponent* inter) const;
+  // если у игрока то врядли, монстр не использует это
+//  void cancel_interaction(InteractionComponent* inter) const;
 
   const StateControllerType* playerStates() const;
   const StateControllerType* objectStates() const;
+
+  bool isWeapon() const;
+
+  const Effect* itemEffect() const;
+
+  Type useEvent() const;
+  enum Interaction::type useType() const;
+
+  // тогда нужно еще задать какие то базовые данные
+  const InteractionData & itemInteractionData() const;
+  const WeaponItemData & weaponItemData() const;
+
+  // мы из оружия должны как то получить эффект
+  // да вообще в принципе айтем нам должен давать эффект
 private:
   Type typeId;
   Type itemGroup; // лучше наверное группу сделать через int, ну то есть как collisionGroup
@@ -101,11 +193,17 @@ private:
   // когда берем в руки оружее применяем этот эффект к игроку
   // эффект должен настраивать челика перед атакой, что это значит?
   // дальность атаки, скорость атаки,
-  Effect* effect;
+
   // впринципе эффект я могу использовать для практически всех взаимодействий с предметами
   // как сделать модификатор к оружию? чтоб можно было включать/выключать некоторые типы атаки
   // у меня есть эвент атака, и я раньше планировал на него подписываться
   // у меня должен быть скилл который тоже подпишется на этот эвент
+
+  // эффект который мы передаем при атаке? вынести интеракцию всеже из функции?
+  // мы берем в руки оружие и должны во первых именить некоторые характеристики энтити
+  // во вторых передавать другой эффект урона
+
+  // должен быть также эффект при атаке
 
   // анимации? как уже было сказано состояния, в чем здесь проблема?
   // проблема в том что у каждого итема разные анимации
@@ -113,10 +211,26 @@ private:
   std::string typeName;
   std::string typeDescription;
 
+  const Effect* effect;
+
+  // это не только у оружия может быть
+  // я решил отказаться от эвентов, а это значит что? мне нужна глобальная функция взаимодействия?
+  // по идее функция одна: два энтити, тип взаимодействия остается - это минимальный набор того что нужно
+  // при использовании предмета применяем заданный эффект, также эффект от предмета может давать возможность
+  // накладывать эффекты на других
+  Type attackEvent;
+  enum Interaction::type attackType;
+  InteractionData interactionData;
+
+  WeaponItemData weaponData;
+
   // типы к сравнению, возможно не потребуется, наверное даже потом изменится
   //std::vector<TypelessAttributeType> compareTypes;
 
-  std::vector<AttributeType<INT_ATTRIBUTE_TYPE>> ammoTypes;
+  // если патроны у нас хранятся в аттрибутах, то мы можем использовать эффект
+  // но эффект будет только вычитать, но мне нужно посмотреть еще и состояние
+  // и если патронов не хватает, то как пресечь изменение состояния?
+  // следовательно у состояний должно быть условие его изменения
 
   // нужны еще данные для интеракции, эти данные скорее всего могут задаваться как константы
   // сразу при создании той или иной интеракции, нужны ли мне эти данные?
@@ -135,7 +249,7 @@ private:
 //  size_t tickTime;
 
   // возможно даже не std::function, а указатель на виртуальную функцию
-  std::function<event(const std::vector<AttributeType<INT_ATTRIBUTE_TYPE>>&, AttributesComponent*, InteractionComponent*)> func;
+//  std::function<event(const std::vector<AttributeType<INT_ATTRIBUTE_TYPE>>&, AttributesComponent*, InteractionComponent*)> func;
   // здесь же можно сделать и уменьшение аттрибутов (использование патронов например)
   // тогда нужно сделать AttributesComponent не константным
 
@@ -189,9 +303,7 @@ private:
   // с действием, то есть примерно как стейтконтроллер, но с явно выраженой передачей ресурсов
   // вниз по иерархии (то есть стейт получает собственно стейт, по типу выясняет что необходимо сейчас сделать)
   // (передает РесурсИд анимации, звукам, тд, создает новую интеракцию, и прочее)
-
-  const StateControllerType* player;
-  const StateControllerType* other;
+  // нет, кажется достаточно StateControllerType
 };
 
 class Item {
@@ -287,50 +399,62 @@ struct ItemStack {
   // для нескольких предметов нам может пригодится состояния и здесь
 };
 
-struct WeaponData {
-  Type event;
-  const ItemType* weapon;
-
-  // здесь мы должны получать состояния
-};
+//struct WeaponData {
+//  Type event;
+//  const ItemType* weapon;
+//
+//  // способ по которому мы должны узнать есть ли у нас это оружее
+//  // можно просто проверять nullptr, как тогда точно гарантировать тип оружия?
+//  // гарантировать тип оружия здесь? идея скорее не очень
+//  // я планирую сделать несколько персонажей, у них будет разное оружее
+//  // понятное дело нужно брать всегда оружие персонажа, должен ли здесь код поменяться?
+//  // проверки можно организовать в другом месте при взятии например
+//  // большая часть вещей будет независима от персонажа (точнее все предметы независимы, а оружее будет зависимо)
+//};
 
 class InventoryComponent {
 public:
   struct CreateInfo {
     std::vector<ItemStack> predefinedItems;
-    size_t maxWeaponsCount;
-    std::vector<WeaponData> predefinedWeapons;
+//    size_t maxWeaponsCount;
+//    std::vector<WeaponData> predefinedWeapons;
+    size_t weaponCount;
+    std::vector<const ItemType*> predefinedWeapons;
   };
   InventoryComponent(const CreateInfo &info);
   ~InventoryComponent();
 
   size_t add(const ItemType* item, const size_t &count = 1); // возвращает сколько айтемов этого типа после добавления
   size_t remove(const ItemType* item, const size_t &count = 1); // возвращает сколько удалось удалить
+  size_t nextItem();
 
   size_t count(const ItemType* type) const;
   size_t index(const ItemType* type) const; // SIZE_MAX - такого типа нету в инвентаре
 
-  const ItemType* getCurrentItem() const;
+  const ItemType* currentItem() const;
 
-  size_t size() const;
+  size_t itemCount() const;
 
   // мне наверное нужно гарантировать что оружие будет только в определенных ячейках
-  void addWeapon(const ItemType* weapon, const Type &event, const size_t &index);
-  void removeWeapon(const ItemType* weapon);
+//  void addWeapon(const ItemType* weapon, const Type &event, const size_t &index);
+  void addWeapon(const ItemType* weapon, const size_t &index);
+  void removeWeapon(const ItemType* weapon); // может ли когда нибудь произойти?
+  const ItemType* nextWeapon(); // меняем оружее на следующее
 
-  const ItemType* weapon(const Type &event) const;
+//  const ItemType* weapon(const Type &event) const;
   const ItemType* weapon(const size_t &index) const;
 
   bool hasWeapon(const ItemType* weapon) const;
+  bool hasWeapon(const Type &type) const;
 
-  const ItemType* getCurrentWeapon() const;
+  const ItemType* currentWeapon() const;
 
-  size_t weaponsCount() const;
+  size_t weaponCount() const;
 
   // условие? по идее сортировать мы должны по итем группе
   void sort();
 private:
-  size_t currentItem;
+  size_t currentItemIndex;
   std::vector<ItemStack> items;
   //MemoryPool<ItemStack, sizeof(ItemStack)*10> stackPool;
   // мемори пул? видимо придется добавить для того чтобы сортировка не была такой унылой
@@ -345,8 +469,17 @@ private:
   // текущее оружее должно что то менять?
 
   // находим оружее по эвенту
-  size_t currentWeapon;
-  std::vector<WeaponData> weapons;
+//  size_t currentWeapon;
+//  std::vector<WeaponData> weapons;
+
+  // проверку можно сделать и здесь, массив Type
+  const size_t weaponCountVar;
+  size_t currentWeaponIndex;
+  const ItemType** weapons;
+
+  const ItemType* temporaryWeapon;
+
+  size_t findIndex(const size_t &start, const ItemType* type) const;
 };
 
 class UserInventoryComponent {
