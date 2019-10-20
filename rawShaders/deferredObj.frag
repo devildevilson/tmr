@@ -1,7 +1,7 @@
 #version 450
 
-layout(constant_id = 0) const uint samplersCount = 1;
-layout(constant_id = 1) const uint imagesCount = 2;
+layout(constant_id = 0) const uint imagesCount = 2;
+layout(constant_id = 1) const uint samplersCount = 1;
 
 layout(set = 0, binding = 0) uniform Camera {
   mat4 viewproj;
@@ -11,8 +11,8 @@ layout(set = 0, binding = 0) uniform Camera {
   uvec2 dim;
 } camera;
 
-layout(set = 1, binding = 0) uniform sampler samplers[samplersCount];
-layout(set = 2, binding = 0) uniform texture2DArray textures[imagesCount];
+layout(set = 1, binding = 0) uniform texture2DArray textures[imagesCount];
+layout(set = 1, binding = 1) uniform sampler samplers[samplersCount];
 
 layout(location = 0) in flat uint inImageIndex;
 layout(location = 1) in flat uint inSamplerIndex;
@@ -25,6 +25,7 @@ layout(location = 4) in vec3 inUV;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec2 outNormal;
+// видимо нужно будет сделать uint id объекта
 
 vec2 packNormal(const vec3 normal) {
   const float p = sqrt(normal.z * 8 + 8);

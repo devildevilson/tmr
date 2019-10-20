@@ -1,7 +1,11 @@
 #version 450
 
-layout(constant_id = 0) const uint samplersCount = 1;
-layout(constant_id = 1) const uint imagesCount = 2;
+#extension GL_GOOGLE_include_directive : enable
+
+#include "../render/RenderStructures.h"
+
+layout(constant_id = 0) const uint imagesCount = 2;
+layout(constant_id = 1) const uint samplersCount = 1;
 
 layout(set = 0, binding = 0) uniform Camera {
   mat4 viewproj;
@@ -11,23 +15,13 @@ layout(set = 0, binding = 0) uniform Camera {
   uvec2 dim;
 } camera;
 
-layout(set = 1, binding = 0) uniform sampler samplers[samplersCount];
-layout(set = 2, binding = 0) uniform texture2DArray textures[imagesCount];
+layout(set = 1, binding = 0) uniform texture2DArray textures[imagesCount];
+layout(set = 1, binding = 1) uniform sampler samplers[samplersCount];
 
-struct TextureData {
-  uint imageArrayIndex;
-  uint imageArrayLayer;
-  uint samplerIndex;
-  //float mirroredU;
-  //float mirroredV;
-  float movementU;
-  float movementV;
-};
-
-layout(std430, set = 3, binding = 0) readonly buffer Textures {
+layout(std430, set = 2, binding = 0) readonly buffer Textures {
   // x - imageIndex, y - imageLayer, z - samplerIndex, w - может быть материалом
   //uvec4 texturesData[];
-  TextureData texturesData[];
+  Texture texturesData[];
 };
 
 // layout(location = 0) in flat uint inImageIndex;
@@ -47,8 +41,8 @@ vec2 packNormal(const vec3 normal) {
 void main() {
   //const uint index = floatBitsToUint(inNormal.w);
   const uint index = faceIndex;
-  const uint imageIndex   = texturesData[index].imageArrayIndex;
-  const uint imageLayer   = texturesData[index].imageArrayLayer;
+  const uint imageIndex   = texturesData[index].image.index;
+  const uint imageLayer   = texturesData[index].image.layer;
   const uint samplerIndex = texturesData[index].samplerIndex;
   const float movementU   = texturesData[index].movementU;
   const float movementV   = texturesData[index].movementV;

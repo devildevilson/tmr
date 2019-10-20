@@ -1,5 +1,10 @@
 #version 450
 
+#extension GL_GOOGLE_include_directive : enable
+
+#include "../render/RenderStructures.h"
+#include "../utils/shared_mathematical_constant.h"
+
 layout(set = 0, binding = 0) uniform Camera {
   mat4 viewproj;
   mat4 view;
@@ -23,29 +28,17 @@ layout(std140, set = 2, binding = 0) readonly buffer Transforms {
   Transform transforms[];
 };
 
-layout(std140, set = 3, binding = 0) readonly buffer Matrices {
+layout(std140, set = 3, binding = 0) readonly buffer MatricesData {
   mat4 matrices[];
 };
 
-struct Texture {
-  uint imageArrayIndex;
-  uint imageArrayLayer;
-  uint samplerIndex;
-};
-
-struct TextureData {
-  Texture t;
-  float movementU;
-  float movementV;
-};
-
 layout(std430, set = 4, binding = 0) readonly buffer Textures {
-  TextureData textures[];
+  Texture textures[];
 };
 
 struct InstanceData {
   mat4 matrix;
-  TextureData texture;
+  Texture texture;
   uint dummy[3];
 };
 
@@ -57,8 +50,8 @@ layout(std140, set = 6, binding = 0) readonly buffer GraphicsIndices {
   uvec4 graphicsIndices[];
 };
 
-#define PI 3.1415926535897932384626433
-#define HALF_PI (PI/2.0f)
+//#define PI 3.1415926535897932384626433
+//#define HALF_PI (PI/2.0f)
 
 mat4 translate(const mat4 mat, const vec4 vec);
 mat4 rotate(const mat4 mat, const float angle, const vec4 normal);
@@ -85,7 +78,7 @@ void main() {
     0.0f, 0.0f, 0.0f, 1.0f
   );
   instanceDatas[index].matrix = translate(matOne, pos);
-  instanceDatas[index].matrix = rotate(instanceDatas[index].matrix, HALF_PI - count.playerRotation.y, vec4(0.0f, 1.0f, 0.0f, 0.0f));
+  instanceDatas[index].matrix = rotate(instanceDatas[index].matrix, PI_H - count.playerRotation.y, vec4(0.0f, 1.0f, 0.0f, 0.0f));
   instanceDatas[index].matrix = scale(instanceDatas[index].matrix, vulkanScale);
 
   // тут же можно умножить эту матрицу на вид, чтобы не делать это в вершинном шейдере
