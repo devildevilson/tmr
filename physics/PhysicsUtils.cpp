@@ -1,10 +1,12 @@
 #include "PhysicsUtils.h"
 
+//-std::numeric_limits<float>::infinity()
+
 RayData::RayData() {}
 RayData::RayData(const simd::vec4 &pos, const simd::vec4 &dir) 
   : pos(pos), dir(simd::normalize(dir)), data(-std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), glm::uintBitsToFloat(UINT32_MAX), glm::uintBitsToFloat(UINT32_MAX)) {}
 RayData::RayData(const simd::vec4 &pos, const simd::vec4 &dir, const uint32_t &ignoreObj, const uint32_t &filter) 
-  : pos(pos), dir(simd::normalize(dir)), data(-std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), glm::uintBitsToFloat(ignoreObj), glm::uintBitsToFloat(filter)) {}
+  : pos(pos), dir(simd::normalize(dir)), data(0.0f, std::numeric_limits<float>::infinity(), glm::uintBitsToFloat(ignoreObj), glm::uintBitsToFloat(filter)) {}
 RayData::RayData(const simd::vec4 &pos, const simd::vec4 &dir, const float &minDist, const float &maxDist, const uint32_t &ignoreObj, const uint32_t &filter) 
   : pos(pos), dir(simd::normalize(dir)), data(minDist, maxDist, glm::uintBitsToFloat(ignoreObj), glm::uintBitsToFloat(filter)) {}
 

@@ -177,7 +177,7 @@ struct PhysicData {
 };
 
 struct ExternalData {
-  simd::vec4 additionalForce;
+  float additionalForce[4];
   float maxSpeed;
   float acceleration;
   float dummy1;

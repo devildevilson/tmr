@@ -6,7 +6,8 @@ void PhysicsComponent::setContainer(Container<ExternalData>* externalDatas) {
   PhysicsComponent::externalDatas = externalDatas;
 }
 
-PhysicsComponent::PhysicsComponent(const CreateInfo &info) : externalDataIndex(externalDatas->insert(info.externalData)), container{UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, info.userData} {
+// PhysicsComponent::PhysicsComponent() : externalDataIndex(externalDatas->insert({})), container{UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, nullptr} {}
+PhysicsComponent::PhysicsComponent(const CreateInfo &info) : externalDataIndex(info.physInfo.type.isDynamic() ? externalDatas->insert(info.externalData) : UINT32_MAX), container{UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, info.userData} {
   Global::physics()->add({
     info.physInfo.rotation,
     info.physInfo.type,
@@ -26,9 +27,40 @@ PhysicsComponent::PhysicsComponent(const CreateInfo &info) : externalDataIndex(e
 }
 
 PhysicsComponent::~PhysicsComponent() {
-  externalDatas->erase(externalDataIndex);
+  if (externalDataIndex != UINT32_MAX) externalDatas->erase(externalDataIndex);
   Global::physics()->remove(&container);
 }
+
+// void PhysicsComponent::init(const CreateInfo &info) {
+//   ASSERT(container.inputIndex == UINT32_MAX && 
+//          container.internalIndex == UINT32_MAX && 
+//          container.objectDataIndex == UINT32_MAX && 
+//          container.physicDataIndex == UINT32_MAX && 
+//          container.rotationIndex == UINT32_MAX && 
+//          container.transformIndex == UINT32_MAX && 
+//          container.userData == nullptr);
+//   
+//   externalDatas->at(externalDataIndex) = info.externalData;
+//   
+//   container.userData = info.userData;
+//   
+//   Global::physics()->add({
+//     info.physInfo.rotation,
+//     info.physInfo.type,
+//     info.physInfo.collisionGroup,
+//     info.physInfo.collisionFilter,
+//     info.physInfo.stairHeight,
+//     info.physInfo.overbounce,
+//     info.physInfo.groundFricion,
+//     info.physInfo.radius,
+//     info.physInfo.inputIndex,
+//     info.physInfo.transformIndex,
+//     externalDataIndex,
+//     info.physInfo.matrixIndex,
+//     info.physInfo.rotationIndex,
+//     info.physInfo.shapeType
+//     }, &container);
+// }
 
 const PhysicsIndexContainer & PhysicsComponent::getIndexContainer() const {
   return container;
@@ -52,6 +84,14 @@ float PhysicsComponent::getMaxSpeed() const {
   if (externalDataIndex == UINT32_MAX) return 0.0f;
 
   return externalDatas->at(externalDataIndex).maxSpeed;
+}
+
+void PhysicsComponent::setVelocity(const simd::vec4 &vel) {
+  float arr[4];
+  vel.storeu(arr);
+  
+  Global::physics()->getPhysicData(&container).velocity = glm::vec3(arr[0], arr[1], arr[2]);
+  Global::physics()->getPhysicData(&container).scalar = simd::length(vel);
 }
 
 uint32_t PhysicsComponent::getObjectShapePointsSize() const {
@@ -88,6 +128,10 @@ uint32_t PhysicsComponent::getExternalDataIndex() const {
 
 void PhysicsComponent::setUserData(void* ptr) {
   container.userData = ptr;
+}
+
+void* PhysicsComponent::getUserData() const {
+  return container.userData;
 }
 
 Container<ExternalData>* PhysicsComponent::externalDatas = nullptr;
