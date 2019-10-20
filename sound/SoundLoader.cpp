@@ -306,6 +306,8 @@ bool SoundLoader::parse(const Modification* mod,
     parsingData->resources.push_back(res);
     resource.push_back(res);
   }
+  
+  return true;
 }
 
 bool SoundLoader::forget(const ResourceID &name) {

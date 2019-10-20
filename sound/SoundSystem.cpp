@@ -11,6 +11,7 @@
 
 #include "Globals.h"
 #include "SoundLoader.h"
+#include "DelayedWorkSystem.h"
 
 #include <stdexcept>
 #include <iostream>
@@ -455,7 +456,7 @@ float QueueSoundData::playingPosition() const {
   return float(currentSoundSample) / float(data->pcmSize());
 }
 
-SoundSystem::SoundSystem(const CreateInfo &info) : pool(info.pool), device(nullptr), ctx(nullptr), sourcesCountVar(0), loader(info.loader) {
+SoundSystem::SoundSystem(const CreateInfo &info) : pool(info.pool), device(nullptr), ctx(nullptr), sourcesCountVar(0), loader(info.loader), delayedWork(info.delayedWork) {
   ALCenum error;
 //   ALboolean ret;
   
@@ -523,12 +524,12 @@ SoundSystem::SoundSystem(const CreateInfo &info) : pool(info.pool), device(nullp
   alDistanceModel(AL_LINEAR_DISTANCE_CLAMPED);
   openalError("Could not set distance model");
 
-  Buffer::setBufferDataStatic(true);
-  if (!Buffer::isBufferDataStaticPresent()) {
-    throw std::runtime_error("no static buffers");
-  } else {
-    std::cout << "Using openal static buffers" << '\n';
-  }
+//   Buffer::setBufferDataStatic(true);
+//   if (!Buffer::isBufferDataStaticPresent()) {
+//     throw std::runtime_error("no static buffers");
+//   } else {
+//     std::cout << "Using openal static buffers" << '\n';
+//   }
 
   const glm::vec3 front = glm::vec3(0.0f, 0.0f, 1.0f);
   const glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -661,6 +662,12 @@ void SoundSystem::updateListener(const ListenerData &data) {
     Listener::setOrientation(glm::vec3(arr1[0], arr1[1], arr1[2]), glm::vec3(arr2[0], arr2[1], arr2[2]));
   }
 }
+
+struct QueueLess {
+  bool operator()(const QueueSoundData* left, const QueueSoundData* right) const {
+    return left->priority < right->priority;
+  }
+};
 
 void SoundSystem::update(const size_t &time) {
   static const auto updateComponents = [] (const size_t &time, const size_t &start, const size_t &count) {
@@ -819,9 +826,7 @@ void SoundSystem::update(const size_t &time) {
   }
 
   // сортировать очередь наверное будем здесь
-  pool->submitnr(std::sort<std::vector<QueueSoundData*>::iterator>, soundQueue.begin(), soundQueue.end(), [] (const QueueSoundData* left, const QueueSoundData* right) {
-    return left->priority < right->priority;
-  });
+  pool->submitnr(std::sort<std::vector<QueueSoundData*>::iterator, QueueLess>, soundQueue.begin(), soundQueue.end(), QueueLess());
 
   {
     const uint32_t processedBuffers = soundtrack.source.processedBuffers();
@@ -865,6 +870,7 @@ void SoundSystem::update(const size_t &time) {
   }
 
   // делэим задачу
+  delayedWork->add_work(delayedFunc);
   
 //  const glm::vec3 pos = Listener::getPos();
 //  const simd::vec4 listenerPos = simd::vec4(pos.x, pos.y, pos.z, 1.0f);

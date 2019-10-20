@@ -109,7 +109,7 @@ void SoundComponent::play(const PlayInfo &info) {
   if (info.memorised) {
     queuedSounds[index].sound = q;
     queuedSounds[index].time = info.time;
-    memcpy(queuedSounds[index].relativePos, info.relativePos, sizeof(float)*4));
+    memcpy(queuedSounds[index].relativePos, info.relativePos, sizeof(float)*4);
     queuedSounds[index].needVelocity = info.needVelocity;
   }
 

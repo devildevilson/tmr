@@ -439,10 +439,7 @@ uint32_t Source::id() const {
 //   return *this;
 // }
 
-Source & Source::operator=(const Source &other) {
-  alId = other.alId;
-  return *this;
-}
+//DelayedWorkSystem
 
 bool Source::operator==(const Source &other) {
   return alId == other.alId;

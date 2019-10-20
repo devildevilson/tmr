@@ -70,6 +70,7 @@ typedef struct ALCcontext_struct ALCcontext;
 // class SoundData;
 
 class SoundLoader;
+class DelayedWorkSystem;
 
 struct ListenerData {
   simd::vec4 pos;
@@ -188,6 +189,7 @@ public:
   struct CreateInfo {
     dt::thread_pool* pool;
     SoundLoader* loader;
+    DelayedWorkSystem* delayedWork;
     // добавятся методы загрузки звуков
     // да и в общем изменится подход ко звукам
   };
@@ -252,6 +254,8 @@ private:
   
 //  std::vector<char> container; // данные подгруженных заранее звуков
   SoundLoader* loader;
+
+  DelayedWorkSystem* delayedWork;
 
   // тут наверное нужно использовать хеш названия
 //  std::unordered_map<ResourceID, SoundData*> datas;
