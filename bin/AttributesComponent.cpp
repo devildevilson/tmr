@@ -328,6 +328,20 @@ void AttributeComponent::addReaction(const AttributeReaction &reaction) {
 
 Container<ExternalData>* AttributeComponent::externalDatas = nullptr;
 
+// AttributeCreatorComponent::AttributeCreatorComponent(const CreateInfo &info) : floatInit(info.floatInit), intInit(info.intInit) {}
+// 
+// AttributeComponent* AttributeCreatorComponent::create(yacs::entity* ent, const std::vector<AttributeComponent::InitInfo<FLOAT_ATTRIBUTE_TYPE>> &floatInit, const std::vector<AttributeComponent::InitInfo<INT_ATTRIBUTE_TYPE>> &intInit) const {
+//   auto ptr = ent->get<PhysicsComponent>();
+//   auto comp = ent->add<AttributeComponent>(AttributeComponent::CreateInfo{ptr.get(), nullptr, SIZE_MAX, floatInit, intInit});
+//   return comp.get();
+// }
+// 
+// AttributeComponent* AttributeCreatorComponent::create(yacs::entity* ent) const {
+//   auto ptr = ent->get<PhysicsComponent>();
+//   auto comp = ent->add<AttributeComponent>(AttributeComponent::CreateInfo{ptr.get(), nullptr, SIZE_MAX, floatInit, intInit});
+//   return comp.get();
+// }
+
 AttributeSystem::AttributeSystem(const CreateInfo &info) : pool(info.pool) {}
 AttributeSystem::~AttributeSystem() {}
 

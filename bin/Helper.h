@@ -43,8 +43,8 @@
 #include "GraphicComponets.h"
 #include "SoundComponent.h"
 
-#include "ParticleSystem.h"
-#include "DecalSystem.h"
+//#include "ParticleSystem.h"
+//#include "DecalSystem.h"
 #include "SoundSystem.h"
 
 //#include "../resources/ResourceManager.h"
@@ -53,6 +53,8 @@
 #include "ImageLoader.h"
 #include "SoundLoader.h"
 #include "HardcodedLoaders.h"
+
+#include "DelayedWorkSystem.h"
 
 #include "Menu.h"
 #include "MenuItems.h"

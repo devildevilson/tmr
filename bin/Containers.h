@@ -6,28 +6,29 @@
 #include "Optimizer.h"
 //#include "../resources/Manager.h"
 //#include "../resources/ResourceManager.h"
-//#include "ResourceParser.h"
-//#include "ModificationParser.h"
+#include "ResourceParser.h"
+#include "ModificationParser.h"
 
 #include "ArrayInterface.h"
 
 // названия то различаюся, нужно переделать
-//#include "Physics.h"
-//#include "BroadphaseInterface.h"
-//#include "Solver.h"
-//#include "NarrowphaseInterface.h"
-//#include "PhysicsSorter.h"
+#include "Physics.h"
+#include "BroadphaseInterface.h"
+#include "Solver.h"
+#include "NarrowphaseInterface.h"
+#include "PhysicsSorter.h"
 
 #include <vector>
 #include <cstdint>
 
-class PhysicsEngine;
-class Broadphase;
-class Solver;
-class Narrowphase;
-class PhysicsSorter;
-class ResourceParser;
-class ModificationParser;
+//class PhysicsEngine;
+//class Broadphase;
+//class Solver;
+//class Narrowphase;
+//class PhysicsSorter;
+
+//class ResourceParser;
+//class ModificationParser;
 
 // это все что нужно скорее всего
 // другое дело что некоторые системы у меня еще не готовы

@@ -13,6 +13,7 @@
 #include "Attributes.h"
 
 #include "Interaction.h"
+#include "EventFunctor.h"
 
 #include <unordered_set>
 #include <unordered_map>
@@ -67,7 +68,8 @@ public:
 // вызовы эвентов каждый кадр, конечно, ударит по производительности, лучший способ это конечно эвенты на вход и выход
 // эвенты на вход и выход все наверное
 
-struct PhysUserData;
+class AttributeComponent;
+class EffectComponent;
 class EventComponent;
 class TransformComponent;
 class InteractionSystem;
@@ -218,6 +220,7 @@ private:
   float thickness;
   float attackAngle;
   float distance;
+  float attackSpeed;
   PhysicsInteractionType interactionType;
   
   float pos[4];
@@ -305,73 +308,74 @@ struct MultithreadingMemoryPool {
 
 // как у монстров то сделать?
 
-struct Weapon {
-  PhysicsInteraction::PhysicsInteractionType type;
-
-  float thickness;
-  float attackAngle;
-  float plane[4];
-
-  uint32_t tickCount;
-  uint32_t ticklessObjectsType;
-
-  size_t delayTime;
-  size_t attackTime;
-  size_t tickTime;
-
-  // патроны? по идее характеристика, указатель на характеристику? нет, скорее указатель на итем в инвентаре
-  // патроны вполне могут быть характеристикой, так как они однотипны и очень просты
-};
-
-class WeaponComponent {
-public:
-
-private:
-  // interaction?
-  uint32_t current;
-  const uint32_t weaponsCount;
-  Weapon* weapons;
-
-  Attribute<INT_ATTRIBUTE_TYPE>* blocked;
-};
-
-class UseInteractionComponent {
-public:
-  UseInteractionComponent();
-  ~UseInteractionComponent();
-
-  void update();
-
-
-private:
-  uint32_t ignoreObj;
-  uint32_t filter;
-  float dist;
-  uint32_t rayIndex;
-
-  TransformComponent* trans;
-  EventComponent* events;
-  yacs::entity* entity;
-};
+//struct Weapon {
+//  PhysicsInteraction::PhysicsInteractionType type;
+//
+//  float thickness;
+//  float attackAngle;
+//  float plane[4];
+//
+//  uint32_t tickCount;
+//  uint32_t ticklessObjectsType;
+//
+//  size_t delayTime;
+//  size_t attackTime;
+//  size_t tickTime;
+//
+//  // патроны? по идее характеристика, указатель на характеристику? нет, скорее указатель на итем в инвентаре
+//  // патроны вполне могут быть характеристикой, так как они однотипны и очень просты
+//};
+//
+//class WeaponComponent {
+//public:
+//
+//private:
+//  // interaction?
+//  uint32_t current;
+//  const uint32_t weaponsCount;
+//  Weapon* weapons;
+//
+//  Attribute<INT_ATTRIBUTE_TYPE>* blocked;
+//};
+//
+//class UseInteractionComponent {
+//public:
+//  UseInteractionComponent();
+//  ~UseInteractionComponent();
+//
+//  void update();
+//
+//
+//private:
+//  uint32_t ignoreObj;
+//  uint32_t filter;
+//  float dist;
+//  uint32_t rayIndex;
+//
+//  TransformComponent* trans;
+//  EventComponent* events;
+//  yacs::entity* entity;
+//};
 
 class InteractionComponent {
 public:
-  CLASS_TYPE_DECLARE
-  
   struct CreateInfo {
 //    InteractionSystem* system;
+    yacs::entity* entity;
+    EventComponent* events;
+    TransformComponent* trans;
   };
   InteractionComponent(const CreateInfo &info);
   ~InteractionComponent();
   
   void update(const size_t &time);
-  void init(void* userData);
+//  void init(void* userData);
   
   // этот способ не позволяет использовать например разное оружее (то есть использовать разные данные на один эвент)
   // для оружия в этом случае самым логичным решением будет создать специальный компонент который будет разные ситуации в одном эвенте обрабатывать
-  void create(const Type &creationEvent, const TargetInteraction::CreateInfo &info);  // юзер дату мы тоже сюда складываем
-  void create(const Type &creationEvent, const RayInteraction::CreateInfo &info);     // так что имеет смысл ее хранить в другом месте
-  void create(const Type &creationEvent, const PhysicsInteraction::CreateInfo &info); // 
+//  void create(const Type &creationEvent, const TargetInteraction::CreateInfo &info);  // юзер дату мы тоже сюда складываем
+//  void create(const Type &creationEvent, const RayInteraction::CreateInfo &info);     // так что имеет смысл ее хранить в другом месте
+//  void create(const Type &creationEvent, const PhysicsInteraction::CreateInfo &info); //
   
   // нужно по идее еще проверить наличие
   // удалять? не думаю, возможно потребуется найти, а потом провзаимодействовать с отдельным элементом
@@ -389,7 +393,8 @@ private:
   
 //  size_t systemIndex;
   
-  InteractionSystem* system;
+//  InteractionSystem* system;
+  yacs::entity* entity;
   EventComponent* events;
   TransformComponent* trans;
   
@@ -417,6 +422,18 @@ private:
   static MultithreadingMemoryPool<TargetInteraction, 20> targetInt;
   static MultithreadingMemoryPool<RayInteraction, 20> rayInt;
   static MultithreadingMemoryPool<PhysicsInteraction, 100> physInt;
+};
+
+class DamageEvent : public EventFunctor {
+public:
+  DamageEvent();
+  ~DamageEvent();
+
+  event call(const Type &type, const EventData &data, yacs::entity* entity) override;
+private:
+  // что нам потребуется? аттрибуты, эффекты,
+  AttributeComponent* attribs;
+  EffectComponent* effects;
 };
 
 // система для InteractionComponent и многопоточность

@@ -2,9 +2,11 @@
 
 #include "Globals.h"
 #include "Utility.h"
-#include "Components.h"
+#include "PhysicsComponent.h"
 #include "EventComponent.h"
 #include "BroadphaseInterface.h"
+#include "AttributesComponent.h"
+#include "EffectComponent.h"
 
 #include <HelperFunctions.h>
 
@@ -40,11 +42,11 @@ void TargetInteraction::cancel() {
   
 }
 
-PhysUserData* TargetInteraction::get_next() {
+UserDataComponent* TargetInteraction::get_next() {
   if (currentTime < delayTime) return nullptr;
   
   // если не будет у этого PhysicsComponent2, может ли такое быть?
-  PhysUserData* userData = reinterpret_cast<PhysUserData*>(entity->get<PhysicsComponent2>()->getIndexContainer().userData);
+  auto* userData = reinterpret_cast<UserDataComponent*>(entity->get<PhysicsComponent>()->getUserData());
   
   return userData;
 }
@@ -87,13 +89,13 @@ void RayInteraction::cancel() {
   
 }
 
-PhysUserData* RayInteraction::get_next() {
+UserDataComponent* RayInteraction::get_next() {
   if (currentTime < delayTime) return nullptr;
   
   const uint32_t rayCount = Global::physics()->getRayTracingSize();
   const auto* rayData = Global::physics()->getRayTracingData();
-  
-  PhysUserData* userData = nullptr;
+
+  UserDataComponent* userData = nullptr;
   while (state < rayCount && userData == nullptr) {
     const OverlappingData &data = rayData->at(state);
     ++state;
@@ -101,7 +103,7 @@ PhysUserData* RayInteraction::get_next() {
     if (data.firstIndex != rayIndex) continue;
     
     const PhysicsIndexContainer* another = Global::physics()->getIndexContainer(data.secondIndex);
-    userData = reinterpret_cast<PhysUserData*>(another->userData);
+    userData = reinterpret_cast<UserDataComponent*>(another->userData);
   }
   
   return userData;
@@ -185,7 +187,7 @@ void PhysicsInteraction::cancel() {
   // это скорее всего не нужно
 }
 
-PhysUserData* PhysicsInteraction::get_next() {
+UserDataComponent* PhysicsInteraction::get_next() {
   if (currentTime < delay) return nullptr;
   
   const uint32_t triggerSize = Global::physics()->getTriggerPairsIndicesSize();
@@ -212,8 +214,8 @@ PhysUserData* PhysicsInteraction::get_next() {
   const simd::vec4 A2 = A1 + vector2 * distance;
   const simd::vec4 B1 = simd_pos;
   const simd::vec4 B2 = B1 + vector1 * distance;
-  
-  PhysUserData* usrData = nullptr;
+
+  UserDataComponent* usrData = nullptr;
   while (state < triggerSize && usrData == nullptr) {
     const uint32_t index = triggerPairs->at(state+1);
     const OverlappingData &data = datas->at(index);
@@ -291,7 +293,7 @@ PhysUserData* PhysicsInteraction::get_next() {
       }
       
       if (pointsLeft < pointsSize && pointsRight < pointsSize && pointsAbove < pointsSize && pointsBeneath < pointsSize) {
-        usrData = reinterpret_cast<PhysUserData*>(another->userData);
+        usrData = reinterpret_cast<UserDataComponent*>(another->userData);
       }
       
 //       for (uint8_t i = 0; i < 8; ++i) {
@@ -338,7 +340,7 @@ PhysUserData* PhysicsInteraction::get_next() {
       }
       
       if (pointsLeft < pointsSize && pointsRight < pointsSize && pointsAbove < pointsSize && pointsBeneath < pointsSize) {
-        usrData = reinterpret_cast<PhysUserData*>(another->userData);
+        usrData = reinterpret_cast<UserDataComponent*>(another->userData);
       }
       
       // нужно переделать, не учитывает ситуацию когда у нас несколько точек находятся по разные стороны, но при этом ниодна не находится внутри
@@ -373,28 +375,29 @@ PhysUserData* PhysicsInteraction::get_next() {
   return usrData;
 }
 
-CLASS_TYPE_DEFINE_WITH_NAME(InteractionComponent, "InteractionComponent")
-
-InteractionComponent::InteractionComponent(const CreateInfo &info) : systemIndex(0), system(info.system), events(nullptr), trans(nullptr) {
-  system->addInteractionComponent(this);
-}
-
-InteractionComponent::~InteractionComponent() {
-  system->removeInteractionComponent(this);
-}
+InteractionComponent::InteractionComponent(const CreateInfo &info) : entity(info.entity), events(info.events), trans(info.trans) {}
+InteractionComponent::~InteractionComponent() {}
 
 void InteractionComponent::update(const size_t &time) {
   for (size_t i = 0; i < interactions.size(); ++i) {
     interactions[i]->update(time);
-    
-    PhysUserData* data = interactions[i]->get_next();
+
+    UserDataComponent* data = interactions[i]->get_next();
     while (data != nullptr) {
       if (data->events != nullptr) {
         const EventData ed{
           interactions[i],
           //interactions[i]->user_data() // здесь наверное и будем хранить то что нужно передать
-          getEntity()
+          entity // аттрибуты?
         };
+
+        // нужно передать аттрибуты и эффекты, может быть просто передать указатель на структуру?
+        // или лучше все же передать энтити? у меня по сути будет три точки взаимодействия между
+        // объектами: атака (эвент damage, скорее всего), использование (эвент use), коллизия
+        // (эвент collision), в разных эвентах разные данные, ну это понятно
+        // просто у эвента дамаг должен быть еще способ сделать частицы, и декали на поверхности
+        // объектов, а это значит что нужно хотя бы примерно знать где был удар, по идее
+        // для этого и нужен interactions[i]
         
         // нам скорее нужно сделать многопоточную функцию, чем ограничить вызов одним потоком
         // нет оставим ограничение, так гораздо проще контролировать процесс
@@ -428,21 +431,21 @@ void InteractionComponent::update(const size_t &time) {
   // кажется это все
 }
 
-void InteractionComponent::init(void* userData) {
-  (void)userData;
-  
-  events = getEntity()->get<EventComponent>().get();
-  if (events == nullptr) {
-    Global::console()->printE("Could not create InteractionComponent without events");
-    throw std::runtime_error("Could not create InteractionComponent without events");
-  }
-  
-  trans = getEntity()->get<TransformComponent>().get();
-  if (trans == nullptr) {
-    Global::console()->printE("Could not create InteractionComponent without transform");
-    throw std::runtime_error("Could not create InteractionComponent without transform");
-  }
-}
+//void InteractionComponent::init(void* userData) {
+//  (void)userData;
+//
+//  events = getEntity()->get<EventComponent>().get();
+//  if (events == nullptr) {
+//    Global::console()->printE("Could not create InteractionComponent without events");
+//    throw std::runtime_error("Could not create InteractionComponent without events");
+//  }
+//
+//  trans = getEntity()->get<TransformComponent>().get();
+//  if (trans == nullptr) {
+//    Global::console()->printE("Could not create InteractionComponent without transform");
+//    throw std::runtime_error("Could not create InteractionComponent without transform");
+//  }
+//}
 
 // event creationFunc(const Type &event, const EventData &data) {
 //   (void)event;
@@ -462,66 +465,66 @@ void InteractionComponent::init(void* userData) {
 //   return success;
 // }
 
-void InteractionComponent::create(const Type &creationEvent, const TargetInteraction::CreateInfo &info) {
-  // по идее здесь создается каждый раз заново объект std function и мы каждый раз передаем info по значению
-  events->registerEvent(creationEvent, [&, info] (const Type &event, const EventData &data) {
-    (void)event;
-    (void)data;
-    
-    for (size_t i = 0; i < interactions.size(); ++i) {
-      if (interactions[i]->type() == Interaction::type::target && interactions[i]->event_type() == info.event) return running;
-    }
-    
-    Interaction* interaction = nullptr;
-    {
-      std::unique_lock<std::mutex> lock(targetInt.creationMutex);
-      interaction = targetInt.pool.newElement(info);
-    }
-    interactions.push_back(interaction);
-    
-    return success;
-  });
-}
-
-void InteractionComponent::create(const Type &creationEvent, const RayInteraction::CreateInfo &info) {
-  events->registerEvent(creationEvent, [&, info] (const Type &event, const EventData &data) {
-    (void)event;
-    (void)data;
-    
-    for (size_t i = 0; i < interactions.size(); ++i) {
-      if (interactions[i]->type() == Interaction::type::ray && interactions[i]->event_type() == info.event) return running;
-    }
-    
-    Interaction* interaction = nullptr;
-    {
-      std::unique_lock<std::mutex> lock(rayInt.creationMutex);
-      interaction = rayInt.pool.newElement(info);
-    }
-    interactions.push_back(interaction);
-    
-    return success;
-  });
-}
-
-void InteractionComponent::create(const Type &creationEvent, const PhysicsInteraction::CreateInfo &info) {
-  events->registerEvent(creationEvent, [&, info] (const Type &event, const EventData &data) {
-    (void)event;
-    (void)data;
-    
-    for (size_t i = 0; i < interactions.size(); ++i) {
-      if (interactions[i]->type() == Interaction::type::physics && interactions[i]->event_type() == info.eventType) return running;
-    }
-    
-    Interaction* interaction = nullptr;
-    {
-      std::unique_lock<std::mutex> lock(physInt.creationMutex);
-      interaction = physInt.pool.newElement(info);
-    }
-    interactions.push_back(interaction);
-    
-    return success;
-  });
-}
+//void InteractionComponent::create(const Type &creationEvent, const TargetInteraction::CreateInfo &info) {
+//  // по идее здесь создается каждый раз заново объект std function и мы каждый раз передаем info по значению
+//  events->registerEvent(creationEvent, [&, info] (const Type &event, const EventData &data) {
+//    (void)event;
+//    (void)data;
+//
+//    for (size_t i = 0; i < interactions.size(); ++i) {
+//      if (interactions[i]->type() == Interaction::type::target && interactions[i]->event_type() == info.event) return running;
+//    }
+//
+//    Interaction* interaction = nullptr;
+//    {
+//      std::unique_lock<std::mutex> lock(targetInt.creationMutex);
+//      interaction = targetInt.pool.newElement(info);
+//    }
+//    interactions.push_back(interaction);
+//
+//    return success;
+//  });
+//}
+//
+//void InteractionComponent::create(const Type &creationEvent, const RayInteraction::CreateInfo &info) {
+//  events->registerEvent(creationEvent, [&, info] (const Type &event, const EventData &data) {
+//    (void)event;
+//    (void)data;
+//
+//    for (size_t i = 0; i < interactions.size(); ++i) {
+//      if (interactions[i]->type() == Interaction::type::ray && interactions[i]->event_type() == info.event) return running;
+//    }
+//
+//    Interaction* interaction = nullptr;
+//    {
+//      std::unique_lock<std::mutex> lock(rayInt.creationMutex);
+//      interaction = rayInt.pool.newElement(info);
+//    }
+//    interactions.push_back(interaction);
+//
+//    return success;
+//  });
+//}
+//
+//void InteractionComponent::create(const Type &creationEvent, const PhysicsInteraction::CreateInfo &info) {
+//  events->registerEvent(creationEvent, [&, info] (const Type &event, const EventData &data) {
+//    (void)event;
+//    (void)data;
+//
+//    for (size_t i = 0; i < interactions.size(); ++i) {
+//      if (interactions[i]->type() == Interaction::type::physics && interactions[i]->event_type() == info.eventType) return running;
+//    }
+//
+//    Interaction* interaction = nullptr;
+//    {
+//      std::unique_lock<std::mutex> lock(physInt.creationMutex);
+//      interaction = physInt.pool.newElement(info);
+//    }
+//    interactions.push_back(interaction);
+//
+//    return success;
+//  });
+//}
 
 bool InteractionComponent::has(const enum Interaction::type &type, const Type &event) {
   for (size_t i = 0; i < interactions.size(); ++i) {
@@ -569,9 +572,9 @@ void InteractionComponent::create(const PhysicsInteraction::CreateInfo &info) {
   interactions.push_back(interaction);
 }
 
-size_t & InteractionComponent::index() {
-  return systemIndex;
-}
+//size_t & InteractionComponent::index() {
+//  return systemIndex;
+//}
 
 void InteractionComponent::deleteInteraction(Interaction* inter) {
   switch (inter->type()) {
@@ -615,13 +618,73 @@ MultithreadingMemoryPool<TargetInteraction, 20> InteractionComponent::targetInt;
 MultithreadingMemoryPool<RayInteraction, 20> InteractionComponent::rayInt;
 MultithreadingMemoryPool<PhysicsInteraction, 100> InteractionComponent::physInt;
 
+const Type damage_event = Type::get("damage");
+
+//void compute_damage(const AttributeComponent* enemy_attrib, AttributeComponent* attrib) {
+//  // тут мы находим нужные аттрибуты, вычисляем их
+//  // могут ли здесь потребоваться эффекты? понятие не имею честно говоря
+//  // вообще атака может тоже вполне быть эффектом, единовременный эффект
+//  // по уменьшению характеристики хп
+//
+//  const auto attrib_health = enemy_attrib->get<FLOAT_ATTRIBUTE_TYPE>();
+//  const float currentHealth = attrib_health->value();
+//}
+
+event DamageEvent::call(const Type &type, const EventData &data, yacs::entity* entity) {
+  (void)entity;
+
+  // теперь когда я это написал, понятно что эта функция может быть использована не только для damage_event
+  // с другой стороны теперь не понятно как правильно определить какие эвенты подходят а какие нет
+  // похоже что без мапы сделать этого адекватно не получится
+  // нужно тогда здесь проверять нужные эвенты, возможно стоит опять переделать интерфейс
+  // передавать в интерфейсе: эвент, дата, тот кто запустил эвент, у кого запустили эвент
+  // в этом случае легко узнаются эвенты взаимодействия или другие
+
+  // здесь же еще запустится эвент коллизии
+  // иногда нам еще может потребоваться удалить эффект
+
+  if (type == damage_event) {
+    const auto entity = reinterpret_cast<const yacs::entity*>(data.userData);
+    // для этого я вычисляю unordered_map
+    const yacs::const_component_handle<AttributeComponent> enemy_attribs = entity->get<AttributeComponent>();
+    const yacs::const_component_handle<EffectComponent> enemy_effects = entity->get<EffectComponent>();
+    const auto userData = entity->get<UserDataComponent>();
+
+    // эффекты перегоняем из одного энтити другому, кажется этого достаточно
+    size_t counter = 0;
+    const Effect* effect = enemy_effects->getNextEventEffect(damage_event, counter);
+    while (effect != nullptr) {
+      bool founded = effects->hasEffect(effect->id());
+      if (founded && effect->type().timer_reset()) effects->resetEffectTimer(effect->id());
+
+      bool add = (founded && effect->type().stackable()) || (!founded);
+      if (add) {
+        ComputedEffectContainer ret(effect->baseValues().size());
+        effect->compute(enemy_attribs->get_finder<FLOAT_ATTRIBUTE_TYPE>(), enemy_attribs->get_finder<INT_ATTRIBUTE_TYPE>(), &ret);
+        effect->resist(attribs->get_finder<FLOAT_ATTRIBUTE_TYPE>(), attribs->get_finder<INT_ATTRIBUTE_TYPE>(), &ret);
+
+        effects->addEffect(ret, effect, userData->aiComponent);
+      }
+
+      effect = enemy_effects->getNextEventEffect(damage_event, counter);
+    }
+
+    // аттрибуты нужны для вычисления урона, нужно ли для этого что то еще?
+    // будем вычислять так же как и эффекты
+  }
+
+  return success;
+}
+
 InteractionSystem::InteractionSystem(const CreateInfo &info) : pool(info.pool) {}
 InteractionSystem::~InteractionSystem() {}
 
-void InteractionSystem::update(const uint64_t &time) {
-  static const auto func = [&] (const size_t &start, const size_t &count) {
+void InteractionSystem::update(const size_t &time) {
+  static const auto func = [&] (const size_t &start, const size_t &count, const size_t &time) {
     for (size_t i = start; i < start+count; ++i) {
-      components[i]->update(time);
+      yacs::component_handle<InteractionComponent> comp = Global::world()->get_component<InteractionComponent>(i);
+      comp->update(time);
+      //components[i]->update(time);
     }
   };
   
@@ -645,14 +708,15 @@ void InteractionSystem::update(const uint64_t &time) {
 //   };
   
 //   pairs.clear();
-  
-  const size_t count = std::ceil(float(components.size()) / float(pool->size()+1));
+
+  const size_t components_count = Global::world()->count_components<InteractionComponent>();
+  const size_t count = std::ceil(float(components_count) / float(pool->size()+1));
   size_t start = 0;
   for (uint32_t i = 0; i < pool->size()+1; ++i) {
-    const size_t jobCount = std::min(count, components.size()-start);
+    const size_t jobCount = std::min(count, components_count-start);
     if (jobCount == 0) break;
 
-    pool->submitnr(func, start, jobCount);
+    pool->submitnr(func, start, jobCount, time);
 
     start += jobCount;
   }
@@ -700,16 +764,16 @@ void InteractionSystem::update(const uint64_t &time) {
 //   pairs.push_back(data);
 // }
 
-void InteractionSystem::addInteractionComponent(InteractionComponent* comp) {
-  comp->index() = components.size();
-  components.push_back(comp);
-}
-
-void InteractionSystem::removeInteractionComponent(InteractionComponent* comp) {
-  components.back()->index() = comp->index();
-  std::swap(components[comp->index()], components.back());
-  components.pop_back();
-}
+//void InteractionSystem::addInteractionComponent(InteractionComponent* comp) {
+//  comp->index() = components.size();
+//  components.push_back(comp);
+//}
+//
+//void InteractionSystem::removeInteractionComponent(InteractionComponent* comp) {
+//  components.back()->index() = comp->index();
+//  std::swap(components[comp->index()], components.back());
+//  components.pop_back();
+//}
 
 // struct PairCompareFunc {
 //   bool operator()(const InteractionSystem::PairData &first, const InteractionSystem::PairData &second) {
@@ -782,3 +846,4 @@ void InteractionSystem::removeInteractionComponent(InteractionComponent* comp) {
 //     }
 //   }
 // }
+

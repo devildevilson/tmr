@@ -26,12 +26,12 @@ void StateController::update(const size_t &time) {
     // нужно раскидать ресурсИД по компонентам
 
     if (currentState->flags.useWeapon()) {
-      auto weapon = inventory->getCurrentWeapon();
-      weapon->interaction(attribs, interactions);
+      auto weapon = inventory->currentWeapon();
+//       weapon->interaction(attribs, interactions);
     } else if (currentState->flags.useItem()) {
-      auto item = inventory->getCurrentItem();
+      auto item = inventory->currentItem();
       inventory->remove(item);
-      item->interaction(attribs, interactions);
+//       item->interaction(attribs, interactions);
     }
   }
 
@@ -52,6 +52,16 @@ void StateController::update(const size_t &time) {
   // как передавать модификатор? то есть нужно его еще где то хранить
   // нужно хранить тип в состоянии походу, у нас еще могут быть алиасы
   // так как для движения у нас целых 3 типа
+
+  // анимацию и звук можно делать здесь, нужно просто как то понять происходит ли нужная анимация уже или еще нет
+  // по тому же принципу можно делать интеракцию
+
+  // здесь же мы можем обновлять компоненты анимации, звука и интеракции
+  // подавая им верное время, с другой стороны важно чтобы все равботало одинаково при любых состояниях
+  // проблемы могут возникнуть только при интеракции, их может быть несколько разных,
+  // по идее все что не физическая интеракция должно никак не реагировать на изменяющееся время
+  // звукам передавать какое то иное время бесполезно
+  // с анимациями все проще гораздо
 }
 
 bool StateController::blocking() const {
@@ -106,9 +116,10 @@ event StateController::call(const Type &type, const EventData &data, yacs::entit
   if (currentState == nullptr) throw std::runtime_error("Cannot find state "+type.name()); // ??
 
   // причем тут нужно еще учесть специальные состояния
+  // зачем как то особо учитывать конкретно это состояние?
   if (currentState->state == cancel) {
-    auto weapon = inventory->getCurrentWeapon();
-    weapon->cancel_interaction(interactions);
+    auto weapon = inventory->currentWeapon();
+//     weapon->cancel_interaction(interactions);
 
     // резкая остановка звука, лучше конечно так не делать
     // нужно остановить звук постепенно
@@ -138,6 +149,21 @@ event StateController::call(const Type &type, const EventData &data, yacs::entit
     return success;
   }
 
+  // мы возвращаем здесь эвент, можем ли мы вернуть фейл если патронов нет
+  // скорее всего я так и думал сделать но забыл
+  event ev = success;
+  if (currentState->flags.useWeapon()) {
+    auto weapon = inventory->currentWeapon();
+//     ev = weapon->interaction(attribs, interactions);
+  } else if (currentState->flags.useItem()) {
+    auto item = inventory->currentItem();
+    inventory->remove(item);
+//     ev = item->interaction(attribs, interactions);
+  }
+
+  if (ev == failure) return ev;
+
+  // нужно добавить делэй
   const AnimationComponent::PlayInfo animInfo{
     currentState->animation,
     1.0f, // как лучше всего сделать? модификатор скорости у нас зависит от состояния
@@ -146,6 +172,7 @@ event StateController::call(const Type &type, const EventData &data, yacs::entit
   };
   animations->play(animInfo);
 
+  // для некоторых звуков можно указать фреквенси, но я не уверен что это хороший вариант
   const SoundComponent::PlayInfo soundInfo{
     currentState->sound,
     currentState->time,
@@ -171,15 +198,6 @@ event StateController::call(const Type &type, const EventData &data, yacs::entit
     animations->apply(uvInfo);
   }
 
-  if (currentState->flags.useWeapon()) {
-    auto weapon = inventory->getCurrentWeapon();
-    weapon->interaction(attribs, interactions);
-  } else if (currentState->flags.useItem()) {
-    auto item = inventory->getCurrentItem();
-    inventory->remove(item);
-    item->interaction(attribs, interactions);
-  }
-
   return success;
 }
 
@@ -188,12 +206,12 @@ void StateController::callDefaultState() {
   currentTime = 0;
 
   if (currentState->flags.useWeapon()) {
-    auto weapon = inventory->getCurrentWeapon();
-    weapon->interaction(attribs, interactions);
+    auto weapon = inventory->currentWeapon();
+//     weapon->interaction(attribs, interactions);
   } else if (currentState->flags.useItem()) {
-    auto item = inventory->getCurrentItem();
+    auto item = inventory->currentItem();
     inventory->remove(item);
-    item->interaction(attribs, interactions);
+//     item->interaction(attribs, interactions);
   }
 }
 

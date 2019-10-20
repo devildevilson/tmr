@@ -72,6 +72,10 @@ private:
   const StateControllerType* controllerType;
 };
 
+// мне нужно условие для того чтобы переходить по состояниям
+// как сделать? чет мне не хочется использовать стейтмашину с условиями
+// можно использовать бехавиор три, как его использовать?
+
 class StateControllerSystem : public Engine, public yacs::system {
 public:
   struct CreateInfo {

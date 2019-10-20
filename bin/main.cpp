@@ -63,8 +63,8 @@ int main(int argc, char** argv) {
 
   GraphicsContainer graphicsContainer;
 
-  // теперь создаем контейнер
-  const size_t &systemsSize = sizeof(VulkanRender) + sizeof(PostPhysics) + sizeof(CPUAnimationSystemParallel) + sizeof(ParticleSystem) + sizeof(SoundSystem) + sizeof(DecalSystem) + sizeof(CPUAISystem);
+  // теперь создаем контейнер sizeof(ParticleSystem) + sizeof(DecalSystem) +
+  const size_t &systemsSize = sizeof(VulkanRender) + sizeof(PostPhysics) + sizeof(CPUAnimationSystemParallel) + sizeof(SoundSystem) + sizeof(CPUAISystem);
   GameSystemContainer systemContainer(systemsSize);
 
   {
@@ -193,7 +193,7 @@ int main(int argc, char** argv) {
   }
 
   // создадим лоадер (лоадер бы лучше в контейнере создавать) sizeof(ParserHelper) +
-  const size_t loaderContainerSize = sizeof(ImageLoader) + sizeof(HardcodedEntityLoader) + sizeof(HardcodedMapLoader) + sizeof(HardcodedAnimationLoader) + sizeof(ModificationContainer);
+  const size_t loaderContainerSize = sizeof(ImageLoader) + sizeof(SoundLoader) + sizeof(HardcodedEntityLoader) + sizeof(HardcodedMapLoader) + sizeof(HardcodedAnimationLoader) + sizeof(ModificationContainer);
   ParserContainer loaderContainer(loaderContainerSize);
   ImageLoader* textureLoader = nullptr;
   SoundLoader* soundLoader = nullptr;
@@ -236,13 +236,16 @@ int main(int argc, char** argv) {
     mods->addParser(mapLoader);
   }
 
+  DelayedWorkSystem delaySoundWork(DelayedWorkSystem::CreateInfo{&threadPool});
+
   {
     TimeLogDestructor soundSystemLog("Sound system initialization");
     // где создать лоадер?
 
     const SoundSystem::CreateInfo sInfo {
       &threadPool,
-      soundLoader
+      soundLoader,
+      &delaySoundWork
     };
     auto* soundSystem = systemContainer.addSystem<SoundSystem>(sInfo);
     Global g;
@@ -250,7 +253,7 @@ int main(int argc, char** argv) {
 
     const SoundLoader::LoadData sound{
       "default_sound",
-      Global::getGameDir() + "tmrdata/sound/Curio feat. Lucy - Ten Feet (Daxten Remix).mp3",
+      Global::getGameDir() + "tmrdata/sounds/Curio feat. Lucy - Ten Feet (Daxten Remix).mp3",
       false,
       false
     };
@@ -481,6 +484,7 @@ int main(int argc, char** argv) {
     // звук идет после запуска графики
     // сюда же мы можем засунуть и другие вычисления
 //     Global::sound()->update(time);
+    delaySoundWork.detach_work();
 
     // здесь же у нас должна быть настройка: тип какую частоту обновления экрана использовать?
     const size_t syncTime = Global::window()->isVsync() ? Global::window()->refreshTime() : 0; //16667

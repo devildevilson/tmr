@@ -33,16 +33,15 @@ enum AttribChanging {
 //};
 
 class EntityAI;
+class Effect;
 
 struct AttribChangeData {
 //  AttribChangeType type;
   AttribChanging type;
   Bonus b;
   TypelessAttributeType attribType;
-  // в эффектах должен быть способ понять кто его наложил
-  // но и неплохо было бы узнать кто сейчас непосредственно меняет статы
-  // и + кто последний изменил какой то определенный стат
-  EntityAI* entity;
+  const Effect* effect;
+  const EntityAI* entity;
 };
 
 // нам гораздо лучше будет если вот эти вещи будут упакованы в типы, так мы сильно сократим использование памяти
@@ -70,14 +69,11 @@ class EventComponent;
 class AttributeComponent {
 public:
   static void setContainer(Container<ExternalData>* cont);
-  
-  struct float_InitInfo {
-    AttributeType<FLOAT_ATTRIBUTE_TYPE> type;
-    FLOAT_ATTRIBUTE_TYPE baseValue;
-  };
-  struct int_InitInfo {
-    AttributeType<INT_ATTRIBUTE_TYPE> type;
-    INT_ATTRIBUTE_TYPE baseValue;
+
+  template <typename T>
+  struct InitInfo {
+    AttributeType<T> type;
+    T baseValue;
   };
   
   struct CreateInfo {
@@ -85,8 +81,8 @@ public:
     PhysicsComponent* phys;
     EventComponent* events;
     size_t updateTime; // тут бессмысленно ставить что то не SIZE_MAX
-    std::vector<float_InitInfo> float_attribs;
-    std::vector<int_InitInfo> int_attribs;
+    std::vector<InitInfo<FLOAT_ATTRIBUTE_TYPE>> float_attribs;
+    std::vector<InitInfo<INT_ATTRIBUTE_TYPE>> int_attribs;
   };
   AttributeComponent(const CreateInfo &info);
   ~AttributeComponent();
