@@ -104,325 +104,34 @@ namespace yacs {
 
 // TODO: интеракции нужно бы переделать для использования с физическим компонентом
 
-#define MAX_ATTRIBUTES_COST_COUNT 3
-
-class ItemType;
-
-class Effect;
-
-struct AbilityCost {
-  // тип атрибута бы тоже сделать как тип итема, обращаться к нему по указателю
-  AttributeType<INT_ATTRIBUTE_TYPE> type;
-  size_t cost;
-};
-
-struct TransIn {
-  simd::vec4 pos;
-  simd::vec4 dir;
-  simd::vec4 vel;
-};
-
-struct TransOut {
-  simd::vec4 pos;
-//  simd::vec4 dir;
-  simd::vec4 vel;
-};
-
-struct AbilityTypeT {
-  uint32_t container;
-
-  AbilityTypeT();
-
-  AbilityTypeT(const bool trans, const bool effects, const bool attribs, const bool tempWeapon);
-
-  void make(const bool trans, const bool effects, const bool attribs, const bool tempWeapon);
-
-  bool inheritTransform() const;
-
-  bool inheritEffects() const;
-
-  bool inheritAttributes() const;
-
-  bool createTemporaryWeapon() const;
-
-  bool eventModificator() const;
-};
-
-// предусмотреть копирование (можно отметить как UINT32_MAX)
-template<typename T>
-struct AbilityAttributeListElement {
-  AttributeType<T> type;
-  T baseValue;
-};
-
-struct InteractionCreateInfo {
-  enum Interaction::type type;
-
-  float plane[4]; // это по идее тоже переменная величина
-  // как сделать плоскость переменной? никак скорее всего, но она нужна чтобы посчитать где у нас происходит сейчас атака
-  //float distance; // это должно задаваться аттрибутом (дальность атаки)
-//   float attackAngle; // скорее всего очень многие вещи - это аттрибут
-//   uint32_t tickCount;
-
-  uint32_t collisionGroup;
-  uint32_t collisionFilter;
-
-  // скорее всего все аттрибуты обязаны быть
-  AttributeType<FLOAT_ATTRIBUTE_TYPE> attackDistance;
-  AttributeType<FLOAT_ATTRIBUTE_TYPE> attackSpeed;
-  AttributeType<FLOAT_ATTRIBUTE_TYPE> attackAngle;
-  AttributeType<INT_ATTRIBUTE_TYPE> tickCount;
-  AttributeType<INT_ATTRIBUTE_TYPE> tickTime;
-  size_t delayTime;
-
-  Type event;
-};
-
-class EntityCreateType {
-public:
-
-  // тут в основном нужно указать какие компоненты создать
-  // и откуда брать входные данные
-  // скорее всего это должно быть обобщено, как? да и может ли быть обобщено вообще?
-  // конечно лучше бы если бы создатель энтити сам бы состоял из компонентов
-  // идея неплохая
-};
-
-// абилка это способ передать какую то информацию от одного энтити к другому
-// разные абилки - разный способ, мне нужно учесть как можно больше всего
-// первое что приходит на ум это файрбол и обычная атака
-
-// можно ли АбилитиТайп превратить в ЭнтитиТайп? то есть чтобы обобщить абилки и энтити?
-// можно, если разделить данные о стоимости и непосредственно создание энтити
-// как создавать энтити?
-class AbilityType {
-public:
-  struct CreateInfo {
-    Type abilityId;
-
-    AbilityTypeT type;
-
-    std::string abilityName;
-    std::string abilityDesc;
-
-    AbilityCost cost1;
-    AbilityCost cost2;
-    AbilityCost cost3;
-
-    const ItemType* tempWeapon;
-
-    Type impactEvent;
-
-    size_t abilityCastTime;
-    size_t abilityCooldown;
-
-    InteractionCreateInfo intCreateInfo;
-    const yacs::entity* entityType;
-
-    std::function<TransOut(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder,
-                           const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder,
-                           const TransIn &parentData)> func;
-    std::function<void(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder,
-                       const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder,
-                       const std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> &floatAttribs,
-                       const std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> &intAttribs,
-                       std::vector<AttributeComponent::InitInfo<FLOAT_ATTRIBUTE_TYPE>> &floatInit,
-                       std::vector<AttributeComponent::InitInfo<INT_ATTRIBUTE_TYPE>> &intInit)> attribsFunc;
-
-    std::vector<const Effect*> impactEffectsList;
-
-    std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> intAttribs;
-    std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> floatAttribs;
-  };
-
-  AbilityType(const CreateInfo &info);
-
-  ~AbilityType();
-
-  Type id() const;
-
-  std::string name() const;
-
-  std::string description() const;
-
-  // я уже несколько раз повторял что нужно разделить контейнер эффектов которые мы передаем от остального
-
-  bool inheritTransform() const;  // если не наследует трансформ, то нужно понять где создать, наиболее сложная задача видимо
-  bool inheritEffects() const;    // если не наследует эффекты, то нужно какие то эффекты добавить, тоже список по идее
-  bool inheritAttributes() const; // с атрибутами проще, список атрибутов мы можем легко задать
-
-  bool createTemporaryWeapon() const;
-
-  const ItemType *temporaryWeapon() const;
-
-  Type event() const;             // ???
-
-  size_t castTime() const;
-
-  size_t cooldown() const;
-
-  // требование по мане, или по другим атрибутам
-  AbilityCost cost(const size_t &index) const;
-
-  InteractionCreateInfo interactionInfo() const;
-
-  const yacs::entity* entityCreateType() const;
-
-  // основной вопрос где создавать абилку, мне нужно на основе атрибутов каким то образом вычислить положение, скорость,
-  // направление, но только в случае когда трансформа не наследуется
-  // хотя направление по идее берется из скорости, но на вход направление поди должно быть подано
-  TransOut computeTransform(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder,
-                            const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder,
-                            const TransIn &parentData) const;
-
-  void computeAttributes(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder,
-                         const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder,
-//                         const std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> &floatAttribs,
-//                         const std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> &intAttribs,
-                         std::vector<AttributeComponent::InitInfo<FLOAT_ATTRIBUTE_TYPE>> &floatInit,
-                         std::vector<AttributeComponent::InitInfo<INT_ATTRIBUTE_TYPE>> &intInit) const;
-
-  // должны быть еще сопутствующие частицы, но они скорее должны исходить от самой абилки
-
-  // переключение состояния? при касте, при применении, при владении должны быть состояния
-  // у меня же еще абилка должна оружее менять, точнее наверное она должна делать это по умолчанию
-  // то есть это скорее абилка по призыву оружия
-  // у меня оружее сейчас это не энтити, поэтому создать как энтити не получится
-  // в принципе при атаке огненным шаром - это тоже абилка
-  // то получается что у нас абилка должна либо создавать энтити либо менять оружее
-  // как сделано в других играх? заклинание действует практически мгновенно без каста (например в морре)
-
-  // модификаторы на атаку как сделать? к эффектам у энтити нужно добавить модификатор, ко всему прочему нужно какой то графический эффект проиграть
-  //
-
-  // это эффекты для передачи другому объекту, они должны передаваться по эвенту указаному здесь же видимо
-  const std::vector<const Effect*> & effectsList() const;
-
-  const std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> & intAttributesList() const;
-
-  const std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> & floatAttributesList() const;
-
-  // собственно что мне нужно для создания интеракции, тип, данные для типа (какие?)
-  // мне нужно будет указать плоскость,
-  // указать AbilityType для проджектайлов
-  // у меня теперь подход то меняется, теперь я проджектайлы создаю при любых обстоятельствах
-  // но тем не менее нужно указать логику взаимодействия
-  // я кстати теперь могу вызывать взаимодействия внутри этого класса (хотя может лучше их как то группировать)
-private:
-  Type abilityId;
-  Type impactEvent;
-
-  AbilityTypeT type;
-
-  std::string abilityName;
-  std::string abilityDesc;
-
-  const ItemType* tempWeapon;
-
-  size_t abilityCastTime;
-  size_t abilityCooldown;
-
-  AbilityCost costs[MAX_ATTRIBUTES_COST_COUNT];
-
-  InteractionCreateInfo intCreateInfo;
-
-  //const EntityCreateType* entityCreateType;
-  const yacs::entity* entityType;
-
-  std::function<TransOut(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder,
-                         const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder,
-                         const TransIn &parentData)> func;
-  std::function<void(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder,
-                     const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder,
-                     const std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> &floatAttribs,
-                     const std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> &intAttribs,
-                     std::vector<AttributeComponent::InitInfo<FLOAT_ATTRIBUTE_TYPE>> &floatInit,
-                     std::vector<AttributeComponent::InitInfo<INT_ATTRIBUTE_TYPE>> &intInit)> attribsFunc;
-
-  std::vector<const Effect*> impactEffectsList;
-
-  std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> intAttribs;
-  std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> floatAttribs;
-};
-
-class EntityFactory {
-public:
-  // создавать энтити я скорее всего должен именно через энтити фактори
-  // этот класс должен возвращать валидный энтити в основном из Type
-  // должна быть возможность каким то образом задать входные данные
-  // часть входных данных должна быть загружена с диска из json
-  // как это сделать?
-  // энтити у нас состоит из компонентов, компоненты представляют собой уникальные данные энтити
-  // компонентов существует множество, но не все из них нужно создавать для каждого энтити
-  // выбор компонента должен происходить в рантайме (захардкодить как сейчас невыйдет)
-  // нужно использовать композитор паттерн, в котором мы будем обходить создателей
-  // компонентов и предоставлять им данные, с данными сложно
-  // обработчик данных понятное дело может обработать только заранее известные типы данных
-  // какие то вещи загрузчик должен обработать чтобы подкорректировать загрузку (какие?)
-  // самый простой выход из ситуации это четко задать сущности которые должны выйти из фактори
-  // то есть: абилити, монстр, декорация, стена, ???
-  // эти 4 сущности различаются по набору компонентов и входным данным к этим компонентам
-  // мне бы каким-либо образом обобщить все, но скорее всего это невозможно
-  // наверное нужно сделать условно 4 функции которые будут отвечать за каждую сущность
-  // причем я примерно понимаю что должно быть в стене: текстура, кое какие данные физики, ??? (возможно добавится затенение)
-  // у стен врядли есть какое нибудь большое количество данных сходных с другими стенами
-  // поэтому им скорее всего даже не понадобится const Type &type
-  // скорее всего тоже самое с декором, он отличается от стен только наверное формой объекта
-  // реально у кого много смежных данных это абилки и монстры, большая часть данных будет именно там
-  // если мы будем использовать строго определенный список сущностей,
-  // то у них мы можем определить строго определенный список входных данных
-
-  // тут еще явно потребуется создатель абилки, наверное сразу нужен указатель на тип абилки
-  // абилки которые наследуют какие то свойства объекта должны быть удалены тогда же когда и объект
-
-  yacs::entity *createAbility(const AbilityType *type, yacs::entity *creator);
-
-  yacs::entity *createMonster(const Type &type);
-
-  yacs::entity *createDecoration(const Type &type);
-
-  yacs::entity *createWall(void *data);
-};
-
-struct AbilityCreateData {
-  // данные о том что мы наследуем, каким образом мы должны сделать логику самой абилки?
-  // то есть абилка через каждое некоторое время спавнит другие энтити
-  // можно и нужно спавн сделать отдельной "командой", команда о создании нового энтити будет передаваться в спец структуру
-  // что с траекторией? например двигаться только вперед параллельно полу (ну то есть перпендикулярно гравитации)
-  // траектория задается по идее несколькими настройками: сторона, параллельно чему
-  // у нас все это зависит от атрибутов, не лучше ли сделать указатель на функцию?
-  // из этого метода абилок вытекает, что мне нужно будет создавать энтити, на почти каждый чих
-  // например: удар оземь война создает последовательно несколько взрывов друг за другом
-  // мне нужно видимо создать энтити, которое последовательно создает взрывы, которые также являются энтитями
-  // я бы сказал что это капец неэффективно, но скорее всего ничего лучше и более настраивамого не существует
-
-  Type state;
-  size_t castTime;
-
-};
-
 struct Ability {
-  const AbilityType *type;
+  const AbilityType* type;
 
   yacs::entity *ent;
   Interaction *inter;
+  size_t currentTime;
 };
 
 class AbilitySystemComponent {
 public:
 
   bool cast(const Type &id); // возможно нужно передать сюда еще таргет
-  Type casted_ability() const;
+  std::pair<const AbilityType*, size_t> casting_ability() const;
+  void cancel_casting();
 
   size_t casted(const Type &id) const;  // возвращает время до окончания каста
 
 private:
+  yacs::entity* obj;
+  
   // интеракции, инвентарь
   // энтити абилок
   std::vector<Ability> abilities;
 
-  const AbilityType *type;
+  const AbilityType* type;
   size_t timePoint;
+  
+  InventoryComponent* inventory;
 };
 
 #endif //SKILL_COMPONENT_H
