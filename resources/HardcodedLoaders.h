@@ -90,14 +90,12 @@ class vertex_t;
 // скорее всего количество данных для плоскости увеличится очень сильно
 struct CreateWallInfo {
   std::string name;
-//   std::string shapeName;
   Type shapeType;
   
   size_t indexOffset;
   size_t faceVertices;
   size_t faceIndex;
   
-  // TextureData
   Texture wallTexture;
   float radius;
   vertex_t* vertex;

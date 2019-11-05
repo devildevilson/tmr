@@ -6,6 +6,8 @@
 #include <vector>
 #include <unordered_map>
 
+#include "Type.h"
+
 #define FLOAT_ATTRIBUTE_TYPE float
 //#define FLOAT_ATTRIBUTE_TYPE double
 #define INT_ATTRIBUTE_TYPE int64_t
@@ -45,6 +47,8 @@ private:
   T* attribs;
 };
 
+// тип аттрибута нужно переделать конечно, сделать его константным указателем на память
+
 // вот так и появляются хардкодед аттрибуты
 // можно ли вообще сделать эти данные не захардкоженными?
 // только если создать отдельную систему, которая будет хранить указатели, и обновлять все это дело
@@ -57,127 +61,60 @@ enum DataType {
   ATTRIBUTE_DATA_TYPE_COUNT
 };
 
-template <typename Type>
+template <typename ValueType>
 class AttributeType {
 public:
-  // что еще?
+  using FuncType = std::function<ValueType(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, const ValueType&, const ValueType&, const FLOAT_ATTRIBUTE_TYPE&, const ValueType&, const FLOAT_ATTRIBUTE_TYPE&)>;
+  
   struct CreateInfo {
+    Type id;
     std::string name;
+    std::string description;
     DataType type;
-    std::function<Type(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, const Type&, const Type&, const FLOAT_ATTRIBUTE_TYPE&, const Type&, const FLOAT_ATTRIBUTE_TYPE&)> func;
+    FuncType func;
   };
 
-  static void create_types(const std::vector<CreateInfo> &data) noexcept {
-    funcs.resize(data.size());
-    idToName.resize(data.size());
+  AttributeType(const CreateInfo &info) noexcept : m_id(info.id), m_name(info.name), m_description(info.description), typeOfType(info.type), typeFunction(info.func) {}
 
-    for (size_t i = 0; i < funcs.size(); ++i) {
-      funcs[i].type = data[i].type;
-      funcs[i].func = data[i].func;
-    }
-
-    for (size_t i = 0; i < idToName.size(); ++i) {
-      idToName[i] = data[i].name;
-    }
-
-    size_t id = 0;
-    for (const auto &name : data) {
-      names[name.name] = id;
-      ++id;
-    }
+  Type id() const noexcept { return m_id; }
+  std::string name() const noexcept { return m_name; }
+  std::string description() const noexcept { return m_description; }
+  DataType data_type() const noexcept { return typeOfType; }
+  
+  ValueType computeAttribute(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>& float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>& int_finder, const ValueType& current, const ValueType& rawAdd, const FLOAT_ATTRIBUTE_TYPE& rawMul, const ValueType& finalAdd, const FLOAT_ATTRIBUTE_TYPE& finalMul) noexcept {
+    return typeFunction(float_finder, int_finder, current, rawAdd, rawMul, finalAdd, finalMul);
   }
-
-  static AttributeType get(const std::string &name) noexcept {
-    auto itr = names.find(name);
-    if (itr != names.end()) return AttributeType(itr->second);
-
-    return AttributeType();
-  }
-
-  static bool has(const std::string &name) noexcept {
-    auto itr = names.find(name);
-    return itr != names.end();
-  }
-
-  static size_t count() noexcept {
-    return funcs.size();
-  }
-
-  static void setFunction(const AttributeType &type, const std::function<Type(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, const Type&, const Type&, const FLOAT_ATTRIBUTE_TYPE&, const Type&, const FLOAT_ATTRIBUTE_TYPE&)> &func) noexcept {
-    funcs[type.id()].func = func;
-  }
-
-  static std::function<Type(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, const Type&, const Type&, const FLOAT_ATTRIBUTE_TYPE&, const Type&, const FLOAT_ATTRIBUTE_TYPE&)> attributeFunction(const AttributeType &type) noexcept {
-    return funcs[type.id()].func;
-  }
-
-  AttributeType() noexcept : type(SIZE_MAX) {}
-  AttributeType(const size_t &id) noexcept : type(id) {}
-//  AttributeType(const AttributeType &type) : type(type.id()) {}
-
-  bool valid() const noexcept { return type != SIZE_MAX; }
-  size_t id() const noexcept { return type; }
-  std::string name() const noexcept { return idToName[type]; }
-
-  void setFunction(const std::function<Type(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, const Type&, const Type&, const FLOAT_ATTRIBUTE_TYPE&, const Type&, const FLOAT_ATTRIBUTE_TYPE&)> &func) noexcept {
-    funcs[type].func = func;
-  }
-
-  std::function<Type(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, const Type&, const Type&, const FLOAT_ATTRIBUTE_TYPE&, const Type&, const FLOAT_ATTRIBUTE_TYPE&)> attributeFunction() noexcept {
-    return funcs[type].func;
-  }
-
-  DataType data_type() const noexcept { return funcs[type].type; }
-
-//  AttributeType & operator=(const AttributeType &type) { this->type = type.type; }
-  bool operator==(const AttributeType &type) const noexcept { return this->type == type.type; }
-  bool operator!=(const AttributeType &type) const noexcept { return this->type != type.type; }
-private:
-  // тут будут еще дополнительный характеристики
-  // например, описание, название (не техническое), иконка, ???
-  struct TypeData {
-    DataType type;
-    std::function<Type(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, const Type&, const Type&, const FLOAT_ATTRIBUTE_TYPE&, const Type&, const FLOAT_ATTRIBUTE_TYPE&)> func;
-  };
-
-  size_t type;
-
-  // хранить в статике? не думаю что какие то проблемы вообще будут
-  static std::vector<TypeData> funcs;
-  static std::unordered_map<std::string, size_t> names;
-  static std::vector<std::string> idToName;
+private:  
+  Type m_id;
+  std::string m_name;
+  std::string m_description;
+  DataType typeOfType;
+  FuncType typeFunction;
+  // иконка
 };
-
-template <typename Type>
-std::vector<typename AttributeType<Type>::TypeData> AttributeType<Type>::funcs;
-
-template <typename Type>
-std::unordered_map<std::string, size_t> AttributeType<Type>::names;
-
-template <typename Type>
-std::vector<std::string> AttributeType<Type>::idToName;
 
 class TypelessAttributeType {
 public:
-//  TypelessAttributeType(const TypelessAttributeType &type);
   TypelessAttributeType() noexcept;
-  TypelessAttributeType(const AttributeType<FLOAT_ATTRIBUTE_TYPE> &type) noexcept;
-  TypelessAttributeType(const AttributeType<INT_ATTRIBUTE_TYPE> &type) noexcept;
+  TypelessAttributeType(const AttributeType<FLOAT_ATTRIBUTE_TYPE>* type) noexcept;
+  TypelessAttributeType(const AttributeType<INT_ATTRIBUTE_TYPE>* type) noexcept;
 
   bool valid() const;
   bool float_type() const noexcept;
   bool int_type() const noexcept;
 
-  AttributeType<FLOAT_ATTRIBUTE_TYPE> get_float_type() const noexcept;
-  AttributeType<INT_ATTRIBUTE_TYPE> get_int_type() const noexcept;
+  const AttributeType<FLOAT_ATTRIBUTE_TYPE>* get_float_type() const noexcept;
+  const AttributeType<INT_ATTRIBUTE_TYPE>* get_int_type() const noexcept;
 
 //  TypelessAttributeType & operator=(const TypelessAttributeType &type);
-  TypelessAttributeType & operator=(const AttributeType<FLOAT_ATTRIBUTE_TYPE> &type) noexcept;
-  TypelessAttributeType & operator=(const AttributeType<INT_ATTRIBUTE_TYPE> &type) noexcept;
+  TypelessAttributeType & operator=(const AttributeType<FLOAT_ATTRIBUTE_TYPE>* type) noexcept;
+  TypelessAttributeType & operator=(const AttributeType<INT_ATTRIBUTE_TYPE>* type) noexcept;
   bool operator==(const TypelessAttributeType &type) const noexcept;
   bool operator!=(const TypelessAttributeType &type) const noexcept;
 private:
-  size_t data;
+  // если мы используем id, то нам нужен будет лоадер, причем мне нужен один бит для того чтобы определить к какому типу принадлежит
+  bool type;
+  const void* data;
 };
 
 // аттрибуты могут появиться в любых частях кода, причем и при отрисовке и при инпуте
@@ -188,10 +125,19 @@ private:
 // у нас может быть max_strength и strength именно на второй идет воздейтсвие дрейн эффекта
 // данный подход позволит решить многие проблемы, но увеличит расход памяти (не очень сильно на самом деле, но все же)
 
+// мне не нравится что мы разделяем аттрибут на типы с помощью темплейтов
+// с другой стороны тяжело наверное будет с функцией (не тяжело, но лишнее место будет занимать)
+// что возвращать? короч идея такая себе
+
+// union A {
+//   FLOAT_ATTRIBUTE_TYPE float_value;
+//   INT_ATTRIBUTE_TYPE int_value;
+// };
+
 template <typename Type>
 class Attribute {
 public:
-  Attribute() noexcept : baseValue(Type(0)), current(Type(0)), rawBonusValue(Type(0)), finalBonusValue(Type(0)), rawBonusMul(0.0f), finalBonusMul(0.0f) {}
+  Attribute() noexcept : baseValue(Type(0)), current(Type(0)), rawBonusValue(Type(0)), finalBonusValue(Type(0)), rawBonusMul(1.0f), finalBonusMul(1.0f) {}
   ~Attribute() = default;
 
   void setType(const AttributeType<Type> &t) noexcept { this->t = t; }
@@ -216,18 +162,18 @@ public:
   // в функцию было бы неплохо засунуть дополнительные данные
   // например какие? игрок/не игрок,
   void calculate(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>& float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>& int_finder) noexcept {
-    current = t.attributeFunction()(float_finder, int_finder, baseValue, rawBonusValue, rawBonusMul, finalBonusValue, finalBonusMul);
+    current = t->computeAttribute(float_finder, int_finder, baseValue, rawBonusValue, rawBonusMul, finalBonusValue, finalBonusMul);
   }
 
   void dumpCurrentValue() noexcept {
     baseValue = current;
     rawBonusValue = Type(0);
     finalBonusValue = Type(0);
-    rawBonusMul = 0.0f;
-    finalBonusMul = 0.0f;
+    rawBonusMul = 1.0f;
+    finalBonusMul = 1.0f;
   }
 
-  AttributeType<Type> type() const noexcept { return t; }
+  const AttributeType<Type>* type() const noexcept { return t; }
   TypelessAttributeType typeless_type() const noexcept { return TypelessAttributeType(t); }
 private:
   Type baseValue;
@@ -239,7 +185,7 @@ private:
   float rawBonusMul;     // + 1.0f
   float finalBonusMul;   // + 1.0f
 
-  AttributeType<Type> t;
+  const AttributeType<Type>* t;
 };
 
 #endif //ATTRIBUTES_H

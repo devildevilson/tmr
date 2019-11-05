@@ -178,24 +178,13 @@ public:
   struct Data {
     ~Data();
     
-//    MemoryPool<Resource, sizeof(Resource)> resourcePool;
-//    MemoryPool<Conflict, sizeof(Conflict)> conflictPool;
     MemoryPool<LoadingData, sizeof(LoadingData)> textureDataPool;
-    
-//     std::vector<Resource*> resources;
-//     std::vector<Conflict*> conflicts;
-//     std::vector<TextureData*> textureDatas;
-    
+        
     // по идее нам не особ нужен мемори пул,
     // хотя нет нужен
     
     // нужно ли тут именовать эти данные?
-//    std::unordered_map<ResourceID, Resource*> resources;
-//    std::unordered_map<std::string, Conflict*> conflicts;
     std::unordered_map<ResourceID, LoadingData*> textureDatas;
-    
-    //std::vector<ResourceID> load;
-    //std::vector<ResourceID> unload;
 
     // тут еще должны быть стейджинг изображения которые и будут хранить непосредственно данные
     // или потом создать?
@@ -264,30 +253,6 @@ public:
   // лучше наверное вынести на уровень выше
   bool needRecreatePipelines() const;
 private:
-//  struct ImageArrayData {
-//    yavf::Image* texture;
-//    uint32_t currentLayer;
-//    uint32_t descriptorIndex;
-//    // тут наверное еще нужно указать где хранится эта картинка
-//    // хотя мы можем это узнать неявно из texture при наличие ptr()
-//    // не device local текстурки сильно ограничены, поэтому это бессмысленно
-//
-//    size_t prevDataIndex;
-//  };
-
-//  struct CurrentSizeIndex {
-//    VkExtent2D size;
-//    uint32_t mipLevels;
-//    size_t currentIndex;
-//
-//    bool equal(const VkExtent2D &otherSize, const uint32_t &otherMip) const;
-//  };
-  
-  // тут нужно удалить Resource'ы после конца загрузки
-  
-  //MemoryPool<Resource, DEFAULT_RESOURCE_COUNT*sizeof(Resource)> resourcePool;
-  //MemoryPool<TextureData, DEFAULT_TEXTURE_DATA_COUNT*sizeof(TextureData)> resourcePool;
-  
   // неплохой вариант сохранить данные после загрузки для дебага например или еще чего нибудь
   Data* data;
 
@@ -295,11 +260,6 @@ private:
   // часто ли у нас вообще обращение к обычным текстурам происходит? не очень
   std::vector<ImageContainerData> imagesContainer;
   std::vector<SamplerContainerData> samplersContainer;
-//  std::vector<CurrentSizeIndex> currentIndices;
-
-//  std::unordered_map<ResourceID, std::vector<Texture>> textureMap;
-//  std::unordered_map<ResourceID, uint32_t> samplerMap;
-//  std::unordered_map<VkExtent2D, std::vector<size_t>> arrayIndices; // это понятно для чего, но я и это заменю наверное
   std::vector<ImagePool> arrays;
   
   yavf::Device* device;

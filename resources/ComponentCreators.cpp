@@ -119,6 +119,7 @@ void PhysicsComponentCreator::create(yacs::entity* parent, yacs::entity* ent, co
     case type::wall: {
       if (!physcomp->physInfo.shapeType.valid()) throw std::runtime_error("Shape type is not valid");
       if (physcomp->physInfo.type.getObjType() != POLYGON_TYPE) throw std::runtime_error("Phys type is not valid");
+      physcomp->physInfo.type = PhysicsType(false, POLYGON_TYPE, true, false, true, true);
       
       if (CHECK_FLOAT_DEFAULT_VALUE(physcomp->physInfo.groundFricion)) physcomp->physInfo.groundFricion = defaultFriction;
       
@@ -131,7 +132,7 @@ void PhysicsComponentCreator::create(yacs::entity* parent, yacs::entity* ent, co
     }
     case type::object: {
       if (physcomp->physInfo.type.getObjType() != BBOX_TYPE) throw std::runtime_error("Phys type is not valid");
-      
+      physcomp->physInfo.type = PhysicsType(true, BBOX_TYPE, true, false, true, true);
       
       physcomp->physInfo.groundFricion = defaultFriction;
       if (CHECK_FLOAT_DEFAULT_VALUE(physcomp->physInfo.stairHeight)) physcomp->physInfo.stairHeight = defaultStairHeight;
@@ -147,6 +148,7 @@ void PhysicsComponentCreator::create(yacs::entity* parent, yacs::entity* ent, co
     }
     case type::ability: {
       if (physcomp->physInfo.type.getObjType() != SPHERE_TYPE) throw std::runtime_error("Phys type is not valid");
+      physcomp->physInfo.type = PhysicsType(true, SPHERE_TYPE, false, true, true, true); 
       
       physcomp->physInfo.groundFricion = defaultFriction;
       physcomp->physInfo.stairHeight = 0.1f;

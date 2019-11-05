@@ -26,7 +26,7 @@ public:
 //    const Conflict* relatedConflict;
   };
   Resource(const CreateInfo &info);
-  virtual ~Resource();
+  ~Resource();
 
   ResourceID id() const;
   std::string path() const;
