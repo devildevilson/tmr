@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "Engine.h"
+
 namespace yacs {
   class entity;
 }
@@ -13,6 +15,10 @@ namespace yacs {
 class Effect;
 class TransformComponent;
 class PhysicsComponent;
+
+namespace dt {
+  class thread_pool;
+}
 
 void interaction(const Type &type, const yacs::entity* ent1, yacs::entity* ent2, const Interaction* inter);
 
@@ -281,6 +287,18 @@ private:
 
   // перебираем все объекты с которыми пересекаемся
   // наиболее простой вариант наверное
+};
+
+class InteractionSystem : public Engine {
+public:
+  struct CreateInfo {
+    dt::thread_pool* pool;
+  };
+  InteractionSystem(const CreateInfo &info);
+  
+  void update(const size_t &time) override;
+private:
+  dt::thread_pool* pool;
 };
 
 #endif //INTERACTIONS_H

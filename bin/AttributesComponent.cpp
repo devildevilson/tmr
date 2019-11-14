@@ -13,7 +13,7 @@ AttributeComponent::AttributeComponent(const CreateInfo &info) : fcount(info.flo
   attribsi = icount > 0 ? new Attribute<INT_ATTRIBUTE_TYPE>[icount] : nullptr;
   
   for (size_t i = 0; i < fcount; ++i) {
-    switch (attribsf[i].type().data_type()) {
+    switch (attribsf[i].type()->data_type()) {
       case ATTRIBUTE_CURRENT_SPEED: {
         attribsf[i].setType(info.float_attribs[i].type);
         attribsf[i].setBase(0.0f);
@@ -87,95 +87,95 @@ void AttributeComponent::update() {
     }
   };
 
-  static const std::function<void(EventComponent*, AttributeComponent*, Attribute<FLOAT_ATTRIBUTE_TYPE>*, AttributeReaction*)> float_attrib_reactions[static_cast<uint32_t>(AttributeReaction::comparison::count)] = {
-    [] (EventComponent* events, AttributeComponent* comp, Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, AttributeReaction* reaction) {
-      if (attrib->value() < reaction->value) {
-        AttributeReactionPointers p{
-          reaction,
-          attrib
-        };
-
-        const EventData ed{
-          comp,
-          &p
-        };
-        events->fireEvent(reaction->event, ed);
-      }
-    },
-    [] (EventComponent* events, AttributeComponent* comp, Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, AttributeReaction* reaction) {
-      if (attrib->value() > reaction->value) {
-        AttributeReactionPointers p{
-          reaction,
-          attrib
-        };
-
-        const EventData ed{
-          comp,
-          &p
-        };
-        events->fireEvent(reaction->event, ed);
-      }
-    },
-    [] (EventComponent* events, AttributeComponent* comp, Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, AttributeReaction* reaction) {
-      if (f_eq(attrib->value(), reaction->value)) {
-        AttributeReactionPointers p{
-          reaction,
-          attrib
-        };
-
-        const EventData ed{
-          comp,
-          &p
-        };
-        events->fireEvent(reaction->event, ed);
-      }
-    }
-  };
-
-  static const std::function<void(EventComponent*, AttributeComponent*, Attribute<INT_ATTRIBUTE_TYPE>*, AttributeReaction*)> int_attrib_reactions[static_cast<uint32_t>(AttributeReaction::comparison::count)] = {
-    [] (EventComponent* events, AttributeComponent* comp, Attribute<INT_ATTRIBUTE_TYPE>* attrib, AttributeReaction* reaction) {
-      if (attrib->value() < reaction->value) {
-        AttributeReactionPointers p{
-          reaction,
-          attrib
-        };
-
-        const EventData ed{
-          comp,
-          &p
-        };
-        events->fireEvent(reaction->event, ed);
-      }
-    },
-    [] (EventComponent* events, AttributeComponent* comp, Attribute<INT_ATTRIBUTE_TYPE>* attrib, AttributeReaction* reaction) {
-      if (attrib->value() > reaction->value) {
-        AttributeReactionPointers p{
-          reaction,
-          attrib
-        };
-
-        const EventData ed{
-          comp,
-          &p
-        };
-        events->fireEvent(reaction->event, ed);
-      }
-    },
-    [] (EventComponent* events, AttributeComponent* comp, Attribute<INT_ATTRIBUTE_TYPE>* attrib, AttributeReaction* reaction) {
-      if (f_eq(attrib->value(), reaction->value)) {
-        AttributeReactionPointers p{
-          reaction,
-          attrib
-        };
-
-        const EventData ed{
-          comp,
-          &p
-        };
-        events->fireEvent(reaction->event, ed);
-      }
-    }
-  };
+//   static const std::function<void(EventComponent*, AttributeComponent*, Attribute<FLOAT_ATTRIBUTE_TYPE>*, AttributeReaction*)> float_attrib_reactions[static_cast<uint32_t>(AttributeReaction::comparison::count)] = {
+//     [] (EventComponent* events, AttributeComponent* comp, Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, AttributeReaction* reaction) {
+//       if (attrib->value() < reaction->value) {
+//         AttributeReactionPointers p{
+//           reaction,
+//           attrib
+//         };
+// 
+//         const EventData ed{
+//           comp,
+//           &p
+//         };
+//         events->fireEvent(reaction->event, ed);
+//       }
+//     },
+//     [] (EventComponent* events, AttributeComponent* comp, Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, AttributeReaction* reaction) {
+//       if (attrib->value() > reaction->value) {
+//         AttributeReactionPointers p{
+//           reaction,
+//           attrib
+//         };
+// 
+//         const EventData ed{
+//           comp,
+//           &p
+//         };
+//         events->fireEvent(reaction->event, ed);
+//       }
+//     },
+//     [] (EventComponent* events, AttributeComponent* comp, Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, AttributeReaction* reaction) {
+//       if (f_eq(attrib->value(), reaction->value)) {
+//         AttributeReactionPointers p{
+//           reaction,
+//           attrib
+//         };
+// 
+//         const EventData ed{
+//           comp,
+//           &p
+//         };
+//         events->fireEvent(reaction->event, ed);
+//       }
+//     }
+//   };
+// 
+//   static const std::function<void(EventComponent*, AttributeComponent*, Attribute<INT_ATTRIBUTE_TYPE>*, AttributeReaction*)> int_attrib_reactions[static_cast<uint32_t>(AttributeReaction::comparison::count)] = {
+//     [] (EventComponent* events, AttributeComponent* comp, Attribute<INT_ATTRIBUTE_TYPE>* attrib, AttributeReaction* reaction) {
+//       if (attrib->value() < reaction->value) {
+//         AttributeReactionPointers p{
+//           reaction,
+//           attrib
+//         };
+// 
+//         const EventData ed{
+//           comp,
+//           &p
+//         };
+//         events->fireEvent(reaction->event, ed);
+//       }
+//     },
+//     [] (EventComponent* events, AttributeComponent* comp, Attribute<INT_ATTRIBUTE_TYPE>* attrib, AttributeReaction* reaction) {
+//       if (attrib->value() > reaction->value) {
+//         AttributeReactionPointers p{
+//           reaction,
+//           attrib
+//         };
+// 
+//         const EventData ed{
+//           comp,
+//           &p
+//         };
+//         events->fireEvent(reaction->event, ed);
+//       }
+//     },
+//     [] (EventComponent* events, AttributeComponent* comp, Attribute<INT_ATTRIBUTE_TYPE>* attrib, AttributeReaction* reaction) {
+//       if (f_eq(attrib->value(), reaction->value)) {
+//         AttributeReactionPointers p{
+//           reaction,
+//           attrib
+//         };
+// 
+//         const EventData ed{
+//           comp,
+//           &p
+//         };
+//         events->fireEvent(reaction->event, ed);
+//       }
+//     }
+//   };
 
   if (currentTime < updateTime) return;
   
@@ -184,12 +184,12 @@ void AttributeComponent::update() {
 
   for (size_t i = 0; i < datas.size(); ++i) {
     if (datas[i].attribType.float_type()) {
-      const AttributeType<FLOAT_ATTRIBUTE_TYPE> &type = datas[i].attribType.get_float_type();
+      const AttributeType<FLOAT_ATTRIBUTE_TYPE>* type = datas[i].attribType.get_float_type();
       Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib = float_finder.find(type);
 
       float_attrib_funcs[datas[i].type](attrib, datas[i].b);
     } else {
-      const AttributeType<INT_ATTRIBUTE_TYPE> &type = datas[i].attribType.get_int_type();
+      const AttributeType<INT_ATTRIBUTE_TYPE>* type = datas[i].attribType.get_int_type();
       Attribute<INT_ATTRIBUTE_TYPE>* attrib = int_finder.find(type);
 
       int_attrib_funcs[datas[i].type](attrib, datas[i].b);
@@ -197,7 +197,7 @@ void AttributeComponent::update() {
   }
 
   for (size_t i = 0; i < fcount; ++i) {
-    switch (attribsf[i].type().data_type()) {
+    switch (attribsf[i].type()->data_type()) {
       case ATTRIBUTE_CURRENT_SPEED: {
         if (phys != nullptr) break;
         attribsf[i].setBase(phys->getSpeed());
@@ -237,19 +237,19 @@ void AttributeComponent::update() {
   // как сделать отрывание частей тел как в брутал думе? по идее нам для этого нужно только 4 вещи: позиции игрока и монстра, направление взгляда игрока и монстра
   // смерть по идее должна добавлять задачи в delayed work system
 
-  for (size_t i = 0; i < reactions.size(); ++i) {
-    if (reactions[i].attribType.float_type()) {
-      const AttributeType<FLOAT_ATTRIBUTE_TYPE> &type = datas[i].attribType.get_float_type();
-      Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib = float_finder.find(type);
-
-      float_attrib_reactions[static_cast<uint32_t>(reactions[i].comp)](events, this, attrib, &reactions[i]);
-    } else {
-      const AttributeType<INT_ATTRIBUTE_TYPE> &type = datas[i].attribType.get_int_type();
-      Attribute<INT_ATTRIBUTE_TYPE>* attrib = int_finder.find(type);
-
-      int_attrib_reactions[static_cast<uint32_t>(reactions[i].comp)](events, this, attrib, &reactions[i]);
-    }
-  }
+//   for (size_t i = 0; i < reactions.size(); ++i) {
+//     if (reactions[i].attribType.float_type()) {
+//       const AttributeType<FLOAT_ATTRIBUTE_TYPE>* type = datas[i].attribType.get_float_type();
+//       Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib = float_finder.find(type);
+// 
+//       float_attrib_reactions[static_cast<uint32_t>(reactions[i].comp)](events, this, attrib, &reactions[i]);
+//     } else {
+//       const AttributeType<INT_ATTRIBUTE_TYPE>* type = datas[i].attribType.get_int_type();
+//       Attribute<INT_ATTRIBUTE_TYPE>* attrib = int_finder.find(type);
+// 
+//       int_attrib_reactions[static_cast<uint32_t>(reactions[i].comp)](events, this, attrib, &reactions[i]);
+//     }
+//   }
 
   // сделано специально, чтобы аттрибуты обновлялись два кадра
   if (datas.empty()) currentTime = 0;
@@ -257,13 +257,25 @@ void AttributeComponent::update() {
   datas.clear();
 }
 
+// чистка данных об изменении когда должна происходить? по идее после того как 
+
 template <>
-const Attribute<FLOAT_ATTRIBUTE_TYPE>* AttributeComponent::get(const AttributeType<FLOAT_ATTRIBUTE_TYPE> &type) const {
+const Attribute<FLOAT_ATTRIBUTE_TYPE>* AttributeComponent::get(const AttributeType<FLOAT_ATTRIBUTE_TYPE>* type) const {
   return AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>(fcount, attribsf).find(type);
 }
 
 template <>
-const Attribute<INT_ATTRIBUTE_TYPE>* AttributeComponent::get(const AttributeType<INT_ATTRIBUTE_TYPE> &type) const {
+const Attribute<INT_ATTRIBUTE_TYPE>* AttributeComponent::get(const AttributeType<INT_ATTRIBUTE_TYPE>* type) const {
+  return AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>(icount, attribsi).find(type);
+}
+
+template <>
+const Attribute<FLOAT_ATTRIBUTE_TYPE>* AttributeComponent::get(const Type &type) const {
+  return AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>(fcount, attribsf).find(type);
+}
+
+template <>
+const Attribute<INT_ATTRIBUTE_TYPE>* AttributeComponent::get(const Type &type) const {
   return AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>(icount, attribsi).find(type);
 }
 

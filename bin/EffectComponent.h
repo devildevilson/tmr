@@ -75,6 +75,7 @@ public:
   void update(const size_t &time) override;
 
   // создание удаление эффектов будет здесь наверное
+  // нет, будет отдельный контейнер для множества ресурсов в том числе и для эффектов
   const Effect* get(const Type &type) const;
   const Effect* create(const Effect::CreateInfo &info);
   void destroy(const Type &type);

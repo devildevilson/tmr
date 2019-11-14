@@ -26,7 +26,7 @@ struct UVAnimation {
 
 class AnimationComponent {
 public:
-  static void setStateContainer(Container<AnimationState>* stateContainer);
+//   static void setStateContainer(Container<AnimationState>* stateContainer);
 
   struct CreateInfo {
 //    EventComponent* localEvents;
@@ -89,7 +89,7 @@ private:
   // нафига мне нужен AnimationState??????? я могу сюда просто id анимации добавить
 //   std::unordered_map<Type, AnimationState> states;
   
-  static Container<AnimationState>* stateContainer;
+//   static Container<AnimationState>* stateContainer;
   // это должно быть в стейт контроллере, время мы будем выставлять там
   //static ArrayInterface<AnimationState>* timeContainer; 
 };

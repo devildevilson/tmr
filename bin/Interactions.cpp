@@ -9,6 +9,9 @@
 #include "HelperFunctions.h"
 #include "PhysicsComponent.h"
 
+#include "EntityComponentSystem.h"
+#include "Globals.h"
+
 //const Type damage_event = Type::get("damage");
 
 void interaction(const Type &type, const yacs::entity* ent1, yacs::entity* ent2, const Interaction* inter) {
@@ -647,4 +650,92 @@ void ImpactInteraction::update(const size_t &time) {
       interaction(event_type(), obj, usrData->entity, this);
     }
   }
+}
+
+InteractionSystem::InteractionSystem(const CreateInfo &info) : pool(info.pool) {}
+void InteractionSystem::update(const size_t &time) {
+  static const auto targetFunc = [&] (const size_t &time) {
+    const size_t count = Global::world()->count_components<TargetInteraction>();
+    for (size_t i = 0; i < count; ++i) {
+      auto handle = Global::world()->get_component<TargetInteraction>(i);
+      handle->update(time);
+    }
+  };
+  
+  static const auto rayFunc = [&] (const size_t &time) {
+    const size_t count = Global::world()->count_components<RayInteraction>();
+    for (size_t i = 0; i < count; ++i) {
+      auto handle = Global::world()->get_component<RayInteraction>(i);
+      handle->update(time);
+    }
+  };
+  
+  static const auto slashFunction = [&] (const size_t &start, const size_t &count, const size_t &time) {
+    for (size_t i = start; i < start+count; ++i) {
+      auto handle = Global::world()->get_component<SlashingInteraction>(i);
+      handle->update(time);
+    }
+  };
+  
+  static const auto stabFunction = [&] (const size_t &start, const size_t &count, const size_t &time) {
+    for (size_t i = start; i < start+count; ++i) {
+      auto handle = Global::world()->get_component<StabbingInteraction>(i);
+      handle->update(time);
+    }
+  };
+  
+  static const auto impactFunction = [&] (const size_t &start, const size_t &count, const size_t &time) {
+    for (size_t i = start; i < start+count; ++i) {
+      auto handle = Global::world()->get_component<ImpactInteraction>(i);
+      handle->update(time);
+    }
+  };
+  
+  pool->submitnr(targetFunc, time);
+  pool->submitnr(rayFunc, time);
+  
+  {
+    const size_t &componentsCount = Global::world()->count_components<SlashingInteraction>();
+    const size_t count = std::ceil(float(componentsCount) / float(pool->size()+1));
+    size_t start = 0;
+    for (uint32_t i = 0; i < pool->size()+1; ++i) {
+      const size_t jobCount = std::min(count, componentsCount-start);
+      if (jobCount == 0) break;
+
+      pool->submitnr(slashFunction, start, jobCount, time);
+
+      start += jobCount;
+    }
+  }
+  
+  {
+    const size_t &componentsCount = Global::world()->count_components<StabbingInteraction>();
+    const size_t count = std::ceil(float(componentsCount) / float(pool->size()+1));
+    size_t start = 0;
+    for (uint32_t i = 0; i < pool->size()+1; ++i) {
+      const size_t jobCount = std::min(count, componentsCount-start);
+      if (jobCount == 0) break;
+
+      pool->submitnr(stabFunction, start, jobCount, time);
+
+      start += jobCount;
+    }
+  }
+  
+  {
+    const size_t &componentsCount = Global::world()->count_components<ImpactInteraction>();
+    const size_t count = std::ceil(float(componentsCount) / float(pool->size()+1));
+    size_t start = 0;
+    for (uint32_t i = 0; i < pool->size()+1; ++i) {
+      const size_t jobCount = std::min(count, componentsCount-start);
+      if (jobCount == 0) break;
+
+      pool->submitnr(impactFunction, start, jobCount, time);
+
+      start += jobCount;
+    }
+  }
+  
+  pool->compute();
+  pool->wait();
 }

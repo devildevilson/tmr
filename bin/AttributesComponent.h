@@ -58,9 +58,16 @@ struct AttributeReaction {
   float value;
   comparison comp;
   Type event;
-
-  // тип изменения? это полезно, например, для того чтобы понять как умирать
 };
+// тип изменения? это полезно, например, для того чтобы понять как умирать
+// реакции теперь должны выглядеть по другому
+// что такое реакция? по идее это использование абилки при каком то значении аттрибута
+// нетолько, мы еще должны сменить состояние
+// вообще все эти вещи можно сделать с помощью дерева поведения:
+// проверяем все аттрибуты и на основе этого делаем действия, например умираем
+// вообще в принципе есть что-то что мы НЕ можем сделать с помощью деревьев?
+// неплохо было бы захардкодить наиболее оптимально несколько действий в дереве
+// реакции нужно будет убрать
 
 class PhysicsComponent;
 class EventComponent;
@@ -72,7 +79,7 @@ public:
 
   template <typename T>
   struct InitInfo {
-    AttributeType<T> type;
+    const AttributeType<T>* type;
     T baseValue;
   };
   
@@ -80,7 +87,8 @@ public:
 //    AttributeSystem* system;
     PhysicsComponent* phys;
     EventComponent* events;
-    size_t updateTime; // тут бессмысленно ставить что то не SIZE_MAX
+    // единственный смысл ставить здесь не SIZE_MAX это если аттрибут связан с текущей скоростью
+    size_t updateTime;
     std::vector<InitInfo<FLOAT_ATTRIBUTE_TYPE>> float_attribs;
     std::vector<InitInfo<INT_ATTRIBUTE_TYPE>> int_attribs;
   };
@@ -91,7 +99,10 @@ public:
 //  void init(void* userData);
   
   template <typename Type>
-  const Attribute<Type>* get(const AttributeType<Type> &type) const;
+  const Attribute<Type>* get(const AttributeType<Type>* type) const;
+  
+  template <typename T>
+  const Attribute<T>* get(const Type &type) const;
   
   template <typename Type>
   const Attribute<Type>* get(const TypelessAttributeType &type) const;
@@ -122,7 +133,7 @@ private:
   size_t currentTime;
 
   std::vector<AttribChangeData> datas;
-  std::vector<AttributeReaction> reactions;
+//   std::vector<AttributeReaction> reactions;
   
   static Container<ExternalData>* externalDatas;
 };

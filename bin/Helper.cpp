@@ -781,7 +781,7 @@ void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, Da
   GraphicComponent::setContainer(arrays.rotations);
   GraphicComponent::setContainer(arrays.textures);
   PhysicsComponent::setContainer(arrays.externals);
-  AnimationComponent::setStateContainer(arrays.animStates);
+//   AnimationComponent::setStateContainer(arrays.animStates);
   
   yavf::DescriptorPool pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
   yavf::DescriptorSetLayout storage_layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
@@ -1110,6 +1110,11 @@ void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystem
 }
 
 void createBehaviourTrees() {
+  // 200% нужно проработать мультитрединг (создать контейнер для необходимых данных)
+  // в будущем мы обязательно должны воспользоваться как можно большим количеством предсозданных деревьев
+  // эти деревья будут брать на себя какие то во первых типовые участки во вторых сложные в плане вычислений участки
+  // например chaseAndAttack или смерть
+  
   tb::BehaviorTreeBuilder builder;
   tb::BehaviorTree* tree;
   tree = builder.sequence()

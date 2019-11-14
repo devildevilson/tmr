@@ -21,7 +21,6 @@
 #include "GPUOptimizers.h"
 
 #include "CPUAnimationSystemParallel.h"
-#include "AnimationComponent.h"
 
 #include "PhysicsUtils.h"
 #include "CPUPhysicsParallel.h"
@@ -42,6 +41,11 @@
 #include "CameraComponent.h"
 #include "GraphicComponets.h"
 #include "SoundComponent.h"
+#include "StateController.h"
+#include "AnimationComponent.h"
+#include "EffectComponent.h"
+#include "AttributesComponent.h"
+#include "Interactions.h"
 
 //#include "ParticleSystem.h"
 //#include "DecalSystem.h"
@@ -52,6 +56,12 @@
 #include "Modification.h"
 #include "ImageLoader.h"
 #include "SoundLoader.h"
+#include "AnimationLoader.h"
+#include "EffectsLoader.h"
+#include "AttributesLoader.h"
+#include "AbilityTypeLoader.h"
+#include "ItemLoader.h"
+#include "EntityLoader.h"
 #include "HardcodedLoaders.h"
 
 #include "DelayedWorkSystem.h"
@@ -70,6 +80,8 @@
 #include <cppfs/fs.h>
 #include <cppfs/FileHandle.h>
 #include <cppfs/FileIterator.h>
+
+#include <locale>
 
 // микросекунды
 // примерно 18 кадров

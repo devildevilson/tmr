@@ -7,61 +7,113 @@
 #include "InventoryComponent.h"
 #include "AnimationComponent.h"
 #include "SoundComponent.h"
+#include "AttributesComponent.h"
 
+static const Type cancel = Type::get("cancel");
+static const Type change_weapon = Type::get("change_weapon");
+static const Type movement = Type::get("movement");
 
-StateController::StateController(const CreateInfo &info) : currentTime(0), currentState(info.controllerType->defaultState()), controllerType(info.controllerType) {}
+StateController::StateController(const CreateInfo &info) : animations(info.animations), sounds(info.sounds), interactions(info.interactions), attribs(info.attribs), inventory(info.inventory), currentTime(0), lastTime(0), currentState(info.controllerType->defaultState()), controllerType(info.controllerType) {}
+
+// есть несколько специальных состояний: cancel, change_weapon, use_item
+// еще нужно учесть скорость атаки, вот тут то лучше передавать помимо
+// ресурсов еще и время, либо у каждого компонента хранить указатель на скорость?
+// не везде она нужна прямо так скажем
+
+// в openmw при запуске анимации передается еще и модификатор скорости
+// передается еще начальный маркер, конечный маркер, начальная позиция
+// (тип начать можно с начала, с конца, посередине)
+
+// анимации смены оружия там нет, есть прерывание текущей анимации
+// важная загвоздка для меня при прерывании - это прерывание интеракции
+// я планирую сделать прерывание вызовом функции у оружия, как по другому?
+
+// можно ли как то увеличить скорость звуковых эффектов?
+// как передавать модификатор? то есть нужно его еще где то хранить
+// нужно хранить тип в состоянии походу, у нас еще могут быть алиасы
+// так как для движения у нас целых 3 типа
+
+// анимацию и звук можно делать здесь, нужно просто как то понять происходит ли нужная анимация уже или еще нет
+// по тому же принципу можно делать интеракцию
+
+// здесь же мы можем обновлять компоненты анимации, звука и интеракции
+// подавая им верное время, с другой стороны важно чтобы все равботало одинаково при любых состояниях
+// проблемы могут возникнуть только при интеракции, их может быть несколько разных,
+// по идее все что не физическая интеракция должно никак не реагировать на изменяющееся время
+// звукам передавать какое то иное время бесполезно
+// с анимациями все проще гораздо
 
 void StateController::update(const size_t &time) {
-  currentTime += time;
   if (currentTime >= currentState->time) {
-    if (currentState->flags.looping()) {
-      currentTime -= currentState->time;
-      return;
-    }
-
-    if (currentState->nextState == nullptr) return;
-    currentState = currentState->nextState;
-    currentTime = 0;
-
-    // нужно раскидать ресурсИД по компонентам
-
-    if (currentState->flags.useWeapon()) {
-      auto weapon = inventory->currentWeapon();
-//       weapon->interaction(attribs, interactions);
-    } else if (currentState->flags.useItem()) {
-      auto item = inventory->currentItem();
-      inventory->remove(item);
-//       item->interaction(attribs, interactions);
+    const size_t diffTime = currentState->time;
+    if (currentState->state == change_weapon) {
+      // ставим в текущий стейт состояние оружия
+      // а в предыдущий этот
+      currentTime -= diffTime;
+      lastTime = 0;
+      computeSpeedMod();
+    } else if (currentState->flags.looping()) {
+      currentTime -= diffTime;
+      lastTime = 0;
+      computeSpeedMod();
+    } else if (currentState->nextState != nullptr) {
+      prevState = currentState;
+      currentState = currentState->nextState;
+      currentTime -= diffTime;
+      lastTime = 0;
+      computeSpeedMod();
     }
   }
+  
+  currentTime += speedMod * time;
+  
+  if (currentState->animation.valid() && (currentTime >= currentState->animationDelay && lastTime <= currentState->animationDelay)) { //currentState->animationDelay == 0 || 
+    const AnimationComponent::PlayInfo info{
+      currentState->animation,
+      speedMod,
+      currentState->time - currentState->animationDelay,
+      currentState->flags.looping()
+    };
+    animations->play(info);
+  }
+  
+  if (currentState->sound.valid() && (currentTime >= currentState->soundDelay && lastTime <= currentState->soundDelay)) { //currentState->soundDelay == 0 || 
+    const SoundComponent::PlayInfo info{
+      currentState->sound,
+      currentState->time - currentState->soundDelay,
+      currentState->flags.looping(),
+      !currentState->constantSound,
+      currentState->relative,
+      !currentState->constantSound,
+      {0.0f, 0.0f, 0.0f, 0.0f},
+      100.0f, // скорее всего всегда константа
+      1.0f, // берем рандомно от 0.8 до 1.2 примерно
+      1.0f, // пока неясно
+      1.0f
+    };
+    sounds->play(info);
+  }
+  
+  if (currentState->state == change_weapon) {
+    // мы можем определить какое состояние у нас дефолтное из текущего оружия
+    const UVAnimation uvInfo{
+      UVAnimation::type::uv,
+      glm::vec2(-0.5f, -0.5f),
+      currentState->time
+    };
+    animations->apply(uvInfo);
+  }
+  
+  if (prevState->state == change_weapon) {
+    const UVAnimation uvInfo{
+      UVAnimation::type::uv,
+      glm::vec2(0.5f, 0.5f),
+      currentState->time
+    };
+    animations->apply(uvInfo);
+  }
 
-  // есть несколько специальных состояний: cancel, change_weapon, use_item
-  // еще нужно учесть скорость атаки, вот тут то лучше передавать помимо
-  // ресурсов еще и время, либо у каждого компонента хранить указатель на скорость?
-  // не везде она нужна прямо так скажем
-
-  // в openmw при запуске анимации передается еще и модификатор скорости
-  // передается еще начальный маркер, конечный маркер, начальная позиция
-  // (тип начать можно с начала, с конца, посередине)
-
-  // анимации смены оружия там нет, есть прерывание текущей анимации
-  // важная загвоздка для меня при прерывании - это прерывание интеракции
-  // я планирую сделать прерывание вызовом функции у оружия, как по другому?
-
-  // можно ли как то увеличить скорость звуковых эффектов?
-  // как передавать модификатор? то есть нужно его еще где то хранить
-  // нужно хранить тип в состоянии походу, у нас еще могут быть алиасы
-  // так как для движения у нас целых 3 типа
-
-  // анимацию и звук можно делать здесь, нужно просто как то понять происходит ли нужная анимация уже или еще нет
-  // по тому же принципу можно делать интеракцию
-
-  // здесь же мы можем обновлять компоненты анимации, звука и интеракции
-  // подавая им верное время, с другой стороны важно чтобы все равботало одинаково при любых состояниях
-  // проблемы могут возникнуть только при интеракции, их может быть несколько разных,
-  // по идее все что не физическая интеракция должно никак не реагировать на изменяющееся время
-  // звукам передавать какое то иное время бесполезно
-  // с анимациями все проще гораздо
+  lastTime = currentTime;
 }
 
 bool StateController::blocking() const {
@@ -105,122 +157,141 @@ const StateControllerType* StateController::type() const {
   return controllerType;
 }
 
-static const Type cancel = Type::get("cancel");
-static const Type change_weapon = Type::get("change_weapon");
-static const Type movement = Type::get("movement");
+// event StateController::call(const Type &type, const EventData &data, yacs::entity* entity) {
+//   (void)data;
+//   (void)entity;
+//   currentState = controllerType->state(type);
+//   if (currentState == nullptr) throw std::runtime_error("Cannot find state "+type.name()); // ??
+// 
+//   // причем тут нужно еще учесть специальные состояния
+//   // зачем как то особо учитывать конкретно это состояние?
+//   if (currentState->state == cancel) {
+//     auto weapon = inventory->currentWeapon();
+// //     weapon->cancel_interaction(interactions);
+// 
+//     // резкая остановка звука, лучше конечно так не делать
+//     // нужно остановить звук постепенно
+//     sounds->cancel();
+// 
+//     // останавливаем звук и анимацию
+//     // нужно ли останавливать анимацию? то есть у нас и так и сяк при изменении анимации, вернется в исходное состояние
+//     return success;
+//   }
+// 
+//   // присуще только игроку
+//   if (currentState->state == change_weapon) {
+//     // должна быть специальная анимация опускания оружия
+//     // и поднимания оружия
+// 
+//     // этот тип должен быть продолжительным и в два этапа
+// 
+//     const UVAnimation uvInfo{
+//       UVAnimation::type::uv,
+//       glm::vec2(-0.5f, -0.5f),
+//       currentState->time
+//     };
+//     animations->apply(uvInfo);
+// 
+//     // нужно еще текущее положение текстурки
+// 
+//     return success;
+//   }
+// 
+//   // мы возвращаем здесь эвент, можем ли мы вернуть фейл если патронов нет
+//   // скорее всего я так и думал сделать но забыл
+//   event ev = success;
+//   if (currentState->flags.useWeapon()) {
+//     auto weapon = inventory->currentWeapon();
+// //     ev = weapon->interaction(attribs, interactions);
+//   } else if (currentState->flags.useItem()) {
+//     auto item = inventory->currentItem();
+//     inventory->remove(item);
+// //     ev = item->interaction(attribs, interactions);
+//   }
+// 
+//   if (ev == failure) return ev;
+// 
+//   // нужно добавить делэй
+//   const AnimationComponent::PlayInfo animInfo{
+//     currentState->animation,
+//     1.0f, // как лучше всего сделать? модификатор скорости у нас зависит от состояния
+//     currentState->time,
+//     currentState->flags.looping()
+//   };
+//   animations->play(animInfo);
+// 
+//   // для некоторых звуков можно указать фреквенси, но я не уверен что это хороший вариант
+//   const SoundComponent::PlayInfo soundInfo{
+//     currentState->sound,
+//     currentState->time,
+//     false,
+//     true,
+//     false,
+//     true,
+//     {0.0f, 0.0f, 0.0f, 0.0f},
+//     100.0f,
+//     1.0f,
+//     1.0f,
+//     1.0f,
+//   };
+//   sounds->play(soundInfo);
+// 
+//   // также мы должны учесть передвижение ИГРОКА
+//   if (currentState->state == movement) {
+//     const UVAnimation uvInfo{
+//       UVAnimation::type::speed,
+//       glm::vec2(0.0f, 0.0f),
+//       currentState->time
+//     };
+//     animations->apply(uvInfo);
+//   }
+// 
+//   return success;
+// }
 
-event StateController::call(const Type &type, const EventData &data, yacs::entity* entity) {
-  (void)data;
-  (void)entity;
-  currentState = controllerType->state(type);
-  if (currentState == nullptr) throw std::runtime_error("Cannot find state "+type.name()); // ??
-
-  // причем тут нужно еще учесть специальные состояния
-  // зачем как то особо учитывать конкретно это состояние?
-  if (currentState->state == cancel) {
-    auto weapon = inventory->currentWeapon();
-//     weapon->cancel_interaction(interactions);
-
-    // резкая остановка звука, лучше конечно так не делать
-    // нужно остановить звук постепенно
-    sounds->cancel();
-
-    // останавливаем звук и анимацию
-    // нужно ли останавливать анимацию? то есть у нас и так и сяк при изменении анимации, вернется в исходное состояние
-    return success;
-  }
-
-  // присуще только игроку
-  if (currentState->state == change_weapon) {
-    // должна быть специальная анимация опускания оружия
-    // и поднимания оружия
-
-    // этот тип должен быть продолжительным и в два этапа
-
-    const UVAnimation uvInfo{
-      UVAnimation::type::uv,
-      glm::vec2(-0.5f, -0.5f),
-      currentState->time
-    };
-    animations->apply(uvInfo);
-
-    // нужно еще текущее положение текстурки
-
-    return success;
-  }
-
-  // мы возвращаем здесь эвент, можем ли мы вернуть фейл если патронов нет
-  // скорее всего я так и думал сделать но забыл
-  event ev = success;
-  if (currentState->flags.useWeapon()) {
-    auto weapon = inventory->currentWeapon();
-//     ev = weapon->interaction(attribs, interactions);
-  } else if (currentState->flags.useItem()) {
-    auto item = inventory->currentItem();
-    inventory->remove(item);
-//     ev = item->interaction(attribs, interactions);
-  }
-
-  if (ev == failure) return ev;
-
-  // нужно добавить делэй
-  const AnimationComponent::PlayInfo animInfo{
-    currentState->animation,
-    1.0f, // как лучше всего сделать? модификатор скорости у нас зависит от состояния
-    currentState->time,
-    currentState->flags.looping()
-  };
-  animations->play(animInfo);
-
-  // для некоторых звуков можно указать фреквенси, но я не уверен что это хороший вариант
-  const SoundComponent::PlayInfo soundInfo{
-    currentState->sound,
-    currentState->time,
-    false,
-    true,
-    false,
-    true,
-    {0.0f, 0.0f, 0.0f, 0.0f},
-    100.0f,
-    1.0f,
-    1.0f,
-    1.0f,
-  };
-  sounds->play(soundInfo);
-
-  // также мы должны учесть передвижение ИГРОКА
-  if (currentState->state == movement) {
-    const UVAnimation uvInfo{
-      UVAnimation::type::speed,
-      glm::vec2(0.0f, 0.0f),
-      currentState->time
-    };
-    animations->apply(uvInfo);
-  }
-
-  return success;
-}
-
-void StateController::callDefaultState() {
+void StateController::setDefaultState() {
+  prevState = currentState;
   currentState = controllerType->defaultState();
   currentTime = 0;
+  lastTime = 0;
 
-  if (currentState->flags.useWeapon()) {
-    auto weapon = inventory->currentWeapon();
-//     weapon->interaction(attribs, interactions);
-  } else if (currentState->flags.useItem()) {
-    auto item = inventory->currentItem();
-    inventory->remove(item);
-//     item->interaction(attribs, interactions);
+//   if (currentState->flags.useWeapon()) {
+//     auto weapon = inventory->currentWeapon();
+// //     weapon->interaction(attribs, interactions);
+//   } else if (currentState->flags.useItem()) {
+//     auto item = inventory->currentItem();
+//     inventory->remove(item);
+// //     item->interaction(attribs, interactions);
+//   }
+}
+
+bool StateController::setState(const Type &state) {
+  auto statePtr = controllerType->state(state);
+  if (statePtr == nullptr) return false;
+  
+  prevState = currentState;
+  currentState = statePtr;
+  currentTime = 0;
+  lastTime = 0;
+  ASSERT(currentState != nullptr);
+  
+  return true;
+}
+
+void StateController::computeSpeedMod() {
+  speedMod = 1.0f;
+  if (currentState->speedModificator != nullptr && attribs != nullptr) {
+    auto attrib = attribs->get<FLOAT_ATTRIBUTE_TYPE>(currentState->speedModificator);
+    speedMod = attrib->value();
   }
 }
 
 StateControllerSystem::StateControllerSystem(const CreateInfo &info) : pool(info.pool) {}
 
 StateControllerSystem::~StateControllerSystem() {
-  for (auto &pair : types) {
-    typePool.deleteElement(pair.second);
-  }
+//   for (auto &pair : types) {
+//     typePool.deleteElement(pair.second);
+//   }
 }
 
 void StateControllerSystem::update(const size_t &time) {
@@ -247,17 +318,17 @@ void StateControllerSystem::update(const size_t &time) {
   pool->wait();
 }
 
-void StateControllerSystem::create(const Type &type, const StateControllerType::CreateInfo &info) {
-  auto itr = types.find(type);
-  if (itr != types.end()) throw std::runtime_error("State controller type with name "+type.name()+" is already exist");
-
-  auto ptr = typePool.newElement(info);
-  types[type] = ptr;
-}
-
-const StateControllerType* StateControllerSystem::get(const Type &type) const {
-  auto itr = types.find(type);
-  if (itr == types.end()) throw std::runtime_error("State controller type with name "+type.name()+" is not exist");
-
-  return itr->second;
-}
+// void StateControllerSystem::create(const Type &type, const StateControllerType::CreateInfo &info) {
+//   auto itr = types.find(type);
+//   if (itr != types.end()) throw std::runtime_error("State controller type with name "+type.name()+" is already exist");
+// 
+//   auto ptr = typePool.newElement(info);
+//   types[type] = ptr;
+// }
+// 
+// const StateControllerType* StateControllerSystem::get(const Type &type) const {
+//   auto itr = types.find(type);
+//   if (itr == types.end()) throw std::runtime_error("State controller type with name "+type.name()+" is not exist");
+// 
+//   return itr->second;
+// }

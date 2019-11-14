@@ -3,7 +3,7 @@
 
 #include "Type.h"
 #include "ResourceID.h"
-#include "EventFunctor.h"
+// #include "EventFunctor.h"
 #include "Engine.h"
 #include "EntityComponentSystem.h"
 #include "MemoryPool.h"
@@ -23,16 +23,16 @@ class AnimationComponent;
 class SoundComponent;
 class InteractionComponent;
 class InventoryComponent;
-class AttributesComponent;
+class AttributeComponent;
 
 // состояния то не уникальны
-class StateController : public EventFunctor {
+class StateController {
 public:
   struct CreateInfo {
     AnimationComponent* animations;
     SoundComponent* sounds;
     InteractionComponent* interactions;
-    AttributesComponent* attribs;
+    AttributeComponent* attribs;
     InventoryComponent* inventory;
     const StateControllerType* controllerType;
 //    size_t resourceContainerSize;
@@ -56,20 +56,26 @@ public:
 
   const StateControllerType* type() const;
 
-  event call(const Type &type, const EventData &data, yacs::entity* entity) override;
-
-  void callDefaultState();
+  void setDefaultState();
+  
+  bool setState(const Type &state);
 private:
   AnimationComponent* animations;
   SoundComponent* sounds;
   InteractionComponent* interactions;
-  AttributesComponent* attribs;
+  AttributeComponent* attribs;
   InventoryComponent* inventory;
 
+  float speedMod;
+  //const Attribute<FLOAT_ATTRIBUTE_TYPE>* speedModAttrib;
+  
   size_t currentTime;
+  size_t lastTime;
   const StateData* currentState;
   const StateData* prevState;
   const StateControllerType* controllerType;
+  
+  void computeSpeedMod();
 };
 
 // мне нужно условие для того чтобы переходить по состояниям
@@ -86,13 +92,13 @@ public:
 
   void update(const size_t &time) override;
 
-  void create(const Type &type, const StateControllerType::CreateInfo &info);
-  const StateControllerType* get(const Type &type) const;
+//   void create(const Type &type, const StateControllerType::CreateInfo &info);
+//   const StateControllerType* get(const Type &type) const;
 private:
   dt::thread_pool* pool;
 
-  std::unordered_map<Type, StateControllerType*> types;
-  MemoryPool<StateControllerType, sizeof(StateControllerType)*20> typePool;
+//   std::unordered_map<Type, StateControllerType*> types;
+//   MemoryPool<StateControllerType, sizeof(StateControllerType)*20> typePool;
 };
 
 #endif //STATE_CONTROLLER_H

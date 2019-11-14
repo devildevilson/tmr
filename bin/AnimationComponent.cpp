@@ -7,9 +7,9 @@
 #include "Physics.h"
 #include "PhysicsComponent.h"
 
-void AnimationComponent::setStateContainer(Container<AnimationState>* stateContainer) {
-  AnimationComponent::stateContainer = stateContainer;
-}
+// void AnimationComponent::setStateContainer(Container<AnimationState>* stateContainer) {
+//   AnimationComponent::stateContainer = stateContainer;
+// }
 
 AnimationComponent::AnimationComponent(const CreateInfo &info)
   : looping(false),
@@ -193,4 +193,4 @@ void AnimationComponent::apply(const UVAnimation &uvAnim) {
 //  return internalIndex;
 //}
 
-Container<AnimationState>* AnimationComponent::stateContainer = nullptr;
+// Container<AnimationState>* AnimationComponent::stateContainer = nullptr;

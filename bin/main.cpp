@@ -12,8 +12,17 @@ private:
 
 size_t LogCounter::counter = 0;
 
+enum class game_state {
+  menu, // причем неплохо было бы сделать проигрывание демки в главном меню
+  loading,
+  game
+};
+
 int main(int argc, char** argv) {
   TimeLogDestructor appTime("Shutdown");
+  
+  //std::locale::global(std::locale("ru_RU.UTF-8"));
+  std::locale::global(std::locale("en_US.UTF-8"));
 
   // тут мы создаем дополнительные вещи, такие как консоль, команды, переменные
   Global::init();
@@ -50,6 +59,7 @@ int main(int argc, char** argv) {
   // например если в системе два треда (в этом случае скорее всего тоже норм)
   // если в настройках определено не использовать треад пул
   // то нам его создавать ни к чему
+  // чаще всего пул необходим, не могу честно говоря представить когда он не нужен в современных условиях
   //std::cout << "std::thread::hardware_concurrency() " << std::thread::hardware_concurrency() << "\n";
   dt::thread_pool threadPool(std::max(std::thread::hardware_concurrency()-1, uint32_t(1)));
 
@@ -64,7 +74,7 @@ int main(int argc, char** argv) {
   GraphicsContainer graphicsContainer;
 
   // теперь создаем контейнер sizeof(ParticleSystem) + sizeof(DecalSystem) +
-  const size_t &systemsSize = sizeof(VulkanRender) + sizeof(PostPhysics) + sizeof(CPUAnimationSystemParallel) + sizeof(SoundSystem) + sizeof(CPUAISystem);
+  const size_t &systemsSize = sizeof(VulkanRender) + sizeof(PostPhysics) + sizeof(CPUAnimationSystemParallel) + sizeof(SoundSystem) + sizeof(CPUAISystem) + sizeof(StateControllerSystem) + sizeof(InteractionSystem) + sizeof(EffectSystem) + sizeof(AttributeSystem);
   GameSystemContainer systemContainer(systemsSize);
 
   {
@@ -168,11 +178,14 @@ int main(int argc, char** argv) {
   // и заодно парсеры для них
   // затем мы все это дело добавим в контейнер
 //  DecalSystem* decalSystem = nullptr;
+  StateControllerSystem* statesSys = nullptr;
   {
     CPUAnimationSystemParallel* animSys = systemContainer.addSystem<CPUAnimationSystemParallel>(&threadPool);
 
     Global g;
     g.setAnimations(animSys);
+    
+    statesSys = systemContainer.addSystem<StateControllerSystem>(StateControllerSystem::CreateInfo{&threadPool});
 
     // что тут еще надо создать?
     // еще будет боевая система (там нужно будет придумать быстрый и эффективный способ вычислить весь (почти) урон)
@@ -193,24 +206,110 @@ int main(int argc, char** argv) {
   }
 
   // создадим лоадер (лоадер бы лучше в контейнере создавать) sizeof(ParserHelper) +
-  const size_t loaderContainerSize = sizeof(ImageLoader) + sizeof(SoundLoader) + sizeof(HardcodedEntityLoader) + sizeof(HardcodedMapLoader) + sizeof(HardcodedAnimationLoader) + sizeof(ModificationContainer);
+  const size_t loaderContainerSize = sizeof(ImageLoader) + sizeof(SoundLoader) + sizeof(EntityLoader) + sizeof(HardcodedMapLoader) + sizeof(AnimationLoader) + sizeof(AttributesLoader) + sizeof(EffectsLoader) + sizeof(AbilityTypeLoader) + sizeof(ItemTypeLoader) + sizeof(ModificationContainer);
   ParserContainer loaderContainer(loaderContainerSize);
   ImageLoader* textureLoader = nullptr;
   SoundLoader* soundLoader = nullptr;
-  HardcodedAnimationLoader* animationLoader = nullptr;
-  HardcodedEntityLoader* entityLoader = nullptr;
+  AnimationLoader* animationLoader = nullptr;
+  EntityLoader* entityLoader = nullptr;
+  ItemTypeLoader* itemLoader = nullptr;
+  AbilityTypeLoader* abilityTypeLoader = nullptr;
+  AttributesLoader* attributesLoader = nullptr;
+  EffectsLoader* effectsLoader = nullptr;
   HardcodedMapLoader* mapLoader = nullptr;
+//   HardcodedAnimationLoader* animationLoader = nullptr;
+//   HardcodedEntityLoader* entityLoader = nullptr;
 //  ParserHelper* parser = nullptr;
   ModificationContainer* mods = nullptr;
   {
+    std::unordered_map<std::string, AttributeType<FLOAT_ATTRIBUTE_TYPE>::FuncType> floatComputeFuncs;
+    std::unordered_map<std::string, AttributeType<INT_ATTRIBUTE_TYPE>::FuncType> intComputeFuncs;
+    
+    floatComputeFuncs["default"] = [] (const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, const FLOAT_ATTRIBUTE_TYPE &base, const FLOAT_ATTRIBUTE_TYPE &rawAdd, const FLOAT_ATTRIBUTE_TYPE &rawMul, const FLOAT_ATTRIBUTE_TYPE &finalAdd, const FLOAT_ATTRIBUTE_TYPE &finalMul) {
+      (void)float_finder;
+      (void)int_finder;
+      
+      FLOAT_ATTRIBUTE_TYPE value = base;
+      
+      value *= rawMul;
+      value += rawAdd;
+      
+      value *= finalMul;
+      value += finalAdd;
+      
+      return value;
+    };
+    
+    intComputeFuncs["default"] = [] (const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, const INT_ATTRIBUTE_TYPE &base, const INT_ATTRIBUTE_TYPE &rawAdd, const FLOAT_ATTRIBUTE_TYPE &rawMul, const INT_ATTRIBUTE_TYPE &finalAdd, const FLOAT_ATTRIBUTE_TYPE &finalMul) {
+      (void)float_finder;
+      (void)int_finder;
+      
+      INT_ATTRIBUTE_TYPE value = base;
+      
+      value *= rawMul;
+      value += rawAdd;
+      
+      value *= finalMul;
+      value += finalAdd;
+      
+      return value;
+    };
+    
+    std::unordered_map<std::string, Effect::FuncType> hardcodedComputeFunc;
+    std::unordered_map<std::string, Effect::FuncType> hardcodedResistFunc;
+    
+    std::unordered_map<std::string, AbilityType::ComputeTransformFunction> transFuncs;
+    std::unordered_map<std::string, AbilityType::ComputeAttributesFunction> attribsFuncs;
+    
     const ImageLoader::CreateInfo tInfo{
       graphicsContainer.device()
     };
     textureLoader = loaderContainer.add<ImageLoader>(tInfo);
 
     soundLoader = loaderContainer.add<SoundLoader>();
+    
+    const AnimationLoader::CreateInfo aInfo{
+      textureLoader
+    };
+    animationLoader = loaderContainer.add<AnimationLoader>(aInfo);
+    
+    const AttributesLoader::CreateInfo attribsInfo{
+      floatComputeFuncs,
+      intComputeFuncs
+    };
+    attributesLoader = loaderContainer.add<AttributesLoader>(attribsInfo);
+    
+    const EffectsLoader::CreateInfo effectsInfo{
+      attributesLoader,
+      hardcodedComputeFunc,
+      hardcodedResistFunc
+    };
+    effectsLoader = loaderContainer.add<EffectsLoader>(effectsInfo);
+    
+    const AbilityTypeLoader::CreateInfo abilityInfo{
+      attributesLoader,
+      effectsLoader,
+      transFuncs,
+      attribsFuncs
+    };
+    abilityTypeLoader = loaderContainer.add<AbilityTypeLoader>(abilityInfo);
+    
+    const ItemTypeLoader::CreateInfo itemInfo{
+      abilityTypeLoader,
+      effectsLoader
+    };
+    itemLoader = loaderContainer.add<ItemTypeLoader>(itemInfo);
 
-    entityLoader = loaderContainer.add<HardcodedEntityLoader>(textureLoader);
+    const EntityLoader::CreateInfo entInfo{
+      textureLoader,
+      soundLoader,
+      animationLoader,
+      attributesLoader,
+      effectsLoader,
+      abilityTypeLoader,
+      itemLoader
+    };
+    entityLoader = loaderContainer.add<EntityLoader>(entInfo);
 
     const HardcodedMapLoader::CreateInfo mInfo{
       graphicsContainer.device(),
@@ -218,11 +317,6 @@ int main(int argc, char** argv) {
       textureLoader
     };
     mapLoader = loaderContainer.add<HardcodedMapLoader>(mInfo);
-
-    const HardcodedAnimationLoader::CreateInfo aInfo{
-      textureLoader
-    };
-    animationLoader = loaderContainer.add<HardcodedAnimationLoader>(aInfo);
 
     const ModificationContainer::CreateInfo pInfo{
       0
@@ -232,8 +326,28 @@ int main(int argc, char** argv) {
     mods->addParser(textureLoader);
     mods->addParser(soundLoader);
     mods->addParser(animationLoader);
+    mods->addParser(attributesLoader);
+    mods->addParser(effectsLoader);
+    mods->addParser(abilityTypeLoader);
+    mods->addParser(itemLoader);
     mods->addParser(entityLoader);
     mods->addParser(mapLoader);
+    
+    // я хочу из энда перенести загрузку всего в метод load
+    // единственное что мне мешает это сделать сейчас это текстурлоадер
+    // если там угадывать количество изображений и какие изображения могут потребоваться
+    // то действительно можно перенести всю загрузку из энда в лоад
+    // а в энде оставить только непосредственную загрузку текстур
+    // на основе этого можно будет сделать стриминговую загрузку данных
+    // (ну то есть я надеюсь на то что мне удастся сделать правильно и быстро ротацию текстур)
+    // (в пуле, помимо текстур подгрузить 100% нужно будет данные карты и возможно звуки)
+    // (все остальные вещи скорее всего будут занимать очень мало места)
+    // (постройки тоже поди нужно будет стримить)
+    
+    // стриминг видимо будет предполагать что мы должны загрузить данные покрайней мере > 256.0f (дальность видимости) расстояния от персонажа
+    // вместе с этим придется решить несколько проблем связанных с текущей физикой, нужно будет перескакивать из локации в локацию
+    // тут может быть два решения - либо держать несколько экземляров физики одновременно (-оператива), либо писать другую броадфазу
+    // нужно посмотреть, сколько занимает физика в текущем виде
   }
 
   DelayedWorkSystem delaySoundWork(DelayedWorkSystem::CreateInfo{&threadPool});
@@ -358,7 +472,7 @@ int main(int argc, char** argv) {
 
 //     std::cout << "texture & animation loading" << "\n";
 
-    entityLoader->create(); // по идее этот метод будет потом переделан под нужды mapLoader
+    //entityLoader->create(); // по идее этот метод будет потом переделан под нужды mapLoader
 
     entityLoader->end();
 
@@ -376,15 +490,17 @@ int main(int argc, char** argv) {
 
 //     std::cout << "clearing" << "\n";
 
-    player = entityLoader->getPlayer();
-    camera = entityLoader->getCamera();
-    input = entityLoader->getInput();
-    playerTransform = entityLoader->getPlayerTransform();
-    entityWithBrain = entityLoader->getEntityBrain();
+    player = mapLoader->getPlayer();
+    camera = mapLoader->getCamera();
+    input = mapLoader->getInput();
+    playerTransform = mapLoader->getPlayerTransform();
+    entityWithBrain = mapLoader->getEntityBrain();
 
     // понадобится ли нам указатели на текстур лоадер и прочее, кроме уровней?
     // понадобится для того чтобы обновлять, например, пайплайны
     // возможно понадобится что то еще
+    
+    throw std::runtime_error("no more");
   }
 
   PostPhysics* postPhysics = nullptr;
@@ -447,8 +563,10 @@ int main(int argc, char** argv) {
       Global g;
       g.setPlayerPos(playerTransform->pos());
     }
-
+    
+    // где должны обновляться анимации?
     Global::animations()->update(time);
+    statesSys->update(time);
 
     postPhysics->update(time);
 
@@ -483,7 +601,10 @@ int main(int argc, char** argv) {
     
     // звук идет после запуска графики
     // сюда же мы можем засунуть и другие вычисления
-//     Global::sound()->update(time);
+    Global::animations()->update(time); // ???
+    statesSys->update(time);
+    
+    //     Global::sound()->update(time);
     delaySoundWork.detach_work();
 
     // здесь же у нас должна быть настройка: тип какую частоту обновления экрана использовать?
