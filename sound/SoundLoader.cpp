@@ -423,6 +423,8 @@ bool SoundLoader::load(const ModificationParser* modifications, const Resource* 
 
   SoundData* data = soundsPool.newElement(SoundData::CreateInfo{localResource.id(), sData});
   sounds.push_back(data);
+  
+  if (localResource.cached()) delete [] fileContainer;
 
   return true;
 }
