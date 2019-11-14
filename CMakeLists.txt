@@ -257,10 +257,13 @@ set(SRC_LIST
   utils/Variable.cpp
   utils/Console.cpp
   utils/TimeMeter.cpp
+  utils/AbilityType.cpp
+  utils/ItemType.cpp
   utils/Globals.cpp
   utils/Utility.cpp
   utils/Event.cpp
   utils/EventComponent.cpp
+  utils/Effect.cpp
   utils/UniqueID.cpp
   utils/Type.cpp
   utils/Frustum.cpp
@@ -290,10 +293,13 @@ set(HDR_LIST
   utils/Variable.h
   utils/Console.h
   utils/TimeMeter.h
+  utils/AbilityType.h
+  utils/ItemType.h
   utils/Globals.h
   utils/Utility.h
   utils/Event.h
   utils/EventComponent.h
+  utils/Effect.h
   utils/UniqueID.h
   utils/Type.h
   utils/Frustum.h
@@ -498,9 +504,16 @@ set(SRC_LIST
   resources/HardcodedLoaders.cpp
 #  resources/ResourceManager.cpp
   resources/ModificationContainer.cpp
-  resources/ComponentCreators.cpp
-  resources/ComponentCreator.cpp
+#   resources/ComponentCreators.cpp
+#   resources/ComponentCreator.cpp
   resources/ImageLoader.cpp
+  resources/AnimationLoader.cpp
+  resources/AttributesLoader.cpp
+  resources/EffectsLoader.cpp
+  resources/AbilityTypeLoader.cpp
+  resources/ItemLoader.cpp
+  resources/EntityCreators.cpp
+  resources/EntityLoader.cpp
 )
 set(HDR_LIST
   resources/ResourceParser.h
@@ -511,9 +524,16 @@ set(HDR_LIST
   resources/HardcodedLoaders.h
 #  resources/ResourceManager.h
   resources/ModificationContainer.h
-  resources/ComponentCreators.h
-  resources/ComponentCreator.h
+#   resources/ComponentCreators.h
+#   resources/ComponentCreator.h
   resources/ImageLoader.h
+  resources/AnimationLoader.h
+  resources/AttributesLoader.h
+  resources/EffectsLoader.h
+  resources/AbilityTypeLoader.h
+  resources/ItemLoader.h
+  resources/EntityCreators.h
+  resources/EntityLoader.h
 )
 add_library(resources ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(resources ai sound render physics utils cppfs)
@@ -535,7 +555,7 @@ set(SRC_LIST
   bin/CameraComponent.cpp
   bin/InfoComponent.cpp
   bin/Interactions.cpp 
-  bin/SkillComponent.cpp
+#   bin/SkillComponent.cpp
 #   utils/InventoryComponent.cpp
 )
 set(HDR_LIST
@@ -553,7 +573,7 @@ set(HDR_LIST
   bin/InfoComponent.h
   bin/UserDataComponent.h
   bin/StateController.h
-  bin/SkillComponent.h 
+#   bin/SkillComponent.h 
   bin/Interactions.h
 #   utils/InventoryComponent.h
 )
