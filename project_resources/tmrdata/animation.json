@@ -1,15 +1,45 @@
 {
-  "name": "animation1",
-  "time": 300000,
+  "id": "walking",
   "frames": [
-    "frame1.json",
-    "frame2.json",
-    "frame3.json",
-    "frame4.json"
-  ],
-  "scrolling_dir": {
-    "u": 0.032,
-    "v": 0.46
-  },
-  "scrolling_time": 300000
+    [
+      "n.0",
+      "ne.0",
+      "e.0",
+      "se.0",
+      "s.0",
+      "sw.0",
+      "w.0",
+      "nw.0"
+    ],
+    [
+      "n.1",
+      "ne.1",
+      "e.1",
+      "se.1",
+      "s.1",
+      "sw.1",
+      "w.1",
+      "nw.1"
+    ],
+    [
+      "n.2",
+      "ne.2",
+      "e.2",
+      "se.2",
+      "s.2",
+      "sw.2",
+      "w.2",
+      "nw.2"
+    ],
+    [
+      "n.3",
+      "ne.3",
+      "e.3",
+      "se.3",
+      "s.3",
+      "sw.3",
+      "w.3",
+      "nw.3"
+    ]
+  ]
 }

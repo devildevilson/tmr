@@ -8,5 +8,5 @@ std::string ItemType::name() const { return m_name; }
 std::string ItemType::description() const { return m_description; }
 const std::vector<const Effect*> & ItemType::onPickup() const { return pickupEffects; }
 const std::vector<const Effect*> & ItemType::onTakingWapon() const { return weaponEffects; }
-const std::vector<AbilitySlot> & ItemType::weaponAbilities() const { return weaponAbilitySlots; }
+const std::vector<ItemType::AbilitySlot> & ItemType::weaponAbilities() const { return weaponAbilitySlots; }
 bool ItemType::isWeapon() const { return m_ability == nullptr; }

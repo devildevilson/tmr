@@ -7,8 +7,12 @@
 #include "EntityComponentSystem.h"
 // #include "ComponentCreator.h"
 #include "TypelessContainer.h"
+#include "MemoryPool.h"
 #include "Resource.h"
 #include "LoadingTemporaryData.h"
+#include "EntityCreators.h"
+#include "ResourceContainer.h"
+#include "StateControllerType.h"
 
 #include <unordered_map>
 
@@ -28,6 +32,8 @@ class AttributesLoader;
 class EffectsLoader;
 class ItemTypeLoader;
 class ImageLoader;
+class AnimationLoader;
+class SoundLoader;
 
 class EntityLoader : public Loader, public ResourceParser {
 public:
@@ -114,10 +120,29 @@ public:
       struct Data {
         Type id;
         size_t time;
-        // data
+        Type nextState;
+        Type speedAttribute;
+        bool loop;
+        bool blocked;
+        bool blockedMovement;
+        ResourceID animationId;
+        size_t animationDelay;
+        ResourceID soundId;
+        size_t soundDelay;
+        bool staticSound;
+        bool relative;
+        float scalar;
       };
       
       std::vector<Data> states;
+      Type defaultState;
+    };
+    
+    struct Texture {
+      ResourceID id;
+      size_t index;
+      bool flipU;
+      bool flipV;
     };
     
     struct CreateInfo {
@@ -133,6 +158,7 @@ public:
       Abilities m_abilitiesData;
       Intelligence m_intelligence;
       States m_statesData;
+      Texture m_defaultTexture;
     };
     LoadData(const CreateInfo &info);
     
@@ -146,6 +172,7 @@ public:
     Abilities abilitiesData() const;
     Intelligence intelligence() const;
     States statesData() const;
+    Texture defaultTexture() const;
   private:
     Type m_id;
     
@@ -158,14 +185,17 @@ public:
     Abilities m_abilitiesData;
     Intelligence m_intelligence;
     States m_statesData;
+    Texture m_defaultTexture;
   };
   
   struct CreateInfo {
-    const ImageLoader* imageLoader;
-    const AbilityTypeLoader* abilityTypeLoader;
-    const AttributesLoader* attributesLoader;
-    const EffectsLoader* effectsLoader;
-    const ItemTypeLoader* itemTypeLoader;
+    ImageLoader* imageLoader;
+    SoundLoader* soundLoader;
+    AnimationLoader* animationLoader;
+    AttributesLoader* attributesLoader;
+    EffectsLoader* effectsLoader;
+    AbilityTypeLoader* abilityTypeLoader;
+    ItemTypeLoader* itemTypeLoader;
   };
   EntityLoader(const CreateInfo &info);
   ~EntityLoader();
@@ -200,16 +230,20 @@ private:
   LoadingTemporaryData<LoadData, 10>* tempData;
   
   yacs::world world;
-  size_t containerSize;
-  TypelessContainer* container; // размер получаем из лоада, сонтейнер коздаем в end(), там же создаем непосредственно загрузчики
-  std::vector<EntityCreator*> creatorsPtr;
-  std::unordered_map<Type, const EntityCreator*> entityCreators;
+  MemoryPool<ObjectCreator, sizeof(ObjectCreator)*10> objectCreatorPool;
+  std::vector<ObjectCreator*> creatorsPtr;
+  std::unordered_map<Type, const ObjectCreator*> entityCreators;
+  WallCreator wallCreator;
+
+  ResourceContainerArray<Type, StateControllerType, 10> stateControllerArray;
   
-  const ImageLoader* imageLoader;
-  const AbilityTypeLoader* abilityTypeLoader;
-  const AttributesLoader* attributesLoader;
-  const EffectsLoader* effectsLoader;
-  const ItemTypeLoader* itemTypeLoader;
+  ImageLoader* imageLoader;
+  AbilityTypeLoader* abilityTypeLoader;
+  AttributesLoader* attributesLoader;
+  EffectsLoader* effectsLoader;
+  ItemTypeLoader* itemTypeLoader;
+  AnimationLoader* animationLoader;
+  SoundLoader* soundLoader;
   
   size_t findTempData(const ResourceID &id) const;
 };

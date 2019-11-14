@@ -127,6 +127,7 @@ void ModificationContainer::parseModification(const Modification* mod) {
       for (auto parser : parsers) {
         for (auto dataIt = itr.value().begin(); dataIt != itr.value().end(); ++dataIt) {
           if (parser->canParse(dataIt.key())) {
+            std::cout << "Parsing " << dataIt.key() << "\n";
             // этот парсер нужно поставить как текущий
 
             // если обрабатываем zip то мы должны передать указатель на него, вместо префикса

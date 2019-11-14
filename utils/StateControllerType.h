@@ -4,8 +4,12 @@
 #include "Type.h"
 #include "ResourceID.h"
 #include "Interaction.h"
+#include "TypelessContainer.h"
 
 #include <vector>
+
+template <typename T>
+class AttributeType;
 
 struct StateFlags {
   uint32_t container;
@@ -17,9 +21,31 @@ struct StateFlags {
   bool blocking() const;
   bool blockingMovement() const;
   bool looping() const;
-  bool useWeapon() const;
-  bool useItem() const;
+  bool useWeapon() const; // уходит
+  bool useItem() const;   // уходит
 };
+
+// нужно ли вводить половинки направлений от игрока
+// ну и я в итоге прихожу к пониманию что мне везде нужно вставить определяемую в рантайме функцию 
+// чтобы не заниматься этой херней, хоть бы функции на луа не были очень медленными
+// мне нужны эти функции в нескольких местах, например в абилке
+// но тут чаще всего мне нужен скаляр который означает расстояние от игрока в сторону того куда он смотрит
+// иные направления скорее всего будут не нужны
+// enum class dir {
+//   forward,
+//   backward,
+//   right,
+//   left,
+//   
+//   north,
+//   half_east,
+//   east,
+//   half_south,
+//   south,
+//   half_west,
+//   west,
+//   half_north
+// };
 
 // посмотрим что еще сюда можно добавить
 // + я хотел бликорование вынести в аттрибуты
@@ -31,8 +57,14 @@ struct StateDataCreateInfo {
 
   ResourceID animation;
   ResourceID sound;
-//  enum Interaction::type interactionType;
-//  Type interactionEvent;
+  
+  bool constantSound;
+  bool relative;
+  float scalar;
+  size_t animationDelay;
+  size_t soundDelay;
+  
+  const AttributeType<float>* speedModificator;
 
   Type state;
   Type nextState; // смысла в нахождении нет
@@ -42,26 +74,17 @@ struct StateData {
   StateFlags flags;
 
   size_t time;
-
-  // часть вещей мы должны взять из оружия
-  // точнее большую часть вещей
-  ResourceID animation;
-  ResourceID sound;
-  // тут еще поди может потребоваться указать relative sound pos
-
-  // нужны доп данные для анимаций и звука
-
-//   size_t animationDelay;
-//   size_t soundDelay;
-//   size_t interactionDelay;
-
-//  enum Interaction::type interactionType;
-//  Type interactionEvent;
-  // двигать оружее по синусоиде - анимационный компонент
-  // все анимационные состояния должны быть в оружии
-  // смена оружия? тоже анимация но при этом разбита на два этапа
-  // запускаем одну анимацию, после меняем указатель, запускаем другую анимацию
-  // как вызвать интеракцию? просто флажок поставить? ну требование оч простое
+  
+  ResourceID animation; // делэй? может пригодиться
+  ResourceID sound; 
+  
+  bool constantSound; // звук не меняет положение в зависимости от положения энтити
+  bool relative;
+  float scalar; // как это задать? скорее всего нас будет интересовать не абсолютная позиция, а скаляр + направление в зависимости от положения источника
+  size_t animationDelay;
+  size_t soundDelay;
+  
+  const AttributeType<float>* speedModificator;
 
   Type state;
   const StateData* nextState;
@@ -71,7 +94,7 @@ class StateControllerType {
 public:
   struct CreateInfo {
     std::vector<StateDataCreateInfo> states;
-    size_t defaultIndex;
+    Type defaultState;
     std::vector<std::pair<Type, Type>> aliases;
   };
   StateControllerType(const CreateInfo &info);
@@ -80,9 +103,13 @@ public:
   const StateData* state(const Type &state) const;
   size_t statesCount() const;
 private:
-  StateData* defaultStatePtr;
-  std::unordered_map<Type, StateData> states;
-  std::unordered_map<Type, const StateData*> aliases;
+  TypelessContainer container;
+  
+  const StateData* defaultStatePtr;
+  std::vector<StateData*> states;
+  std::vector<std::pair<Type,const StateData*>> aliases;
+  
+  size_t findState(const Type &type) const;
 };
 
 #endif //STATE_CONTROLLER_TYPE_H

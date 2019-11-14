@@ -69,7 +69,7 @@ public:
   static LoadData::Side parseSideString(const std::string &str);
   
   struct CreateInfo {
-    const ImageLoader* imageLoader;
+    ImageLoader* imageLoader;
   };
   AnimationLoader(const CreateInfo &info);
   ~AnimationLoader();
@@ -104,10 +104,9 @@ public:
   // я тут подумал, а че с конфликтами? их то как делать? понятие не имею
   // видимо придется делать в самих загрузчиках конфликты 
 private:
-  const ImageLoader* imageLoader;
+  ImageLoader* imageLoader;
   
   LoadingTemporaryData<LoadData, 30>* tempData;
-  
   
   size_t findTempData(const ResourceID &id) const;
 };

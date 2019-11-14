@@ -17,6 +17,9 @@
 
 #define TEXTURE_MAX_LAYER_COUNT 2048
 #define IMAGE_POOL_MAX_TEXTURE_LAYER_COUNT uint32_t(512)
+// мне нужно прикинуть так чтобы я держал в одном пуле целого монстра для кеширования
+// пока я не доделаю полностью ресурсы монстров я не смогу этого посчитать пока оставим так
+#define CONCRETE_TEXTURE_LAYER_COUNT 64
 
 VK_DEFINE_HANDLE(VkDescriptorPool)
 
@@ -117,6 +120,8 @@ struct SamplerContainerData {
   ResourceID id;
   uint32_t sampler;
 };
+
+void parseTextureDataString(const std::string &str, ResourceID &imageId, size_t &imageIndex, bool &flipU, bool &flipV);
 
 class ImageContainer {
 public:

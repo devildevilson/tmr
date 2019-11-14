@@ -211,8 +211,9 @@ bool AbilityTypeLoader::parse(const Modification* mod,
     
     bool ret = checkJsonAbilityValidity(pathPrefix, data, 12512, info, errors, warnings);
     if (!ret) return false;
+    info.resInfo.resId = ResourceID::get(info.m_id.name());
     
-    auto ptr = tempData->create(info);
+    auto ptr = tempData->container.create(info.resInfo.resId, info);
     resource.push_back(ptr);
     return true;
   }
@@ -223,28 +224,26 @@ bool AbilityTypeLoader::parse(const Modification* mod,
 bool AbilityTypeLoader::forget(const ResourceID &name) {
   if (tempData == nullptr) throw std::runtime_error("Not in loading state");
   
-  const size_t index = findTempData(name);
-  if (index == SIZE_MAX) return false;
+//   const size_t index = findTempData(name);
+//   if (index == SIZE_MAX) return false;
+//   
+//   tempData->dataPool.deleteElement(tempData->dataPtr[index]);
+//   std::swap(tempData->dataPtr[index], tempData->dataPtr.back());
+//   tempData->dataPtr.pop_back();
   
-  tempData->dataPool.deleteElement(tempData->dataPtr[index]);
-  std::swap(tempData->dataPtr[index], tempData->dataPtr.back());
-  tempData->dataPtr.pop_back();
-  
-  return true;
+  return tempData->container.destroy(name);
 }
 
 Resource* AbilityTypeLoader::getParsedResource(const ResourceID &id) {
   if (tempData == nullptr) throw std::runtime_error("Not in loading state");
   
-  const size_t index = findTempData(id);
-  return index == SIZE_MAX ? nullptr : tempData->dataPtr[index];
+  return tempData->container.get(id);
 }
 
 const Resource* AbilityTypeLoader::getParsedResource(const ResourceID &id) const {
   if (tempData == nullptr) throw std::runtime_error("Not in loading state");
   
-  const size_t index = findTempData(id);
-  return index == SIZE_MAX ? nullptr : tempData->dataPtr[index];
+  return tempData->container.get(id);
 }
 
 bool AbilityTypeLoader::load(const ModificationParser* modifications, const Resource* resource) {
@@ -252,15 +251,124 @@ bool AbilityTypeLoader::load(const ModificationParser* modifications, const Reso
   
   // скорее всего нужно грузить все же в end(), причем все лоадеры так должны делать без исключения
   // то есть здесь мы должны запомнить указатели которые к нам пришли
+  // нет грузить мы должны по возможности в этом методе
+  
+  const Type id = Type::get(resource->id().name());
+  auto itr = abilityTypes.find(id);
+  if (itr != abilityTypes.end()) return true;
   
   for (auto data : tempData->dataToLoad) {
     if (data->id() == resource->id()) return true;
   }
   
-  const size_t index = findTempData(resource->id());
-  if (index == SIZE_MAX) return false;
+  //const size_t index = findTempData(resource->id());
+  //if (index == SIZE_MAX) return false;
+  auto ptr = tempData->container.get(resource->id());
+  if (ptr == nullptr) return false;
+  //tempData->dataToLoad.push_back(tempData->dataPtr[index]);
   
-  tempData->dataToLoad.push_back(tempData->dataPtr[index]);
+  if (ptr->weapon().valid()) {
+    // айтем тайп мы здесь не можем найти так как он выше по иерархии
+    // нужно просто передать id
+    
+    
+    
+    return true;
+  }
+  
+  auto transItr = transFuncs.find(ptr->entityCreateData().transformComputeFunction);
+  auto attribsItr = attribsFuncs.find(ptr->entityCreateData().attributesComputeFunction);
+  
+  // к этому моменту мы должны уже загрузить все необходимые эффекты
+  std::vector<const Effect*> effects(ptr->effects().size());
+  for (size_t i = 0; i < ptr->effects().size(); ++i) {
+    const bool ret = effectsLoader->load(nullptr, effectsLoader->getParsedResource(ptr->effects()[i]));
+    if (!ret) throw std::runtime_error("Could not load effect "+ptr->effects()[i].name());
+    
+    const Type effectId = Type::get(ptr->effects()[i].name());
+    effects[i] = effectsLoader->getEffect(effectId);
+    if (effects[i] == nullptr) throw std::runtime_error("Could not find effect "+ptr->effects()[i].name());
+  }
+  
+  // нужно ли с помощью ресурсов обращаться к аттрибутам, или с помощью типов? лучше типами
+  std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> intAttribs;
+  std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> floatAttribs;
+  for (const auto &attrib : ptr->entityCreateData().attributesList) {
+    const bool ret = attribLoader->load(nullptr, attribLoader->getParsedResource(attrib.attribute));
+    if (!ret) throw std::runtime_error("Could not load attribute "+attrib.attribute.name());
+    
+    const Type attribId = Type::get(attrib.attribute.name());
+    auto floatAttrib = attribLoader->getFloatType(attribId);
+    if (floatAttrib != nullptr) {
+      floatAttribs.push_back({floatAttrib, FLOAT_ATTRIBUTE_TYPE(attrib.value)});
+      continue;
+    }
+    
+    auto intAttrib = attribLoader->getIntType(attribId);
+    if (intAttrib != nullptr) {
+      intAttribs.push_back({intAttrib, INT_ATTRIBUTE_TYPE(attrib.value)});
+      continue;
+    }
+    
+    throw std::runtime_error("Could not find attribute type "+attrib.attribute.name());
+  }
+  
+  {
+    const bool ret = attribLoader->load(nullptr, attribLoader->getParsedResource(ptr->costs(0).attribute));
+    if (!ret) throw std::runtime_error("Could not load attribute "+ptr->costs(0).attribute.name());
+  }
+  
+  {
+    const bool ret = attribLoader->load(nullptr, attribLoader->getParsedResource(ptr->costs(0).attribute));
+    if (!ret) throw std::runtime_error("Could not load attribute "+ptr->costs(0).attribute.name());
+  }
+  
+  {
+    const bool ret = attribLoader->load(nullptr, attribLoader->getParsedResource(ptr->costs(0).attribute));
+    if (!ret) throw std::runtime_error("Could not load attribute "+ptr->costs(0).attribute.name());
+  }
+  
+  const AbilityCost cost1{
+    ptr->costs(0).attribute.valid() ? attribLoader->getIntType(Type::get(ptr->costs(0).attribute.name())) : nullptr,
+    ptr->costs(0).cost
+  };
+  const AbilityCost cost2{
+    ptr->costs(1).attribute.valid() ? attribLoader->getIntType(Type::get(ptr->costs(1).attribute.name())) : nullptr,
+    ptr->costs(1).cost
+  };
+  const AbilityCost cost3{
+    ptr->costs(2).attribute.valid() ? attribLoader->getIntType(Type::get(ptr->costs(2).attribute.name())) : nullptr,
+    ptr->costs(2).cost
+  };
+  
+  if (ptr->costs(0).attribute.valid() && cost1.type == nullptr) throw std::runtime_error("Could not find attribute type "+ptr->costs(0).attribute.name());
+  if (ptr->costs(1).attribute.valid() && cost2.type == nullptr) throw std::runtime_error("Could not find attribute type "+ptr->costs(1).attribute.name());
+  if (ptr->costs(2).attribute.valid() && cost3.type == nullptr) throw std::runtime_error("Could not find attribute type "+ptr->costs(2).attribute.name());
+  
+  const AbilityType::CreateInfo info{
+    ptr->abilityId(),
+    AbilityTypeT(ptr->entityCreateData().inheritTransform, ptr->entityCreateData().inheritEffects, ptr->entityCreateData().inheritAttributes, false),
+    ptr->name(),
+    ptr->description(),
+    cost1,
+    cost2,
+    cost3,
+    nullptr,
+    ptr->entityCreateData().impactEvent,
+    ptr->castTime(),
+    ptr->cooldown(),
+    ptr->entityCreateData().delayTime,
+    // указатель на создание энтити, должен быть не указатель, а тип
+    Type::get(ptr->entityCreateData().entityType.name()),
+    transItr == transFuncs.end() ? nullptr : transItr->second,
+    attribsItr == attribsFuncs.end() ? nullptr : attribsItr->second,
+    effects,
+    intAttribs,
+    floatAttribs
+  };
+  auto ability = abilityTypePool.newElement(info);
+  abilityTypePtr.push_back(ability);
+  abilityTypes[info.abilityId] = ability;
   
   return true;
 }
@@ -282,84 +390,84 @@ bool AbilityTypeLoader::unload(const ResourceID &id) {
 void AbilityTypeLoader::end() {
   if (tempData == nullptr) throw std::runtime_error("Not in loading state");
   
-  for (auto ptr : tempData->dataToLoad) {
-    if (ptr->weapon().valid()) {
-      // мы должны найти айтем тайп, данные о энтити можно проигнорировать
-      
-      continue;
-    }
-    
-    auto transItr = transFuncs.find(ptr->entityCreateData().transformComputeFunction);
-    auto attribsItr = attribsFuncs.find(ptr->entityCreateData().attributesComputeFunction);
-    
-    // к этому моменту мы должны уже загрузить все необходимые эффекты
-    std::vector<const Effect*> effects(ptr->effects().size());
-    for (size_t i = 0; i < ptr->effects().size(); ++i) {
-      effects[i] = effectsLoader->getEffect(Type::get(ptr->effects()[i].name()));
-      if (effects[i] == nullptr) throw std::runtime_error("Could not find effect "+ptr->effects()[i].name());
-    }
-    
-    // нужно ли с помощью ресурсов обращаться к аттрибутам, или с помощью типов? лучше типами
-    std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> intAttribs;
-    std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> floatAttribs;
-    for (const auto &attrib : ptr->entityCreateData().attributesList) {
-      auto floatAttrib = attribLoader->getFloatType(Type::get(attrib.attribute.name()));
-      if (floatAttrib != nullptr) {
-        floatAttribs.push_back({floatAttrib, FLOAT_ATTRIBUTE_TYPE(attrib.value)});
-        continue;
-      }
-      
-      auto intAttrib = attribLoader->getIntType(Type::get(attrib.attribute.name()));
-      if (intAttrib != nullptr) {
-        intAttribs.push_back({intAttrib, INT_ATTRIBUTE_TYPE(attrib.value)});
-        continue;
-      }
-      
-      throw std::runtime_error("Could not find attribute type "+attrib.attribute.name());
-    }
-    
-    const AbilityCost cost1{
-      ptr->costs(0).attribute.valid() ? attribLoader->getIntType(Type::get(ptr->costs(0).attribute.name())) : nullptr,
-      ptr->costs(0).cost
-    };
-    const AbilityCost cost2{
-      ptr->costs(1).attribute.valid() ? attribLoader->getIntType(Type::get(ptr->costs(1).attribute.name())) : nullptr,
-      ptr->costs(1).cost
-    };
-    const AbilityCost cost3{
-      ptr->costs(2).attribute.valid() ? attribLoader->getIntType(Type::get(ptr->costs(2).attribute.name())) : nullptr,
-      ptr->costs(2).cost
-    };
-    
-    if (ptr->costs(0).attribute.valid() && cost1.type == nullptr) throw std::runtime_error("Could not find attribute type "+ptr->costs(0).attribute.name());
-    if (ptr->costs(1).attribute.valid() && cost2.type == nullptr) throw std::runtime_error("Could not find attribute type "+ptr->costs(1).attribute.name());
-    if (ptr->costs(2).attribute.valid() && cost3.type == nullptr) throw std::runtime_error("Could not find attribute type "+ptr->costs(2).attribute.name());
-    
-    const AbilityType::CreateInfo info{
-      ptr->abilityId(),
-      AbilityTypeT(ptr->entityCreateData().inheritTransform, ptr->entityCreateData().inheritEffects, ptr->entityCreateData().inheritAttributes, false),
-      ptr->name(),
-      ptr->description(),
-      cost1,
-      cost2,
-      cost3,
-      nullptr,
-      ptr->entityCreateData().impactEvent,
-      ptr->castTime(),
-      ptr->cooldown(),
-      ptr->entityCreateData().delayTime,
-      // указатель на создание энтити, должен быть не указатель, а тип
-      Type::get(ptr->entityCreateData().entityType.name()),
-      transItr == transFuncs.end() ? nullptr : transItr->second,
-      attribsItr == attribsFuncs.end() ? nullptr : attribsItr->second,
-      effects,
-      intAttribs,
-      floatAttribs
-    };
-    auto ability = abilityTypePool.newElement(info);
-    abilityTypePtr.push_back(ability);
-    abilityTypes[info.abilityId] = ability;
-  }
+//   for (auto ptr : tempData->dataToLoad) {
+//     if (ptr->weapon().valid()) {
+//       // мы должны найти айтем тайп, данные о энтити можно проигнорировать
+//       
+//       continue;
+//     }
+//     
+//     auto transItr = transFuncs.find(ptr->entityCreateData().transformComputeFunction);
+//     auto attribsItr = attribsFuncs.find(ptr->entityCreateData().attributesComputeFunction);
+//     
+//     // к этому моменту мы должны уже загрузить все необходимые эффекты
+//     std::vector<const Effect*> effects(ptr->effects().size());
+//     for (size_t i = 0; i < ptr->effects().size(); ++i) {
+//       effects[i] = effectsLoader->getEffect(Type::get(ptr->effects()[i].name()));
+//       if (effects[i] == nullptr) throw std::runtime_error("Could not find effect "+ptr->effects()[i].name());
+//     }
+//     
+//     // нужно ли с помощью ресурсов обращаться к аттрибутам, или с помощью типов? лучше типами
+//     std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> intAttribs;
+//     std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> floatAttribs;
+//     for (const auto &attrib : ptr->entityCreateData().attributesList) {
+//       auto floatAttrib = attribLoader->getFloatType(Type::get(attrib.attribute.name()));
+//       if (floatAttrib != nullptr) {
+//         floatAttribs.push_back({floatAttrib, FLOAT_ATTRIBUTE_TYPE(attrib.value)});
+//         continue;
+//       }
+//       
+//       auto intAttrib = attribLoader->getIntType(Type::get(attrib.attribute.name()));
+//       if (intAttrib != nullptr) {
+//         intAttribs.push_back({intAttrib, INT_ATTRIBUTE_TYPE(attrib.value)});
+//         continue;
+//       }
+//       
+//       throw std::runtime_error("Could not find attribute type "+attrib.attribute.name());
+//     }
+//     
+//     const AbilityCost cost1{
+//       ptr->costs(0).attribute.valid() ? attribLoader->getIntType(Type::get(ptr->costs(0).attribute.name())) : nullptr,
+//       ptr->costs(0).cost
+//     };
+//     const AbilityCost cost2{
+//       ptr->costs(1).attribute.valid() ? attribLoader->getIntType(Type::get(ptr->costs(1).attribute.name())) : nullptr,
+//       ptr->costs(1).cost
+//     };
+//     const AbilityCost cost3{
+//       ptr->costs(2).attribute.valid() ? attribLoader->getIntType(Type::get(ptr->costs(2).attribute.name())) : nullptr,
+//       ptr->costs(2).cost
+//     };
+//     
+//     if (ptr->costs(0).attribute.valid() && cost1.type == nullptr) throw std::runtime_error("Could not find attribute type "+ptr->costs(0).attribute.name());
+//     if (ptr->costs(1).attribute.valid() && cost2.type == nullptr) throw std::runtime_error("Could not find attribute type "+ptr->costs(1).attribute.name());
+//     if (ptr->costs(2).attribute.valid() && cost3.type == nullptr) throw std::runtime_error("Could not find attribute type "+ptr->costs(2).attribute.name());
+//     
+//     const AbilityType::CreateInfo info{
+//       ptr->abilityId(),
+//       AbilityTypeT(ptr->entityCreateData().inheritTransform, ptr->entityCreateData().inheritEffects, ptr->entityCreateData().inheritAttributes, false),
+//       ptr->name(),
+//       ptr->description(),
+//       cost1,
+//       cost2,
+//       cost3,
+//       nullptr,
+//       ptr->entityCreateData().impactEvent,
+//       ptr->castTime(),
+//       ptr->cooldown(),
+//       ptr->entityCreateData().delayTime,
+//       // указатель на создание энтити, должен быть не указатель, а тип
+//       Type::get(ptr->entityCreateData().entityType.name()),
+//       transItr == transFuncs.end() ? nullptr : transItr->second,
+//       attribsItr == attribsFuncs.end() ? nullptr : attribsItr->second,
+//       effects,
+//       intAttribs,
+//       floatAttribs
+//     };
+//     auto ability = abilityTypePool.newElement(info);
+//     abilityTypePtr.push_back(ability);
+//     abilityTypes[info.abilityId] = ability;
+//   }
   
   // основная проблема это конечно перекрестное использование ресурсов
   // наверное стоит держать тип энтити в виде типа
@@ -390,9 +498,9 @@ const AbilityType* AbilityTypeLoader::getAbilityType(const Type &id) const {
 }
 
 size_t AbilityTypeLoader::findTempData(const ResourceID &id) const {
-  for (size_t i = 0; i < tempData->dataPtr.size(); ++i) {
-    if (tempData->dataPtr[i]->id() == id) return i;
-  }
-  
-  return SIZE_MAX;
+//   for (size_t i = 0; i < tempData->dataPtr.size(); ++i) {
+//     if (tempData->dataPtr[i]->id() == id) return i;
+//   }
+//   
+//   return SIZE_MAX;
 }

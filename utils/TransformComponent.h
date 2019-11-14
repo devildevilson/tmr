@@ -10,14 +10,10 @@
 class TransformComponent : public Editable {
 public:
   static void setContainer(Container<Transform>* container);
-//  static void setPrevContainer(Container<Transform>* prevContainer);
   
   TransformComponent();
   TransformComponent(const simd::vec4 &pos, const simd::vec4 &rot, const simd::vec4 &scale);
   ~TransformComponent();
-  
-//  void update(const size_t &time = 0) override;
-//  void init(void* userData) override;
   
   void uiDraw() override;
   
@@ -31,6 +27,14 @@ public:
   simd::vec4 & scale();
 
   uint32_t index() const;
+  
+  // как будет выглядеть сериализация? 2 функции, обходим компоненты при сохранении
+  // нам бы писать сначало в память все данные, затем компресить с помощью zlib, и в конце дампить на диск
+  // все это выполнимо, protobuf работает со с++ строками, он сам интересно увеличивает их размер?
+  // протобаф может записывать в напрямую в память, по идее мы должны написать сообщения для каждого компонента который нуждается в сериализации
+  // обходим каждого, записываем данные в память, как загружать? по идее нужно создать необходимое количество энтити и дальше что?
+  // как мы узнаем что лежит в буфере? по идее мы должны расставлять всякие метки, с другой стороны повторяющиеся объекты можно засовывать 
+  // в отдельные сообщения, то есть например все трансформы сначало, потом другие компоненты. не уверен что это нормально...
 private:
   uint32_t transformIndex;
 

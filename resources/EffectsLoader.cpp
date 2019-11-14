@@ -3,6 +3,8 @@
 #include <fstream>
 #include <iostream>
 
+#include "AttributesLoader.h"
+
 EffectsLoader::LoadData::LoadData(const CreateInfo &info) 
   : Resource(info.resInfo), 
     m_id(info.m_id), 
@@ -10,9 +12,9 @@ EffectsLoader::LoadData::LoadData(const CreateInfo &info)
     m_description(info.m_description), 
     m_baseEffectTime(info.m_baseEffectTime), 
     m_periodTime(info.m_periodTime), 
-    m_type(info.m_type), 
     m_bonuses(info.m_bonuses), 
     m_mods(info.m_mods), 
+    m_type(info.m_type),
     m_computeFuncPath(info.m_computeFuncPath), 
     m_resistFuncPath(info.m_resistFuncPath) {}
     
@@ -21,8 +23,8 @@ std::string EffectsLoader::LoadData::name() const { return m_name; }
 std::string EffectsLoader::LoadData::description() const { return m_description; }
 size_t EffectsLoader::LoadData::baseEffectTime() const { return m_baseEffectTime; }
 size_t EffectsLoader::LoadData::periodTime() const { return m_periodTime; }
-const std::vector<BonusType> & EffectsLoader::LoadData::bonuses() const { return m_bonuses; }
-const std::vector<Modificator> & EffectsLoader::LoadData::mods() const { return m_mods; }
+const std::vector<EffectsLoader::LoadData::BonusType> & EffectsLoader::LoadData::bonuses() const { return m_bonuses; }
+const std::vector<EffectsLoader::LoadData::Modificator> & EffectsLoader::LoadData::mods() const { return m_mods; }
 EffectType EffectsLoader::LoadData::type() const { return m_type; }
 std::string EffectsLoader::LoadData::computeFuncPath() const { return m_computeFuncPath; }
 std::string EffectsLoader::LoadData::resistFuncPath() const { return m_resistFuncPath; }
@@ -73,13 +75,10 @@ bool checkEffectJsonValidity(const std::string &pathPrefix, const std::string &p
     
     if (concreteTIt.value().is_array() && concreteTIt.key() == "effect_bonuses") {
       for (size_t i = 0; i < concreteTIt.value().size(); ++i) {
-        BonusType bonus;
+        EffectsLoader::LoadData::BonusType bonus;
         for (auto itr = concreteTIt.value()[i].begin(); itr != concreteTIt.value()[i].end(); ++itr) {
           if (itr.value().is_string() && itr.key() == "attribute_type") {
-            auto typef = AttributeType<FLOAT_ATTRIBUTE_TYPE>::get(itr.value().get<std::string>());
-            if (typef.valid()) bonus.type = TypelessAttributeType(typef);
-            auto typei = AttributeType<INT_ATTRIBUTE_TYPE>::get(itr.value().get<std::string>());
-            if (typei.valid()) bonus.type = TypelessAttributeType(typei);
+            bonus.attribId = ResourceID::get(itr.value().get<std::string>());
           }
           
           if (itr.value().is_number() && itr.key() == "add") {
@@ -128,7 +127,7 @@ bool checkEffectJsonValidity(const std::string &pathPrefix, const std::string &p
           }
           
           if (itr.value().is_number() && itr.key() == "effect") {
-            mod.effectId = Type::get(itr.value().get<std::string>());
+            mod.effectId = ResourceID::get(itr.value().get<std::string>());
           }
         }
         
@@ -178,7 +177,7 @@ bool checkEffectJsonValidity(const std::string &pathPrefix, const std::string &p
   return true;
 }
 
-EffectsLoader::EffectsLoader(const CreateInfo &info) : tempData(nullptr), hardcodedComputeFunc(info.hardcodedComputeFunc), hardcodedResistFunc(info.hardcodedResistFunc) {}
+EffectsLoader::EffectsLoader(const CreateInfo &info) : tempData(nullptr), attributesLoader(info.attributesLoader), hardcodedComputeFunc(info.hardcodedComputeFunc), hardcodedResistFunc(info.hardcodedResistFunc) {}
 EffectsLoader::~EffectsLoader() {}
 
 bool EffectsLoader::canParse(const std::string &key) const {
@@ -212,7 +211,7 @@ bool EffectsLoader::parse(const Modification* mod,
           info.resInfo.resSize = sizeof(Effect);
           info.resInfo.resGPUSize = 0;
           info.resInfo.parsedBy = this;
-          info.resInfo.mod = mod
+          info.resInfo.mod = mod;
           info.m_baseEffectTime = info.m_baseEffectTime == 0 ? SIZE_MAX : info.m_baseEffectTime;
           
           auto loadData = tempData->dataPool.newElement(info);
@@ -224,14 +223,14 @@ bool EffectsLoader::parse(const Modification* mod,
     return true;
   } else if (data.is_object()) {
     EffectsLoader::LoadData::CreateInfo info = {};
-    const bool valid = checkEffectJsonValidity(pathPrefix, "", itr.value(), 1234, info, errors, warnings);
+    const bool valid = checkEffectJsonValidity(pathPrefix, "", data, 1234, info, errors, warnings);
     if (valid) {
       info.resInfo.resId = ResourceID(info.m_id.name());
       info.resInfo.pathStr = "";
       info.resInfo.resSize = sizeof(Effect);
       info.resInfo.resGPUSize = 0;
       info.resInfo.parsedBy = this;
-      info.resInfo.mod = mod
+      info.resInfo.mod = mod;
       info.m_baseEffectTime = info.m_baseEffectTime == 0 ? SIZE_MAX : info.m_baseEffectTime;
       
       auto loadData = tempData->dataPool.newElement(info);
@@ -287,6 +286,12 @@ bool EffectsLoader::load(const ModificationParser* modifications, const Resource
   // проверяем загрузили ли мы уже этот ресурс
   // проверяем есть ли распарсенный эффект для модификатора
   
+  if (resource->parser() != this) return false;
+  
+  Type id = Type::get(resource->id().name());
+  auto e = getEffect(id);
+  if (e != nullptr) return true;
+  
   LoadData* res = nullptr;
   for (size_t i = 0; i < tempData->datasPtr.size(); ++i) {
     if (tempData->datasPtr[i] == resource) res = tempData->datasPtr[i];
@@ -295,10 +300,54 @@ bool EffectsLoader::load(const ModificationParser* modifications, const Resource
   if (res == nullptr) return false;
   
   // нужно переделать так чтобы это дело вычислялось в парсинге
+  // это я должен видимо делать при валидации
   for (const auto &mod : res->mods()) {
-    auto ptr = getEffectResource(mod.effectId);
+    auto ptr = getParsedResource(mod.effectId);
     if (ptr == nullptr) throw std::runtime_error("Could not find effect modificator with id: "+mod.effectId.name());
   }
+  
+  std::vector<BonusType> bonuses(res->bonuses().size());
+  for (size_t i = 0; i < res->bonuses().size(); ++i) {
+    const bool ret = attributesLoader->load(nullptr, attributesLoader->getParsedResource(res->bonuses()[i].attribId));
+    if (!ret) throw std::runtime_error("Could not load attribute "+res->bonuses()[i].attribId.name());
+    
+    Type attribId = Type::get(res->bonuses()[i].attribId.name());
+    auto attribFloat = attributesLoader->getFloatType(attribId);
+    if (attribFloat != nullptr) {
+      bonuses[i].bonus = res->bonuses()[i].bonus;
+      bonuses[i].type = TypelessAttributeType(attribFloat);
+      continue;
+    }
+    
+    auto attribInt = attributesLoader->getIntType(attribId);
+    if (attribInt != nullptr) {
+      bonuses[i].bonus = res->bonuses()[i].bonus;
+      bonuses[i].type = TypelessAttributeType(attribInt);
+      continue;
+    }
+    
+    throw std::runtime_error("Could not find attribute "+attribId.name());
+  }
+  
+  auto computeItr = hardcodedComputeFunc.find(res->computeFuncPath());
+  auto resistItr = hardcodedResistFunc.find(res->resistFuncPath());
+  
+  const Effect::CreateInfo info{
+    res->effectId(),
+    res->type(),
+    res->baseEffectTime(),
+    res->periodTime(),
+    res->name(),
+    res->description(),
+    bonuses,
+    // для того чтобы заполнить модификаторы, нужно сначала создать эффекты
+    // функции пока что будем хардкодить
+    computeItr != hardcodedComputeFunc.end() ? computeItr->second : nullptr,
+    resistItr != hardcodedResistFunc.end() ? resistItr->second : nullptr
+  };
+  auto effect = effectsPool.newElement(info);
+  effectsPtr.push_back(effect);
+  effects[effect->id()] = effect;
   
   return true;
 }
@@ -306,14 +355,25 @@ bool EffectsLoader::load(const ModificationParser* modifications, const Resource
 bool EffectsLoader::unload(const ResourceID &id) {
   if (tempData == nullptr) throw std::runtime_error("Not in loading state");
   
-  for (size_t i = 0; i < tempData->datasPtr.size(); ++i) {
-    if (tempData->datasPtr[i]->id() == id) {
-      tempData->dataPool.deleteElement(tempData->datasPtr[i]);
-      std::swap(tempData->datasPtr[i], tempData->datasPtr.back());
-      tempData->datasPtr.pop_back();
+  Type type = Type::get(id.name());
+  for (size_t i = 0; i < effectsPtr.size(); ++i) {
+    if (type == effectsPtr[i]->id()) {
+      effectsPool.deleteElement(effectsPtr[i]);
+      effects.erase(type);
+      std::swap(effectsPtr[i], effectsPtr.back());
+      effectsPtr.pop_back();
       return true;
     }
   }
+  
+//   for (size_t i = 0; i < tempData->datasPtr.size(); ++i) {
+//     if (tempData->datasPtr[i]->id() == id) {
+//       tempData->dataPool.deleteElement(tempData->datasPtr[i]);
+//       std::swap(tempData->datasPtr[i], tempData->datasPtr.back());
+//       tempData->datasPtr.pop_back();
+//       return true;
+//     }
+//   }
   
   return false;
 }
@@ -321,32 +381,20 @@ bool EffectsLoader::unload(const ResourceID &id) {
 void EffectsLoader::end() {
   if (tempData == nullptr) throw std::runtime_error("Not in loading state");
   
-  for (auto effectRes : tempData->datasPtr) {
-    auto computeItr = hardcodedComputeFunc.find(effectRes->computeFuncPath());
-    auto resistItr = hardcodedResistFunc.find(effectRes->resistFuncPath());
-    
-    const Effect::CreateInfo info{
-      effectRes->effectId(),
-      effectRes->type(),
-      effectRes->baseEffectTime(),
-      effectRes->periodTime(),
-      effectRes->name(),
-      effectRes->description(),
-      effectRes->bonuses(),
-      // для того чтобы заполнить модификаторы, нужно сначала создать эффекты
-      // функции пока что будем хардкодить
-      computeItr != hardcodedComputeFunc.end() ? computeItr->second : nullptr,
-      resistItr != hardcodedResistFunc.end() ? resistItr->second : nullptr
-    };
-    auto effect = effectsPool.newElement(info);
-    effectsPtr.push_back(effect);
-    effects[effect->id()] = effect;
-  }
+//   for (auto effectRes : tempData->datasPtr) {
+//     
+//   }
   
   for (auto effectRes : tempData->datasPtr) {
     std::vector<Effect::EventModificator> mods(effectRes->mods().size());
     for (size_t i = 0; i < effectRes->mods().size(); ++i) {
-      mods[i] = {effectRes->mods()[i].event, effects[effectRes->mods()[i].effectId]};
+      const bool ret = load(nullptr, getParsedResource(effectRes->mods()[i].effectId));
+      if (!ret) throw std::runtime_error("Could not load effect "+effectRes->mods()[i].effectId.name());
+      
+      const Type id = Type::get(effectRes->mods()[i].effectId.name());
+      auto itr = effects.find(id);
+      if (itr == effects.end()) throw std::runtime_error("Could not load effect "+effectRes->mods()[i].effectId.name());
+      mods[i] = {effectRes->mods()[i].event, itr->second};
     }
     
     // добавляем модификаторы в эффект

@@ -165,12 +165,15 @@ private:
   std::unordered_map<Type, const yacs::entity*> types;
 };
 
+class EntityLoader;
+
 class HardcodedMapLoader : public Loader, public ResourceParser {
 public:
   struct CreateInfo {
     yavf::Device* device;
     
-    HardcodedEntityLoader* entityLoader;
+    //HardcodedEntityLoader* entityLoader;
+    EntityLoader* entityLoader;
     ImageLoader* loader;
   };
   
@@ -204,25 +207,26 @@ public:
   
   yavf::Buffer* mapVertices() const;
   yavf::Buffer* mapIndices() const;
+  
+  yacs::entity* getPlayer() const;
+  TransformComponent* getPlayerTransform() const;
+  CameraComponent* getCamera() const;
+  UserInputComponent* getInput() const;
+  EntityAI* getEntityBrain() const;
 private:
   std::atomic<size_t> state;
   
   yavf::Device* device;
   
-  // тут тоже должен быть YACS::World
-  // то есть нужно его передавть по указателю
-  // или совместить загрузку энтити с загрузкой карты?
-  // мне кажется что совмещение - плохая идея
+  yacs::entity* player;
+  TransformComponent* playerTransform;
+  CameraComponent* camera;
+  UserInputComponent* input;
   
-  // вот что: из загрузчика карты мы должны рассылать команды ЭнтитиЛоадеру,
-  // который в свою очередь будет грузить необходимые нам Энтити,
-  // в которые входят и плоскости карты, то есть туда мы передаем 
-  // данные с карты, например, позиции, текстурки и прочие уникальные для конкретного энтити данные
-  // как правильно задавать уникальные данные? наверное я отвечу на этот вопрос только тогда когда у меня будет 
-  // хоть какая то КАРТА а не obj файл
+  EntityAI* brainAI;
   
   // нужно организовать виртуальный класс для этого
-  HardcodedEntityLoader* entityLoader;
+  EntityLoader* entityLoader;
   ImageLoader* textureLoader;
   
   // здесь у нас буду храниться все вершины карты

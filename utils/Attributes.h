@@ -26,7 +26,7 @@ public:
   AttributeFinder(const size_t &size, T* attribs) noexcept : size(size), attribs(attribs) {}
 
   template <typename AT>
-  T* find(const AT &type) noexcept {
+  T* find(const AT* type) noexcept {
     for (size_t i = 0; i < size; ++i) {
       if (attribs[i].type() == type) return &attribs[i];
     }
@@ -35,9 +35,27 @@ public:
   }
 
   template <typename AT>
-  const T* find(const AT &type) const noexcept {
+  const T* find(const AT* type) const noexcept {
     for (size_t i = 0; i < size; ++i) {
       if (attribs[i].type() == type) return &attribs[i];
+    }
+
+    return nullptr;
+  }
+  
+  template <typename AT>
+  T* find(const AT &type) noexcept {
+    for (size_t i = 0; i < size; ++i) {
+      if (attribs[i].type()->id() == type) return &attribs[i];
+    }
+
+    return nullptr;
+  }
+
+  template <typename AT>
+  const T* find(const AT &type) const noexcept {
+    for (size_t i = 0; i < size; ++i) {
+      if (attribs[i].type()->id() == type) return &attribs[i];
     }
 
     return nullptr;
@@ -81,7 +99,7 @@ public:
   std::string description() const noexcept { return m_description; }
   DataType data_type() const noexcept { return typeOfType; }
   
-  ValueType computeAttribute(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>& float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>& int_finder, const ValueType& current, const ValueType& rawAdd, const FLOAT_ATTRIBUTE_TYPE& rawMul, const ValueType& finalAdd, const FLOAT_ATTRIBUTE_TYPE& finalMul) noexcept {
+  ValueType computeAttribute(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>& float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>& int_finder, const ValueType& current, const ValueType& rawAdd, const FLOAT_ATTRIBUTE_TYPE& rawMul, const ValueType& finalAdd, const FLOAT_ATTRIBUTE_TYPE& finalMul) const noexcept {
     return typeFunction(float_finder, int_finder, current, rawAdd, rawMul, finalAdd, finalMul);
   }
 private:  
@@ -140,7 +158,7 @@ public:
   Attribute() noexcept : baseValue(Type(0)), current(Type(0)), rawBonusValue(Type(0)), finalBonusValue(Type(0)), rawBonusMul(1.0f), finalBonusMul(1.0f) {}
   ~Attribute() = default;
 
-  void setType(const AttributeType<Type> &t) noexcept { this->t = t; }
+  void setType(const AttributeType<Type>* t) noexcept { this->t = t; }
   void setBase(const Type &base) noexcept { baseValue = base; }
   void setValue(const Type &value) noexcept { current = value; }
 

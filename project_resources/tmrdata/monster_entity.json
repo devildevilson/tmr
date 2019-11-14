@@ -1,0 +1,65 @@
+{
+  "id": "monster_entity",
+  "attributes": {
+    "health": 100,
+    "damage": 30.5,
+    "max_speed": 7
+  },
+  "effects": {
+    "attack": "damage_effect"
+  },
+  "weapons": {
+    "slot0": "weapon1"
+  },
+  "inventory": {
+    "item1": 3,
+    "item2": 1,
+  },
+  "initial_weapons???": [
+    "weapon1"
+  ],
+  "initial_weapon_slot???": "slot0",
+  "abilities": {
+    "slot0": {
+      "type": "attack_ability",
+      "state": "attack"
+    },
+    "slot1": {
+      "type": "attack_ability",
+      "state": "attack"
+    }
+  },
+  "intelligence": {
+    "behaviour": "behaviour_tree1",
+    "path_find_function": "dmwpkmv???"
+  },
+  "states": {
+    "default": {
+      "time": 1000000,
+      "next_state": "attack",
+      "speed_attribute": "attack_speed",
+      "loop": true,
+      "blocked": true,
+      "blocked_movement": false,
+      "animation": {
+        "id": "idle",
+        "delay": 12441
+      },
+      "sound": {
+        "id": "idle",
+        "delay": 5212,
+        "static": true,
+        "relative": true,
+        "scalar": 0.1
+      }
+    }
+  },
+  "default_state": "default",
+  "physics": {
+    "height": 1.02,
+    "width": 0.5,
+    "collision": "asfafasfafs?????",
+    "stair_height": 0.3
+  },
+  "texture": "image1.35.vh"
+}

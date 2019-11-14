@@ -90,8 +90,8 @@ public:
   };
   
   struct CreateInfo {
-    const AttributesLoader* attribLoader;
-    const EffectsLoader* effectsLoader;
+    AttributesLoader* attribLoader;
+    EffectsLoader* effectsLoader;
     std::unordered_map<std::string, AbilityType::ComputeTransformFunction> transFuncs;
     std::unordered_map<std::string, AbilityType::ComputeAttributesFunction> attribsFuncs;
   };
@@ -123,8 +123,8 @@ public:
   
   const AbilityType* getAbilityType(const Type &id) const;
 private:
-  const AttributesLoader* attribLoader;
-  const EffectsLoader* effectsLoader;
+  AttributesLoader* attribLoader;
+  EffectsLoader* effectsLoader;
   
   LoadingTemporaryData<LoadData, 30>* tempData;
   

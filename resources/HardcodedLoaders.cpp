@@ -6,6 +6,7 @@
 #include "yavf.h"
 
 #include "ImageLoader.h"
+#include "EntityLoader.h"
 
 //#include "Components.h"
 #include "TransformComponent.h"
@@ -24,8 +25,8 @@
 #include "Graph.h"
 #include "CameraComponent.h"
 
-#include "ComponentCreator.h"
-#include "ComponentCreators.h"
+// #include "ComponentCreator.h"
+// #include "ComponentCreators.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tinyobjloader/tiny_obj_loader.h>
@@ -188,32 +189,32 @@ HardcodedEntityLoader::HardcodedEntityLoader(ImageLoader* textureLoader) : playe
   Global g;
   g.setWorld(&world);
   
-  std::vector<CreateComponent*> creators;
-  
-  auto wallCreator = world.create_entity();
-  const PhysicsComponentCreator::CreateInfo info{
-    1,
-    1,
-    1.0f,
-    4.0f,
-    0.0f,
-    0.0f,
-    0.0f
-  };
-  CreateComponent* comp = wallCreator->add<PhysicsComponentCreator>(info).get();
-  creators.push_back(comp);
-  comp = wallCreator->add<GraphicsIndexedComponentCreator>().get();
-  creators.push_back(comp);
-  comp = wallCreator->add<UserDataComponentCreator>().get();
-  creators.push_back(comp);
-  comp = wallCreator->add<AIBasicComponentCreator>().get();
-  creators.push_back(comp);
-  comp = wallCreator->add<InfoComponentCreator>().get();
-  creators.push_back(comp);
-  
-  wallCreator->add<CreatorComponent>(CreatorComponent::CreateInfo{creators});
-  
-  types[Type::get("wall_creator")] = wallCreator;
+//   std::vector<CreateComponent*> creators;
+//   
+//   auto wallCreator = world.create_entity();
+//   const PhysicsComponentCreator::CreateInfo info{
+//     1,
+//     1,
+//     1.0f,
+//     4.0f,
+//     0.0f,
+//     0.0f,
+//     0.0f
+//   };
+//   CreateComponent* comp = wallCreator->add<PhysicsComponentCreator>(info).get();
+//   creators.push_back(comp);
+//   comp = wallCreator->add<GraphicsIndexedComponentCreator>().get();
+//   creators.push_back(comp);
+//   comp = wallCreator->add<UserDataComponentCreator>().get();
+//   creators.push_back(comp);
+//   comp = wallCreator->add<AIBasicComponentCreator>().get();
+//   creators.push_back(comp);
+//   comp = wallCreator->add<InfoComponentCreator>().get();
+//   creators.push_back(comp);
+//   
+//   wallCreator->add<CreatorComponent>(CreatorComponent::CreateInfo{creators});
+//   
+//   types[Type::get("wall_creator")] = wallCreator;
 }
 
 HardcodedEntityLoader::~HardcodedEntityLoader() {
@@ -703,16 +704,16 @@ void HardcodedEntityLoader::create() {
 }
 
 yacs::entity* HardcodedEntityLoader::create(const Type &type, yacs::entity* parent, const UniversalDataContainer* container) {
-  auto itr = types.find(type);
-  if (itr == types.end()) throw std::runtime_error("Creator with type "+type.name()+" doesnt exist");
-  
-  auto creatorEnt = itr->second;
-  auto creatorComp = creatorEnt->get<CreatorComponent>();
-  
-  auto ent = world.create_entity();
-  creatorComp->create(parent, ent, container);
-  
-  return ent;
+//   auto itr = types.find(type);
+//   if (itr == types.end()) throw std::runtime_error("Creator with type "+type.name()+" doesnt exist");
+//   
+//   auto creatorEnt = itr->second;
+//   auto creatorComp = creatorEnt->get<CreatorComponent>();
+//   
+//   auto ent = world.create_entity();
+//   creatorComp->create(parent, ent, container);
+//   
+//   return ent;
 }
 
 #define UINT32_DEFAULT_VALUE UINT32_MAX
@@ -720,83 +721,83 @@ yacs::entity* HardcodedEntityLoader::create(const Type &type, yacs::entity* pare
 #define SIZE_T_DEFAULT_VALUE SIZE_MAX
 
 void HardcodedEntityLoader::createWall(const CreateWallInfo &info) {  
-  PhysicsComponentCreator::type t = PhysicsComponentCreator::type::wall;
-  
-  PhysicsComponent::CreateInfo physInfo{
-    {},
-    {
-      false,
-
-      PhysicsType(false, POLYGON_TYPE, true, false, true, true),
-      UINT32_DEFAULT_VALUE,     // collisionGroup
-      UINT32_DEFAULT_VALUE,     // collisionFilter
-
-      FLOAT_DEFAULT_VALUE,  // stairHeight
-      //40.0f, // acceleration
-      FLOAT_DEFAULT_VALUE,  // overbounce
-      FLOAT_DEFAULT_VALUE,  // groundFriction
-
-      FLOAT_DEFAULT_VALUE,  // radius
-
-      UINT32_MAX,
-      UINT32_MAX,
-      UINT32_MAX,
-      UINT32_MAX,
-      UINT32_MAX,
-
-      //"boxShape"
-      info.shapeType
-    },
-    nullptr
-  };
-  
-  GraphicComponentIndexes::CreateInfo graphInfo{
-    info.indexOffset,
-    info.faceVertices,
-    static_cast<uint32_t>(info.faceIndex),
-    info.wallTexture,
-    UINT32_MAX
-  };
-  
-  AIBasicComponent::CreateInfo aiInfo {
-    info.radius,
-    info.vertex,
-    nullptr
-  };
-  
-  Type name = Type::get(info.name);
-  
-  UniversalDataContainer container(UniversalDataContainer::CreateInfo{
-    {
-      {
-        DataIdentifier(PHYSICS_COMPONENT_TYPE_DATA_IDENTIFIER),
-        sizeof(PhysicsComponentCreator::type),
-        &t
-      },
-      {
-        DataIdentifier(PHYSICS_COMPONENT_INFO_DATA_IDENTIFIER),
-        sizeof(PhysicsComponent::CreateInfo),
-        &physInfo
-      },
-      {
-        DataIdentifier(GRAPHICS_INDEXED_COMPONENT_DATA_IDENTIFIER),
-        sizeof(GraphicComponentIndexes::CreateInfo),
-        &graphInfo
-      },
-      {
-        DataIdentifier(AI_BASIC_COMPONENT_DATA_IDENTIFIER),
-        sizeof(AIBasicComponent::CreateInfo),
-        &aiInfo
-      },
-      {
-        DataIdentifier(INFO_COMPONENT_DATA_IDENTIFIER),
-        sizeof(Type),
-        &name
-      }
-    }
-  });
-  
-  create(Type::get("wall_creator"), nullptr, &container);
+//   PhysicsComponentCreator::type t = PhysicsComponentCreator::type::wall;
+//   
+//   PhysicsComponent::CreateInfo physInfo{
+//     {},
+//     {
+//       false,
+// 
+//       PhysicsType(false, POLYGON_TYPE, true, false, true, true),
+//       UINT32_DEFAULT_VALUE,     // collisionGroup
+//       UINT32_DEFAULT_VALUE,     // collisionFilter
+// 
+//       FLOAT_DEFAULT_VALUE,  // stairHeight
+//       //40.0f, // acceleration
+//       FLOAT_DEFAULT_VALUE,  // overbounce
+//       FLOAT_DEFAULT_VALUE,  // groundFriction
+// 
+//       FLOAT_DEFAULT_VALUE,  // radius
+// 
+//       UINT32_MAX,
+//       UINT32_MAX,
+//       UINT32_MAX,
+//       UINT32_MAX,
+//       UINT32_MAX,
+// 
+//       //"boxShape"
+//       info.shapeType
+//     },
+//     nullptr
+//   };
+//   
+//   GraphicComponentIndexes::CreateInfo graphInfo{
+//     info.indexOffset,
+//     info.faceVertices,
+//     static_cast<uint32_t>(info.faceIndex),
+//     info.wallTexture,
+//     UINT32_MAX
+//   };
+//   
+//   AIBasicComponent::CreateInfo aiInfo {
+//     info.radius,
+//     info.vertex,
+//     nullptr
+//   };
+//   
+//   Type name = Type::get(info.name);
+//   
+//   UniversalDataContainer container(UniversalDataContainer::CreateInfo{
+//     {
+//       {
+//         DataIdentifier(PHYSICS_COMPONENT_TYPE_DATA_IDENTIFIER),
+//         sizeof(PhysicsComponentCreator::type),
+//         &t
+//       },
+//       {
+//         DataIdentifier(PHYSICS_COMPONENT_INFO_DATA_IDENTIFIER),
+//         sizeof(PhysicsComponent::CreateInfo),
+//         &physInfo
+//       },
+//       {
+//         DataIdentifier(GRAPHICS_INDEXED_COMPONENT_DATA_IDENTIFIER),
+//         sizeof(GraphicComponentIndexes::CreateInfo),
+//         &graphInfo
+//       },
+//       {
+//         DataIdentifier(AI_BASIC_COMPONENT_DATA_IDENTIFIER),
+//         sizeof(AIBasicComponent::CreateInfo),
+//         &aiInfo
+//       },
+//       {
+//         DataIdentifier(INFO_COMPONENT_DATA_IDENTIFIER),
+//         sizeof(Type),
+//         &name
+//       }
+//     }
+//   });
+//   
+//   create(Type::get("wall_creator"), nullptr, &container);
 }
 
 yacs::entity* HardcodedEntityLoader::getPlayer() const {
@@ -861,6 +862,12 @@ const Resource* HardcodedMapLoader::getParsedResource(const ResourceID &id) cons
 bool HardcodedMapLoader::load(const ModificationParser* modifications, const Resource* resource) {
   // грузим карту по имени
   
+  const bool ret = entityLoader->load(nullptr, entityLoader->getParsedResource(ResourceID::get("test_entity1")));
+  if (!ret) throw std::runtime_error("Could not load entity type test_entity1");
+  
+  const bool ret1 = textureLoader->load(nullptr, textureLoader->getParsedResource(ResourceID::get("14626771132270")));
+  if (!ret1) throw std::runtime_error("Could not load texture 14626771132270");
+  
   return resource->id() == ResourceID::get("default");
 }
 
@@ -882,6 +889,128 @@ void HardcodedMapLoader::end() {
 //   entityLoader->end();
   
   // также тут нужно будет заполнять граф
+  
+  const Type shape = Type::get("boxShape");
+  {
+    const RegisterNewShapeInfo info{
+      {},
+      {simd::vec4(0.5f, 0.5f, 0.5f, 0.0f)}
+    };
+    
+    Global::physics()->registerShape(shape, BBOX_TYPE, info);
+  }
+
+  PhysicsComponent::CreateInfo physInfo{
+    {
+      {0.0f, 0.0f, 0.0f, 0.0f},
+      7.0f, 80.0f, 0.0f, 0.0f
+    },
+    {
+      false,
+
+      PhysicsType(true, BBOX_TYPE, true, false, true, true),
+      1,     // collisionGroup
+      1,     // collisionFilter
+
+      0.5f,  // stairHeight
+      //40.0f, // acceleration
+      1.0f,  // overbounce
+      4.0f,  // groundFriction
+
+      0.0f,  // radius
+
+      UINT32_MAX,
+      UINT32_MAX,
+      UINT32_MAX,
+      UINT32_MAX,
+      UINT32_MAX,
+
+      //"boxShape"
+      shape
+    },
+    nullptr
+  };
+  
+  {
+    // нужно будет у игрока сделать интеллектуальные анимации, то есть анимации переходят из одного состояния в другое сами собой и по заданым условиям
+    // например, анимация атаки у война (размашистый удар справа на лево) переходит в анимацию смены ориентации меча
+    // если какое то время меч находится в левом положении, то мы должны "переложить" его на правую сторону
+    // то есть при нажатии клавиши мы можем перейти в следующее состояние, которое, например, на какое то время заблокирует возможность двигаться 
+    // (или даже возможно передаст какие то дополнительные данные), это состояние перейдет в состояние смены положения, которое забокирует возможность атаковать
+    // сменив положение, игрок снова получит возможность атаковать, атака пройдет на этот раз слева на право
+    // не атаковав через какое то время запустится анимация смены положения меча,
+    // то есть [дефолт] -> [атака справа] -> [смена направления налево] -> [атака слева] -> [смена направления направо] -> [дефолт]
+    //                                                                  -> [перекладываем направо] -> [дефолт]
+    // у нас есть следующее измение по времени, и изменение по нажатым клавишам, изменение по условиям?
+    // должны быть еще координаты где рисовать текстурки (мы должны сымитировать движения как в думе)
+    
+    yacs::entity* ent1 = Global::world()->create_entity();
+    playerTransform = ent1->add<TransformComponent>(simd::vec4(1.0f, 5.0f, 2.0f, 1.0f),
+                                                    simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
+                                                    simd::vec4(1.0f, 1.0f, 1.0f, 0.0f)).get();
+    
+//     std::cout << "HardcodedEntityLoader::create 01" << "\n";
+    
+//     ent1->add<InputComponent>();
+    
+    input = ent1->add<UserInputComponent>(UserInputComponent::CreateInfo{playerTransform}).get();
+
+    physInfo.physInfo.inputIndex = input->inputIndex;
+    physInfo.physInfo.transformIndex = playerTransform->index();
+    auto phys = ent1->add<PhysicsComponent>(physInfo);
+
+    camera = ent1->add<CameraComponent>(CameraComponent::CreateInfo{playerTransform, input, phys.get()}).get();
+
+    const UserDataComponent entData{
+      ent1,
+      playerTransform,
+      nullptr, // потом по идее в этом компоненте будем рисовать основной игровой интерфейс
+      phys.get(),
+      nullptr, // этот компонент для игрока тоже пригодится
+      nullptr,
+      nullptr,
+      nullptr,
+      nullptr
+    };
+    auto usrData = ent1->add<UserDataComponent>(entData);
+    phys->setUserData(usrData.get());
+
+    const AIBasicComponent::CreateInfo aiInfo{
+      0.5f,
+      nullptr,
+      usrData.get()
+    };
+    auto ai = ent1->add<AIBasicComponent>(aiInfo);
+    usrData->aiComponent = ai.get();
+    
+//    ent1->init(&initData);
+    player = ent1;
+    
+    // нужно будет еще задавать позиции, направление и прочее
+  }
+  
+  const bool ret1 = entityLoader->load(nullptr, entityLoader->getParsedResource(ResourceID::get("test_entity1")));
+  if (!ret1) throw std::runtime_error("Could not load entity type test_entity1");
+  
+  {
+    const size_t objCount = 5000;
+              
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dist(-99,99);
+    //std::uniform_real_distribution<> distY(0,99);
+    for (size_t i = 0; i < objCount; ++i) {
+      ObjectData createData{
+        {static_cast<float>(dist(gen)), static_cast<float>(dist(gen)), static_cast<float>(dist(gen)), 1.0f},
+        {0.0f, 1.0f, 0.0f, 0.0f},
+        0,
+        0,
+        0,
+        nullptr
+      };
+      entityLoader->create(Type::get("test_entity1"), nullptr, &createData);
+    }
+  }
   
   const std::string path = Global::getGameDir() + "models/box4.obj";
   
@@ -1150,7 +1279,7 @@ void HardcodedMapLoader::end() {
       
       const float radius = simd::distance(shapeMin, shapeMax) / 2.0f;
       
-      const CreateWallInfo info{
+      CreateWallInfo info{
         "Wall " + std::to_string(f),
 //         shapeName,
         shapeType,
@@ -1164,7 +1293,7 @@ void HardcodedMapLoader::end() {
         radius,
         vertex
       };
-      entityLoader->createWall(info);
+      entityLoader->create(Type::get("wall_creator_type"), nullptr, &info);
       
       index_offset += fv;
     }
@@ -1309,4 +1438,24 @@ yavf::Buffer* HardcodedMapLoader::mapVertices() const {
 
 yavf::Buffer* HardcodedMapLoader::mapIndices() const {
   return indices;
+}
+
+yacs::entity* HardcodedMapLoader::getPlayer() const {
+  return player;
+}
+
+TransformComponent* HardcodedMapLoader::getPlayerTransform() const {
+  return playerTransform;
+}
+
+CameraComponent* HardcodedMapLoader::getCamera() const {
+  return camera;
+}
+
+UserInputComponent* HardcodedMapLoader::getInput() const {
+  return input;
+}
+
+EntityAI* HardcodedMapLoader::getEntityBrain() const {
+  return brainAI;
 }

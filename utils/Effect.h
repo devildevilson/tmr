@@ -61,6 +61,9 @@ struct ComputedEffectContainer {
 //: public EventFunctor
 class Effect {
 public:
+  using FuncType = std::function<void(const Effect*, const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, ComputedEffectContainer*)>;
+  
+  // зачем мне это нужно?
   struct EventModificator {
     Type event;
     const Effect* effect;
@@ -77,8 +80,8 @@ public:
     std::string description;
     std::vector<BonusType> types;
 //     std::vector<EventModificator> mods;
-    std::function<void(const Effect*, const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, ComputedEffectContainer*)> compute;
-    std::function<void(const Effect*, const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, ComputedEffectContainer*)> resist;
+    FuncType compute;
+    FuncType resist;
 //    std::function<event(const Type&, const EventData&, yacs::entity* entity)> eventFunc;
   };
   Effect(const CreateInfo &info);

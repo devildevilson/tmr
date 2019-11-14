@@ -74,34 +74,42 @@ bool StateFlags::useItem() const {
   return (STATE_FLAG_USE_ITEM & container) == STATE_FLAG_USE_ITEM;
 }
 
-StateControllerType::StateControllerType(const CreateInfo &info) : defaultStatePtr(nullptr) {
-  for (const auto state : info.states) {
-    states[state.state] = {
-      state.flags,
-      state.time,
-      state.animation,
-      state.sound,
-      state.state,
+StateControllerType::StateControllerType(const CreateInfo &info) : container(sizeof(StateData)*info.states.size()), defaultStatePtr(nullptr), states(info.states.size(), nullptr) {
+  for (size_t i = 0; i < info.states.size(); ++i) {
+    const StateData stateInfo{
+      info.states[i].flags,
+      info.states[i].time,
+      info.states[i].animation,
+      info.states[i].sound,
+      info.states[i].constantSound,
+      info.states[i].relative,
+      info.states[i].scalar,
+      info.states[i].animationDelay,
+      info.states[i].soundDelay,
+      info.states[i].speedModificator,
+      info.states[i].state,
       nullptr
     };
+    states[i] = container.create<StateData>(stateInfo);
   }
-
-  for (auto &state : states) {
-    for (const auto infoState : info.states) {
-      if (state.second.state == infoState.state) {
+  
+  for (auto state : states) {
+    for (const auto &infoState : info.states) {
+      if (state->state == infoState.state) {
         if (!infoState.nextState.valid()) continue;
-
-        auto itr = states.find(infoState.nextState);
-        if (itr == states.end()) throw std::runtime_error("Bad state controller type creation");
-        state.second.nextState = &itr->second;
+        
+        const size_t index = findState(infoState.nextState);
+        if (index == SIZE_MAX) throw std::runtime_error("Bad state controller type creation");
+        state->nextState = states[index];
       }
     }
   }
-
-  const Type &defaultType = info.states[info.defaultIndex].state;
-  auto itr = states.find(defaultType);
-  if (itr == states.end()) throw std::runtime_error("Bad state controller type creation");
-  defaultStatePtr = &itr->second;
+  
+  const size_t index = findState(info.defaultState);
+  if (index == SIZE_MAX) throw std::runtime_error("Bad state controller type creation");
+  defaultStatePtr = states[index];
+  
+  // алиасы
 }
 
 const StateData* StateControllerType::defaultState() const {
@@ -109,12 +117,20 @@ const StateData* StateControllerType::defaultState() const {
 }
 
 const StateData* StateControllerType::state(const Type &state) const {
-  auto itr = states.find(state);
-  if (itr == states.end()) return nullptr;
+  const size_t index = findState(state);
+  if (index != SIZE_MAX) return states[index];
 
-  return &itr->second;
+  return nullptr;
 }
 
 size_t StateControllerType::statesCount() const {
   return states.size();
+}
+
+size_t StateControllerType::findState(const Type &type) const {
+  for (size_t i = 0; i < states.size(); ++i) {
+    if (states[i]->state == type) return i;
+  }
+  
+  return SIZE_MAX;
 }

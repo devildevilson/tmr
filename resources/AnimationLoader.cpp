@@ -9,75 +9,93 @@
 AnimationLoader::LoadData::LoadData(const CreateInfo &info) : Resource(info.resInfo), m_frames(info.frames) {}
 const std::vector<AnimationLoader::LoadData::Frame> & AnimationLoader::LoadData::frames() const { return m_frames; }
 
-bool VHpartValid(const size_t &indexFrom, const std::string &str) {
-  const size_t count = str.length() - indexFrom;
-  if (count > 2) return false;
-  if (count == 2) return str[indexFrom] == 'h' || str[indexFrom+1] == 'h' || str[indexFrom] == 'v' || str[indexFrom+1] == 'v';
-  return str[indexFrom] == 'h' || str[indexFrom] == 'v';
-}
-
-bool indexPartValid(const size_t &indexFrom, const size_t &indexLast, const std::string &str) {
-  bool digitOk = true;
-  for (size_t i = indexFrom; i < std::min(indexLast, str.size()); ++i) {
-    digitOk = digitOk && isdigit(str[i]);
-  }
-  
-  return digitOk;
-}
-
-static LoadData::Side parseSideString(const std::string &str) {
-  size_t flipIndex = 0;
-  size_t imageIndex = 0;
-  
-  bool hasVH = false;
-  
-  const size_t lastIndex = str.find_last_of('.');
-  if (lastIndex == std::string::npos) return {
-    ResourceID::get(str),
-    0,
-    false,
-    false
-  };
-  
-  bool flipU = false;
-  bool flipV = false;
-  
-  size_t nextPart = lastIndex+1;
-  const bool VHpart = VHpartValid(nextPart, str);
-  if (VHpart) {
-    flipU = str[nextPart] == 'h' || str[nextPart+1] == 'h';
-    flipV = str[nextPart] == 'v' || str[nextPart+1] == 'v';
-    
-    for (nextPart = lastIndex-1; nextPart != SIZE_MAX; --nextPart) {
-      if (str[nextPart] == '.') break;
-      
-      //digitOk = digitOk && isdigit(str[imageIndex]);
-    }
-    
-    if (nextPart == SIZE_MAX) {
-      return {
-        ResourceID::get(str.substr(0, lastIndex)),
-        0,
-        flipU,
-        flipV
-      };
-    }
-    
-    //nextPart += 1;
-  }
-  
-  const bool indexPart = indexPartValid(nextPart+1, VHpart ? lastIndex : SIZE_MAX, str);
-  if (indexPart) {
-    imageIndex = stoi(str.substr(nextPart+1, VHpart ? lastIndex : str.size()));
-  }
-  
-  return {
-    ResourceID::get(str.substr(0, nextPart)),
-    imageIndex,
-    flipU,
-    flipV
-  };
-}
+// bool VHpartValid(const size_t &indexFrom, const size_t &lastIndex, const std::string &str) {
+//   const size_t count = std::min(str.length(), lastIndex) - indexFrom;
+//   if (count > 2) return false;
+//   if (count == 2) return (str[indexFrom] == 'h' && str[indexFrom+1] == 'v') || (str[indexFrom] == 'v' && str[indexFrom+1] == 'h');
+//   return str[indexFrom] == 'h' || str[indexFrom] == 'v';
+// }
+// 
+// bool indexPartValid(const size_t &indexFrom, const size_t &indexLast, const std::string &str) {
+//   bool digitOk = true;
+//   for (size_t i = indexFrom; i < std::min(indexLast, str.size()); ++i) {
+//     digitOk = digitOk && isdigit(str[i]);
+//   }
+// 
+//   return digitOk;
+// }
+// 
+// AnimationLoader::LoadData::Side parseSideString(const std::string &str) {
+//   size_t imageIndex = 0;
+// 
+//   size_t lastIndex = str.size();
+//   size_t nextPart = str.find_last_of('.');
+//   if (nextPart == std::string::npos) return {
+//     ResourceID::get(str),
+//     0,
+//     false,
+//     false
+//   };
+// 
+//   const size_t dotCount = std::count(str.begin(), str.end(), '.');
+// 
+//   bool flipU = false;
+//   bool flipV = false;
+//   bool vhPart = false;
+//   bool indexPart = false;
+// 
+//   for (uint32_t i = 0; i < std::min(size_t(2), dotCount); ++i) {
+//     {
+//       const bool tmp = VHpartValid(nextPart+1, lastIndex, str);
+//       if (!vhPart && tmp) {
+//         vhPart = tmp;
+// 
+//         flipU = str[nextPart+1] == 'h' || str[nextPart+2] == 'h';
+//         flipV = str[nextPart+1] == 'v' || str[nextPart+2] == 'v';
+// 
+//         lastIndex = nextPart;
+//         for (nextPart = lastIndex-1; nextPart != SIZE_MAX; --nextPart) {
+//           if (str[nextPart] == '.') break;
+// 
+//           //std::cout << "char: " << str[nextPart] << '\n';
+//         }
+// 
+//         continue;
+//       }
+//     }
+// 
+//     {
+//       const bool tmp = indexPartValid(nextPart+1, lastIndex, str);
+//       if (tmp) {
+//         indexPart = tmp;
+//         const std::string str122 = str.substr(nextPart+1, lastIndex);
+//         // std::cout << str122 << '\n';
+//         imageIndex = stoi(str122);
+// 
+//         lastIndex = nextPart;
+//         for (nextPart = lastIndex-1; nextPart != SIZE_MAX; --nextPart) {
+//           if (str[nextPart] == '.') break;
+//         }
+// 
+//         continue;
+//       }
+//     }
+// 
+//     if (i == 0 && !(vhPart || indexPart)) return {
+//       ResourceID::get(str),
+//       0,
+//       false,
+//       false
+//     };
+//   }
+// 
+//   return {
+//     ResourceID::get(str.substr(0, lastIndex)),
+//     imageIndex,
+//     flipU,
+//     flipV
+//   };
+// }
 
 bool checkAnimationJsonValidity(const std::string &path, const nlohmann::json &data, const size_t &mark, AnimationLoader::LoadData::CreateInfo &info, std::vector<ErrorDesc> &errors, std::vector<WarningDesc> &warnings) {
   bool hasId = false;
@@ -93,75 +111,108 @@ bool checkAnimationJsonValidity(const std::string &path, const nlohmann::json &d
     
     if (itr.value().is_array() && itr.key() == "frames") {
       for (size_t i = 0; i < itr.value().size(); ++i) {
-        if (!itr.value()[i].is_object()) {
-          ErrorDesc desc(mark, AnimationLoader::ERROR_BAD_FRAME_DATA, "Bad animation frame data");
-          std::cout << "Error: " << desc.description << "\n";
-          errors.push_back(desc);
-          return false;
+        if (itr.value()[i].is_string()) {
+          std::vector<AnimationLoader::LoadData::Side> sides(1, AnimationLoader::LoadData::Side{ResourceID(), 0, false, false});
+          parseTextureDataString(itr.value()[i].get<std::string>(), sides[0].image, sides[0].index, sides[0].flipU, sides[0].flipV);
+          info.frames.push_back(AnimationLoader::LoadData::Frame{sides});
+          continue;
         }
         
-        bool hasSides = false;
-        for (auto frameData = itr.value()[i].begin(); frameData != itr.value()[i].end(); ++frameData) {
-          if (frameData.value().is_array() && frameData.key() == "sides") {
-            hasSides = true;
-            std::vector<AnimationLoader::LoadData::Side> sides(frameData.value().size(), AnimationLoader::LoadData::Side{ResourceID(), 0, false, false});
-            for (size_t j = 0; j < frameData.value().size(); ++j) {
-              if (frameData.value()[i].is_string()) {
-                sides[i] = parseSideString(frameData.value()[i].get<std::string>());
+        if (itr.value()[i].is_object()) {
+          bool hasImageId = false;
+          std::vector<AnimationLoader::LoadData::Side> sides(1, AnimationLoader::LoadData::Side{ResourceID(), 0, false, false});
+          for (auto side = itr.value()[i].begin(); side != itr.value()[i].end(); ++side) {
+            if (side.value().is_string() && side.key() == "image") {
+              hasImageId = true;
+              sides[i].image = ResourceID::get(side.value().get<std::string>());
+              continue;
+            }
+            
+            if (side.value().is_number_unsigned() && side.key() == "index") {
+              sides[i].index = side.value().get<size_t>();
+              continue;
+            }
+            
+            if (side.value().is_string() && side.key() == "flip") {
+              const std::string &str = side.value().get<std::string>();
+              
+              if (str.length() > 2) {
+                ErrorDesc desc(mark, AnimationLoader::ERROR_BAD_FLIP_DATA, "Bad side image flip data");
+                std::cout << "Error: " << desc.description << "\n";
+                errors.push_back(desc);
                 continue;
               }
               
-              if (frameData.value()[i].is_object()) {
-                bool hasImageId = false;
-                for (auto side = frameData.value()[i].begin(); side != frameData.value()[i].end(); ++side) {
-                  if (side.value().is_string() && side.key() == "image") {
-                    hasImageId = true;
-                    sides[i].image = ResourceID::get(side.value().get<std::string>());
-                    continue;
-                  }
-                  
-                  if (side.value().is_number_unsigned() && side.key() == "index") {
-                    sides[i].index = side.value().get<size_t>();
-                    continue;
-                  }
-                  
-                  if (side.value().is_string() && side.key() == "flip") {
-                    const std::string &str = side.value().get<std::string>();
-                    
-                    if (str.length() > 2) {
-                      ErrorDesc desc(mark, AnimationLoader::ERROR_BAD_FLIP_DATA, "Bad side image flip data");
-                      std::cout << "Error: " << desc.description << "\n";
-                      errors.push_back(desc);
-                      continue;
-                    }
-                    
-                    sides[i].flipU = str[0] == 'h' || str[1] == 'h';
-                    sides[i].flipV = str[0] == 'v' || str[1] == 'v';
-                    
-                    continue;
-                  }
-                }
-                
-                if (!hasImageId) {
-                  ErrorDesc desc(mark, AnimationLoader::ERROR_SIDE_MUST_HAVE_AN_IMAGE_ID, "Could not find side image id");
-                  std::cout << "Error: " << desc.description << "\n";
-                  errors.push_back(desc);
-                }
-                
-                continue;
-              }
+              sides[i].flipU = str[0] == 'h' || str[1] == 'h';
+              sides[i].flipV = str[0] == 'v' || str[1] == 'v';
+              
+              continue;
             }
-            
-            info.frames.push_back(AnimationLoader::LoadData::Frame{sides});
-            
+          }
+          
+          if (!hasImageId) {
+            ErrorDesc desc(mark, AnimationLoader::ERROR_SIDE_MUST_HAVE_AN_IMAGE_ID, "Could not find side image id");
+            std::cout << "Error: " << desc.description << "\n";
+            errors.push_back(desc);
             continue;
           }
+          
+          info.frames.push_back(AnimationLoader::LoadData::Frame{sides});
+          continue;
         }
         
-        if (!hasSides) {
-          ErrorDesc desc(mark, AnimationLoader::ERROR_FRAME_MUST_HAVE_AT_LEAST_ONE_SIDE, "Frame must have at least one side");
-          std::cout << "Error: " << desc.description << "\n";
-          errors.push_back(desc);
+        if (itr.value()[i].is_array()) {
+          std::vector<AnimationLoader::LoadData::Side> sides(itr.value()[i].size(), AnimationLoader::LoadData::Side{ResourceID(), 0, false, false});
+          for (size_t j = 0; j < itr.value()[i].size(); ++j) {
+            if (itr.value()[i][j].is_string()) {
+              parseTextureDataString(itr.value()[i][j].get<std::string>(), sides[j].image, sides[j].index, sides[j].flipU, sides[j].flipV);
+              continue;
+            }
+            
+            if (itr.value()[i][j].is_object()) {
+              bool hasImageId = false;
+              for (auto side = itr.value()[i][j].begin(); side != itr.value()[i][j].end(); ++side) {
+                if (side.value().is_string() && side.key() == "image") {
+                  hasImageId = true;
+                  sides[j].image = ResourceID::get(side.value().get<std::string>());
+                  continue;
+                }
+                
+                if (side.value().is_number_unsigned() && side.key() == "index") {
+                  sides[j].index = side.value().get<size_t>();
+                  continue;
+                }
+                
+                if (side.value().is_string() && side.key() == "flip") {
+                  const std::string &str = side.value().get<std::string>();
+                  
+                  if (str.length() > 2) {
+                    ErrorDesc desc(mark, AnimationLoader::ERROR_BAD_FLIP_DATA, "Bad side image flip data");
+                    std::cout << "Error: " << desc.description << "\n";
+                    errors.push_back(desc);
+                    continue;
+                  }
+                  
+                  sides[j].flipU = str[0] == 'h' || str[1] == 'h';
+                  sides[j].flipV = str[0] == 'v' || str[1] == 'v';
+                  
+                  continue;
+                }
+              }
+              
+              if (!hasImageId) {
+                ErrorDesc desc(mark, AnimationLoader::ERROR_SIDE_MUST_HAVE_AN_IMAGE_ID, "Could not find side image id");
+                std::cout << "Error: " << desc.description << "\n";
+                errors.push_back(desc);
+              }
+              
+              continue;
+            }
+          }
+          
+          info.frames.push_back(AnimationLoader::LoadData::Frame{sides});
+          
+          continue;
         }
       }
       
@@ -233,10 +284,14 @@ bool AnimationLoader::parse(const Modification* mod,
     info.resInfo.pathStr = "";
     //info.resInfo.resSize = sizeof(Animation);
     
-    bool ret = checkAnimationJsonValidity(pathPrefix, data, 12512, info, errors, warnings);
+    const bool ret = checkAnimationJsonValidity(pathPrefix, data, 12512, info, errors, warnings);
     if (!ret) return false;
     
-    auto ptr = tempData->create(info);
+    info.resInfo.resSize = info.frames.size() * info.frames[0].sides.size() * sizeof(Animation::Image) + sizeof(Animation);
+    
+    std::cout << "Parsed " << info.resInfo.resId.name() << " res size " << info.resInfo.resSize << "\n";
+    
+    auto ptr = tempData->container.create(info.resInfo.resId, info);
     resource.push_back(ptr);
     return true;
   }
@@ -247,41 +302,70 @@ bool AnimationLoader::parse(const Modification* mod,
 bool AnimationLoader::forget(const ResourceID &name) {
   if (tempData == nullptr) throw std::runtime_error("Not in loading state");
   
-  const size_t index = findTempData(name);
-  if (index == SIZE_MAX) return false;
+//   const size_t index = findTempData(name);
+//   if (index == SIZE_MAX) return false;
   
-  tempData->dataPool.deleteElement(tempData->dataPtr[index]);
-  std::swap(tempData->dataPtr[index], tempData->dataPtr.back());
-  tempData->dataPtr.pop_back();
+//   tempData->dataPool.deleteElement(tempData->dataPtr[index]);
+//   std::swap(tempData->dataPtr[index], tempData->dataPtr.back());
+//   tempData->dataPtr.pop_back();
   
-  return true;
+  return tempData->container.destroy(name);
 }
 
 Resource* AnimationLoader::getParsedResource(const ResourceID &id) {
   if (tempData == nullptr) throw std::runtime_error("Not in loading state");
   
-  const size_t index = findTempData(id);
-  return index == SIZE_MAX ? nullptr : tempData->dataPtr[index];
+//   const size_t index = findTempData(id);
+//   return index == SIZE_MAX ? nullptr : tempData->dataPtr[index];
+  return tempData->container.get(id);
 }
 
 const Resource* AnimationLoader::getParsedResource(const ResourceID &id) const {
   if (tempData == nullptr) throw std::runtime_error("Not in loading state");
   
-  const size_t index = findTempData(id);
-  return index == SIZE_MAX ? nullptr : tempData->dataPtr[index];
+//   const size_t index = findTempData(id);
+//   return index == SIZE_MAX ? nullptr : tempData->dataPtr[index];
+  return tempData->container.get(id);
 }
 
 bool AnimationLoader::load(const ModificationParser* modifications, const Resource* resource) {
   if (tempData == nullptr) throw std::runtime_error("Not in loading state");
   
-  for (auto data : tempData->dataToLoad) {
-    if (data->id() == resource->id()) return true;
+//   for (auto data : tempData->dataToLoad) {
+//     if (data->id() == resource->id()) return true;
+//   }
+  
+  const uint32_t index = Global::animations()->getAnimationId(resource->id());
+  if (index != UINT32_MAX) return true;
+  
+  auto res = tempData->container.get(resource->id());
+  if (res == nullptr) return false;
+  
+//   tempData->dataToLoad.push_back(res);
+  // нужно загрузить анимацию здесь 
+  // вот мы и подошли к необходимости использовать imageLoader 
+  // при том так чтобы я учитывал еще и конфликты
+  // мне нужно предоставить доступ к конфликтам 
+  // а пока можно загрузить и так
+  
+  std::vector<std::vector<Animation::Image>> frames(res->frames().size(), std::vector<Animation::Image>(res->frames()[0].sides.size()));
+  for (size_t i = 0; i < res->frames().size(); ++i) {
+    for (size_t j = 0; j < res->frames()[i].sides.size(); ++j) {
+      const bool loadRes = imageLoader->load(nullptr, imageLoader->getParsedResource(res->frames()[i].sides[j].image));
+      if (!loadRes) throw std::runtime_error("Could not find parsed resource "+res->frames()[i].sides[j].image.name());
+      
+      const Image img = imageLoader->image(res->frames()[i].sides[j].image, res->frames()[i].sides[j].index);
+      if (img.index == UINT32_MAX || img.layer == UINT32_MAX) throw std::runtime_error("Could not load "+res->frames()[i].sides[j].image.name()+" with index "+std::to_string(res->frames()[i].sides[j].index));
+      
+      frames[i][j] = {
+        img,
+        res->frames()[i].sides[j].flipU,
+        res->frames()[i].sides[j].flipV
+      };
+    }
   }
   
-  const size_t index = findTempData(resource->id());
-  if (index == SIZE_MAX) return false;
-  
-  tempData->dataToLoad.push_back(tempData->dataPtr[index]);
+  Global::animations()->createAnimation(res->id(), Animation::CreateInfo{frames});
   
   return true;
 }
@@ -289,13 +373,19 @@ bool AnimationLoader::load(const ModificationParser* modifications, const Resour
 bool AnimationLoader::unload(const ResourceID &id) {
   if (tempData == nullptr) throw std::runtime_error("Not in loading state");
   
-  for (size_t i = 0; i < tempData->dataToLoad.size(); ++i) {
-    if (tempData->dataToLoad[i]->id() == id) {
-      std::swap(tempData->dataToLoad[i], tempData->dataToLoad.back());
-      tempData->dataToLoad.pop_back();
-      return true;
-    }
-  }
+  // удалять анимации я вообще могу?
+  // похоже что в текущем виде нет, что делать в этом случае?
+  // я складываю имайджы неочень удачно для того чтобы удалять изображения
+  
+  std::cout << "Unload animations dont worked yet" << "\n";
+  
+//   for (size_t i = 0; i < tempData->dataToLoad.size(); ++i) {
+//     if (tempData->dataToLoad[i]->id() == id) {
+//       std::swap(tempData->dataToLoad[i], tempData->dataToLoad.back());
+//       tempData->dataToLoad.pop_back();
+//       return true;
+//     }
+//   }
   
   return false;
 }
@@ -303,20 +393,20 @@ bool AnimationLoader::unload(const ResourceID &id) {
 void AnimationLoader::end() {
   if (tempData == nullptr) throw std::runtime_error("Not in loading state");
   
-  for (auto loadData : tempData->dataToLoad) {
-    std::vector<std::vector<Animation::Image>> frames(loadData->frames().size(), std::vector<Animation::Image>(loadData->frames()[0].sides.size()));
-    
-    for (size_t i = 0; i < loadData->frames().size(); ++i) {
-      for (size_t j = 0; j < loadData->frames()[i].sides.size(); ++j) {
-        frames[i][j].image = imageLoader->image(loadData->frames()[i].sides[j].image, loadData->frames()[i].sides[j].index);
-        if (frames[i][j].image.index == UINT32_MAX || frames[i][j].image.layer == UINT32_MAX) throw std::runtime_error("Could not find an image "+loadData->frames()[i].sides[j].image.name()+" with index "+std::to_string(loadData->frames()[i].sides[j].index));
-        frames[i][j].flipU = loadData->frames()[i].sides[j].flipU;
-        frames[i][j].flipV = loadData->frames()[i].sides[j].flipV;
-      }
-    }
-    
-    Global::animations()->createAnimation(loadData->id(), Animation::CreateInfo{frames});
-  }
+//   for (auto loadData : tempData->dataToLoad) {
+//     std::vector<std::vector<Animation::Image>> frames(loadData->frames().size(), std::vector<Animation::Image>(loadData->frames()[0].sides.size()));
+//     
+//     for (size_t i = 0; i < loadData->frames().size(); ++i) {
+//       for (size_t j = 0; j < loadData->frames()[i].sides.size(); ++j) {
+//         frames[i][j].image = imageLoader->image(loadData->frames()[i].sides[j].image, loadData->frames()[i].sides[j].index);
+//         if (frames[i][j].image.index == UINT32_MAX || frames[i][j].image.layer == UINT32_MAX) throw std::runtime_error("Could not find an image "+loadData->frames()[i].sides[j].image.name()+" with index "+std::to_string(loadData->frames()[i].sides[j].index));
+//         frames[i][j].flipU = loadData->frames()[i].sides[j].flipU;
+//         frames[i][j].flipV = loadData->frames()[i].sides[j].flipV;
+//       }
+//     }
+//     
+//     Global::animations()->createAnimation(loadData->id(), Animation::CreateInfo{frames});
+//   }
 }
 
 void AnimationLoader::clear() {
@@ -337,9 +427,80 @@ std::string AnimationLoader::hint() const {
 }
 
 size_t AnimationLoader::findTempData(const ResourceID &id) const {
-  for (size_t i = 0; i < tempData->dataPtr.size(); ++i) {
-    if (tempData->dataPtr[i]->id() == id) return i;
-  }
-  
-  return SIZE_MAX;
+//   for (size_t i = 0; i < tempData->dataPtr.size(); ++i) {
+//     if (tempData->dataPtr[i]->id() == id) return i;
+//   }
+//   
+//   return SIZE_MAX;
 }
+
+// if (!itr.value()[i].is_object()) {
+//           ErrorDesc desc(mark, AnimationLoader::ERROR_BAD_FRAME_DATA, "Bad animation frame data");
+//           std::cout << "Error: " << desc.description << "\n";
+//           errors.push_back(desc);
+//           return false;
+//         }
+//         
+//         bool hasSides = false;
+//         for (auto frameData = itr.value()[i].begin(); frameData != itr.value()[i].end(); ++frameData) {
+//           if (frameData.value().is_array() && frameData.key() == "sides") {
+//             hasSides = true;
+//             std::vector<AnimationLoader::LoadData::Side> sides(frameData.value().size(), AnimationLoader::LoadData::Side{ResourceID(), 0, false, false});
+//             for (size_t j = 0; j < frameData.value().size(); ++j) {
+//               if (frameData.value()[i].is_string()) {
+//                 parseTextureDataString(frameData.value()[i].get<std::string>(), sides[i].image, sides[i].index, sides[i].flipU, sides[i].flipV);
+//                 continue;
+//               }
+//               
+//               if (frameData.value()[i].is_object()) {
+//                 bool hasImageId = false;
+//                 for (auto side = frameData.value()[i].begin(); side != frameData.value()[i].end(); ++side) {
+//                   if (side.value().is_string() && side.key() == "image") {
+//                     hasImageId = true;
+//                     sides[i].image = ResourceID::get(side.value().get<std::string>());
+//                     continue;
+//                   }
+//                   
+//                   if (side.value().is_number_unsigned() && side.key() == "index") {
+//                     sides[i].index = side.value().get<size_t>();
+//                     continue;
+//                   }
+//                   
+//                   if (side.value().is_string() && side.key() == "flip") {
+//                     const std::string &str = side.value().get<std::string>();
+//                     
+//                     if (str.length() > 2) {
+//                       ErrorDesc desc(mark, AnimationLoader::ERROR_BAD_FLIP_DATA, "Bad side image flip data");
+//                       std::cout << "Error: " << desc.description << "\n";
+//                       errors.push_back(desc);
+//                       continue;
+//                     }
+//                     
+//                     sides[i].flipU = str[0] == 'h' || str[1] == 'h';
+//                     sides[i].flipV = str[0] == 'v' || str[1] == 'v';
+//                     
+//                     continue;
+//                   }
+//                 }
+//                 
+//                 if (!hasImageId) {
+//                   ErrorDesc desc(mark, AnimationLoader::ERROR_SIDE_MUST_HAVE_AN_IMAGE_ID, "Could not find side image id");
+//                   std::cout << "Error: " << desc.description << "\n";
+//                   errors.push_back(desc);
+//                 }
+//                 
+//                 continue;
+//               }
+//             }
+//             
+//             info.frames.push_back(AnimationLoader::LoadData::Frame{sides});
+//             
+//             continue;
+//           }
+//         }
+//         
+//         if (!hasSides) {
+//           ErrorDesc desc(mark, AnimationLoader::ERROR_FRAME_MUST_HAVE_AT_LEAST_ONE_SIDE, "Frame must have at least one side");
+//           std::cout << "Error: " << desc.description << "\n";
+//           errors.push_back(desc);
+//         }

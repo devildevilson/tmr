@@ -2,64 +2,64 @@
 
 #include <cstring>
 
-ItemType::ItemType(const CreateInfo &info)
-  : typeId(info.id),
-    itemGroup(info.itemGroup),
-    typeName(info.name),
-    typeDescription(info.description),
-    effect(info.itemEffect),
-    attackEvent(info.itemEvent),
-    attackType(info.itemType),
-    interactionData(info.interactionData),
-    weaponData(info.weaponData) {}
-
-Type ItemType::id() const {
-  return typeId;
-}
-
-Type ItemType::group() const {
-  return itemGroup;
-}
-
-std::string ItemType::name() const {
-  return typeName;
-}
-
-std::string ItemType::description() const {
-  return typeDescription;
-}
-
-const StateControllerType* ItemType::playerStates() const {
-  return weaponData.player;
-}
-
-const StateControllerType* ItemType::objectStates() const {
-  return weaponData.other;
-}
-
-bool ItemType::isWeapon() const {
-  return weaponData.ammoType.valid() && weaponData.weaponEffect != nullptr && weaponData.player != nullptr && weaponData.other != nullptr;
-}
-
-const Effect* ItemType::itemEffect() const {
-  return effect;
-}
-
-Type ItemType::useEvent() const {
-  return attackEvent;
-}
-
-enum Interaction::type ItemType::useType() const {
-  return attackType;
-}
-
-const InteractionData & ItemType::itemInteractionData() const {
-  return interactionData;
-}
-
-const WeaponItemData & ItemType::weaponItemData() const {
-  return weaponData;
-}
+// ItemType::ItemType(const CreateInfo &info)
+//   : typeId(info.id),
+//     itemGroup(info.itemGroup),
+//     typeName(info.name),
+//     typeDescription(info.description),
+//     effect(info.itemEffect),
+//     attackEvent(info.itemEvent),
+//     attackType(info.itemType),
+//     interactionData(info.interactionData),
+//     weaponData(info.weaponData) {}
+// 
+// Type ItemType::id() const {
+//   return typeId;
+// }
+// 
+// Type ItemType::group() const {
+//   return itemGroup;
+// }
+// 
+// std::string ItemType::name() const {
+//   return typeName;
+// }
+// 
+// std::string ItemType::description() const {
+//   return typeDescription;
+// }
+// 
+// const StateControllerType* ItemType::playerStates() const {
+//   return weaponData.player;
+// }
+// 
+// const StateControllerType* ItemType::objectStates() const {
+//   return weaponData.other;
+// }
+// 
+// bool ItemType::isWeapon() const {
+//   return weaponData.ammoType.valid() && weaponData.weaponEffect != nullptr && weaponData.player != nullptr && weaponData.other != nullptr;
+// }
+// 
+// const Effect* ItemType::itemEffect() const {
+//   return effect;
+// }
+// 
+// Type ItemType::useEvent() const {
+//   return attackEvent;
+// }
+// 
+// enum Interaction::type ItemType::useType() const {
+//   return attackType;
+// }
+// 
+// const InteractionData & ItemType::itemInteractionData() const {
+//   return interactionData;
+// }
+// 
+// const WeaponItemData & ItemType::weaponItemData() const {
+//   return weaponData;
+// }
 
 Item::Item(const CreateInfo &info) : m_quantity(info.quantity), m_type(info.type) {}
 

@@ -37,6 +37,8 @@ public:
   const std::vector<const Effect*> & onTakingWapon() const;
   const std::vector<AbilitySlot> & weaponAbilities() const;
   
+  // если это оружее, у него должно быть дефолтное состояние
+  
   bool isWeapon() const;
 private:
   Type m_id;

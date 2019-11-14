@@ -12,13 +12,20 @@
 #include <unordered_map>
 #include <vector>
 
+class AttributesLoader;
+
 class EffectsLoader : public Loader, public ResourceParser {
 public:
   class LoadData : public Resource {
   public:
+    struct BonusType {
+      ResourceID attribId;
+      Bonus bonus;
+    };
+    
     struct Modificator {
       Type event;
-      Type effectId;
+      ResourceID effectId;
     };
     
     struct CreateInfo {
@@ -62,8 +69,9 @@ public:
   };
   
   struct CreateInfo {
-    std::unordered_map<std::string, std::function<void(const Effect*, const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, ComputedEffectContainer*)>> hardcodedComputeFunc;
-  std::unordered_map<std::string, std::function<void(const Effect*, const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, ComputedEffectContainer*)>> hardcodedResistFunc;
+    AttributesLoader* attributesLoader;
+    std::unordered_map<std::string, Effect::FuncType> hardcodedComputeFunc;
+    std::unordered_map<std::string, Effect::FuncType> hardcodedResistFunc;
   };
   EffectsLoader(const CreateInfo &info);
   ~EffectsLoader();
@@ -101,13 +109,14 @@ private:
   };
   
   TemporaryData* tempData;
+  AttributesLoader* attributesLoader;
   
   MemoryPool<Effect, sizeof(Effect)*20> effectsPool;
   std::vector<Effect*> effectsPtr;
   std::unordered_map<Type, const Effect*> effects;
   
-  std::unordered_map<std::string, std::function<void(const Effect*, const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, ComputedEffectContainer*)>> hardcodedComputeFunc;
-  std::unordered_map<std::string, std::function<void(const Effect*, const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, ComputedEffectContainer*)>> hardcodedResistFunc;
+  std::unordered_map<std::string, Effect::FuncType> hardcodedComputeFunc;
+  std::unordered_map<std::string, Effect::FuncType> hardcodedResistFunc;
   
   LoadData* getEffectResource(const Type &effectId) const;
 };

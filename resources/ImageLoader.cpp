@@ -183,6 +183,92 @@ void ImagePool::updateDescriptorData(yavf::DescriptorSet* set) {
 
 uint32_t ImagePool::descriptorSlot = 0;
 
+bool VHpartValid(const size_t &indexFrom, const size_t &lastIndex, const std::string &str) {
+  const size_t count = std::min(str.length(), lastIndex) - indexFrom;
+  if (count > 2) return false;
+  if (count == 2) return (str[indexFrom] == 'h' && str[indexFrom+1] == 'v') || (str[indexFrom] == 'v' && str[indexFrom+1] == 'h');
+  return str[indexFrom] == 'h' || str[indexFrom] == 'v';
+}
+
+bool indexPartValid(const size_t &indexFrom, const size_t &indexLast, const std::string &str) {
+  bool digitOk = true;
+  for (size_t i = indexFrom; i < std::min(indexLast, str.size()); ++i) {
+    digitOk = digitOk && isdigit(str[i]);
+  }
+
+  return digitOk;
+}
+
+void parseTextureDataString(const std::string &str, ResourceID &imageId, size_t &imageIndex, bool &flipU, bool &flipV) {
+  imageIndex = 0;
+  imageId = ResourceID();
+
+  size_t lastIndex = str.size();
+  size_t nextPart = str.find_last_of('.');
+  if (nextPart == std::string::npos) {
+    imageId = ResourceID::get(str);
+    imageIndex = 0;
+    flipU = false;
+    flipV = false;
+    return;
+  }
+
+  const size_t dotCount = std::count(str.begin(), str.end(), '.');
+
+  flipU = false;
+  flipV = false;
+  bool vhPart = false;
+  bool indexPart = false;
+
+  for (uint32_t i = 0; i < std::min(size_t(2), dotCount); ++i) {
+    {
+      const bool tmp = VHpartValid(nextPart+1, lastIndex, str);
+      if (!vhPart && tmp) {
+        vhPart = tmp;
+
+        flipU = str[nextPart+1] == 'h' || str[nextPart+2] == 'h';
+        flipV = str[nextPart+1] == 'v' || str[nextPart+2] == 'v';
+
+        lastIndex = nextPart;
+        for (nextPart = lastIndex-1; nextPart != SIZE_MAX; --nextPart) {
+          if (str[nextPart] == '.') break;
+
+          //std::cout << "char: " << str[nextPart] << '\n';
+        }
+
+        continue;
+      }
+    }
+
+    {
+      const bool tmp = indexPartValid(nextPart+1, lastIndex, str);
+      if (tmp) {
+        indexPart = tmp;
+        const std::string str122 = str.substr(nextPart+1, lastIndex);
+        // std::cout << str122 << '\n';
+        imageIndex = stoi(str122);
+
+        lastIndex = nextPart;
+        for (nextPart = lastIndex-1; nextPart != SIZE_MAX; --nextPart) {
+          if (str[nextPart] == '.') break;
+        }
+
+        continue;
+      }
+    }
+    
+    if (i == 0 && !(vhPart || indexPart)) {
+      imageId = ResourceID::get(str);
+      imageIndex = 0;
+      flipU = false;
+      flipV = false;
+      return;
+    }
+  }
+
+  imageId = ResourceID::get(str.substr(0, lastIndex));
+}
+
 enum Errors {
   COULD_NOT_LOAD_FILE = 0,
   MISSED_TEXTURE_PATH,
@@ -641,19 +727,12 @@ bool ImageLoader::load(const ModificationParser* modifications, const Resource* 
   // мы должны определить где данный ресурс будет располагаться
   // то есть разметить место под ресурс сгенерить информацию об изображениях
   // на этом этапе ничего не будет загружено, но уже можно брать инфу об изображениях
+  // 
   
   if (data == nullptr) throw std::runtime_error("Not in loading state");
-  
-  if (arrays.empty()) {
-    for (const auto &pair : data->textureDatas) {
-      const ImagePool::CreateInfo info{
-        
-      };
-    }
-  }
 
   //if (resource->loaderMark() != mark()) return false;
-  if (resource->parser() != this) return false;
+//   if (resource->parser() != this) return false;
   
   auto itr = data->textureDatas.find(resource->id());
   if (itr == data->textureDatas.end()) return false;
@@ -685,6 +764,15 @@ bool ImageLoader::load(const ModificationParser* modifications, const Resource* 
   // и подгрузку постепенно, в этом случае я добиваюсь необходимого поведения
   // но что делать если нам требуется больше изображений? здесь ничего особо и не придумаешь, кроме зависания
   // то есть по сути это будет примерно тот же мемори пул
+  
+  // я уже думал над тем что мне сделать с предсказанием, и я тогда ошибся подумав что arrays уже инициализирован
+  // и поэтому я не могу получить оттуда images
+  // если arrays.empty() то значит мы пытаемся загрузиться в первый раз - в этом случае необходимо как то предсказать
+  // данные для изображений, в чем беда? нужно предугадать номера слотов
+  
+  // вообще имеет смысл подумать о механизме "резолва" индексов изображений перед самым формированием данных в массив перед непосредственно отрисовкой
+  // так мы можем че угодно делать с индексами текстур, и устоявшиеся изменения будут только непосредственно перед формированием массива
+  // это нужно сделать будет потом
 
   ASSERT(loadingData.count() > 0);
   
@@ -695,23 +783,59 @@ bool ImageLoader::load(const ModificationParser* modifications, const Resource* 
     imageSize,
     loadingData.mipLevels()
   };
+  
+//   if (arrays.empty()) {
+//     for (const auto &pair : data->textureDatas) {
+//       const ImagePool::CreateInfo info{
+//         
+//       };
+//     }
+//   }
+  
+  size_t index = SIZE_MAX;
+  for (size_t i = 0; i < arrays.size(); ++i) {
+    if (equal(arrays[i], imageSize, loadingData.mipLevels())) {
+      index = i;
+      break;
+    }
+  }
+  
+  if (index == SIZE_MAX) { 
+    index = arrays.size();
+    const ImagePool::CreateInfo info{
+      CONCRETE_TEXTURE_LAYER_COUNT,
+      1,
+      device,
+      {
+        imageSize,
+        loadingData.mipLevels()
+      }
+    };
+    arrays.emplace_back(info);
+  }
+  
+  arrays[index].pop(imageConcrete.count, imageConcrete.images);
+  
+//   if (arrays.empty()) {
+//     // мы можем создать пустой пул для данного конкретного набора изображения
+//     // либо мы можем каким то образом предугадать индексы у изображений (ну тип фейк имайдж пул)
+//     // способ и пустым пулом проще и быстрее и лучше для, например, стриминга
+//     // в ином случае изображений создается ровно столько сколько нужно
+//     // думаю что нужно прикинуть количество картинок которые могут быть созданы
+//     // и создавать пулы изображений по этому количеству, как прикинуть?
+//   } else {
+// //     for (size_t i = 0; i < imageConcrete.count; ++i) {
+// //       imageConcrete.images[i] = arrays[index].pop();
+// //     }
+//   }
 
 //  for (size_t i = 0; i < imageConcrete.count; ++i) {
 //    imageConcrete.images[i] = arrays[index].pop();
 //  }
 
+
+
   data->loadData.push_back(imageConcrete);
-  
-  // ошибка в том что arrays в этот момент не инициализирован
-//   size_t index = SIZE_MAX;
-//   for (size_t i = 0; i < arrays.size(); ++i) {
-//     if (equal(arrays[i], imageSize, loadingData.mipLevels())) {
-//       index = i;
-//       break;
-//     }
-//   }
-//   
-//   arrays[index].pop(imageConcrete.count, imageConcrete.images);
 
   // как то так мы подготавливаем данные к дальнейшему копированию
   
@@ -945,23 +1069,23 @@ void ImageLoader::end() {
   };
   std::vector<Tmp> tmpArray;
   
-  for (const auto &loadingData : data->loadData) {
-    bool founded = false;
-    for (size_t i = 0; i < tmpArray.size(); ++i) {
-      if (tmpArray[i].extent == loadingData.size && tmpArray[i].mipLevels == loadingData.mipLevels) {
-        tmpArray[i].count += loadingData.count;
-        founded = true;
-        break;
-      }
-    }
-    
-    if (!founded) tmpArray.push_back({loadingData.size, loadingData.mipLevels, static_cast<uint32_t>(loadingData.count)});
-  }
-  
-  // нужно будет когда нибудь потом сделать свой вектор с плейсмент нью и без вечного оператора присвоения
-  for (const auto &tmp : tmpArray) {
-    arrays.emplace_back(ImagePool::CreateInfo{std::min(tmp.count, IMAGE_POOL_MAX_TEXTURE_LAYER_COUNT), static_cast<uint32_t>(std::ceil(float(tmp.count) / float(IMAGE_POOL_MAX_TEXTURE_LAYER_COUNT))), device, {tmp.extent, tmp.mipLevels}});
-  }
+//   for (const auto &loadingData : data->loadData) {
+//     bool founded = false;
+//     for (size_t i = 0; i < tmpArray.size(); ++i) {
+//       if (tmpArray[i].extent == loadingData.size && tmpArray[i].mipLevels == loadingData.mipLevels) {
+//         tmpArray[i].count += loadingData.count;
+//         founded = true;
+//         break;
+//       }
+//     }
+//     
+//     if (!founded) tmpArray.push_back({loadingData.size, loadingData.mipLevels, static_cast<uint32_t>(loadingData.count)});
+//   }
+//   
+//   // нужно будет когда нибудь потом сделать свой вектор с плейсмент нью и без вечного оператора присвоения
+//   for (const auto &tmp : tmpArray) {
+//     arrays.emplace_back(ImagePool::CreateInfo{std::min(tmp.count, IMAGE_POOL_MAX_TEXTURE_LAYER_COUNT), static_cast<uint32_t>(std::ceil(float(tmp.count) / float(IMAGE_POOL_MAX_TEXTURE_LAYER_COUNT))), device, {tmp.extent, tmp.mipLevels}});
+//   }
   
 //   for (size_t i = 0; i < arrays.size(); ++i) {
 //     for (size_t k = 0; k < arrays[i].imageArraysCount(); ++k) {
@@ -980,13 +1104,13 @@ void ImageLoader::end() {
 //      resource.imageSize().height
 //    };
     
-    size_t index = SIZE_MAX;
-    for (size_t i = 0; i < arrays.size(); ++i) {
-      if (equal(arrays[i], loadData.size, loadData.mipLevels)) {
-        index = i;
-        break;
-      }
-    }
+//     size_t index = SIZE_MAX;
+//     for (size_t i = 0; i < arrays.size(); ++i) {
+//       if (equal(arrays[i], loadData.size, loadData.mipLevels)) {
+//         index = i;
+//         break;
+//       }
+//     }
     
 //     std::cout << "loadData.count " << loadData.count << "\n";
 //     std::cout << "loadData.id.name() " << loadData.id.name() << "\n";
@@ -994,7 +1118,7 @@ void ImageLoader::end() {
 //     std::cout << "loadData.mipLevels " << loadData.mipLevels << "\n";
 //     std::cout << "loadData.size " << loadData.size.width << " " << loadData.size.height << "\n";
     
-    arrays[index].pop(loadData.count, loadData.images);
+//     arrays[index].pop(loadData.count, loadData.images);
 
     // грузим изображениие в дополнительную память
     int texWidth, texHeight, texChannels;

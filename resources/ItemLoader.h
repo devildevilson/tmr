@@ -13,6 +13,8 @@
 #include "MemoryPool.h"
 #include "LoadingTemporaryData.h"
 
+size_t parseSlot(const std::string &str);
+
 class AbilityTypeLoader;
 class EffectsLoader;
 
@@ -57,6 +59,8 @@ public:
     };
     
     struct CreateInfo {
+      Resource::CreateInfo resInfo;
+      
       Type m_id;
       Type m_groupId;
       std::string m_name;
@@ -88,8 +92,8 @@ public:
   };
   
   struct CreateInfo {
-    const AbilityTypeLoader* abilityTypeLoader;
-    const EffectsLoader* effectsLoader;
+    AbilityTypeLoader* abilityTypeLoader;
+    EffectsLoader* effectsLoader;
   };
   ItemTypeLoader(const CreateInfo &info);
   ~ItemTypeLoader();
@@ -119,8 +123,8 @@ public:
   
   const ItemType* getItemType(const Type &id) const;
 private:
-  const AbilityTypeLoader* abilityTypeLoader;
-  const EffectsLoader* effectsLoader;
+  AbilityTypeLoader* abilityTypeLoader;
+  EffectsLoader* effectsLoader;
   LoadingTemporaryData<LoadData, 50>* tempData;
   
   MemoryPool<ItemType, sizeof(ItemType)*50> itemPool;

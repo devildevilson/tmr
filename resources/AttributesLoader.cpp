@@ -13,6 +13,8 @@ std::string AttributesLoader::LoadData::pathToComputeFunction() const { return m
 bool checkAttributesJsonValidity(const std::string &path, const nlohmann::json &json, const size_t &mark, AttributesLoader::LoadData::CreateInfo &info, std::vector<ErrorDesc> &errors, std::vector<WarningDesc> &warnings) {
   bool hasId = false, hasType = false;
   
+  const size_t errorsCount = errors.size();
+  
   for (auto itr = json.begin(); itr != json.end(); ++itr) {
     if (itr.value().is_string() && itr.key() == "id") {
       hasId = true;
@@ -26,6 +28,7 @@ bool checkAttributesJsonValidity(const std::string &path, const nlohmann::json &
       if (!rightFloat && !rightInt) {
         ErrorDesc desc(mark, AttributesLoader::ERROR_BAD_TYPE_VALUE, "Variable with key \"type\" must be equal \"fractional\" or \"integer\"");
         std::cout << "Error: " << desc.description << "\n";
+        errors.push_back(desc);
         continue;
       }
       
@@ -48,17 +51,64 @@ bool checkAttributesJsonValidity(const std::string &path, const nlohmann::json &
   if (!hasId) {
     ErrorDesc desc(mark, AttributesLoader::ERROR_ATTRIBUTE_ID_NOT_FOUND, "Attribute description must have an id");
     std::cout << "Error: " << desc.description << "\n";
+    errors.push_back(desc);
     return false;
   }
   
   if (!hasType) {
     ErrorDesc desc(mark, AttributesLoader::ERROR_ATTRIBUTE_TYPE_IS_NOT_SPECIFIED, "Attribute description must have a type");
     std::cout << "Error: " << desc.description << "\n";
+    errors.push_back(desc);
     return false;
+  }
+  
+  return errorsCount == errors.size();
+}
+
+AttributesLoader::AttributesLoader(const CreateInfo &info) : tempData(nullptr), floatComputeFuncs(info.floatComputeFuncs), intComputeFuncs(info.intComputeFuncs) {
+  {
+    Type id = Type::get("current_actor_speed");
+    const AttributeType<FLOAT_ATTRIBUTE_TYPE>::CreateInfo attribInfo{
+      id,
+      "Current actor speed",
+      "Created automaticaly",
+      ATTRIBUTE_CURRENT_SPEED,
+      nullptr
+    };
+    auto ptr = floatAttribTypePool.newElement(attribInfo);
+    floatAttribsTypesPtr.push_back(ptr);
+    floatAttribsTypes[id] = ptr;
+  }
+  
+  {
+    Type id = Type::get("actor_acceleration");
+    const AttributeType<FLOAT_ATTRIBUTE_TYPE>::CreateInfo attribInfo{
+      id,
+      "Actor acceleration",
+      "Created automaticaly",
+      ATTRIBUTE_UPDATE_EXTERNAL_DATA_ACCELERATION,
+      nullptr
+    };
+    auto ptr = floatAttribTypePool.newElement(attribInfo);
+    floatAttribsTypesPtr.push_back(ptr);
+    floatAttribsTypes[id] = ptr;
+  }
+  
+  {
+    Type id = Type::get("actor_max_speed");
+    const AttributeType<FLOAT_ATTRIBUTE_TYPE>::CreateInfo attribInfo{
+      id,
+      "Actor max speed",
+      "Created automaticaly",
+      ATTRIBUTE_UPDATE_EXTERNAL_DATA_MAX_SPEED,
+      nullptr
+    };
+    auto ptr = floatAttribTypePool.newElement(attribInfo);
+    floatAttribsTypesPtr.push_back(ptr);
+    floatAttribsTypes[id] = ptr;
   }
 }
 
-AttributesLoader::AttributesLoader(const CreateInfo &info) : tempData(nullptr), floatComputeFuncs(info.floatComputeFuncs), intComputeFuncs(info.intComputeFuncs) {}
 AttributesLoader::~AttributesLoader() {
   clear();
   
@@ -83,6 +133,71 @@ bool AttributesLoader::parse(const Modification* mod,
                              std::vector<WarningDesc> &warnings) {
   if (tempData == nullptr) tempData = new TempData;
   
+//   if (data.is_string()) {
+//     const std::string &path = data.get<std::string>();
+//     std::ifstream file(pathPrefix + path);
+//     if (!file) {
+//       ErrorDesc desc(4123, ERROR_FILE_NOT_FOUND, "Could not load file "+pathPrefix+path);
+//       std::cout << "Error: " << desc.description << "\n";
+//       errors.push_back(desc);
+//       return false;
+//     }
+//     
+//     nlohmann::json json;
+//     file >> json;
+//     
+//     return parse(mod, pathPrefix, json, resource, errors, warnings);
+//   } else if (data.is_array()) {
+//     for (size_t i = 0; i < data.size(); ++i) {
+//       // на самом деле тут наверное должен быть везде обжект
+//       if (data[i].is_object()) {
+//         AttributesLoader::LoadData::CreateInfo info = {};
+//         const bool ret = checkAttributesJsonValidity(pathPrefix, data[i], 4123, info, errors, warnings);
+//         if (!ret) continue;
+//         
+//         info.resInfo.mod = mod;
+//         info.resInfo.parsedBy = this;
+//         info.resInfo.pathStr = "";
+//         info.resInfo.resGPUSize = 0;
+//         info.resInfo.resId = ResourceID::get(info.m_id.name());
+//         info.resInfo.resSize = sizeof(AttributeType<FLOAT_ATTRIBUTE_TYPE>);
+//         
+//         auto ptr = tempData->tempPool.newElement(info);
+//         tempData->tempPtr.push_back(ptr);
+//         resource.push_back(ptr);
+//       } else if (data[i].is_string()) {
+//         const std::string &path = data.get<std::string>();
+//         std::ifstream file(pathPrefix + path);
+//         if (!file) {
+//           ErrorDesc desc(4123, ERROR_FILE_NOT_FOUND, "Could not load file "+pathPrefix+path);
+//           std::cout << "Error: " << desc.description << "\n";
+//           errors.push_back(desc);
+//           continue;
+//         }
+//         
+//         nlohmann::json json;
+//         file >> json;
+//         
+//         parse(mod, pathPrefix, json, resource, errors, warnings);
+//       }
+//     }
+//   } else if (data.is_object()) {
+//     AttributesLoader::LoadData::CreateInfo info = {};
+//     const bool ret = checkAttributesJsonValidity(pathPrefix, data, 4123, info, errors, warnings);
+//     if (!ret) return false;
+//     
+//     info.resInfo.mod = mod;
+//     info.resInfo.parsedBy = this;
+//     info.resInfo.pathStr = "";
+//     info.resInfo.resGPUSize = 0;
+//     info.resInfo.resId = ResourceID::get(info.m_id.name());
+//     info.resInfo.resSize = sizeof(AttributeType<FLOAT_ATTRIBUTE_TYPE>);
+//     
+//     auto ptr = tempData->tempPool.newElement(info);
+//     tempData->tempPtr.push_back(ptr);
+//     resource.push_back(ptr);
+//   }
+  
   if (data.is_string()) {
     const std::string &path = data.get<std::string>();
     std::ifstream file(pathPrefix + path);
@@ -95,57 +210,33 @@ bool AttributesLoader::parse(const Modification* mod,
     
     nlohmann::json json;
     file >> json;
-    
     return parse(mod, pathPrefix, json, resource, errors, warnings);
   } else if (data.is_array()) {
+    bool ret = true;
     for (size_t i = 0; i < data.size(); ++i) {
-      // на самом деле тут наверное должен быть везде обжект
-      if (data[i].is_object()) {
-        AttributesLoader::LoadData::CreateInfo info = {};
-        const bool ret = checkAttributesJsonValidity(pathPrefix, data[i], 4123, info, errors, warnings);
-        if (!ret) continue;
-        
-        info.resInfo.mod = mod;
-        info.resInfo.parsedBy = this;
-        info.resInfo.pathStr = "";
-        info.resInfo.resGPUSize = 0;
-        info.resInfo.resId = ResourceID::get(info.m_id.name());
-        info.resInfo.resSize = sizeof(AttributeType<FLOAT_ATTRIBUTE_TYPE>);
-        
-        auto ptr = tempData->tempPool.newElement(info);
-        tempData->tempPtr.push_back(ptr);
-        resource.push_back(ptr);
-      } else if (data[i].is_string()) {
-        const std::string &path = data.get<std::string>();
-        std::ifstream file(pathPrefix + path);
-        if (!file) {
-          ErrorDesc desc(4123, ERROR_FILE_NOT_FOUND, "Could not load file "+pathPrefix+path);
-          std::cout << "Error: " << desc.description << "\n";
-          errors.push_back(desc);
-          continue;
-        }
-        
-        nlohmann::json json;
-        json << file;
-        
-        parse(mod, pathPrefix, json, resource, errors, warnings);
-      }
+      ret = ret && parse(mod, pathPrefix, data[i], resource, errors, warnings);
     }
+    return ret;
   } else if (data.is_object()) {
-    AttributesLoader::LoadData::CreateInfo info = {};
-    const bool ret = checkAttributesJsonValidity(pathPrefix, data, 4123, info, errors, warnings);
+    LoadData::CreateInfo info = {};
+    
+    bool ret = checkAttributesJsonValidity(pathPrefix, data, 12512, info, errors, warnings);
     if (!ret) return false;
     
     info.resInfo.mod = mod;
     info.resInfo.parsedBy = this;
-    info.resInfo.pathStr = "";
     info.resInfo.resGPUSize = 0;
-    info.resInfo.resId = ResourceID::get(info.m_id.name());
     info.resInfo.resSize = sizeof(AttributeType<FLOAT_ATTRIBUTE_TYPE>);
+    info.resInfo.pathStr = "";
+    info.resInfo.resId = ResourceID::get(info.m_id.name());
     
     auto ptr = tempData->tempPool.newElement(info);
     tempData->tempPtr.push_back(ptr);
     resource.push_back(ptr);
+    
+    std::cout << "Parsed " << ptr->id().name() << "\n";
+    
+    return true;
   }
   
   return true;
@@ -311,3 +402,10 @@ const AttributeType<INT_ATTRIBUTE_TYPE>* AttributesLoader::getIntType(const Type
   
   return itr->second;
 }
+
+AttributesLoader::TempData::~TempData() {
+  for (auto ptr : tempPtr) {
+    tempPool.deleteElement(ptr);
+  }
+}
+

@@ -6,6 +6,8 @@
 #include "Type.h"
 #include "RenderStructures.h"
 
+#include "AttributesComponent.h"
+
 #include <vector>
 
 class vertex_t;
@@ -15,6 +17,7 @@ class ItemType;
 class Effect;
 template <typename T>
 class AttributeType;
+class StateControllerType;
 namespace tb {
   class BehaviorTree;
 }
@@ -28,7 +31,7 @@ struct WallData {
   size_t faceVertices;
   size_t faceIndex;
   
-  Texture wallTexture;
+  Texture wallTexture; // возможно строка с наименованием изображения
   float radius;
   vertex_t* vertex;
   
@@ -54,10 +57,12 @@ public:
 // проблема в том что AbilityType должен пользоваться тем же создателем что и обычный объект
 // другое дело что мы должны определить когда мы создаем по абилке объект, 
 // а когда с помощью данных (например данных карты)
-class AbilityCreator : public EntityCreator {
-public:
-  yacs::entity* create(yacs::entity* parent, void* data) const override;
-};
+// class AbilityCreator : public EntityCreator {
+// public:
+//   yacs::entity* create(yacs::entity* parent, void* data) const override;
+// };
+
+// что такое действие?
 
 struct ObjectData {
   // максимально необходимые данные для объекта какие? позиция, направление, ???
@@ -69,7 +74,7 @@ struct ObjectData {
   float dir[4];
   
   uint32_t flags; // тут например амбуш переменная, монстры не реагируют на звуки пока не увидят цель (точнее они только видят но не слышат)
-  uint32_t tag;
+  uint32_t tag;   // тэг я так понял используется для того чтобы пометить к какому объекту применяется действие - полезно
   uint32_t defaultAction;
   
   const AbilityType* ability;
@@ -96,8 +101,8 @@ public:
       T value;
     };
     
-    std::vector<Attrib<float>> float_attribs;
-    std::vector<Attrib<int64_t>> int_attribs;
+    std::vector<AttributeComponent::InitInfo<FLOAT_ATTRIBUTE_TYPE>> float_attribs;
+    std::vector<AttributeComponent::InitInfo<INT_ATTRIBUTE_TYPE>> int_attribs;
   };
   
   struct Effects {
@@ -137,13 +142,14 @@ public:
   };
   
   struct States {
-    struct Data {
-      Type id;
-      size_t time;
-      // data
-    };
-    
-    std::vector<Data> states;
+//     struct Data {
+//       Type id;
+//       size_t time;
+//       // data
+//     };
+//     
+//     std::vector<Data> states;
+    const StateControllerType* type;
   };
   
   struct CreateInfo {

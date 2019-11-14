@@ -1,0 +1,12 @@
+{
+  "id": "test_entity1",
+  "attributes": {
+    "health": 100
+  },
+  "physics": {
+    "height": 1.02,
+    "width": 1.0,
+    "stair_height": 0.3
+  },
+  "texture": "a14626771132270"
+}

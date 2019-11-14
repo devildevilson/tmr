@@ -21,9 +21,27 @@
       "texture13.json"
     ],
     "sounds": [
+      "sound1.json"
+    ],
+    "animations": [
+      "animation.json"
+    ],
+    "abilities": [
 
     ],
-    "afsfqqfw": [
+    "items": [
+
+    ],
+    "attributes": [
+      "attribute1.json"
+    ],
+    "effects": [
+
+    ],
+    "entities": [
+      "default_entity.json"
+    ],
+    "maps": [
 
     ]
   }
