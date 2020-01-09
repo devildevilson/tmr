@@ -10,6 +10,9 @@
 class PhysicsComponent;
 class TransformComponent;
 class GraphicComponent;
+namespace yacs {
+  class entity;
+}
 
 // нужны данные об uv анимации
 struct UVAnimation {
@@ -30,9 +33,10 @@ public:
 
   struct CreateInfo {
 //    EventComponent* localEvents;
-    TransformComponent* trans;
-    PhysicsComponent* phys;
-    GraphicComponent* graphics;
+    yacs::entity* ent;
+//     TransformComponent* trans;
+//     PhysicsComponent* phys;
+//     GraphicComponent* graphics;
   };
   AnimationComponent(const CreateInfo &info);
   ~AnimationComponent();
@@ -81,9 +85,10 @@ private:
   
 //   StateController* controller;
 //  EventComponent* localEvents;
-  TransformComponent* trans;
-  PhysicsComponent* phys; // скорость
-  GraphicComponent* graphics;
+  yacs::entity* ent;
+//   TransformComponent* trans;
+//   PhysicsComponent* phys; // скорость
+//   GraphicComponent* graphics;
   
   //AnimationSystem::AnimationUnitData data;
   // нафига мне нужен AnimationState??????? я могу сюда просто id анимации добавить

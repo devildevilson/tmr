@@ -1,12 +1,12 @@
 #include "InfoComponent.h"
 
-InfoComponent::InfoComponent(const CreateInfo &info) : type(info.type), userData(info.userData) {}
+InfoComponent::InfoComponent(const CreateInfo &info) : m_type(info.type), m_ent(info.ent) {}
 InfoComponent::~InfoComponent() {}
 
 void InfoComponent::edit() {
 
 }
 
-std::string InfoComponent::getType() const {
-  return type.name();
+Type InfoComponent::type() const {
+  return m_type;
 }

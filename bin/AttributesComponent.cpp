@@ -4,11 +4,13 @@
 #include "PhysicsComponent.h"
 #include "Globals.h"
 
+#include "GetSpeedTemFunc.h"
+
 void AttributeComponent::setContainer(Container<ExternalData>* cont) {
   AttributeComponent::externalDatas = cont;
 }
 
-AttributeComponent::AttributeComponent(const CreateInfo &info) : fcount(info.float_attribs.size()), icount(info.int_attribs.size()), attribsf(nullptr), attribsi(nullptr), phys(info.phys), events(info.events), updateTime(info.updateTime), currentTime(SIZE_MAX) {
+AttributeComponent::AttributeComponent(const CreateInfo &info) : fcount(info.float_attribs.size()), icount(info.int_attribs.size()), attribsf(nullptr), attribsi(nullptr), ent(info.ent), externalDataIndex(info.externalDataIndex), updateTime(std::min(info.updateTime, size_t(SIZE_MAX-1))), currentTime(updateTime+1) {
   attribsf = fcount > 0 ? new Attribute<FLOAT_ATTRIBUTE_TYPE>[fcount] : nullptr;
   attribsi = icount > 0 ? new Attribute<INT_ATTRIBUTE_TYPE>[icount] : nullptr;
   
@@ -56,37 +58,37 @@ struct AttributeReactionPointers {
   void* attribute;
 };
 
+static const std::function<void(Attribute<FLOAT_ATTRIBUTE_TYPE>*, const Bonus &)> float_attrib_funcs[ATTRIB_BONUS_TYPE_COUNT] = {
+  [] (Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
+    attrib->addBonus(bonus);
+  },
+  [] (Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
+    attrib->removeBonus(bonus);
+  },
+  [] (Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
+    attrib->addFinalBonus(bonus);
+  },
+  [] (Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
+    attrib->removeFinalBonus(bonus);
+  }
+};
+
+static const std::function<void(Attribute<INT_ATTRIBUTE_TYPE>*, const Bonus &)> int_attrib_funcs[ATTRIB_BONUS_TYPE_COUNT] = {
+  [] (Attribute<INT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
+    attrib->addBonus(bonus);
+  },
+  [] (Attribute<INT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
+    attrib->removeBonus(bonus);
+  },
+  [] (Attribute<INT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
+    attrib->addFinalBonus(bonus);
+  },
+  [] (Attribute<INT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
+    attrib->removeFinalBonus(bonus);
+  }
+};
+
 void AttributeComponent::update() {
-  static const std::function<void(Attribute<FLOAT_ATTRIBUTE_TYPE>*, const Bonus &)> float_attrib_funcs[ATTRIB_BONUS_TYPE_COUNT] = {
-    [] (Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
-      attrib->addBonus(bonus);
-    },
-    [] (Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
-      attrib->removeBonus(bonus);
-    },
-    [] (Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
-      attrib->addFinalBonus(bonus);
-    },
-    [] (Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
-      attrib->removeFinalBonus(bonus);
-    }
-  };
-
-  static const std::function<void(Attribute<INT_ATTRIBUTE_TYPE>*, const Bonus &)> int_attrib_funcs[ATTRIB_BONUS_TYPE_COUNT] = {
-    [] (Attribute<INT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
-      attrib->addBonus(bonus);
-    },
-    [] (Attribute<INT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
-      attrib->removeBonus(bonus);
-    },
-    [] (Attribute<INT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
-      attrib->addFinalBonus(bonus);
-    },
-    [] (Attribute<INT_ATTRIBUTE_TYPE>* attrib, const Bonus &bonus) {
-      attrib->removeFinalBonus(bonus);
-    }
-  };
-
 //   static const std::function<void(EventComponent*, AttributeComponent*, Attribute<FLOAT_ATTRIBUTE_TYPE>*, AttributeReaction*)> float_attrib_reactions[static_cast<uint32_t>(AttributeReaction::comparison::count)] = {
 //     [] (EventComponent* events, AttributeComponent* comp, Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib, AttributeReaction* reaction) {
 //       if (attrib->value() < reaction->value) {
@@ -182,41 +184,47 @@ void AttributeComponent::update() {
   AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> float_finder(fcount, attribsf);
   AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> int_finder(icount, attribsi);
 
-  for (size_t i = 0; i < datas.size(); ++i) {
-    if (datas[i].attribType.float_type()) {
-      const AttributeType<FLOAT_ATTRIBUTE_TYPE>* type = datas[i].attribType.get_float_type();
-      Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib = float_finder.find(type);
-
-      float_attrib_funcs[datas[i].type](attrib, datas[i].b);
-    } else {
-      const AttributeType<INT_ATTRIBUTE_TYPE>* type = datas[i].attribType.get_int_type();
-      Attribute<INT_ATTRIBUTE_TYPE>* attrib = int_finder.find(type);
-
-      int_attrib_funcs[datas[i].type](attrib, datas[i].b);
-    }
-  }
+//   for (size_t i = 0; i < changesBuffer.size(); ++i) {
+//     if (changesBuffer[i].attribType.float_type()) {
+//       const AttributeType<FLOAT_ATTRIBUTE_TYPE>* type = changesBuffer[i].attribType.get_float_type();
+//       Attribute<FLOAT_ATTRIBUTE_TYPE>* attrib = float_finder.find(type);
+// 
+//       float_attrib_funcs[changesBuffer[i].type](attrib, changesBuffer[i].b);
+//     } else {
+//       const AttributeType<INT_ATTRIBUTE_TYPE>* type = changesBuffer[i].attribType.get_int_type();
+//       Attribute<INT_ATTRIBUTE_TYPE>* attrib = int_finder.find(type);
+// 
+//       int_attrib_funcs[changesBuffer[i].type](attrib, changesBuffer[i].b);
+//     }
+//   }
 
   for (size_t i = 0; i < fcount; ++i) {
     switch (attribsf[i].type()->data_type()) {
       case ATTRIBUTE_CURRENT_SPEED: {
-        if (phys != nullptr) break;
-        attribsf[i].setBase(phys->getSpeed());
-        attribsf[i].setValue(phys->getSpeed());
+//         if (phys == nullptr) break;
+//         attribsf[i].setBase(phys->getSpeed());
+//         attribsf[i].setValue(phys->getSpeed());
+        // костыль, как его убрать?
+        const float speed = Global::get<GetSpeedFunc>()->func(ent); // getEntitySpeed(ent);
+        attribsf[i].setBase(speed);
+        attribsf[i].setValue(speed);
         break;
       }
 
       case ATTRIBUTE_UPDATE_EXTERNAL_DATA_MAX_SPEED: {
-        if (phys != nullptr) break;
+        //if (phys == nullptr) break;
+        if (externalDataIndex == UINT32_MAX) break;
         attribsf[i].calculate(float_finder, int_finder);
-        const uint32_t index = phys->getExternalDataIndex();
+        const uint32_t index = externalDataIndex; // phys->getExternalDataIndex();
         externalDatas->at(index).maxSpeed = attribsf[i].value();
         break;
       }
 
       case ATTRIBUTE_UPDATE_EXTERNAL_DATA_ACCELERATION: {
-        if (phys != nullptr) break;
+        //if (phys == nullptr) break;
+        if (externalDataIndex == UINT32_MAX) break;
         attribsf[i].calculate(float_finder, int_finder);
-        const uint32_t index = phys->getExternalDataIndex();
+        const uint32_t index = externalDataIndex; // phys->getExternalDataIndex();
         externalDatas->at(index).acceleration = attribsf[i].value();
         break;
       }
@@ -252,9 +260,9 @@ void AttributeComponent::update() {
 //   }
 
   // сделано специально, чтобы аттрибуты обновлялись два кадра
-  if (datas.empty()) currentTime = 0;
-
-  datas.clear();
+  // будет сложно сделать когда появится time
+  if (currentTime == updateTime) currentTime = 0;
+  --currentTime;
 }
 
 // чистка данных об изменении когда должна происходить? по идее после того как 
@@ -303,22 +311,43 @@ AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> AttributeComponent::get_finder() 
   return {icount, attribsi};
 }
 
+// можно их сразу добавлять, как быть с синхронизацией?
+// синхронизацию должен обеспечить эффект
+// если этот метод больше никто не будет дергать то наверное все ок
+// тут у меня еще проблема есть: аттрибуты обновляются один за другим
+// зависимости аттрибутов сохраняются только в том случае если следующий зависит от предыдущего
+// это можно было бы частично решить если обновлять аттрибуты 2 кадра
 void AttributeComponent::change_attribute(const AttribChangeData &data) {
-  datas.push_back(data);
-  currentTime = SIZE_MAX;
+  changesBuffer.push_back(data);
+  currentTime = updateTime+1;
+  
+  {
+    auto attrib = get_finder<FLOAT_ATTRIBUTE_TYPE>().find(data.attribType);
+    if (attrib != nullptr) {
+      float_attrib_funcs[data.type](attrib, data.b);
+      return;
+    }
+  }
+  
+  {
+    auto attrib = get_finder<INT_ATTRIBUTE_TYPE>().find(data.attribType);
+    if (attrib != nullptr) {
+      int_attrib_funcs[data.type](attrib, data.b);
+      return;
+    }
+  }
 }
 
-const AttribChangeData* AttributeComponent::get_attribute_change(const TypelessAttributeType &type, size_t &counter) const {
-  if (datas.size() <= counter) {
+const AttribChangeData* AttributeComponent::get_attribute_change(const Type &type, size_t &counter) const {
+  if (changesBuffer.size() <= counter) {
     counter = 0;
     return nullptr;
   }
   
-  const AttribChangeData* ptr = &datas[counter];
-  
+  const AttribChangeData* ptr = &changesBuffer[counter];
   while (ptr->attribType != type) {
     ++counter;
-    ptr = &datas[counter];
+    ptr = &changesBuffer[counter];
   }
   
   ++counter;
@@ -330,9 +359,9 @@ const AttribChangeData* AttributeComponent::get_attribute_change(const TypelessA
 //   counter = 0;
 // }
 
-void AttributeComponent::addReaction(const AttributeReaction &reaction) {
-  reactions.push_back(reaction);
-}
+// void AttributeComponent::addReaction(const AttributeReaction &reaction) {
+//   reactions.push_back(reaction);
+// }
 
 //size_t & AttributeComponent::internalIndex() {
 //  return index;
@@ -360,14 +389,6 @@ AttributeSystem::~AttributeSystem() {}
 void AttributeSystem::update(const size_t &time) {
   (void)time;
 
-  static const auto func = [&] (const size_t &start, const size_t &count) {
-    for (size_t i = start; i < start+count; ++i) {
-      //components[i]->update(time);
-      auto handle = Global::world()->get_component<AttributeComponent>(i);
-      handle->update();
-    }
-  };
-
   const size_t componentCount = Global::world()->count_components<AttributeComponent>();
   const size_t count = std::ceil(float(componentCount) / float(pool->size()+1));
   size_t start = 0;
@@ -375,7 +396,13 @@ void AttributeSystem::update(const size_t &time) {
     const size_t jobCount = std::min(count, componentCount-start);
     if (jobCount == 0) break;
 
-    pool->submitnr(func, start, jobCount);
+    pool->submitnr([start, jobCount] () {
+      for (size_t i = start; i < start+jobCount; ++i) {
+        //components[i]->update(time);
+        auto handle = Global::world()->get_component<AttributeComponent>(i);
+        handle->update();
+      }
+    });
 
     start += jobCount;
   }

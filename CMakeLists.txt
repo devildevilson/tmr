@@ -287,6 +287,7 @@ set(SRC_LIST
   utils/basic_tri.cpp
   utils/DelayedWorkSystem.cpp
   utils/InventoryComponent.cpp
+  utils/stack_allocator.cpp
 )
 set(HDR_LIST
   utils/CmdMgr.h
@@ -329,6 +330,7 @@ set(HDR_LIST
   utils/basic_tri.h
   utils/shared_loaders_header.h
   utils/DelayedWorkSystem.h
+  utils/stack_allocator.h
 )
 add_library(utils ${SRC_LIST} ${HDR_LIST}) # именно add_library объявляет цель в cmake (затем это имя мы используем как переменную в других функциях)
 target_link_libraries(utils) # например здесь fmt
@@ -481,6 +483,7 @@ set(SRC_LIST
   ai/AISystem.cpp
   ai/AStarSearch.cpp
   ai/AIInputComponent.cpp
+  ai/MovementComponent.cpp
 )
 set(HDR_LIST 
   ai/EntityAI.h
@@ -492,6 +495,7 @@ set(HDR_LIST
   ai/MoveEventData.h
   ai/PathFindingPhase.h
   ai/AIInputComponent.h
+  ai/MovementComponent.h
 )
 add_library(ai ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(ai utils physics)
@@ -548,8 +552,10 @@ set(SRC_LIST
   bin/CPUAnimationSystemParallel.cpp
   bin/AnimationSystem.cpp
   bin/PostPhysics.cpp
-  bin/MenuItems.cpp
-  bin/Menu.cpp
+#   bin/MenuItems.cpp
+#   bin/Menu.cpp
+  bin/Interfaces.cpp
+  bin/overlay.cpp
   bin/Helper.cpp
   bin/main.cpp
   bin/CameraComponent.cpp
@@ -566,8 +572,11 @@ set(HDR_LIST
   bin/CPUAnimationSystemParallel.h
   bin/AnimationSystem.h
   bin/PostPhysics.h
-  bin/MenuItems.h
-  bin/Menu.h
+#   bin/MenuItems.h
+#   bin/Menu.h
+  bin/Interface.h
+  bin/Interfaces.h
+  bin/overlay.h
   bin/Helper.h
   bin/CameraComponent.h
   bin/InfoComponent.h

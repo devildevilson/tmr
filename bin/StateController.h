@@ -24,16 +24,20 @@ class SoundComponent;
 class InteractionComponent;
 class InventoryComponent;
 class AttributeComponent;
+namespace yacs {
+  class entity;
+}
 
 // состояния то не уникальны
 class StateController {
 public:
   struct CreateInfo {
-    AnimationComponent* animations;
-    SoundComponent* sounds;
-    InteractionComponent* interactions;
-    AttributeComponent* attribs;
-    InventoryComponent* inventory;
+    yacs::entity* ent;
+//     AnimationComponent* animations;
+//     SoundComponent* sounds;
+//     InteractionComponent* interactions;
+//     AttributeComponent* attribs;
+//     InventoryComponent* inventory;
     const StateControllerType* controllerType;
 //    size_t resourceContainerSize;
     // данные для создания состояний
@@ -47,27 +51,33 @@ public:
   bool looping() const;
   bool usedWeapon() const;
   bool usedItem() const;
+  bool inDefaultState() const;
+  bool isFinished() const;
 
   Type state() const;
   Type nextState() const;
+  Type previousState() const;
 
   size_t time() const;
   size_t stateTime() const;
+  float speedModificator() const;
 
   const StateControllerType* type() const;
 
   void setDefaultState();
   
   bool setState(const Type &state);
+  bool changeWeaponState(const Type &state);
 private:
-  AnimationComponent* animations;
-  SoundComponent* sounds;
-  InteractionComponent* interactions;
-  AttributeComponent* attribs;
-  InventoryComponent* inventory;
+//   AnimationComponent* animations;
+//   SoundComponent* sounds;
+//   InteractionComponent* interactions;
+//   AttributeComponent* attribs;
+//   InventoryComponent* inventory;
+  yacs::entity* ent;
 
   float speedMod;
-  //const Attribute<FLOAT_ATTRIBUTE_TYPE>* speedModAttrib;
+  const StateData* nextWeaponState;
   
   size_t currentTime;
   size_t lastTime;

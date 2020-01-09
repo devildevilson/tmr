@@ -1103,8 +1103,9 @@ void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystem
     //if (edge.isFake()) return false;
     
     return true;
-  });
+  }, 0.3f);
   
+  Global::get<AISystem>(system);
   Global g;
   g.setAISystem(system);
 }
@@ -1113,16 +1114,13 @@ void createBehaviourTrees() {
   // 200% нужно проработать мультитрединг (создать контейнер для необходимых данных)
   // в будущем мы обязательно должны воспользоваться как можно большим количеством предсозданных деревьев
   // эти деревья будут брать на себя какие то во первых типовые участки во вторых сложные в плане вычислений участки
-  // например chaseAndAttack или смерть
+//   // например chaseAndAttack или смерть
   
   tb::BehaviorTreeBuilder builder;
   tb::BehaviorTree* tree;
   tree = builder.sequence()
                   .action([] (tb::Node* const& node, void* const& ptr) -> tb::Node::status {
                     (void)node;
-                    // у меня EntityAI класс смещен по сранвению с AIComponent
-                    // починил смещение
-                    //AIComponent* ai = reinterpret_cast<AIComponent*>(ptr);
                     EntityAI* ai = reinterpret_cast<EntityAI*>(ptr);
                     
 //                     std::cout << "Start tree" << "\n";
@@ -1136,12 +1134,11 @@ void createBehaviourTrees() {
                     (void)node;
                     EntityAI* ai = reinterpret_cast<EntityAI*>(ptr);
                     
-                    const event e = ai->pushEvent(Type::get("find_path"), nullptr);
+                    const path_state s = ai->movement()->findPath(ai->target());
                     
                     std::cout << "Finding path" << "\n";
-                    
-                    if (e == running) return tb::Node::status::running;
-                    if (e == success) return tb::Node::status::success;
+                    if (s == path_state::finding) return tb::Node::status::running;
+                    if (s == path_state::found) return tb::Node::status::success;
                     
                     return tb::Node::status::failure;
                   })
@@ -1149,27 +1146,182 @@ void createBehaviourTrees() {
                     (void)node;
                     EntityAI* ai = reinterpret_cast<EntityAI*>(ptr);
                     
-                    const event e = ai->pushEvent(Type::get("move_path"), nullptr);
+                    const path_travel_state s = ai->movement()->travelPath();
                     
                     std::cout << "Move path" << "\n";
                     
-                    if (e == running) return tb::Node::status::running;
-                    if (e == success) return tb::Node::status::success;
-                          
-                    return tb::Node::status::failure;
+                    if (s == path_travel_state::end_travel) return tb::Node::status::success;
+                    if (s == path_travel_state::path_not_exist) return tb::Node::status::failure;
+                    
+                    return tb::Node::status::running;
                   })
                   .action([] (tb::Node* const& node, void* const& ptr) {
                     (void)node;
                     EntityAI* ai = reinterpret_cast<EntityAI*>(ptr);
                     
                     std::cout << "This is last node" << "\n";
-                    ai->setTarget(nullptr);
+                    ai->target(nullptr);
                     return tb::Node::status::success;
                   })
                 .end()
               .build();
               
   Global::ai()->setBehaviourTreePointer(Type::get("simple_tree"), tree);
+}
+
+void createLoaders(ParserContainer &loaderContainer, GraphicsContainer* graphicsContainer, std::vector<Loader*> &loaders, HardcodedMapLoader** mapLoader, ModificationContainer** mods) {
+  ImageLoader* textureLoader = nullptr;
+  SoundLoader* soundLoader = nullptr;
+  AnimationLoader* animationLoader = nullptr;
+  EntityLoader* entityLoader = nullptr;
+  ItemTypeLoader* itemLoader = nullptr;
+  AbilityTypeLoader* abilityTypeLoader = nullptr;
+  AttributesLoader* attributesLoader = nullptr;
+  EffectsLoader* effectsLoader = nullptr;
+  
+  std::unordered_map<std::string, AttributeType<FLOAT_ATTRIBUTE_TYPE>::FuncType> floatComputeFuncs;
+  std::unordered_map<std::string, AttributeType<INT_ATTRIBUTE_TYPE>::FuncType> intComputeFuncs;
+  
+  floatComputeFuncs["default"] = [] (const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, const FLOAT_ATTRIBUTE_TYPE &base, const FLOAT_ATTRIBUTE_TYPE &rawAdd, const FLOAT_ATTRIBUTE_TYPE &rawMul, const FLOAT_ATTRIBUTE_TYPE &finalAdd, const FLOAT_ATTRIBUTE_TYPE &finalMul) {
+    (void)float_finder;
+    (void)int_finder;
+    
+    FLOAT_ATTRIBUTE_TYPE value = base;
+    
+    value *= rawMul;
+    value += rawAdd;
+    
+    value *= finalMul;
+    value += finalAdd;
+    
+    return value;
+  };
+  
+  intComputeFuncs["default"] = [] (const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, const INT_ATTRIBUTE_TYPE &base, const INT_ATTRIBUTE_TYPE &rawAdd, const FLOAT_ATTRIBUTE_TYPE &rawMul, const INT_ATTRIBUTE_TYPE &finalAdd, const FLOAT_ATTRIBUTE_TYPE &finalMul) {
+    (void)float_finder;
+    (void)int_finder;
+    
+    INT_ATTRIBUTE_TYPE value = base;
+    
+    value *= rawMul;
+    value += rawAdd;
+    
+    value *= finalMul;
+    value += finalAdd;
+    
+    return value;
+  };
+  
+  std::unordered_map<std::string, Effect::FuncType> hardcodedComputeFunc;
+  std::unordered_map<std::string, Effect::FuncType> hardcodedResistFunc;
+  
+  std::unordered_map<std::string, AbilityType::ComputeTransformFunction> transFuncs;
+  std::unordered_map<std::string, AbilityType::ComputeAttributesFunction> attribsFuncs;
+  
+  const ImageLoader::CreateInfo tInfo{
+    graphicsContainer->device()
+  };
+  textureLoader = loaderContainer.add<ImageLoader>(tInfo);
+  loaders.push_back(textureLoader);
+
+  soundLoader = loaderContainer.add<SoundLoader>();
+  loaders.push_back(soundLoader);
+  
+  const AnimationLoader::CreateInfo aInfo{
+    textureLoader
+  };
+  animationLoader = loaderContainer.add<AnimationLoader>(aInfo);
+  loaders.push_back(animationLoader);
+  
+  const AttributesLoader::CreateInfo attribsInfo{
+    floatComputeFuncs,
+    intComputeFuncs
+  };
+  attributesLoader = loaderContainer.add<AttributesLoader>(attribsInfo);
+  loaders.push_back(attributesLoader);
+  
+  const EffectsLoader::CreateInfo effectsInfo{
+    attributesLoader,
+    hardcodedComputeFunc,
+    hardcodedResistFunc
+  };
+  effectsLoader = loaderContainer.add<EffectsLoader>(effectsInfo);
+  loaders.push_back(effectsLoader);
+  
+  const AbilityTypeLoader::CreateInfo abilityInfo{
+    attributesLoader,
+    effectsLoader,
+    transFuncs,
+    attribsFuncs
+  };
+  abilityTypeLoader = loaderContainer.add<AbilityTypeLoader>(abilityInfo);
+  loaders.push_back(abilityTypeLoader);
+  
+  const ItemTypeLoader::CreateInfo itemInfo{
+    abilityTypeLoader,
+    effectsLoader
+  };
+  itemLoader = loaderContainer.add<ItemTypeLoader>(itemInfo);
+  loaders.push_back(itemLoader);
+
+  const EntityLoader::CreateInfo entInfo{
+    textureLoader,
+    soundLoader,
+    animationLoader,
+    attributesLoader,
+    effectsLoader,
+    abilityTypeLoader,
+    itemLoader
+  };
+  entityLoader = loaderContainer.add<EntityLoader>(entInfo);
+  loaders.push_back(entityLoader);
+
+  const HardcodedMapLoader::CreateInfo mInfo{
+    graphicsContainer->device(),
+    entityLoader,
+    textureLoader
+  };
+  *mapLoader = loaderContainer.add<HardcodedMapLoader>(mInfo);
+  loaders.push_back(*mapLoader);
+
+  const ModificationContainer::CreateInfo pInfo{
+    0
+  };
+  *mods = loaderContainer.addModParser<ModificationContainer>(pInfo);
+  
+  ModificationContainer* cont = *mods;
+  cont->addParser(textureLoader);
+  cont->addParser(soundLoader);
+  cont->addParser(animationLoader);
+  cont->addParser(attributesLoader);
+  cont->addParser(effectsLoader);
+  cont->addParser(abilityTypeLoader);
+  cont->addParser(itemLoader);
+  cont->addParser(entityLoader);
+  cont->addParser(*mapLoader);
+}
+
+void createSoundSystem(dt::thread_pool* threadPool, SoundLoader* soundLoader, DelayedWorkSystem* delaySoundWork, GameSystemContainer &container) {
+  TimeLogDestructor soundSystemLog("Sound system initialization");
+  //SoundLoader* soundLoader = static_cast<SoundLoader*>(loaders[1]);
+  
+  const SoundSystem::CreateInfo sInfo {
+    threadPool,
+    soundLoader, // должен быть контейнер
+    delaySoundWork
+  };
+  auto* soundSystem = container.addSystem<SoundSystem>(sInfo);
+  Global::get(soundSystem);
+  Global g;
+  g.setSound(soundSystem);
+
+//     const SoundLoader::LoadData sound{
+//       "default_sound",
+//       Global::getGameDir() + "tmrdata/sounds/Curio feat. Lucy - Ten Feet (Daxten Remix).mp3",
+//       false,
+//       false
+//     };
+//     soundLoader->load(sound);
 }
 
 void nextGuiFrame() {
@@ -1266,8 +1418,32 @@ void createReactions(const ReactionsCreateInfo &info) {
   
   auto menu = info.menuContainer;
   info.container->create("Menu", [menu] {
-    menu->openMenu();
+    menu->open();
     Global::data()->focusOnInterface = true;
+  });
+  
+  info.container->create("menu next", [menu] () {
+    menu->next();
+  });
+  
+  info.container->create("menu prev", [menu] () {
+    menu->prev();
+  });
+  
+  info.container->create("menu increase", [menu] () {
+    menu->increase();
+  });
+  
+  info.container->create("menu decrease", [menu] () {
+    menu->decrease();
+  });
+  
+  info.container->create("menu choose", [menu] () {
+    menu->choose();
+  });
+  
+  info.container->create("menu escape", [menu] () {
+    menu->escape();
   });
 
   auto window = info.window;
@@ -1290,7 +1466,7 @@ void createReactions(const ReactionsCreateInfo &info) {
     const AIComponent* comp = static_cast<const AIComponent*>(brain);
 
     //auto* phys = input->getEntity()->get<PhysicsComponent2>().get();
-    auto* phys = comp->components()->phys;
+    auto phys = comp->components()->entity->at<PhysicsComponent>(PHYSICS_COMPONENT_INDEX);
     if (phys->getGround() == nullptr) {
       const Object obj = Global::physics()->getObjectData(&phys->getIndexContainer());
       std::cout << "obj index " << obj.objectId << "\n";
@@ -1308,7 +1484,7 @@ void createReactions(const ReactionsCreateInfo &info) {
     
     std::cout << "setting target " << data->aiComponent << "\n";
     
-    brain->setTarget(data->aiComponent);
+    brain->target(data->aiComponent);
   });
 
   // а также use, attack, spells (1-9?), item use, hide weapon
@@ -1417,12 +1593,12 @@ void keysCallbacks(KeyContainer* container, const uint64_t &time) {
   }
 }
 
-void menuKeysCallback(MenuStateMachine* menu) {
-  for (size_t i = 0; i < KEYS_COUNT; ++i) {
-    if (Global::data()->keys[i]) {
-      menu->feedback(PressingData{static_cast<uint32_t>(i), 0});
-    }
-  }
+void menuKeysCallback(interface::container* menu) {
+//   for (size_t i = 0; i < KEYS_COUNT; ++i) {
+//     if (Global::data()->keys[i]) {
+//       menu->feedback(PressingData{static_cast<uint32_t>(i), 0});
+//     }
+//   }
 }
 
 void callback(int error, const char* description) {

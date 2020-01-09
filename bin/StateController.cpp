@@ -8,12 +8,13 @@
 #include "AnimationComponent.h"
 #include "SoundComponent.h"
 #include "AttributesComponent.h"
+#include "global_components_indicies.h"
 
 static const Type cancel = Type::get("cancel");
 static const Type change_weapon = Type::get("change_weapon");
 static const Type movement = Type::get("movement");
 
-StateController::StateController(const CreateInfo &info) : animations(info.animations), sounds(info.sounds), interactions(info.interactions), attribs(info.attribs), inventory(info.inventory), currentTime(0), lastTime(0), currentState(info.controllerType->defaultState()), controllerType(info.controllerType) {}
+StateController::StateController(const CreateInfo &info) : ent(info.ent), currentTime(0), lastTime(0), currentState(info.controllerType->defaultState()), controllerType(info.controllerType) {}
 
 // есть несколько специальных состояний: cancel, change_weapon, use_item
 // еще нужно учесть скорость атаки, вот тут то лучше передавать помимо
@@ -67,17 +68,18 @@ void StateController::update(const size_t &time) {
   
   currentTime += speedMod * time;
   
-  if (currentState->animation.valid() && (currentTime >= currentState->animationDelay && lastTime <= currentState->animationDelay)) { //currentState->animationDelay == 0 || 
+  if (currentState->animation.valid() && (currentState->animationDelay == 0 ||  (currentTime >= currentState->animationDelay && lastTime < currentState->animationDelay))) {
     const AnimationComponent::PlayInfo info{
       currentState->animation,
       speedMod,
       currentState->time - currentState->animationDelay,
       currentState->flags.looping()
     };
-    animations->play(info);
+    //animations->play(info);
+    ent->at<AnimationComponent>(ANIMATION_COMPONENT_INDEX)->play(info);
   }
   
-  if (currentState->sound.valid() && (currentTime >= currentState->soundDelay && lastTime <= currentState->soundDelay)) { //currentState->soundDelay == 0 || 
+  if (currentState->sound.valid() && (currentState->soundDelay == 0 || (currentTime >= currentState->soundDelay && lastTime < currentState->soundDelay))) {
     const SoundComponent::PlayInfo info{
       currentState->sound,
       currentState->time - currentState->soundDelay,
@@ -91,7 +93,19 @@ void StateController::update(const size_t &time) {
       1.0f, // пока неясно
       1.0f
     };
-    sounds->play(info);
+    //sounds->play(info);
+    ent->at<SoundComponent>(SOUND_COMPONENT_INDEX)->play(info);
+  }
+  
+  if (nextWeaponState != nullptr) {
+    // здесь мы должны сменить оружее
+    // изображение оружия должно уйти под нижнюю границу экрана
+    // меняем стейт со всеми сопутствующими
+    // ждем когда оно до конца подымется
+    // ставим nullptr
+    // для этого нужно контроллировать uv координаты полностью
+    
+    nextWeaponState = nullptr;
   }
   
   if (currentState->state == change_weapon) {
@@ -101,7 +115,8 @@ void StateController::update(const size_t &time) {
       glm::vec2(-0.5f, -0.5f),
       currentState->time
     };
-    animations->apply(uvInfo);
+//     animations->apply(uvInfo);
+    ent->at<AnimationComponent>(ANIMATION_COMPONENT_INDEX)->apply(uvInfo);
   }
   
   if (prevState->state == change_weapon) {
@@ -110,14 +125,15 @@ void StateController::update(const size_t &time) {
       glm::vec2(0.5f, 0.5f),
       currentState->time
     };
-    animations->apply(uvInfo);
+    //animations->apply(uvInfo);
+    ent->at<AnimationComponent>(ANIMATION_COMPONENT_INDEX)->apply(uvInfo);
   }
 
   lastTime = currentTime;
 }
 
 bool StateController::blocking() const {
-  return currentState->flags.blocking();
+  return nextWeaponState != nullptr || currentState->flags.blocking();
 }
 
 bool StateController::blockingMovement() const {
@@ -136,6 +152,14 @@ bool StateController::usedItem() const {
   return currentState->flags.useItem();
 }
 
+bool StateController::inDefaultState() const {
+  return currentState == controllerType->defaultState();
+}
+
+bool StateController::isFinished() const {
+  return currentTime >= currentState->time;
+}
+
 Type StateController::state() const {
   return currentState->state;
 }
@@ -145,12 +169,21 @@ Type StateController::nextState() const {
   return Type();
 }
 
+Type StateController::previousState() const {
+  if (prevState != nullptr) return prevState->state;
+  return Type();
+}
+
 size_t StateController::time() const {
   return currentTime;
 }
 
 size_t StateController::stateTime() const {
   return currentState->time;
+}
+
+float StateController::speedModificator() const {
+  return speedMod;
 }
 
 const StateControllerType* StateController::type() const {
@@ -266,6 +299,8 @@ void StateController::setDefaultState() {
 }
 
 bool StateController::setState(const Type &state) {
+  if (this->state() == state) return true;
+  
   auto statePtr = controllerType->state(state);
   if (statePtr == nullptr) return false;
   
@@ -273,14 +308,32 @@ bool StateController::setState(const Type &state) {
   currentState = statePtr;
   currentTime = 0;
   lastTime = 0;
+  computeSpeedMod();
   ASSERT(currentState != nullptr);
+  
+  return true;
+}
+
+bool StateController::changeWeaponState(const Type &state) {
+  if (this->state() == state) return true;
+  
+  auto statePtr = controllerType->state(state);
+  if (statePtr == nullptr) return false;
+  
+  nextWeaponState = statePtr;
   
   return true;
 }
 
 void StateController::computeSpeedMod() {
   speedMod = 1.0f;
-  if (currentState->speedModificator != nullptr && attribs != nullptr) {
+//   if (currentState->speedModificator != nullptr && attribs != nullptr) {
+//     auto attrib = attribs->get<FLOAT_ATTRIBUTE_TYPE>(currentState->speedModificator);
+//     speedMod = attrib->value();
+//   }
+  
+  auto attribs = ent->at<AttributeComponent>(ATTRIBUTE_COMPONENT_INDEX);
+  if (currentState->speedModificator != nullptr && attribs.valid()) {
     auto attrib = attribs->get<FLOAT_ATTRIBUTE_TYPE>(currentState->speedModificator);
     speedMod = attrib->value();
   }
@@ -295,12 +348,12 @@ StateControllerSystem::~StateControllerSystem() {
 }
 
 void StateControllerSystem::update(const size_t &time) {
-  static const auto func = [&] (const size_t &time, const size_t &start, const size_t &count) {
-    for (size_t i = start; i < start+count; ++i) {
-      auto handle = Global::world()->get_component<StateController>(i);
-      handle->update(time);
-    }
-  };
+//   static const auto func = [&] (const size_t &time, const size_t &start, const size_t &count) {
+//     for (size_t i = start; i < start+count; ++i) {
+//       auto handle = Global::world()->get_component<StateController>(i);
+//       handle->update(time);
+//     }
+//   };
 
   const size_t &componentsCount = Global::world()->count_components<StateController>();
   const size_t count = std::ceil(float(componentsCount) / float(pool->size()+1));
@@ -309,7 +362,12 @@ void StateControllerSystem::update(const size_t &time) {
     const size_t jobCount = std::min(count, componentsCount-start);
     if (jobCount == 0) break;
 
-    pool->submitnr(func, time, start, jobCount);
+    pool->submitbase([time, start, jobCount] () {
+      for (size_t i = start; i < start+jobCount; ++i) {
+        auto handle = Global::world()->get_component<StateController>(i);
+        handle->update(time);
+      }
+    });
 
     start += jobCount;
   }

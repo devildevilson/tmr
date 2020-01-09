@@ -4,21 +4,25 @@
 #include "Type.h"
 #include "UserDataComponent.h"
 
+namespace yacs {
+  class entity;
+}
+
 class InfoComponent {
 public:
   struct CreateInfo {
     Type type;
-    UserDataComponent* userData;
+    yacs::entity* ent;
   };
   InfoComponent(const CreateInfo &info);
   ~InfoComponent();
 
   void edit();
 
-  std::string getType() const;
+  Type type() const;
 private:
-  Type type;
-  UserDataComponent* userData;
+  Type m_type;
+  yacs::entity* m_ent;
 };
 
 #endif //INFO_COMPONENT_H

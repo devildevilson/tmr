@@ -17,7 +17,7 @@ class EntityAI;
 class vertex_t;
 class EventComponent;
 
-class AttributesComponent;
+class AttributeComponent;
 class EffectComponent;
 class InventoryComponent; // ???
 class UsableComponent;
@@ -29,22 +29,21 @@ namespace yacs {
 // сократить
 struct UserDataComponent {
   yacs::entity* entity;
-  TransformComponent* trans;
+//   TransformComponent* trans;
   GraphicUpdater* graphic;
-  PhysicsComponent* phys;
-  AnimationComponent* anim;
+//   PhysicsComponent* phys;
+//   AnimationComponent* anim;
   DecalContainerComponent* decalContainer;
   EntityAI* aiComponent;
   vertex_t* vertex;
-  EventComponent* events;
+//   EventComponent* events;
 };
 
-// будем брать эту структуру вместо поиска всех означенных
-struct InteractionData {
+struct InteractionDataComponent {
   yacs::entity* entity;
-  AttributesComponent* attribs;
+  AttributeComponent* attribs;
   EffectComponent* effects;
-  UsableComponent* usable; // для того чтобы обрабатывать эффект использовать
+  
 };
 
 // пригодится если я планирую сделать мультипоток

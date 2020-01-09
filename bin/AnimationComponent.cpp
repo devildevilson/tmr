@@ -6,6 +6,7 @@
 #include "TransformComponent.h"
 #include "Physics.h"
 #include "PhysicsComponent.h"
+#include "global_components_indicies.h"
 
 // void AnimationComponent::setStateContainer(Container<AnimationState>* stateContainer) {
 //   AnimationComponent::stateContainer = stateContainer;
@@ -24,13 +25,18 @@ AnimationComponent::AnimationComponent(const CreateInfo &info)
     accumulatedTime(0),
     animationTime(0),
 //    localEvents(info.localEvents),
-    trans(info.trans),
-    phys(info.phys),
-    graphics(info.graphics) {}
+    ent(info.ent) {}
+//     trans(info.trans),
+//     phys(info.phys),
+//     graphics(info.graphics) {}
 
 AnimationComponent::~AnimationComponent() {}
 
 void AnimationComponent::update(const uint64_t &time) {
+  auto trans = ent->at<TransformComponent>(TRANSFORM_COMPONENT_INDEX);
+  auto phys = ent->at<PhysicsComponent>(PHYSICS_COMPONENT_INDEX);
+  auto graphics = ent->at<GraphicComponent>(GRAPHICS_COMPONENT_INDEX);
+  
   // вычисляем прибавочное время
   const size_t newTime = speedMod * time;
 
@@ -49,7 +55,7 @@ void AnimationComponent::update(const uint64_t &time) {
     const uint8_t frameSize = anim.frameSize();
 
     int a = 0;
-    if (trans != nullptr && frameSize > 1) {
+    if (trans.valid() && frameSize > 1) { // trans != nullptr
       // тут вычисляем поворот относительно игрока
       // для этого нам потребуется еще один буфер с данными игрока
       const simd::vec4 playerPos = Global::getPlayerPos();

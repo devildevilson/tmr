@@ -46,13 +46,15 @@ void EffectComponent::update(const size_t &time) {
 }
 
 void EffectComponent::addEffect(const ComputedEffectContainer &effectData, const Effect* effect, const EntityAI* entity) {
+  // нужен мьютекс
+  
   if (effect->type().add()) {
     const AttribChanging type = effect->type().raw() ? ATTRIB_BONUS_TYPE_RAW_ADD : ATTRIB_BONUS_TYPE_FINAL_ADD;
     addAttribChanges(type, effectData, effect, entity);
   }
 
   if (effect->type().one_time_effect()) return;
-
+  
   effects.push_back(TimeEffect{0, effectData, effect, entity});
   for (const auto & mod : effect->modificators()) {
     eventsEffects.push_back(mod);
@@ -151,22 +153,29 @@ EffectSystem::EffectSystem(const CreateInfo &info) : pool(info.pool) {}
 EffectSystem::~EffectSystem() {}
 
 void EffectSystem::update(const size_t &time) {
-  static const auto func = [&] (const size_t &start, const size_t &count, const size_t &time) {
-    for (size_t i = start; i < start+count; ++i) {
-//      components[i]->update(time);
-      auto handle = Global::world()->get_component<EffectComponent>(i);
-      handle->update(time);
-    }
-  };
+//   static const auto func = [&] (const size_t &start, const size_t &count, const size_t &time) {
+//     for (size_t i = start; i < start+count; ++i) {
+// //      components[i]->update(time);
+//       auto handle = Global::world()->get_component<EffectComponent>(i);
+//       handle->update(time);
+//     }
+//   };
 
-  const size_t &componentsCount = Global::world()->count_components<EffectComponent>();
+  const size_t componentsCount = Global::world()->count_components<EffectComponent>();
   const size_t count = std::ceil(float(componentsCount) / float(pool->size()+1));
   size_t start = 0;
   for (uint32_t i = 0; i < pool->size()+1; ++i) {
     const size_t jobCount = std::min(count, componentsCount-start);
     if (jobCount == 0) break;
 
-    pool->submitnr(func, start, jobCount, time);
+    pool->submitbase([start, count, time] () {
+      for (size_t i = start; i < start+count; ++i) {
+        auto handle = Global::world()->get_component<EffectComponent>(i);
+        handle->update(time);
+      }
+    });
+    
+//     pool->submitnr(func, start, jobCount, time);
 
     start += jobCount;
   }

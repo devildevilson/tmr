@@ -1,5 +1,8 @@
 #include "Helper.h"
 
+// по хорошему нам бы конечно держать все компоненты в одном месте чтобы избежать этих костылей
+#include "GetSpeedTemFunc.h"
+
 class LogCounter {
 public:
   LogCounter(const std::string &log) {
@@ -12,8 +15,12 @@ private:
 
 size_t LogCounter::counter = 0;
 
+// проблема такого подхода в том, что нам нужно меню открывать и в самой игре
+// причем, рисовать нужно фрейм полностью, и потом дорисовывать сверху меню
+// при этом не обновляя некоторые системы (почти все)
+// возможно стоит сделать больше стейтов чтобы учесть почти все
 enum class game_state {
-  menu, // причем неплохо было бы сделать проигрывание демки в главном меню
+  main_menu, // причем неплохо было бы сделать проигрывание демки в главном меню
   loading,
   game
 };
@@ -40,9 +47,14 @@ int main(int argc, char** argv) {
   }
 
   Settings settings;
+  utils::settings settings1;
   {
     Global g;
     g.setSettings(&settings);
+    Global::get<const Settings>(&settings);
+    Global::get<utils::const_settings>(&settings1);
+    ASSERT(Global::get<utils::const_settings>());
+    ASSERT(Global::get<utils::settings>() == nullptr);
     
     cppfs::FileHandle fh = cppfs::fs::open(Global::getGameDir() + "settings.json");
 
@@ -53,6 +65,15 @@ int main(int argc, char** argv) {
       throw std::runtime_error("Settings not found");
     }
   }
+  
+  GetSpeedFunc speed_func_temp_container{
+    [] (yacs::entity* ent) -> float {
+      auto phys = ent->at<PhysicsComponent>(PHYSICS_COMPONENT_INDEX);
+      if (phys.valid()) return phys->getSpeed();
+      return 0.0f;
+    }
+  };
+  Global::get(&speed_func_temp_container);
 
   // у нас тут еще есть создание треад пула
   // причем неплохо было бы создавать его только тогда когда системы его используют
@@ -71,21 +92,21 @@ int main(int argc, char** argv) {
 
   // еще где то здесь мы обрабатываем входные данные с консоли (забыл как это называется верно лол)
 
-  GraphicsContainer graphicsContainer;
-
   // теперь создаем контейнер sizeof(ParticleSystem) + sizeof(DecalSystem) +
-  const size_t &systemsSize = sizeof(VulkanRender) + sizeof(PostPhysics) + sizeof(CPUAnimationSystemParallel) + sizeof(SoundSystem) + sizeof(CPUAISystem) + sizeof(StateControllerSystem) + sizeof(InteractionSystem) + sizeof(EffectSystem) + sizeof(AttributeSystem);
+  const size_t &systemsSize = sizeof(GraphicsContainer) + sizeof(PostPhysics) + sizeof(CPUAnimationSystemParallel) + sizeof(SoundSystem) + sizeof(CPUAISystem) + sizeof(StateControllerSystem) + sizeof(InteractionSystem) + sizeof(EffectSystem) + sizeof(AttributeSystem);
   GameSystemContainer systemContainer(systemsSize);
-
+  GraphicsContainer* graphicsContainer;
   {
     const size_t stageContainerSize = sizeof(BeginTaskStage) + sizeof(EndTaskStage) + sizeof(MonsterGPUOptimizer) + sizeof(GeometryGPUOptimizer) + 
                                       sizeof(GBufferStage) + sizeof(DefferedLightStage) + sizeof(ToneMappingStage) + sizeof(CopyStage) + sizeof(PostRenderStage);
 
     GraphicsContainer::CreateInfo info{
-      stageContainerSize,
-      &systemContainer
+      stageContainerSize
+      //&systemContainer
     };
-    graphicsContainer.construct(info);
+    graphicsContainer = systemContainer.addSystem<GraphicsContainer>();
+    graphicsContainer->construct(info);
+    Global::get(graphicsContainer);
   }
 
   // так же нам нужно будет загрузить какие-нибудь ресурсы
@@ -122,7 +143,7 @@ int main(int argc, char** argv) {
                                   sizeof(GPUContainer<Texture>) +
                                   sizeof(GPUContainer<AnimationState>));
                                   //sizeof(GPUArray<BroadphasePair>));
-  createDataArrays(graphicsContainer.device(), arraysContainer, arrays);
+  createDataArrays(graphicsContainer->device(), arraysContainer, arrays);
 
   // тут по идее мы должны создать оптимизеры
   OptimiserContainer optContainer(sizeof(MonsterOptimizer) + sizeof(GeometryOptimizer) + sizeof(LightOptimizer) + sizeof(MonsterDebugOptimizer) + sizeof(GeometryDebugOptimizer));
@@ -166,6 +187,7 @@ int main(int argc, char** argv) {
     PhysicsEngine* phys;
     createPhysics(&threadPool, arrays, updateDelta, physicsContainer, &phys);
     //Global::phys2 = phys;
+    Global::get(phys);
     Global g;
     g.setPhysics(phys);
   }
@@ -182,10 +204,20 @@ int main(int argc, char** argv) {
   {
     CPUAnimationSystemParallel* animSys = systemContainer.addSystem<CPUAnimationSystemParallel>(&threadPool);
 
+    Global::get<AnimationSystem>(animSys);
     Global g;
     g.setAnimations(animSys);
     
     statesSys = systemContainer.addSystem<StateControllerSystem>(StateControllerSystem::CreateInfo{&threadPool});
+    Global::get(statesSys);
+    
+    ASSERT(Global::get<StateControllerSystem>());
+    ASSERT(Global::get<AnimationSystem>());
+    ASSERT(Global::get<CPUAnimationSystemParallel>() == nullptr);
+    
+    // нужно переделать глобальный контейнер, так чтобы мне проще было бы получать доступ к системам
+    // возможно что нибудь вроде Global::get<SystemName>(); как сделать? 
+    // для использования темплейтов нужно менять cpp код, эт сложно сделать просто 
 
     // что тут еще надо создать?
     // еще будет боевая система (там нужно будет придумать быстрый и эффективный способ вычислить весь (почти) урон)
@@ -205,133 +237,26 @@ int main(int argc, char** argv) {
     // глобальный указатель?
   }
 
-  // создадим лоадер (лоадер бы лучше в контейнере создавать) sizeof(ParserHelper) +
+  // создадим лоадер (лоадер бы лучше в контейнере создавать) 
+  // лоадеры неплохо было бы создавать перед непосредственной загрузкой, пока так создадим
   const size_t loaderContainerSize = sizeof(ImageLoader) + sizeof(SoundLoader) + sizeof(EntityLoader) + sizeof(HardcodedMapLoader) + sizeof(AnimationLoader) + sizeof(AttributesLoader) + sizeof(EffectsLoader) + sizeof(AbilityTypeLoader) + sizeof(ItemTypeLoader) + sizeof(ModificationContainer);
   ParserContainer loaderContainer(loaderContainerSize);
-  ImageLoader* textureLoader = nullptr;
-  SoundLoader* soundLoader = nullptr;
-  AnimationLoader* animationLoader = nullptr;
-  EntityLoader* entityLoader = nullptr;
-  ItemTypeLoader* itemLoader = nullptr;
-  AbilityTypeLoader* abilityTypeLoader = nullptr;
-  AttributesLoader* attributesLoader = nullptr;
-  EffectsLoader* effectsLoader = nullptr;
+//   ImageLoader* textureLoader = nullptr;
+//   SoundLoader* soundLoader = nullptr;
+//   AnimationLoader* animationLoader = nullptr;
+//   EntityLoader* entityLoader = nullptr;
+//   ItemTypeLoader* itemLoader = nullptr;
+//   AbilityTypeLoader* abilityTypeLoader = nullptr;
+//   AttributesLoader* attributesLoader = nullptr;
+//   EffectsLoader* effectsLoader = nullptr;
   HardcodedMapLoader* mapLoader = nullptr;
 //   HardcodedAnimationLoader* animationLoader = nullptr;
 //   HardcodedEntityLoader* entityLoader = nullptr;
 //  ParserHelper* parser = nullptr;
   ModificationContainer* mods = nullptr;
+  std::vector<Loader*> loaders; // первый должен быть текстурным лоадером
   {
-    std::unordered_map<std::string, AttributeType<FLOAT_ATTRIBUTE_TYPE>::FuncType> floatComputeFuncs;
-    std::unordered_map<std::string, AttributeType<INT_ATTRIBUTE_TYPE>::FuncType> intComputeFuncs;
-    
-    floatComputeFuncs["default"] = [] (const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, const FLOAT_ATTRIBUTE_TYPE &base, const FLOAT_ATTRIBUTE_TYPE &rawAdd, const FLOAT_ATTRIBUTE_TYPE &rawMul, const FLOAT_ATTRIBUTE_TYPE &finalAdd, const FLOAT_ATTRIBUTE_TYPE &finalMul) {
-      (void)float_finder;
-      (void)int_finder;
-      
-      FLOAT_ATTRIBUTE_TYPE value = base;
-      
-      value *= rawMul;
-      value += rawAdd;
-      
-      value *= finalMul;
-      value += finalAdd;
-      
-      return value;
-    };
-    
-    intComputeFuncs["default"] = [] (const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, const INT_ATTRIBUTE_TYPE &base, const INT_ATTRIBUTE_TYPE &rawAdd, const FLOAT_ATTRIBUTE_TYPE &rawMul, const INT_ATTRIBUTE_TYPE &finalAdd, const FLOAT_ATTRIBUTE_TYPE &finalMul) {
-      (void)float_finder;
-      (void)int_finder;
-      
-      INT_ATTRIBUTE_TYPE value = base;
-      
-      value *= rawMul;
-      value += rawAdd;
-      
-      value *= finalMul;
-      value += finalAdd;
-      
-      return value;
-    };
-    
-    std::unordered_map<std::string, Effect::FuncType> hardcodedComputeFunc;
-    std::unordered_map<std::string, Effect::FuncType> hardcodedResistFunc;
-    
-    std::unordered_map<std::string, AbilityType::ComputeTransformFunction> transFuncs;
-    std::unordered_map<std::string, AbilityType::ComputeAttributesFunction> attribsFuncs;
-    
-    const ImageLoader::CreateInfo tInfo{
-      graphicsContainer.device()
-    };
-    textureLoader = loaderContainer.add<ImageLoader>(tInfo);
-
-    soundLoader = loaderContainer.add<SoundLoader>();
-    
-    const AnimationLoader::CreateInfo aInfo{
-      textureLoader
-    };
-    animationLoader = loaderContainer.add<AnimationLoader>(aInfo);
-    
-    const AttributesLoader::CreateInfo attribsInfo{
-      floatComputeFuncs,
-      intComputeFuncs
-    };
-    attributesLoader = loaderContainer.add<AttributesLoader>(attribsInfo);
-    
-    const EffectsLoader::CreateInfo effectsInfo{
-      attributesLoader,
-      hardcodedComputeFunc,
-      hardcodedResistFunc
-    };
-    effectsLoader = loaderContainer.add<EffectsLoader>(effectsInfo);
-    
-    const AbilityTypeLoader::CreateInfo abilityInfo{
-      attributesLoader,
-      effectsLoader,
-      transFuncs,
-      attribsFuncs
-    };
-    abilityTypeLoader = loaderContainer.add<AbilityTypeLoader>(abilityInfo);
-    
-    const ItemTypeLoader::CreateInfo itemInfo{
-      abilityTypeLoader,
-      effectsLoader
-    };
-    itemLoader = loaderContainer.add<ItemTypeLoader>(itemInfo);
-
-    const EntityLoader::CreateInfo entInfo{
-      textureLoader,
-      soundLoader,
-      animationLoader,
-      attributesLoader,
-      effectsLoader,
-      abilityTypeLoader,
-      itemLoader
-    };
-    entityLoader = loaderContainer.add<EntityLoader>(entInfo);
-
-    const HardcodedMapLoader::CreateInfo mInfo{
-      graphicsContainer.device(),
-      entityLoader,
-      textureLoader
-    };
-    mapLoader = loaderContainer.add<HardcodedMapLoader>(mInfo);
-
-    const ModificationContainer::CreateInfo pInfo{
-      0
-    };
-    mods = loaderContainer.addModParser<ModificationContainer>(pInfo);
-
-    mods->addParser(textureLoader);
-    mods->addParser(soundLoader);
-    mods->addParser(animationLoader);
-    mods->addParser(attributesLoader);
-    mods->addParser(effectsLoader);
-    mods->addParser(abilityTypeLoader);
-    mods->addParser(itemLoader);
-    mods->addParser(entityLoader);
-    mods->addParser(mapLoader);
+    createLoaders(loaderContainer, graphicsContainer, loaders, &mapLoader, &mods);
     
     // я хочу из энда перенести загрузку всего в метод load
     // единственное что мне мешает это сделать сейчас это текстурлоадер
@@ -352,47 +277,16 @@ int main(int argc, char** argv) {
 
   DelayedWorkSystem delaySoundWork(DelayedWorkSystem::CreateInfo{&threadPool});
 
-  {
-    TimeLogDestructor soundSystemLog("Sound system initialization");
-    // где создать лоадер?
-
-    const SoundSystem::CreateInfo sInfo {
-      &threadPool,
-      soundLoader,
-      &delaySoundWork
-    };
-    auto* soundSystem = systemContainer.addSystem<SoundSystem>(sInfo);
-    Global g;
-    g.setSound(soundSystem);
-
-    const SoundLoader::LoadData sound{
-      "default_sound",
-      Global::getGameDir() + "tmrdata/sounds/Curio feat. Lucy - Ten Feet (Daxten Remix).mp3",
-      false,
-      false
-    };
-    soundLoader->load(sound);
-
-//    const SoundLoadingData data{
-//      Global::getGameDir() + "tmrdata/sound/Curio feat. Lucy - Ten Feet (Daxten Remix).mp3",
-//      SOUND_TYPE_MP3,
-//      false,
-//      false,
-//      true,
-//      false,
-//      false
-//    };
-//    Global::sound()->loadSound(ResourceID::get("default_sound"), data);
-  }
+  createSoundSystem(&threadPool, static_cast<SoundLoader*>(loaders[1]), &delaySoundWork, systemContainer);
 
   nuklear_data data;
-  initnk(graphicsContainer.device(), Global::window(), data);
+  initnk(graphicsContainer->device(), Global::window(), data);
 
   std::vector<DynamicPipelineStage*> dynPipe;
   {
     const RenderConstructData renderData{
-      graphicsContainer.device(),
-      &graphicsContainer,
+      graphicsContainer->device(),
+      graphicsContainer,
       Global::render(),
       Global::window(),
       mapLoader,
@@ -430,9 +324,12 @@ int main(int argc, char** argv) {
 
     // теперь сгружаем это все дело в лоадер
     for (size_t i = 0; i < mod->resources().size(); ++i) {
-      textureLoader->load(mods, mod->resources()[i]);
+      //textureLoader->load(mods, mod->resources()[i]);
+      loaders[0]->load(mods, mod->resources()[i]);
     }
-
+    
+    // где лоадеры хранить? пока что вектор видимо
+    
     // попытаемся че нибудь загрузить
 //    parser->loadPlugin("tmrdata/main.json");
     // тут список модов к загрузке
@@ -466,27 +363,35 @@ int main(int argc, char** argv) {
 
 //     std::cout << "map loading" << "\n";
 
-    textureLoader->end();
-//     std::cout << "texture loading 2" << "\n";
-    animationLoader->end();
+//     textureLoader->end();
+// //     std::cout << "texture loading 2" << "\n";
+//     animationLoader->end();
+// 
+// //     std::cout << "texture & animation loading" << "\n";
+// 
+//     //entityLoader->create(); // по идее этот метод будет потом переделан под нужды mapLoader
+// 
+//     entityLoader->end();
+// 
+//     mapLoader->end();
+// 
+// //     std::cout << "entity loading" << "\n";
+// 
+//     // при этом у нас еще должен быть загрузчик демок
+//     // и этот же механизм нам должен загрузить вещи необходимые для меню (да и вообще для ui)
+// 
+//     // после того как все загрузили чистим загрузчики
+// //    parser->clear();
+// 
+//     textureLoader->clear();
 
-//     std::cout << "texture & animation loading" << "\n";
-
-    //entityLoader->create(); // по идее этот метод будет потом переделан под нужды mapLoader
-
-    entityLoader->end();
-
-    mapLoader->end();
-
-//     std::cout << "entity loading" << "\n";
-
-    // при этом у нас еще должен быть загрузчик демок
-    // и этот же механизм нам должен загрузить вещи необходимые для меню (да и вообще для ui)
-
-    // после того как все загрузили чистим загрузчики
-//    parser->clear();
-
-    textureLoader->clear();
+    for (auto loader : loaders) {
+      loader->end();
+    }
+    
+    for (auto loader : loaders) {
+      loader->clear();
+    }
 
 //     std::cout << "clearing" << "\n";
 
@@ -506,38 +411,70 @@ int main(int argc, char** argv) {
   PostPhysics* postPhysics = nullptr;
   {
     postPhysics = systemContainer.addSystem<PostPhysics>(&threadPool, player, playerTransform);
+    Global::get(postPhysics);
   }
 
 //   bool drawMenu = false;
   bool quit = false;
-  MenuStateMachine menuContainer(sizeof(MainMenu) + sizeof(ButtonItem) + sizeof(QuitGame));
+  interface::container menu_container(sizeof(interface::main_menu) + sizeof(interface::quit_game) + sizeof(interface::settings));
   {
-    MainMenu* menu = menuContainer.addMenuItem<MainMenu>(&data);
-    QuitGame* quitGame = menuContainer.addMenuItem<QuitGame>(&data, &quit, menu);
-    ButtonItem* button = menuContainer.addMenuItem<ButtonItem>(&data, "Quit game", quitGame, Extent{30, 200});
-    menu->addItem(button);
-    menuContainer.setDefaultItem(menu);
+    auto menu = menu_container.add_page<interface::main_menu>(interface::main_menu::create_info{"Main menu", &data, nullptr, nullptr, nullptr, {300, 500}});
+    auto quitGame = menu_container.add_page<interface::quit_game>(interface::quit_game::create_info{"Quit game", &data, menu, &quit, {300, 500}});
+    // мы должны указать положение и видимо использовать не обычное окно, а композитную область для отрисовки всего этого
+    menu->set_pointers(quitGame, nullptr, nullptr);
+    menu_container.set_default_page(menu);
   }
 
   KeyContainer keyContainer;
 
-  createReactions({&keyContainer, input, Global::window(), &menuContainer, entityWithBrain});
+  createReactions({&keyContainer, input, Global::window(), &menu_container, entityWithBrain});
   setUpKeys(&keyContainer);
   
   // мы може создать дополнительный KeyContainer специально для меню
-
+  
+  // обновлять textureLoader и пайплайны нужно будет динамически при изменении состояния textureLoader
   for (size_t i = 0; i < dynPipe.size(); ++i) {
+    ImageLoader* textureLoader = static_cast<ImageLoader*>(loaders[0]);
     dynPipe[i]->recreatePipelines(textureLoader);
   }
 
   Global::physics()->setGravity(simd::vec4(0.0f, -9.8f, 0.0f, 0.0f));
-
-  Global::window()->show();
   
   TimeMeter tm(ONE_SECOND);
+  Global::window()->show();
+  game_state currentState = game_state::loading;
+  interface::overlay overlay(interface::overlay::create_info{&data, player, &tm});
   while (!Global::window()->shouldClose() && !quit) {
     tm.start();
     glfwPollEvents();
+    
+    switch (currentState) {
+      case game_state::loading: {
+        // здесь должна быть работа ModificationContainer + небольшой VulkanRender (какое то изображение + статус загрузки)
+        // можно ли использовать один VulkanRender или нужно сделать отдельный? 
+        // в принципе все что нужно сделать это нарисовать текстуру с координатами, координаты статичные на весь экран
+        // + нужно скорректировать матрицу. возможно нужно просто сделать еще один рендер стейдж
+        // перед загрузкой неплохо было бы еще вычищать полностью textureLoader и загружать туда только картинку загрузки
+        // вычищать нужно для того чтобы там не остались какие то проблемные участки с предыдущего уровня или из меню
+        
+        break;
+      }
+      
+      case game_state::main_menu: {
+        // тут по идее мы должны загрузить все, но никакого уровня загружено быть не должно
+        // наверное даже вот как: должен быть загружен уровень меню, состоящий из плоской картинки,
+        // камеры и меню, через какое то время загрузка демо
+        // вполне возможно что этого стейта просто не будет
+        
+        break;
+      }
+      
+      case game_state::game: {
+        // обычный стейт
+        
+        break;
+      }
+    }
 
     // чекаем время
     const size_t time = tm.time();
@@ -546,7 +483,7 @@ int main(int argc, char** argv) {
     // еще же статистику выводить (в конце уровня я имею ввиду)
     
     mouseInput(input, time);
-    if (menuContainer.isOpened()) menuKeysCallback(&menuContainer);
+    if (menu_container.is_opened()) menuKeysCallback(&menu_container);
     else keysCallbacks(&keyContainer, time);
     nextnkFrame(Global::window(), &data.ctx);
     
@@ -555,54 +492,61 @@ int main(int argc, char** argv) {
     camera->update();
 
     // ии тоже нужно ограничить при открытии менюхи
-    Global::ai()->update(time);
-    
-    if (!menuContainer.isOpened()) Global::physics()->update(time);
-
-    {
-      Global g;
-      g.setPlayerPos(playerTransform->pos());
+    if (!menu_container.is_opened()) {
+      //Global::ai()->update(time);
+      Global::get<AISystem>()->update(time);
+      Global::physics()->update(time);
+      {
+        Global g;
+        g.setPlayerPos(playerTransform->pos());
+      }
+      // где должны обновляться анимации?
+      //Global::animations()->update(time);
+      Global::get<AnimationSystem>()->update(time);
+  //     statesSys->update(time);
     }
-    
-    // где должны обновляться анимации?
-    Global::animations()->update(time);
-    statesSys->update(time);
 
-    postPhysics->update(time);
+    Global::get<PostPhysics>()->update(time);
+    //postPhysics->update(time);
 
-    {
-      // пересчитал значения из TimeMeter, получилось что кадр занимает около 4 мс =(
-      
-      const uint32_t rayOutputCount = Global::physics()->getRayTracingSize();
-      const uint32_t frustumOutputCount = Global::physics()->getFrustumTestSize();
-      const SimpleOverlayData overlayData{
-        playerTransform->pos(),
-        playerTransform->rot(),
-        tm.accumulatedFrameTime(),
-        tm.accumulatedSleepTime(),
-        tm.lastIntervalFrameTime(),
-        tm.lastIntervalSleepTime(),
-        tm.framesCount(),
-        tm.fps(),
-        frustumOutputCount,
-        rayOutputCount,
-        0
-      };
-      nkOverlay(overlayData, &data.ctx);
-    }
+//     {
+//       const uint32_t rayOutputCount = Global::physics()->getRayTracingSize();
+//       const uint32_t frustumOutputCount = Global::physics()->getFrustumTestSize();
+//       const SimpleOverlayData overlayData{
+//         playerTransform->pos(),
+//         playerTransform->rot(),
+//         tm.accumulatedFrameTime(),
+//         tm.accumulatedSleepTime(),
+//         tm.lastIntervalFrameTime(),
+//         tm.lastIntervalSleepTime(),
+//         tm.framesCount(),
+//         tm.fps(),
+//         frustumOutputCount,
+//         rayOutputCount,
+//         0
+//       };
+//       nkOverlay(overlayData, &data.ctx);
+//     }
 
     // гуи
-    menuContainer.draw();
+    const interface::data::extent screenSize{
+      1280,
+      720
+    };
+    overlay.draw(screenSize);
+    menu_container.proccess(screenSize);
     
     // дебаг
     // и прочее
 
-    graphicsContainer.update(time);
+    //graphicsContainer->update(time);
+    Global::get<GraphicsContainer>()->update(time);
     
     // звук идет после запуска графики
     // сюда же мы можем засунуть и другие вычисления
-    Global::animations()->update(time); // ???
-    statesSys->update(time);
+    //Global::animations()->update(time); // ???
+//     Global::get<AnimationSystem>()->update(time);
+    Global::get<StateControllerSystem>()->update(time);
     
     //     Global::sound()->update(time);
     delaySoundWork.detach_work();

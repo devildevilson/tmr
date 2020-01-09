@@ -46,6 +46,10 @@
 #include "EffectComponent.h"
 #include "AttributesComponent.h"
 #include "Interactions.h"
+#include "MovementComponent.h"
+#include "AbilityComponent.h"
+#include "InventoryComponent.h"
+#include "global_components_indicies.h"
 
 //#include "ParticleSystem.h"
 //#include "DecalSystem.h"
@@ -66,8 +70,11 @@
 
 #include "DelayedWorkSystem.h"
 
-#include "Menu.h"
-#include "MenuItems.h"
+// #include "Menu.h"
+// #include "MenuItems.h"
+#include "Interface.h"
+#include "Interfaces.h"
+#include "overlay.h"
 
 #include "AISystem.h"
 #include "AIComponent.h"
@@ -82,6 +89,8 @@
 #include <cppfs/FileIterator.h>
 
 #include <locale>
+
+using namespace devils_engine;
 
 // микросекунды
 // примерно 18 кадров
@@ -326,6 +335,9 @@ void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, const 
 void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystemContainer &container);
 void createBehaviourTrees();
 
+void createLoaders(ParserContainer &loaderContainer, GraphicsContainer* graphicsContainer, std::vector<Loader*> &loaders, HardcodedMapLoader** mapLoader, ModificationContainer** mods);
+void createSoundSystem(dt::thread_pool* threadPool, SoundLoader* soundLoader, DelayedWorkSystem* delaySoundWork, GameSystemContainer &container);
+
 void initnk(yavf::Device* device, Window* window, nuklear_data &data);
 void deinitnk(nuklear_data &data);
 
@@ -352,7 +364,7 @@ struct ReactionsCreateInfo {
   KeyContainer* container;
   UserInputComponent* input;
   Window* window;
-  MenuStateMachine* menuContainer;
+  interface::container* menuContainer;
   EntityAI* brain;
 };
 void createReactions(const ReactionsCreateInfo &info);
@@ -366,7 +378,7 @@ struct MouseData {
 void mouseInput(UserInputComponent* input, const uint64_t &time);
 void keysCallbacks(KeyContainer* container, const uint64_t &time);
 
-void menuKeysCallback(MenuStateMachine* menu);
+void menuKeysCallback(interface::container* menu);
 
 void callback(int error, const char* description);
 void scrollCallback(GLFWwindow*, double xoffset, double yoffset);

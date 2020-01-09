@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <atomic>
 
+#include "shared_memory_constants.h"
+
 #include "Globals.h"
 #include "EntityComponentSystem.h"
 #include "Utility.h"
@@ -12,6 +14,9 @@
 #include "PhysicsUtils.h"
 #include "ArrayInterface.h"
 #include "Attributes.h"
+#include "ring_buffer.h"
+
+extern float getEntitySpeed(yacs::entity* ent);
 
 enum AttribChanging {
   ATTRIB_BONUS_TYPE_RAW_ADD,
@@ -39,7 +44,7 @@ struct AttribChangeData {
 //  AttribChangeType type;
   AttribChanging type;
   Bonus b;
-  TypelessAttributeType attribType;
+  Type attribType;
   const Effect* effect;
   const EntityAI* entity;
 };
@@ -85,8 +90,10 @@ public:
   
   struct CreateInfo {
 //    AttributeSystem* system;
-    PhysicsComponent* phys;
-    EventComponent* events;
+//     PhysicsComponent* phys;
+//     EventComponent* events;
+    yacs::entity* ent;
+    uint32_t externalDataIndex;
     // единственный смысл ставить здесь не SIZE_MAX это если аттрибут связан с текущей скоростью
     size_t updateTime;
     std::vector<InitInfo<FLOAT_ATTRIBUTE_TYPE>> float_attribs;
@@ -111,20 +118,22 @@ public:
   AttributeFinder<Attribute<Type>> get_finder() const;
   
   void change_attribute(const AttribChangeData &data);
-  const AttribChangeData* get_attribute_change(const TypelessAttributeType &type, size_t &counter) const;
+  const AttribChangeData* get_attribute_change(const Type &type, size_t &counter) const;
 //   void clear_counter();
   
-  void addReaction(const AttributeReaction &reaction);
+//   void addReaction(const AttributeReaction &reaction);
   
 //  size_t & internalIndex();
 private:
 //  size_t index;
   size_t fcount;
   size_t icount;
-  Attribute<FLOAT_ATTRIBUTE_TYPE>* attribsf;
+  Attribute<FLOAT_ATTRIBUTE_TYPE>* attribsf; // тут можно сделать статический массив (256?)
   Attribute<INT_ATTRIBUTE_TYPE>* attribsi;
-  PhysicsComponent* phys;
-  EventComponent* events;
+//   PhysicsComponent* phys;
+//   EventComponent* events;
+  yacs::entity* ent;
+  uint32_t externalDataIndex;
 
   // можно сделать так чтобы аттрибуты не обновлялись каждый кадр
   // обновляться аттрибуты должны только когда datas не empty
@@ -132,7 +141,8 @@ private:
   size_t updateTime;
   size_t currentTime;
 
-  std::vector<AttribChangeData> datas;
+  //std::vector<AttribChangeData> datas;
+  devils_engine::utils::ring_buffer<AttribChangeData, ATTRIBUTE_CHANGE_MEMORY_SIZE> changesBuffer;
 //   std::vector<AttributeReaction> reactions;
   
   static Container<ExternalData>* externalDatas;
