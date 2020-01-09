@@ -313,7 +313,7 @@ void createDevice(yavf::Instance* inst, const WindowData &data, yavf::Device** d
   *device = dm.beginDevice(choosen).setExtensions(deviceExtensions).createQueues().features(f).create(instanceLayers, "Graphics device");
 }
 
-void createWindow(yavf::Instance* inst, yavf::Device* device, const WindowData &data, Window** window) {
+void createWindow(yavf::Instance* inst, yavf::Device* device, const WindowData &data, char* memory, Window** window) {
   const Window::CreateInfo info{
     inst,
     device,
@@ -323,7 +323,7 @@ void createWindow(yavf::Instance* inst, yavf::Device* device, const WindowData &
     data.fov,
     data.fullscreen
   };
-  *window = new Window(info);
+  *window = new (memory) Window(info);
 
   //window.create(info);
 }
@@ -332,7 +332,8 @@ void createRender(yavf::Instance* inst,
                   yavf::Device* device,
                   const uint32_t &frameCount,
                   const size_t &stageContainerSize,
-                  GameSystemContainer* container,
+                  //GameSystemContainer* container,
+                  char* memory,
                   VulkanRender** render,
                   yavf::CombinedTask** task) {
   for (uint32_t i = 0; i < frameCount; ++i) {
@@ -350,7 +351,8 @@ void createRender(yavf::Instance* inst,
     stageContainerSize
   };
 
-  *render = container->addSystem<VulkanRender>(info);
+  //*render = container->addSystem<VulkanRender>(info);
+  *render = new (memory) VulkanRender(info);
 
 //   yavf::TaskInterface** tasks = reinterpret_cast<yavf::TaskInterface**>(task);
 //   for (uint32_t i = 0; i < frameCount; ++i) {
@@ -420,12 +422,25 @@ GraphicsContainer::~GraphicsContainer() {
     }
   }
 
-  if (task != nullptr) delete [] task;
-  if (windows != nullptr) delete windows;
+  //if (task != nullptr) delete [] task;
+  //if (windows != nullptr) delete windows;
+  
+  if (windows != nullptr) {
+    windows->~Window();
+    windows = nullptr;
+  }
+  
+  if (render != nullptr) {
+    render->~VulkanRender();
+    render = nullptr;
+  }
 }
 
 void GraphicsContainer::construct(CreateInfo &info) {
   TimeLogDestructor graphicsSystemLog("Render system initialization");
+  
+  ASSERT(WINDOW_CLASS_SIZE == sizeof(Window));
+  ASSERT(VULKAN_RENDER_CLASS_SIZE == sizeof(VulkanRender));
   
   WindowData data;
   createGLFWwindow(instance(), data);
@@ -434,15 +449,22 @@ void GraphicsContainer::construct(CreateInfo &info) {
   createDevice(instance(), data, &dev);
   
 //   throw std::runtime_error("end");
-
+  
+  char* windowMemory = memory+0;
   Window* window;
-  createWindow(instance(), dev, data, &window);
+  createWindow(instance(), dev, data, windowMemory, &window);
 
   windows = window;
 
   const uint32_t count = window->getFrameCount();
-  task = new yavf::CombinedTask*[count];
-  createRender(instance(), dev, count, info.containerSize, info.systemContainer, &render, task);
+  if (count > MAX_TASK_SIZE) throw std::runtime_error("window->getFrameCount() > MAX_TASK_SIZE");
+  
+  char* renderMemory = windowMemory+sizeof(Window);
+  char* tasksMemory = renderMemory+sizeof(VulkanRender);
+  //task = new yavf::CombinedTask*[count];
+  task = reinterpret_cast<yavf::CombinedTask**>(tasksMemory);
+  //createRender(instance(), dev, count, info.containerSize, info.systemContainer, &render, task);
+  createRender(instance(), dev, count, info.containerSize, renderMemory, &render, task);
   
   render->setContext(this);
 
@@ -458,7 +480,7 @@ void GraphicsContainer::construct(CreateInfo &info) {
   g.setWindow(window);
 }
 
-void GraphicsContainer::update(const uint64_t &time) {
+void GraphicsContainer::update(const size_t &time) {
   {
     windows->nextFrame();
   }

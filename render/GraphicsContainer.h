@@ -5,6 +5,10 @@
 #include "Core.h"
 #include "RenderStage.h"
 
+#define WINDOW_CLASS_SIZE 368
+#define VULKAN_RENDER_CLASS_SIZE 160
+#define MAX_TASK_SIZE 8
+
 class VulkanRender;
 class WindowInterface;
 class Window;
@@ -37,11 +41,11 @@ public:
   
   struct CreateInfo {
     size_t containerSize;
-    GameSystemContainer* systemContainer;
+//     GameSystemContainer* systemContainer;
   };
   void construct(CreateInfo &info);
   
-  void update(const uint64_t &time) override;
+  void update(const size_t &time) override;
   
   yavf::Instance* instance();
   yavf::Device* device() const;
@@ -58,7 +62,8 @@ private:
   
   //WindowInterface* windows;
   Window* windows;
-  VulkanRender* render;
+  VulkanRender* render; // такое чувство будто этих штук будет несколько
+  char memory[VULKAN_RENDER_CLASS_SIZE+WINDOW_CLASS_SIZE+sizeof(yavf::CombinedTask*)*MAX_TASK_SIZE];
 };
 
 #endif
