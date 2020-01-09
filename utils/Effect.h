@@ -36,7 +36,8 @@ struct EffectType {
 
 struct BonusType {
   Bonus bonus;
-  TypelessAttributeType type;
+  //TypelessAttributeType type;
+  Type type;
 };
 
 struct BonusTypesContainer {

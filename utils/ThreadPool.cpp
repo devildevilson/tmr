@@ -58,6 +58,13 @@ namespace dt {
     }
   }
   
+  void thread_pool::submitbase(const std::function<void()> &f) {
+    std::unique_lock<std::mutex> lock(mutex);
+    if (stop) throw std::runtime_error("Could not submit new task");
+    tasks.emplace(f);
+    condition.notify_one();
+  }
+  
   void thread_pool::barrier() {
     std::unique_lock<std::mutex> lock(this->mutex);
     barriers.push({tasks.size()});

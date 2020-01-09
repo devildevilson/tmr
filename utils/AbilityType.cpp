@@ -45,20 +45,18 @@ bool AbilityTypeT::eventModificator() const {
 
 AbilityType::AbilityType(const CreateInfo &info)
   : abilityId(info.abilityId),
-    impactEvent(info.impactEvent),
     type(info.type),
     abilityName(info.abilityName),
     abilityDesc(info.abilityDesc),
-    tempWeapon(info.tempWeapon),
-    abilityCastTime(info.abilityCastTime),
+    abilityState(info.abilityState),
     abilityCooldown(info.abilityCooldown),
-    costs{info.cost1, info.cost2, info.cost3},
-//     intCreateInfo(info.intCreateInfo),
-    interactionDelayTime(info.delayTime),
+    abilityCost(info.abilityCost),
+    nextAbility(nullptr),
+    abilityEffect(info.abilityEffect),
+    delayTime(info.delayTime),
     entityType(info.entityType),
     func(info.func),
     attribsFunc(info.attribsFunc),
-    impactEffectsList(info.impactEffectsList),
     intAttribs(info.intAttribs),
     floatAttribs(info.floatAttribs) {}
 
@@ -92,56 +90,78 @@ bool AbilityType::createTemporaryWeapon() const {
   return type.createTemporaryWeapon();
 }
 
-const ItemType* AbilityType::temporaryWeapon() const {
-  return tempWeapon;
-}
+// const ItemType* AbilityType::temporaryWeapon() const {
+//   return tempWeapon;
+// }
 
-Type AbilityType::event() const {
-  return impactEvent;
-}
+// Type AbilityType::event() const {
+//   return impactEvent;
+// }
 
-size_t AbilityType::castTime() const {
-  return abilityCastTime;
+// size_t AbilityType::castTime() const {
+//   return abilityCastTime;
+// }
+
+Type AbilityType::state() const {
+  return abilityState;
 }
 
 size_t AbilityType::cooldown() const {
   return abilityCooldown;
 }
 
-AbilityCost AbilityType::cost(const size_t &index) const {
-  ASSERT(index < MAX_ATTRIBUTES_COST_COUNT);
-  return costs[index];
+const Effect* AbilityType::cost() const {
+  return abilityCost;
 }
 
-// InteractionCreateInfo AbilityType::interactionInfo() const {
-//   return intCreateInfo;
-// }
+const AbilityType* AbilityType::next() const {
+  return nextAbility;
+}
 
-Type AbilityType::entityCreateType() const {
+void AbilityType::setNext(const AbilityType* a) {
+  nextAbility = a;
+}
+
+const Effect* AbilityType::effect() const {
+  return abilityEffect;
+}
+
+Type AbilityType::entityCreatorType() const {
   return entityType;
 }
 
-TransOut AbilityType::computeTransform(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, const TransIn &parentData) const {
-  return func(float_finder, int_finder, parentData);
+size_t AbilityType::delay() const {
+  return delayTime;
 }
 
-void AbilityType::computeAttributes(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder,
-                                    const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder,
-//                                    const std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> &floatAttribs,
-//                                    const std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> &intAttribs,
-                                    std::vector<AttributeComponent::InitInfo<FLOAT_ATTRIBUTE_TYPE>> &floatInit,
-                                    std::vector<AttributeComponent::InitInfo<INT_ATTRIBUTE_TYPE>> &intInit) const {
-  attribsFunc(float_finder, int_finder, floatAttribs, intAttribs, floatInit, intInit);
+TransOut AbilityType::computeTransform(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, const TransIn &transform) const {
+  return func(float_finder, int_finder, transform);
 }
 
-const std::vector<const Effect*> & AbilityType::effectsList() const {
-  return impactEffectsList;
+void AbilityType::computeAttributes(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, std::vector<AttributeComponent::InitInfo<FLOAT_ATTRIBUTE_TYPE>> &float_attribs, std::vector<AttributeComponent::InitInfo<INT_ATTRIBUTE_TYPE>> &int_attribs) const {
+  attribsFunc(float_finder, int_finder, floatAttribs, intAttribs, float_attribs, int_attribs);
 }
 
-const std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> & AbilityType::intAttributesList() const {
+bool AbilityType::hasTransformFunc() const {
+  return bool(func);
+}
+
+bool AbilityType::hasComputeFunc() const {
+  return bool(attribsFunc);
+}
+
+const std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> & AbilityType::floatAttributes() const {
+  return floatAttribs;
+}
+
+const std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> & AbilityType::intAttributes() const {
   return intAttribs;
 }
 
-const std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> & AbilityType::floatAttributesList() const {
-  return floatAttribs;
-}
+// const std::vector<AbilityType::EntityCreateInfo> & AbilityType::entityInfos() const {
+//   return entityCreateInfos;
+// }
+// 
+// const std::vector<const Effect*> & AbilityType::effects() const {
+//   return abilityEffects;
+// }

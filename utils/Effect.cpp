@@ -82,6 +82,7 @@ void BonusTypesContainer::clear() {
   delete [] array;
 }
 
+// ComputedEffectContainer::ComputedEffectContainer() : time(0), period_time(0), bonusTypes(0) {}
 ComputedEffectContainer::ComputedEffectContainer(const size_t &size) : time(0), period_time(0), bonusTypes(size) {}
 
 Effect::Effect(const CreateInfo &info) 

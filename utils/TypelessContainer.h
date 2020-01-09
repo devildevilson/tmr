@@ -1,5 +1,5 @@
-#ifndef TYPELESS_CONTAINER_H
-#define TYPELESS_CONTAINER_H
+#ifndef TYPELESS_CONTAINER_H_OLD
+#define TYPELESS_CONTAINER_H_OLD
 
 #include <cstddef>
 #include <utility>

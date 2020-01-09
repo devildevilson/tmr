@@ -14,6 +14,17 @@
 #define PRINT_VEC4(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << " w: " << vec.w << "\n";
 #define PRINT_VAR(name, var) std::cout << name << ": " << var << "\n";
 
+#define GEN_GLOBAL_SYSTEM_POINTER_ACCESS(class_name, access_name, index) \
+inline static class class_name* access_name##() {                        \
+  return reinterpret_cast<class class_name*>(pointerContainer[index]);   \
+}                                                                        \
+inline void set_##access_name##(class class_name* ptr) {                 \
+  pointerContainer[index] = ptr;                                         \
+}
+
+// как сделать то же самое в рантайме?
+// из типа получить поинтер нужно, синглтон?
+
 class Game;
 class Application;
 class VulkanRender;
@@ -69,7 +80,7 @@ struct GlobalData {
 };
 
 class Global {
-  friend Game;
+  //friend Game;
 public:
   static void init();
   static void clear();
@@ -81,6 +92,9 @@ public:
   
   static VulkanRender* render();
   static Game* game();
+//   inline static class Game* game() {
+//     return reinterpret_cast<class Game*>(particlesPtr);
+//   }
 //   static Physics* physic();
   static PhysicsEngine* physics();
   static AISystem* ai();
@@ -100,6 +114,14 @@ public:
   static std::string getGameDir();
   static simd::vec4 getPlayerPos();
   static glm::vec4 getPlayerRot();
+  
+  // вот собственно и решение
+  template <typename T>
+  static T* get(T* ptr = nullptr) {
+    static T* container = nullptr;
+    if (ptr != nullptr) container = ptr;
+    return container;
+  }
 
 //   static yavf::Buffer getMapVertex();
 //   static yavf::Buffer getMapIndex();
@@ -147,6 +169,8 @@ private:
   static std::string appDir;
   static simd::vec4 playerCoords;
   static glm::vec4 playerView;
+  
+  static void** pointerContainer;
 
 //   static yavf::Buffer mapVertex;
 //   static yavf::Buffer mapIndex;

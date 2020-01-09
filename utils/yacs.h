@@ -93,6 +93,23 @@ namespace yacs {
   template<typename T>
   size_t component_destroyed<T>::type = SIZE_MAX;
 
+  // существует 2 способа избавиться вообще от контейнера для контейнеров
+  // причем они не сказать чтобы очень плохие
+  // 1) константный энтити - определяем размер энтити (размер всех компонентов) при создании, 
+  // в энтити держим указатель на часть памяти под компоненты, в начале памяти держим тип + начало компонента
+  // 2) я думал насчет динамичекого выделения памяти, но чет это выглядит плохо
+  // еще вполне рабочий вариант использовать статический энтити
+  // то есть мы должны при создании энтити указать какие у него типы компонентов
+  // единственная проблема здесь в том, что нам нужно будет инициализировать все компоненты
+  // ну и обход всех энтити череват большими кэш миссами
+  
+  // мы должны заменить хранилище компонентов на массив 
+  // (будет ли прирост скорости? по идее должен быть)
+  // (по крайней мере можено избежать дефрагментации возникающей при использовании map)
+  // массив также позволит небезопасно брать указатель по индексу 
+  // (точнее мы можем по индексу возвращать nullptr, если там лежит какой то друго тип)
+  // к сожалению видимо придется еще дополнительно заполнять хранилище ничем
+  // для того чтобы сохранить порядок индексов, в этом нам поможет метод set
   class entity {
   public:
     static size_t type;
@@ -104,7 +121,7 @@ namespace yacs {
     component_handle<T> add(Args&& ...args);
 
     template <typename T>
-    void remove();
+    bool remove();
 
     template <typename T>
     bool has() const;
@@ -117,21 +134,37 @@ namespace yacs {
 
     template <typename T>
     const_component_handle<T> get() const;
+    
+    template <typename T>
+    component_handle<T> at(const size_t &index);
+    
+    template <typename T>
+    const_component_handle<T> at(const size_t &index) const;
 
     template <typename T>
-    void set(const component_handle<T> &comp);
+    bool set(const component_handle<T> &comp);
 
     template <typename T>
-    void unset();
+    bool unset();
 
     size_t id() const;
+    size_t components_count() const;
   private:
     size_t m_id;
     world* m_world;
   protected:
     bool has(const std::initializer_list<size_t> &list) const;
+    template <typename T>
+    size_t find() const;
+    size_t find(const size_t &type) const;
+    
+    template <typename T>
+    void add_to_array(const component_handle<T> &comp);
+    template <typename T>
+    void remove_from_array(const size_t &index);
 
-    std::unordered_map<size_t, base_component_storage*> m_components;
+    //std::unordered_map<size_t, base_component_storage*> m_components;
+    std::vector<std::pair<size_t, base_component_storage*>> m_components;
   };
 
   class world {
@@ -195,34 +228,60 @@ namespace yacs {
 
   template <typename T, typename ...Args>
   component_handle<T> entity::add(Args&& ...args) {
-    auto itr = m_components.find(component_storage<T>::type);
-    if (itr != m_components.end()) return component_handle<T>(nullptr);
+//     auto itr = m_components.find(component_storage<T>::type);
+//     if (itr != m_components.end()) return component_handle<T>(nullptr);
+// 
+//     component_handle<T> handle = m_world->create_component<T>(std::forward<Args>(args)...);
+//     ASSERT(component_storage<T>::type != SIZE_MAX);
+//     ASSERT(handle.valid());
+//     component_storage<T>* storage = world::get_component_storage(handle);
+//     m_components[component_storage<T>::type] = storage;
+//     //World::get_component_storage(handle)->index() = ???
+//     m_world->emit(component_created<T>{this, handle});
+// 
+//     return handle;
+    
+    if (component_storage<T>::type != SIZE_MAX) {
+      const size_t index = find<T>();
+      if (index != SIZE_MAX) return component_handle<T>(nullptr);
+    }
 
     component_handle<T> handle = m_world->create_component<T>(std::forward<Args>(args)...);
     ASSERT(component_storage<T>::type != SIZE_MAX);
     ASSERT(handle.valid());
-    component_storage<T>* storage = world::get_component_storage(handle);
-    m_components[component_storage<T>::type] = storage;
-    //World::get_component_storage(handle)->index() = ???
+    add_to_array(handle);
     m_world->emit(component_created<T>{this, handle});
 
     return handle;
   }
 
   template <typename T>
-  void entity::remove() {
-    auto itr = m_components.find(component_storage<T>::type);
-    if (itr == m_components.end()) return;
+  bool entity::remove() {
+//     auto itr = m_components.find(component_storage<T>::type);
+//     if (itr == m_components.end()) return;
+// 
+//     auto* ptr = static_cast<component_storage<T>*>(itr->second);
+//     m_world->emit(component_destroyed<T>{this, component_handle<T>(ptr->ptr())});
+//     m_world->destroy_component(component_handle<T>(ptr->ptr()));
+    
+    if (component_storage<T>::type == SIZE_MAX) return false;
+    
+    const size_t index = find<T>();
+    if (index == SIZE_MAX) return false;
 
-    auto* ptr = static_cast<component_storage<T>*>(itr->second);
+    auto* ptr = static_cast<component_storage<T>*>(m_components[index].second);
     m_world->emit(component_destroyed<T>{this, component_handle<T>(ptr->ptr())});
     m_world->destroy_component(component_handle<T>(ptr->ptr()));
+    remove_from_array<T>(index);
+    return true;
   }
 
   template <typename T>
   bool entity::has() const {
-    auto itr = m_components.find(component_storage<T>::type);
-    return itr != m_components.end();
+//     auto itr = m_components.find(component_storage<T>::type);
+//     return itr != m_components.end();
+    const size_t index = find<T>();
+    return index != SIZE_MAX;
   }
 
   template <typename ...Types>
@@ -233,38 +292,95 @@ namespace yacs {
 
   template <typename T>
   component_handle<T> entity::get() {
-    auto itr = m_components.find(component_storage<T>::type);
-    if (itr == m_components.end()) return component_handle<T>(nullptr);
+//     auto itr = m_components.find(component_storage<T>::type);
+//     if (itr == m_components.end()) return component_handle<T>(nullptr);
+// 
+//     auto* ptr = static_cast<component_storage<T>*>(itr->second);
+//     return component_handle<T>(ptr->ptr());
+    
+    const size_t index = find<T>();
+    if (index == SIZE_MAX) return component_handle<T>(nullptr);
 
-    auto* ptr = static_cast<component_storage<T>*>(itr->second);
+    auto* ptr = static_cast<component_storage<T>*>(m_components[index].second);
     return component_handle<T>(ptr->ptr());
   }
 
   template <typename T>
   const_component_handle<T> entity::get() const {
-    auto itr = m_components.find(component_storage<T>::type);
-    if (itr == m_components.end()) return const_component_handle<T>(nullptr);
+//     auto itr = m_components.find(component_storage<T>::type);
+//     if (itr == m_components.end()) return const_component_handle<T>(nullptr);
+// 
+//     const auto* ptr = static_cast<const component_storage<T>*>(itr->second);
+//     return const_component_handle<T>(ptr->ptr());
+    
+    const size_t index = find<T>();
+    if (index == SIZE_MAX) return const_component_handle<T>(nullptr);
 
-    const auto* ptr = static_cast<const component_storage<T>*>(itr->second);
+    const auto* ptr = static_cast<const component_storage<T>*>(m_components[index].second);
+    return const_component_handle<T>(ptr->ptr());
+  }
+  
+  template <typename T>
+  component_handle<T> entity::at(const size_t &index) {
+    if (index >= m_components.size()) return component_handle<T>(nullptr);
+    if (m_components[index].first != component_storage<T>::type) return component_handle<T>(nullptr);
+    auto* ptr = static_cast<component_storage<T>*>(m_components[index].second);
+    return component_handle<T>(ptr->ptr());
+  }
+  
+  template <typename T>
+  const_component_handle<T> entity::at(const size_t &index) const {
+    if (index >= m_components.size()) return const_component_handle<T>(nullptr);
+    if (m_components[index].first != component_storage<T>::type) return const_component_handle<T>(nullptr);
+    const auto* ptr = static_cast<const component_storage<T>*>(m_components[index].second);
     return const_component_handle<T>(ptr->ptr());
   }
 
   template <typename T>
-  void entity::set(const component_handle<T> &comp) {
-    const size_t type = component_storage<T>::type;
-    auto itr = m_components.find(type);
-    if (itr != m_components.end()) {
-      // че делать в этом случае? можно возвращать булево значение
-      throw std::runtime_error("component with type already exist");
-    }
-
-    component_storage<T>* ptr = world::get_component_storage(comp);
-    m_components[type] = ptr;
+  bool entity::set(const component_handle<T> &comp) {
+    // по идее нужно либо создать аллокатор
+    // либо как то иначе добавить компонент
+    // скорее всего мне нужно добавить компонент по своему индексу аллокатора
+    // да и вообще нужно следить чтобы они именно так располагались
+    // в этом случае массив у каждого энтити расширяется и так то new используется
+    if (component_storage<T>::type == SIZE_MAX && !comp.valid()) {
+      add_to_array(comp);
+      return true;
+    } else if (component_storage<T>::type != SIZE_MAX && !comp.valid()) return false;
+    
+    const size_t index = find<T>();
+    if (index != SIZE_MAX) return false;
+    add_to_array(comp);
+    return true;
   }
 
   template <typename T>
-  void entity::unset() {
-    m_components.erase(component_storage<T>::type);
+  bool entity::unset() {
+    const size_t index = find<T>();
+    if (index == SIZE_MAX) return false;
+    remove_from_array<T>(index);
+    return true;
+  }
+  
+  template <typename T>
+  size_t entity::find() const {
+    for (size_t i = 0; i < m_components.size(); ++i) {
+      if (m_components[i].first == component_storage<T>::type) return i;
+    }
+    
+    return SIZE_MAX;
+  }
+  
+  template <typename T>
+  void entity::add_to_array(const component_handle<T> &comp) {
+    component_storage<T>* ptr = world::get_component_storage(comp);
+    m_components.push_back(std::make_pair(component_storage<T>::type, ptr));
+  }
+  
+  template <typename T>
+  void entity::remove_from_array(const size_t &index) {
+    std::swap(m_components[index], m_components.back());
+    m_components.pop_back();
   }
 
   template <typename T>
@@ -282,7 +398,9 @@ namespace yacs {
     componentsPool.emplace_back(component_storage<T>::type, size);
     components.emplace_back();
   }
-
+  
+  // в многопоточной версии нужно убедиться что components не используется во время того как мы добавляем 
+  // созданный компонент, это можно гарантировать создав пул для каждого ThreadsafeArray
   template <typename T, typename ...Args>
   component_handle<T> world::create_component(Args&& ...args) {
     if (component_storage<T>::type >= componentsPool.size()) {
@@ -391,19 +509,33 @@ namespace yacs {
   entity::entity(const size_t &id, world* world) : m_id(id), m_world(world) {}
   entity::~entity() {
     for (const auto &pair : m_components) {
+      if (pair.second == nullptr) continue;
       m_world->destroy_component(pair.first, pair.second);
     }
   }
+  
+  size_t entity::find(const size_t &type) const {
+    for (size_t i = 0; i < m_components.size(); ++i) {
+      if (m_components[i].first == type) return i;
+    }
+    
+    return SIZE_MAX;
+  }
 
   bool entity::has(const std::initializer_list<size_t> &list) const {
-    for (auto type : list) {
-      if (m_components.find(type) == m_components.end()) return false;
+//     for (auto type : list) {
+//       if (m_components.find(type) == m_components.end()) return false;
+//     }
+    
+    for (const auto &type : list) {
+      if (find(type) == SIZE_MAX) return false;
     }
 
     return true;
   }
 
   size_t entity::id() const { return m_id; }
+  size_t entity::components_count() const { return m_components.size(); }
 
   size_t entity::type = SIZE_MAX;
 

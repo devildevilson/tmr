@@ -4,6 +4,7 @@
 #include "Utility.h"
 #include "Attributes.h"
 #include "AttributesComponent.h"
+#include "shared_memory_constants.h"
 
 #define MAX_ATTRIBUTES_COST_COUNT 3
 
@@ -29,7 +30,7 @@ struct TransIn {
 
 struct TransOut {
   simd::vec4 pos;
-//  simd::vec4 dir;
+  simd::vec4 dir;
   simd::vec4 vel;
 };
 
@@ -90,17 +91,47 @@ struct AbilityAttributeListElement {
 //   Type event;
 // };
 
-// абилка это способ передать какую то информацию от одного энтити к другому
-// разные абилки - разный способ, мне нужно учесть как можно больше всего
-// первое что приходит на ум это файрбол и обычная атака
+// абилка - это и есть действие
+// нужно продумать несколько действий внутри абилки
+// абилка до каста, абилка сразу после каста, абилка после использования абилки
+// как то вот так
 
-// можно ли АбилитиТайп превратить в ЭнтитиТайп? то есть чтобы обобщить абилки и энтити?
-// можно, если разделить данные о стоимости и непосредственно создание энтити
-// как создавать энтити?
+// сколько не думаю не могу нормально продумать абилки
+// вечно какой то идиотизм
+// что я понял до сих пор (26.11.2019):
+// абилка должна производить некое действие,
+// где действие - это создание энтити, которое собственно и совершает действие 
+// (действие задается либо деревом поведения либо просто функцией)
+// это мне более менее понятно, как к этому подойти?
+// мне необходимо при использовании абилки во первых отнять 
+// какое то количество ресурса, а во вторых проиграть некую анимацию каста
+// видимо все же абилка должна быть от состояния, а не наоборот
+// что с ресурсом? если абилка от состояния значит что состояние не должно проигрываться
+// если абилке не хватает ресурса, и вот проблема
+// ко всему прочему мне бы еще сделать цепочку абилок
+
+// отнимаем ресурс -> анимация каста (если есть) -> состояние непосредственного использования -> абилка через какое то время начинает действовать
+// две анимации идут друг за другом, че с оружием? у оружия определена абилка при атаке, нужно сделать наверное вот как
+// нужно сделать цепь абилок, абилка должна быть задана так: стоимость, состояние, данные для создания энтити или эффекты (можно один), кулдаун? (пока не знаю) и следующая абилка в цепи
+
 class AbilityType {
 public:
   using ComputeTransformFunction = std::function<TransOut(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &, const TransIn &)>;
   using ComputeAttributesFunction = std::function<void(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &, const std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> &, const std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> &, std::vector<AttributeComponent::InitInfo<FLOAT_ATTRIBUTE_TYPE>> &, std::vector<AttributeComponent::InitInfo<INT_ATTRIBUTE_TYPE>> &)>;
+  
+  struct EntityCreateInfo {
+    size_t delayTime;
+    Type entityType;
+
+    ComputeTransformFunction func;
+    ComputeAttributesFunction attribsFunc;
+    
+    //std::vector<const Effect*> impactEffectsList;
+    
+    // мне нужны где какие то данные о интеракции
+    // логично их расположить при создании энтити
+    // да лучше добавить это в энтити
+  };
   
   struct CreateInfo {
     Type abilityId;
@@ -110,38 +141,42 @@ public:
     std::string abilityName;
     std::string abilityDesc;
 
-    AbilityCost cost1;
-    AbilityCost cost2;
-    AbilityCost cost3;
-
-    const ItemType* tempWeapon;
-
-    Type impactEvent;
-
-    size_t abilityCastTime; // должны быть переменные вещи зависящие от характеристик, пока так оставлю
+    // это у нас либо каст, либо непосредственное применение
+    // то есть огненный шар: сначало проходит этот стейт, затем мы в руки получаем оружие
+    // либо непосредственно абилка: кастуется, через делэй создается энтити
+    Type abilityState;
     size_t abilityCooldown;
 
-//     InteractionCreateInfo intCreateInfo;
+    const Effect* abilityCost;
+    
+    // может ли это быть эффектом который мы передаем другому объекту?
+    // мы можем этот список указать в энтити, как добавлять/удалять из этого списка?
+    // по идее модификаторы приходящие из эффектов должны иметь какое то влияние на этот список
+    const Effect* abilityEffect;
     size_t delayTime;
     Type entityType;
-
     ComputeTransformFunction func;
     ComputeAttributesFunction attribsFunc;
-
-    std::vector<const Effect*> impactEffectsList;
-
+    
+    // должны ли мы использовать строго фиксированное количество аттрибутов?
+    // если мы зададим число вроде 256, то этого скорее всего будет достаточно для всего
+    // думаю будет достаточно даже если мы зададим 64 или даже 32
     std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> intAttribs;
     std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> floatAttribs;
+    
+    // скорее всего здесь нужно указать импакт эффекты
+    // так еще больше обобщим энтити
+//     std::vector<const Effect*> impactEffects;
+//     const Effect* impactEffects[IMPACT_EFFECT_MAX_COUNT];
+    // правда невозможно добавить какие то эффекты дополнительно
+    // как добавлять? полезно оставить все как было
   };
 
   AbilityType(const CreateInfo &info);
-
   ~AbilityType();
-
+  
   Type id() const;
-
   std::string name() const;
-
   std::string description() const;
 
   // я уже несколько раз повторял что нужно разделить контейнер эффектов которые мы передаем от остального
@@ -152,90 +187,74 @@ public:
 
   bool createTemporaryWeapon() const;
 
-  const ItemType* temporaryWeapon() const;
+//   const ItemType* temporaryWeapon() const;
 
-  Type event() const;             // ???
+//   Type event() const;             // должно ли это быть здесь?
 
-  size_t castTime() const;
-
+  //size_t castTime() const;
+  Type state() const;
   size_t cooldown() const;
+//   size_t delayTime() const;
+
+  const Effect* cost() const;
   
-  size_t delayTime() const;
+  // проблема этого подхода в том, что мы должны заранее знать какие абилки следуют за какими
+  // в принципе это на этапе создания нам известно
+  const AbilityType* next() const;
+  void setNext(const AbilityType* a);
 
-  // требование по мане, или по другим атрибутам
-  AbilityCost cost(const size_t &index) const;
-
-//   InteractionCreateInfo interactionInfo() const;
-
-  Type entityCreateType() const;
-
-  // основной вопрос где создавать абилку, мне нужно на основе атрибутов каким то образом вычислить положение, скорость,
-  // направление, но только в случае когда трансформа не наследуется
-  // хотя направление по идее берется из скорости, но на вход направление поди должно быть подано
-  TransOut computeTransform(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder,
-                            const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder,
-                            const TransIn &parentData) const;
-
-  void computeAttributes(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder,
-                         const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder,
-//                         const std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> &floatAttribs,
-//                         const std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> &intAttribs,
-                         std::vector<AttributeComponent::InitInfo<FLOAT_ATTRIBUTE_TYPE>> &floatInit,
-                         std::vector<AttributeComponent::InitInfo<INT_ATTRIBUTE_TYPE>> &intInit) const;
-
-  // должны быть еще сопутствующие частицы, но они скорее должны исходить от самой абилки
-
-  // переключение состояния? при касте, при применении, при владении должны быть состояния
-  // у меня же еще абилка должна оружее менять, точнее наверное она должна делать это по умолчанию
-  // то есть это скорее абилка по призыву оружия
-  // у меня оружее сейчас это не энтити, поэтому создать как энтити не получится
-  // в принципе при атаке огненным шаром - это тоже абилка
-  // то получается что у нас абилка должна либо создавать энтити либо менять оружее
-  // как сделано в других играх? заклинание действует практически мгновенно без каста (например в морре)
-
-  // модификаторы на атаку как сделать? к эффектам у энтити нужно добавить модификатор, ко всему прочему нужно какой то графический эффект проиграть
-  //
-
-  // это эффекты для передачи другому объекту, они должны передаваться по эвенту указаному здесь же видимо
-  const std::vector<const Effect*> & effectsList() const;
-
-  const std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> & intAttributesList() const;
-
-  const std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> & floatAttributesList() const;
-
-  // собственно что мне нужно для создания интеракции, тип, данные для типа (какие?)
-  // мне нужно будет указать плоскость,
-  // указать AbilityType для проджектайлов
-  // у меня теперь подход то меняется, теперь я проджектайлы создаю при любых обстоятельствах
-  // но тем не менее нужно указать логику взаимодействия
-  // я кстати теперь могу вызывать взаимодействия внутри этого класса (хотя может лучше их как то группировать)
+  const Effect* effect() const;
+  Type entityCreatorType() const;
+  size_t delay() const;
+  
+  // скорее всего теперь один энтити и один эффект
+//   const std::vector<EntityCreateInfo> & entityInfos() const;
+//   const std::vector<const Effect*> & effects() const;
+  
+  TransOut computeTransform(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, const TransIn &transform) const;
+  void computeAttributes(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, std::vector<AttributeComponent::InitInfo<FLOAT_ATTRIBUTE_TYPE>> &float_attribs, std::vector<AttributeComponent::InitInfo<INT_ATTRIBUTE_TYPE>> &int_attribs) const;
+  
+  const std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> & floatAttributes() const;
+  const std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> & intAttributes() const;
+  
+  bool hasTransformFunc() const;
+  bool hasComputeFunc() const;
 private:
   Type abilityId;
-  Type impactEvent;
+//   Type impactEvent;
 
   AbilityTypeT type;
 
   std::string abilityName;
   std::string abilityDesc;
 
-  const ItemType* tempWeapon;
+//   const ItemType* tempWeapon;
 
-  size_t abilityCastTime;
+  // пока не понятно что в цепочке должно происходить с состояниями?
+  // по идее они должны тоже проигрываться, должны ли они проигрываться сразу после текущего стейта?
+  // или же если у них стейта нет, то сразу срабатывать? это вопрос, 
+  // но для того чтобы сделать модификатор атаки нужно чтобы абилка без стейта срабатывала сразу
+  Type abilityState; // если стейт не определен, то сразу делаем энтити
   size_t abilityCooldown;
 
-  AbilityCost costs[MAX_ATTRIBUTES_COST_COUNT];
-
-//   InteractionCreateInfo intCreateInfo;
-  size_t interactionDelayTime; // проблема - delay задает не абилка а оружее
-
-  //const EntityCreateType* entityCreateType;
+  // каждая абилка в цепочке должна проверить 
+  // хватает ли ей ресурса, цепочка останавливается
+  // когда какой то из абилок не хватает ресурсов
+  // кост может быть не задан
+  const Effect* abilityCost;
+  
+  const AbilityType* nextAbility;
+  
+//   std::vector<EntityCreateInfo> entityCreateInfos;
+//   std::vector<const Effect*> abilityEffects;
+  
+  const Effect* abilityEffect;
+  size_t delayTime;
   Type entityType;
-
   ComputeTransformFunction func;
   ComputeAttributesFunction attribsFunc;
-
-  std::vector<const Effect*> impactEffectsList;
-
+  
+  // дополнительные вещи для того чтобы посчитать аттрибуты энтити
   std::vector<AbilityAttributeListElement<INT_ATTRIBUTE_TYPE>> intAttribs;
   std::vector<AbilityAttributeListElement<FLOAT_ATTRIBUTE_TYPE>> floatAttribs;
 };

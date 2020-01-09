@@ -249,26 +249,33 @@ namespace yacs {
     }
   };
 
+  // можно переделать Lock так, чтобы использовать его вне ThreadsafeArray
+  // для того чтобы поработать с массивом безопасно
   template <typename T>
   class ThreadsafeArray {
   public:
     class Lock {
     public:
-      Lock(std::atomic<T*> &memory) : memory(memory), mem(nullptr) {
+      Lock(std::atomic<T*>* memory) : memory(memory), mem(nullptr) {
         do {
           std::this_thread::sleep_for(std::chrono::nanoseconds(1));
-          mem = memory.exchange(nullptr);
+          mem = memory->exchange(nullptr);
         } while (mem == nullptr);
+      }
+      
+      Lock(Lock&& lock) : memory(lock.memory), mem(lock.mem) {
+        lock.memory = nullptr;
+        lock.mem = nullptr;
       }
 
       ~Lock() {
-        memory = mem;
+        if (lock.memory != nullptr) *memory = mem;
       }
 
       T* get() const { return mem; }
       void set(T* mem) { this->mem = mem; }
     private:
-      std::atomic<T*> &memory;
+      std::atomic<T*>* memory;
       T* mem;
     };
 
@@ -280,14 +287,14 @@ namespace yacs {
       delete [] m_memory;
     }
 
-    size_t capacity() const { Lock l(m_memory); return m_capacity; }
-    size_t size() const { Lock l(m_memory); return m_size; }
+    size_t capacity() const { Lock l(&m_memory); return m_capacity; }
+    size_t size() const { Lock l(&m_memory); return m_size; }
 
-    T front() const { Lock l(m_memory); return l.get()[0]; }
-    T back() const { Lock l(m_memory); return l.get()[m_size-1]; }
+    T front() const { Lock l(&m_memory); return l.get()[0]; }
+    T back() const { Lock l(&m_memory); return l.get()[m_size-1]; }
 
     size_t push(const T &obj) {
-      Lock l(m_memory);
+      Lock l(&m_memory);
 
       T* mem = l.get();
       if (m_size == m_capacity) mem = allocate(mem);
@@ -301,7 +308,7 @@ namespace yacs {
     }
 
     T erase(const size_t &index) {
-      Lock l(m_memory);
+      Lock l(&m_memory);
       if (index >= m_size) return T();
 
       --m_size;
@@ -313,7 +320,7 @@ namespace yacs {
     }
 
     void erase(const T &obj) {
-      Lock l(m_memory);
+      Lock l(&m_memory);
 
       size_t index = 0;
       T* mem = l.get();
@@ -324,11 +331,11 @@ namespace yacs {
       --m_size;
       std::swap(mem[index], mem[m_size]);
 
-      return mem[m_size];
+//       return mem[m_size];
     }
 
     T pop() {
-      Lock l(m_memory);
+      Lock l(&m_memory);
       if (m_size == 0) return T();
 
       T* mem = l.get();
