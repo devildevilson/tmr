@@ -24,6 +24,7 @@
 #include "UserDataComponent.h"
 #include "Graph.h"
 #include "CameraComponent.h"
+#include "global_components_indicies.h"
 
 // #include "ComponentCreator.h"
 // #include "ComponentCreators.h"
@@ -344,363 +345,363 @@ void HardcodedEntityLoader::create() {
     nullptr
   };
   
-  {
-    // нужно будет у игрока сделать интеллектуальные анимации, то есть анимации переходят из одного состояния в другое сами собой и по заданым условиям
-    // например, анимация атаки у война (размашистый удар справа на лево) переходит в анимацию смены ориентации меча
-    // если какое то время меч находится в левом положении, то мы должны "переложить" его на правую сторону
-    // то есть при нажатии клавиши мы можем перейти в следующее состояние, которое, например, на какое то время заблокирует возможность двигаться 
-    // (или даже возможно передаст какие то дополнительные данные), это состояние перейдет в состояние смены положения, которое забокирует возможность атаковать
-    // сменив положение, игрок снова получит возможность атаковать, атака пройдет на этот раз слева на право
-    // не атаковав через какое то время запустится анимация смены положения меча,
-    // то есть [дефолт] -> [атака справа] -> [смена направления налево] -> [атака слева] -> [смена направления направо] -> [дефолт]
-    //                                                                  -> [перекладываем направо] -> [дефолт]
-    // у нас есть следующее измение по времени, и изменение по нажатым клавишам, изменение по условиям?
-    // должны быть еще координаты где рисовать текстурки (мы должны сымитировать движения как в думе)
-    
-    yacs::entity* ent1 = world.create_entity();
-    playerTransform = ent1->add<TransformComponent>(simd::vec4(1.0f, 5.0f, 2.0f, 1.0f),
-                                                    simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
-                                                    simd::vec4(1.0f, 1.0f, 1.0f, 0.0f)).get();
-    
-//     std::cout << "HardcodedEntityLoader::create 01" << "\n";
-    
-//     ent1->add<InputComponent>();
-    
-    input = ent1->add<UserInputComponent>(UserInputComponent::CreateInfo{playerTransform}).get();
-
-    physInfo.physInfo.inputIndex = input->inputIndex;
-    physInfo.physInfo.transformIndex = playerTransform->index();
-    auto phys = ent1->add<PhysicsComponent>(physInfo);
-
-    camera = ent1->add<CameraComponent>(CameraComponent::CreateInfo{playerTransform, input, phys.get()}).get();
-
-    const UserDataComponent entData{
-      ent1,
-      playerTransform,
-      nullptr, // потом по идее в этом компоненте будем рисовать основной игровой интерфейс
-      phys.get(),
-      nullptr, // этот компонент для игрока тоже пригодится
-      nullptr,
-      nullptr,
-      nullptr,
-      nullptr
-    };
-    auto usrData = ent1->add<UserDataComponent>(entData);
-    phys->setUserData(usrData.get());
-
-    const AIBasicComponent::CreateInfo aiInfo{
-      0.5f,
-      nullptr,
-      usrData.get()
-    };
-    auto ai = ent1->add<AIBasicComponent>(aiInfo);
-    usrData->aiComponent = ai.get();
-    
-//    ent1->init(&initData);
-    player = ent1;
-    
-    // нужно будет еще задавать позиции, направление и прочее
-  }
-  
-//  initData.dynamic = false; //552c34f8e3469
-  const Image &noAnim = textureLoader->image(ResourceID::get("14626771132270"), 0);
-  const Texture noAnimT = {
-    noAnim,
-    0,
-    0.0f,
-    0.0f
-  };
-//   std::cout << "Texture: " << noAnim.imageArrayIndex << " " << noAnim.imageArrayLayer << "\n";
-  
-//   throw std::runtime_error("check");
-  
-  {
-    yacs::entity* ent2 = world.create_entity();
-    auto trans = ent2->add<TransformComponent>(simd::vec4(1.0f, 0.9f, 1.0f, 1.0f), simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
-                                               simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-    auto events = ent2->add<EventComponent>(EventComponent::CreateInfo{ent2});
-//    ent2->add<StateController>();
-    physInfo.physInfo.type = PhysicsType(false, BBOX_TYPE, true, false, true, true);
-    physInfo.physInfo.inputIndex = UINT32_MAX;
-    physInfo.physInfo.transformIndex = trans->index();
-    auto phys = ent2->add<PhysicsComponent>(physInfo);
-    
-    auto comp = ent2->add<GraphicComponent>(GraphicComponent::CreateInfo{noAnimT, trans->index()});
-
-    const UserDataComponent entData{
-      ent2,
-      trans.get(),
-      comp.get(),
-      phys.get(),
-      nullptr,
-      nullptr,
-      nullptr,
-      nullptr,
-      events.get()
-    };
-    auto usrData = ent2->add<UserDataComponent>(entData);
-    ent2->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Testing entity 1"), usrData.get()});
-    phys->setUserData(usrData.get());
-    
-//    comp->setTexture(noAnim);
-  }
-  
-  {
-    yacs::entity* ent3 = world.create_entity();
-    auto trans = ent3->add<TransformComponent>(simd::vec4(1.0f, 0.1f, 0.0f, 1.0f), simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
-                                               simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-    auto events = ent3->add<EventComponent>(EventComponent::CreateInfo{ent3});
-
-    physInfo.physInfo.inputIndex = UINT32_MAX;
-    physInfo.physInfo.transformIndex = trans->index();
-    auto phys = ent3->add<PhysicsComponent>(physInfo);
-    
-    auto comp = ent3->add<GraphicComponent>(GraphicComponent::CreateInfo{noAnimT, trans->index()});
-
-    const UserDataComponent entData{
-      ent3,
-      trans.get(),
-      comp.get(),
-      phys.get(),
-      nullptr,
-      nullptr,
-      nullptr,
-      nullptr,
-      events.get()
-    };
-    auto usrData = ent3->add<UserDataComponent>(entData);
-    ent3->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Testing entity 2"), usrData.get()});
-    phys->setUserData(usrData.get());
-  }
-  
-//  initData.dynamic = true;
-  
-  {
-    yacs::entity* ent4 = world.create_entity();
-    auto trans = ent4->add<TransformComponent>(simd::vec4(2.0f, 3.5f, 1.0f, 1.0f), simd::vec4(1.0f, 0.0f, 0.0f, 0.0f),
-                                  simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-    auto events = ent4->add<EventComponent>(EventComponent::CreateInfo{ent4});
-    //ent4->add<InputComponent>();
-//     auto states = ent4->add<StateController>();
-
-    const AIInputComponent::CreateInfo aiInfo {
-      nullptr,
-      trans.get()
-    };
-    auto input = ent4->add<AIInputComponent>(aiInfo);
-
-    physInfo.physInfo.type = PhysicsType(true, BBOX_TYPE, true, false, true, true);
-    physInfo.physInfo.inputIndex = input->inputIndex;
-    physInfo.physInfo.transformIndex = trans->index();
-    auto phys = ent4->add<PhysicsComponent>(physInfo);
-    input->setPhysicsComponent(phys.get());
-
-    auto comp = ent4->add<GraphicComponent>(GraphicComponent::CreateInfo{noAnimT, trans->index()});
-
-    const AnimationComponent::CreateInfo animInfo{
-      trans.get(),
-      phys.get(),
-      comp.get()
-    };
-    auto anim = ent4->add<AnimationComponent>(animInfo);
-
-    const SoundComponent::CreateInfo soundInfo{
-      trans.get(),
-      phys.get(),
-    };
-    auto sound = ent4->add<SoundComponent>(soundInfo);
-
-    const UserDataComponent entData{
-      ent4,
-      trans.get(),
-      comp.get(),
-      phys.get(),
-      anim.get(),
-      nullptr,
-      nullptr,
-      nullptr,
-      events.get()
-    };
-    auto usrData = ent4->add<UserDataComponent>(entData);
-    
-    const AIComponent::CreateInfo info{
-      0.5f,
-      HALF_SECOND,
-      nullptr,
-      Global::ai()->getBehaviourTreePointer(Type::get("simple_tree")),
-
-//      phys.get(),
-//      trans.get(),
-      input.get(),
-      usrData.get(),
-
-      Type::get("default")
-    };
-    brainAI = ent4->add<AIComponent>(info).get();
-    usrData->aiComponent = brainAI;
-
-    ent4->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Entity with animation"), usrData.get()});
-    phys->setUserData(usrData.get());
-    
-    const EventData data{
-      nullptr,
-      nullptr
-    };
-    
-//    const Type t = Type::get("walking");
-    // это задавать по идее нужно через стейт
-    const SoundComponent::PlayInfo sInfo {
-      ResourceID::get("default_sound"),
-      400000,
-      false,
-      true,
-      false,
-      true,
-      {0.0f, 0.0f, 0.0f, 0.0f},
-      100.0f,
-      1.0f,
-      1.0f,
-      1.0f
-    };
-    sound->play(sInfo);
-
-    const AnimationComponent::PlayInfo aInfo {
-      ResourceID::get("walking"),
-      1.0f,
-      1600000,
-      true
-    };
-    anim->play(aInfo);
-//     states->registerState(t, false, false, 400000);
-//    events->fireEvent(t, data);
+//   {
+//     // нужно будет у игрока сделать интеллектуальные анимации, то есть анимации переходят из одного состояния в другое сами собой и по заданым условиям
+//     // например, анимация атаки у война (размашистый удар справа на лево) переходит в анимацию смены ориентации меча
+//     // если какое то время меч находится в левом положении, то мы должны "переложить" его на правую сторону
+//     // то есть при нажатии клавиши мы можем перейти в следующее состояние, которое, например, на какое то время заблокирует возможность двигаться 
+//     // (или даже возможно передаст какие то дополнительные данные), это состояние перейдет в состояние смены положения, которое забокирует возможность атаковать
+//     // сменив положение, игрок снова получит возможность атаковать, атака пройдет на этот раз слева на право
+//     // не атаковав через какое то время запустится анимация смены положения меча,
+//     // то есть [дефолт] -> [атака справа] -> [смена направления налево] -> [атака слева] -> [смена направления направо] -> [дефолт]
+//     //                                                                  -> [перекладываем направо] -> [дефолт]
+//     // у нас есть следующее измение по времени, и изменение по нажатым клавишам, изменение по условиям?
+//     // должны быть еще координаты где рисовать текстурки (мы должны сымитировать движения как в думе)
 //     
-//     states->changeState(t);
-    //objWithAnimation = ent4;
-  }
-  
-//  initData.dynamic = false;
-  
-  {
-    const size_t objCount = 5000;
-              
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<> dist(-99,99);
-    //std::uniform_real_distribution<> distY(0,99);
-    for (size_t i = 0; i < objCount; ++i) {
-      const simd::vec4 pos = simd::vec4(dist(gen), dist(gen), dist(gen), 1.0f);
-      
-      yacs::entity* ent = world.create_entity();
-      auto trans = ent->add<TransformComponent>(pos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-      auto events = ent->add<EventComponent>(EventComponent::CreateInfo{ent});
-      auto comp = ent->add<GraphicComponent>(GraphicComponent::CreateInfo{noAnimT, trans->index()});
-//      ent->add<StateController>();
-      physInfo.physInfo.type = PhysicsType(false, BBOX_TYPE, true, false, false, true);
-      physInfo.physInfo.inputIndex = UINT32_MAX;
-      physInfo.physInfo.transformIndex = trans->index();
-      auto phys = ent->add<PhysicsComponent>(physInfo);
-
-      const UserDataComponent entData{
-        ent,
-        trans.get(),
-        comp.get(),
-        phys.get(),
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr,
-        events.get()
-      };
-      auto usrData = ent->add<UserDataComponent>(entData);
-      ent->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Generated entity " + std::to_string(i)), usrData.get()});
-
-      phys->setUserData(usrData.get());
-//      comp->setTexture(noAnim);
-    }
-  }
-  
-  {
-    const size_t lightSize = 500;
-    
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<> dist(-9,9);
-    std::uniform_real_distribution<> dist2(0,1);
-    
-    const simd::vec4 firstPos = simd::vec4(0.0f, 0.4f, 0.0f, 1.0f);
-    const float lightRadius = 2.0f;
-
-    {
-      yacs::entity* ent = world.create_entity();
-      auto trans = ent->add<TransformComponent>(firstPos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-      physInfo.physInfo.type = PhysicsType(false, SPHERE_TYPE, false, false, false, true);
-      physInfo.physInfo.inputIndex = UINT32_MAX;
-      physInfo.physInfo.transformIndex = trans->index();
-      physInfo.physInfo.radius = lightRadius;
-      auto phys = ent->add<PhysicsComponent>(physInfo);
-
-      const Light::CreateInfo lightInfo{
-        {
-          {0.0f, 0.0f, 0.0f, lightRadius},
-          {1.0f, 1.0f, 1.0f, 0.1f}
-        },
-        trans->index()
-      };
-      auto light = ent->add<Light>(lightInfo);
-
-      const UserDataComponent entData{
-        ent,
-        trans.get(),
-        light.get(),
-        phys.get(),
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr
-      };
-      auto usrData = ent->add<UserDataComponent>(entData);
-      ent->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Generated light " + std::to_string(0)), usrData.get()});
-      phys->setUserData(usrData.get());
-    }
-    
-    for (size_t i = 0; i < lightSize; ++i) {
-      const simd::vec4 pos = simd::vec4(dist(gen), dist(gen), dist(gen), 1.0f);
-      glm::vec3 color = glm::vec3(dist2(gen), dist2(gen), dist2(gen));
-      
-      yacs::entity* ent = world.create_entity();
-      auto trans = ent->add<TransformComponent>(pos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
-      physInfo.physInfo.type = PhysicsType(false, SPHERE_TYPE, false, false, true, true);
-      physInfo.physInfo.inputIndex = UINT32_MAX;
-      physInfo.physInfo.transformIndex = trans->index();
-      physInfo.physInfo.radius = lightRadius;
-      auto phys = ent->add<PhysicsComponent>(physInfo);
-
-      const Light::CreateInfo lightInfo{
-        {
-          {0.0f, 0.0f, 0.0f, lightRadius},
-          {color.x, color.y, color.z, 0.1f}
-        },
-        trans->index()
-      };
-      auto light = ent->add<Light>(lightInfo);
-
-      const UserDataComponent entData{
-        ent,
-        trans.get(),
-        light.get(),
-        phys.get(),
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr
-      };
-      auto usrData = ent->add<UserDataComponent>(entData);
-      ent->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Generated light " + std::to_string(i+1)), usrData.get()});
-      phys->setUserData(usrData.get());
-    }
-  }
+//     yacs::entity* ent1 = world.create_entity();
+//     playerTransform = ent1->add<TransformComponent>(simd::vec4(1.0f, 5.0f, 2.0f, 1.0f),
+//                                                     simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
+//                                                     simd::vec4(1.0f, 1.0f, 1.0f, 0.0f)).get();
+//     
+// //     std::cout << "HardcodedEntityLoader::create 01" << "\n";
+//     
+// //     ent1->add<InputComponent>();
+//     
+//     input = ent1->add<UserInputComponent>(UserInputComponent::CreateInfo{playerTransform}).get();
+// 
+//     physInfo.physInfo.inputIndex = input->inputIndex;
+//     physInfo.physInfo.transformIndex = playerTransform->index();
+//     auto phys = ent1->add<PhysicsComponent>(physInfo);
+// 
+//     camera = ent1->add<CameraComponent>(CameraComponent::CreateInfo{playerTransform, input, phys.get()}).get();
+// 
+//     const UserDataComponent entData{
+//       ent1,
+//       playerTransform,
+//       nullptr, // потом по идее в этом компоненте будем рисовать основной игровой интерфейс
+//       phys.get(),
+//       nullptr, // этот компонент для игрока тоже пригодится
+//       nullptr,
+//       nullptr,
+//       nullptr,
+//       nullptr
+//     };
+//     auto usrData = ent1->add<UserDataComponent>(entData);
+//     phys->setUserData(usrData.get());
+// 
+//     const AIBasicComponent::CreateInfo aiInfo{
+//       0.5f,
+//       nullptr,
+//       usrData.get()
+//     };
+//     auto ai = ent1->add<AIBasicComponent>(aiInfo);
+//     usrData->aiComponent = ai.get();
+//     
+// //    ent1->init(&initData);
+//     player = ent1;
+//     
+//     // нужно будет еще задавать позиции, направление и прочее
+//   }
+//   
+// //  initData.dynamic = false; //552c34f8e3469
+//   const Image &noAnim = textureLoader->image(ResourceID::get("14626771132270"), 0);
+//   const Texture noAnimT = {
+//     noAnim,
+//     0,
+//     0.0f,
+//     0.0f
+//   };
+// //   std::cout << "Texture: " << noAnim.imageArrayIndex << " " << noAnim.imageArrayLayer << "\n";
+//   
+// //   throw std::runtime_error("check");
+//   
+//   {
+//     yacs::entity* ent2 = world.create_entity();
+//     auto trans = ent2->add<TransformComponent>(simd::vec4(1.0f, 0.9f, 1.0f, 1.0f), simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
+//                                                simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+//     auto events = ent2->add<EventComponent>(EventComponent::CreateInfo{ent2});
+// //    ent2->add<StateController>();
+//     physInfo.physInfo.type = PhysicsType(false, BBOX_TYPE, true, false, true, true);
+//     physInfo.physInfo.inputIndex = UINT32_MAX;
+//     physInfo.physInfo.transformIndex = trans->index();
+//     auto phys = ent2->add<PhysicsComponent>(physInfo);
+//     
+//     auto comp = ent2->add<GraphicComponent>(GraphicComponent::CreateInfo{noAnimT, trans->index()});
+// 
+//     const UserDataComponent entData{
+//       ent2,
+//       trans.get(),
+//       comp.get(),
+//       phys.get(),
+//       nullptr,
+//       nullptr,
+//       nullptr,
+//       nullptr,
+//       events.get()
+//     };
+//     auto usrData = ent2->add<UserDataComponent>(entData);
+//     ent2->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Testing entity 1"), usrData.get()});
+//     phys->setUserData(usrData.get());
+//     
+// //    comp->setTexture(noAnim);
+//   }
+//   
+//   {
+//     yacs::entity* ent3 = world.create_entity();
+//     auto trans = ent3->add<TransformComponent>(simd::vec4(1.0f, 0.1f, 0.0f, 1.0f), simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
+//                                                simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+//     auto events = ent3->add<EventComponent>(EventComponent::CreateInfo{ent3});
+// 
+//     physInfo.physInfo.inputIndex = UINT32_MAX;
+//     physInfo.physInfo.transformIndex = trans->index();
+//     auto phys = ent3->add<PhysicsComponent>(physInfo);
+//     
+//     auto comp = ent3->add<GraphicComponent>(GraphicComponent::CreateInfo{noAnimT, trans->index()});
+// 
+//     const UserDataComponent entData{
+//       ent3,
+//       trans.get(),
+//       comp.get(),
+//       phys.get(),
+//       nullptr,
+//       nullptr,
+//       nullptr,
+//       nullptr,
+//       events.get()
+//     };
+//     auto usrData = ent3->add<UserDataComponent>(entData);
+//     ent3->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Testing entity 2"), usrData.get()});
+//     phys->setUserData(usrData.get());
+//   }
+//   
+// //  initData.dynamic = true;
+//   
+//   {
+//     yacs::entity* ent4 = world.create_entity();
+//     auto trans = ent4->add<TransformComponent>(simd::vec4(2.0f, 3.5f, 1.0f, 1.0f), simd::vec4(1.0f, 0.0f, 0.0f, 0.0f),
+//                                   simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+//     auto events = ent4->add<EventComponent>(EventComponent::CreateInfo{ent4});
+//     //ent4->add<InputComponent>();
+// //     auto states = ent4->add<StateController>();
+// 
+//     const AIInputComponent::CreateInfo aiInfo {
+//       nullptr,
+//       trans.get()
+//     };
+//     auto input = ent4->add<AIInputComponent>(aiInfo);
+// 
+//     physInfo.physInfo.type = PhysicsType(true, BBOX_TYPE, true, false, true, true);
+//     physInfo.physInfo.inputIndex = input->inputIndex;
+//     physInfo.physInfo.transformIndex = trans->index();
+//     auto phys = ent4->add<PhysicsComponent>(physInfo);
+//     input->setPhysicsComponent(phys.get());
+// 
+//     auto comp = ent4->add<GraphicComponent>(GraphicComponent::CreateInfo{noAnimT, trans->index()});
+// 
+//     const AnimationComponent::CreateInfo animInfo{
+//       trans.get(),
+//       phys.get(),
+//       comp.get()
+//     };
+//     auto anim = ent4->add<AnimationComponent>(animInfo);
+// 
+//     const SoundComponent::CreateInfo soundInfo{
+//       trans.get(),
+//       phys.get(),
+//     };
+//     auto sound = ent4->add<SoundComponent>(soundInfo);
+// 
+//     const UserDataComponent entData{
+//       ent4,
+//       trans.get(),
+//       comp.get(),
+//       phys.get(),
+//       anim.get(),
+//       nullptr,
+//       nullptr,
+//       nullptr,
+//       events.get()
+//     };
+//     auto usrData = ent4->add<UserDataComponent>(entData);
+//     
+//     const AIComponent::CreateInfo info{
+//       0.5f,
+//       HALF_SECOND,
+//       nullptr,
+//       Global::ai()->getBehaviourTreePointer(Type::get("simple_tree")),
+// 
+// //      phys.get(),
+// //      trans.get(),
+//       input.get(),
+//       usrData.get(),
+// 
+//       Type::get("default")
+//     };
+//     brainAI = ent4->add<AIComponent>(info).get();
+//     usrData->aiComponent = brainAI;
+// 
+//     ent4->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Entity with animation"), usrData.get()});
+//     phys->setUserData(usrData.get());
+//     
+//     const EventData data{
+//       nullptr,
+//       nullptr
+//     };
+//     
+// //    const Type t = Type::get("walking");
+//     // это задавать по идее нужно через стейт
+//     const SoundComponent::PlayInfo sInfo {
+//       ResourceID::get("default_sound"),
+//       400000,
+//       false,
+//       true,
+//       false,
+//       true,
+//       {0.0f, 0.0f, 0.0f, 0.0f},
+//       100.0f,
+//       1.0f,
+//       1.0f,
+//       1.0f
+//     };
+//     sound->play(sInfo);
+// 
+//     const AnimationComponent::PlayInfo aInfo {
+//       ResourceID::get("walking"),
+//       1.0f,
+//       1600000,
+//       true
+//     };
+//     anim->play(aInfo);
+// //     states->registerState(t, false, false, 400000);
+// //    events->fireEvent(t, data);
+// //     
+// //     states->changeState(t);
+//     //objWithAnimation = ent4;
+//   }
+//   
+// //  initData.dynamic = false;
+//   
+//   {
+//     const size_t objCount = 5000;
+//               
+//     std::random_device rd;
+//     std::mt19937 gen(rd());
+//     std::uniform_real_distribution<> dist(-99,99);
+//     //std::uniform_real_distribution<> distY(0,99);
+//     for (size_t i = 0; i < objCount; ++i) {
+//       const simd::vec4 pos = simd::vec4(dist(gen), dist(gen), dist(gen), 1.0f);
+//       
+//       yacs::entity* ent = world.create_entity();
+//       auto trans = ent->add<TransformComponent>(pos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+//       auto events = ent->add<EventComponent>(EventComponent::CreateInfo{ent});
+//       auto comp = ent->add<GraphicComponent>(GraphicComponent::CreateInfo{noAnimT, trans->index()});
+// //      ent->add<StateController>();
+//       physInfo.physInfo.type = PhysicsType(false, BBOX_TYPE, true, false, false, true);
+//       physInfo.physInfo.inputIndex = UINT32_MAX;
+//       physInfo.physInfo.transformIndex = trans->index();
+//       auto phys = ent->add<PhysicsComponent>(physInfo);
+// 
+//       const UserDataComponent entData{
+//         ent,
+//         trans.get(),
+//         comp.get(),
+//         phys.get(),
+//         nullptr,
+//         nullptr,
+//         nullptr,
+//         nullptr,
+//         events.get()
+//       };
+//       auto usrData = ent->add<UserDataComponent>(entData);
+//       ent->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Generated entity " + std::to_string(i)), usrData.get()});
+// 
+//       phys->setUserData(usrData.get());
+// //      comp->setTexture(noAnim);
+//     }
+//   }
+//   
+//   {
+//     const size_t lightSize = 500;
+//     
+//     std::random_device rd;
+//     std::mt19937 gen(rd());
+//     std::uniform_real_distribution<> dist(-9,9);
+//     std::uniform_real_distribution<> dist2(0,1);
+//     
+//     const simd::vec4 firstPos = simd::vec4(0.0f, 0.4f, 0.0f, 1.0f);
+//     const float lightRadius = 2.0f;
+// 
+//     {
+//       yacs::entity* ent = world.create_entity();
+//       auto trans = ent->add<TransformComponent>(firstPos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+//       physInfo.physInfo.type = PhysicsType(false, SPHERE_TYPE, false, false, false, true);
+//       physInfo.physInfo.inputIndex = UINT32_MAX;
+//       physInfo.physInfo.transformIndex = trans->index();
+//       physInfo.physInfo.radius = lightRadius;
+//       auto phys = ent->add<PhysicsComponent>(physInfo);
+// 
+//       const Light::CreateInfo lightInfo{
+//         {
+//           {0.0f, 0.0f, 0.0f, lightRadius},
+//           {1.0f, 1.0f, 1.0f, 0.1f}
+//         },
+//         trans->index()
+//       };
+//       auto light = ent->add<Light>(lightInfo);
+// 
+//       const UserDataComponent entData{
+//         ent,
+//         trans.get(),
+//         light.get(),
+//         phys.get(),
+//         nullptr,
+//         nullptr,
+//         nullptr,
+//         nullptr,
+//         nullptr
+//       };
+//       auto usrData = ent->add<UserDataComponent>(entData);
+//       ent->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Generated light " + std::to_string(0)), usrData.get()});
+//       phys->setUserData(usrData.get());
+//     }
+//     
+//     for (size_t i = 0; i < lightSize; ++i) {
+//       const simd::vec4 pos = simd::vec4(dist(gen), dist(gen), dist(gen), 1.0f);
+//       glm::vec3 color = glm::vec3(dist2(gen), dist2(gen), dist2(gen));
+//       
+//       yacs::entity* ent = world.create_entity();
+//       auto trans = ent->add<TransformComponent>(pos, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f), simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+//       physInfo.physInfo.type = PhysicsType(false, SPHERE_TYPE, false, false, true, true);
+//       physInfo.physInfo.inputIndex = UINT32_MAX;
+//       physInfo.physInfo.transformIndex = trans->index();
+//       physInfo.physInfo.radius = lightRadius;
+//       auto phys = ent->add<PhysicsComponent>(physInfo);
+// 
+//       const Light::CreateInfo lightInfo{
+//         {
+//           {0.0f, 0.0f, 0.0f, lightRadius},
+//           {color.x, color.y, color.z, 0.1f}
+//         },
+//         trans->index()
+//       };
+//       auto light = ent->add<Light>(lightInfo);
+// 
+//       const UserDataComponent entData{
+//         ent,
+//         trans.get(),
+//         light.get(),
+//         phys.get(),
+//         nullptr,
+//         nullptr,
+//         nullptr,
+//         nullptr,
+//         nullptr
+//       };
+//       auto usrData = ent->add<UserDataComponent>(entData);
+//       ent->add<InfoComponent>(InfoComponent::CreateInfo{Type::get("Generated light " + std::to_string(i+1)), usrData.get()});
+//       phys->setUserData(usrData.get());
+//     }
+//   }
 }
 
 yacs::entity* HardcodedEntityLoader::create(const Type &type, yacs::entity* parent, const UniversalDataContainer* container) {
@@ -963,22 +964,23 @@ void HardcodedMapLoader::end() {
 
     const UserDataComponent entData{
       ent1,
-      playerTransform,
+//       playerTransform,
       nullptr, // потом по идее в этом компоненте будем рисовать основной игровой интерфейс
-      phys.get(),
-      nullptr, // этот компонент для игрока тоже пригодится
-      nullptr,
+//       phys.get(),
+//       nullptr, // этот компонент для игрока тоже пригодится
       nullptr,
       nullptr,
       nullptr
+//       nullptr
     };
     auto usrData = ent1->add<UserDataComponent>(entData);
     phys->setUserData(usrData.get());
 
     const AIBasicComponent::CreateInfo aiInfo{
+      entity_type::player,
       0.5f,
       nullptr,
-      usrData.get()
+      ent1
     };
     auto ai = ent1->add<AIBasicComponent>(aiInfo);
     usrData->aiComponent = ai.get();
@@ -991,6 +993,10 @@ void HardcodedMapLoader::end() {
   
   const bool ret1 = entityLoader->load(nullptr, entityLoader->getParsedResource(ResourceID::get("test_entity1")));
   if (!ret1) throw std::runtime_error("Could not load entity type test_entity1");
+  const bool ret2 = entityLoader->load(nullptr, entityLoader->getParsedResource(ResourceID::get("zombie")));
+  if (!ret2) throw std::runtime_error("Could not load entity type zombie");
+  
+  PRINT("started entity creation")
   
   {
     const size_t objCount = 5000;
@@ -1006,9 +1012,23 @@ void HardcodedMapLoader::end() {
         0,
         0,
         0,
-        nullptr
+        nullptr,
+        0
       };
       entityLoader->create(Type::get("test_entity1"), nullptr, &createData);
+    }
+    
+    {
+      ObjectData createData1{
+        {0.0f, 1.0f, 0.0f, 1.0f},
+        {0.0f, 1.0f, 0.0f, 0.0f},
+        0,
+        0,
+        0,
+        nullptr,
+        0
+      };
+      entityLoader->create(Type::get("zombie"), nullptr, &createData1);
     }
   }
   
@@ -1052,13 +1072,14 @@ void HardcodedMapLoader::end() {
     
     for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); ++f) {
       const size_t fv = shapes[s].mesh.num_face_vertices[f];
+//       PRINT("started face "+std::to_string(f))
       
       RegisterNewShapeInfo shapeInfo{};
       
       if (fv < 3) {
         // является ли отсутствие нормального фейса критической ошибкой?
         // наверное нет, нужно их только пропускать
-        Global::console()->printW("Bad face " + std::to_string(f) + " in map");
+        Global::console()->printW("Bad face " + std::to_string(f) + " in the map");
         //throw std::runtime_error("Bad face in map");
         index_offset += fv;
         continue;
@@ -1191,6 +1212,7 @@ void HardcodedMapLoader::end() {
         {}
       };
       vertex_t* vertex = graph->addVertex(data);
+      //vertex->addObject();
       
       for (size_t i = 0; i < graph->order(); ++i) {
         vertex_t* vert = graph->vertex(i);
@@ -1198,9 +1220,16 @@ void HardcodedMapLoader::end() {
         if (vert->objCount() == 0) continue;
         
         const EntityAI* aiVert = vert->at(0);
-        //const AIBasicComponent* comp = static_cast<const AIBasicComponent*>(aiVert);
-        auto comp = static_cast<const AIBasicComponent*>(aiVert);
-        PhysicsComponent* phys = comp->components()->phys;
+//         ASSERT(aiVert != nullptr);
+//         PRINT(aiVert);
+//         //const AIBasicComponent* comp = static_cast<const AIBasicComponent*>(aiVert);
+//         //auto comp = static_cast<const AIBasicComponent*>(aiVert);
+//         auto comp = (const AIBasicComponent*)(aiVert);
+//         auto usrData = comp->components();
+//         ASSERT(usrData != nullptr);
+//         auto ent = comp->components()->entity;
+//         ASSERT(ent != nullptr);
+        const PhysicsComponent* phys = aiVert->getEntity()->get<PhysicsComponent>().get();
 //        yacs::entity* ent = comp->getEntity();
 //
 //        if (ent == nullptr) throw std::runtime_error("kjcvsdkvnaldnvsljbn");

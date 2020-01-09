@@ -6,15 +6,19 @@
 #include <iostream>
 #include <ctype.h>
 
-ItemTypeLoader::LoadData::LoadData(const CreateInfo &info) : Resource(info.resInfo), m_id(info.m_id), m_groupId(info.m_groupId), m_name(info.m_name), m_description(info.m_description), m_itemAbility(info.m_itemAbility), m_pickupEffects(info.m_pickupEffects), m_weaponEffects(info.m_weaponEffects), m_abilities(info.m_abilities) {}    
+ItemTypeLoader::LoadData::LoadData(const CreateInfo &info) : Resource(info.resInfo), item(info.item), m_id(info.m_id), m_groupId(info.m_groupId), m_name(info.m_name), m_description(info.m_description), m_use(info.m_use), m_attacks(info.m_attacks) {}
 Type ItemTypeLoader::LoadData::itemId() const { return m_id; }
 Type ItemTypeLoader::LoadData::groupId() const { return m_groupId; }
 std::string ItemTypeLoader::LoadData::name() const { return m_name; }
 std::string ItemTypeLoader::LoadData::description() const { return m_description; }
-Type ItemTypeLoader::LoadData::itemAbility() const { return m_itemAbility; }
-const std::vector<Type> & ItemTypeLoader::LoadData::pickupEffects() const { return m_pickupEffects; }
-const std::vector<Type> & ItemTypeLoader::LoadData::weaponEffects() const { return m_weaponEffects; }
-const std::vector<ItemTypeLoader::LoadData::AbilitySlot> & ItemTypeLoader::LoadData::abilities() const { return m_abilities; }
+bool ItemTypeLoader::LoadData::isItem() const { return item; }
+ItemTypeLoader::LoadData::Ability ItemTypeLoader::LoadData::whenUse() const { return m_use; }
+const std::vector<ItemTypeLoader::LoadData::Ability> & ItemTypeLoader::LoadData::whenAttack() const { return m_attacks; }
+
+// Type ItemTypeLoader::LoadData::itemAbility() const { return m_itemAbility; }
+// const std::vector<Type> & ItemTypeLoader::LoadData::pickupEffects() const { return m_pickupEffects; }
+// const std::vector<Type> & ItemTypeLoader::LoadData::weaponEffects() const { return m_weaponEffects; }
+// const std::vector<ItemTypeLoader::LoadData::AbilitySlot> & ItemTypeLoader::LoadData::abilities() const { return m_abilities; }
 
 size_t parseSlot(const std::string &str) {
   if (str.length() < 5) return SIZE_MAX;
@@ -30,86 +34,124 @@ size_t parseSlot(const std::string &str) {
 
 bool checkJsonItemValidity(const std::string &path, const nlohmann::json &json, const size_t &mark, ItemTypeLoader::LoadData::CreateInfo &info, std::vector<ErrorDesc> &errors, std::vector<WarningDesc> &warnings) {
   bool hasId = false, hasItemAbility = false, hasWeaponAbilities = false;
+  info.item = false;
   
   for (auto itr = json.begin(); itr != json.end(); ++itr) {
     if (itr.value().is_string() && itr.key() == "id") {
       hasId = true;
       info.m_id = Type::get(itr.value().get<std::string>());
+      continue;
     }
     
     if (itr.value().is_string() && itr.key() == "name") {
       info.m_name = itr.value().get<std::string>();
+      continue;
     }
     
     if (itr.value().is_string() && itr.key() == "description") {
       info.m_description = itr.value().get<std::string>();
+      continue;
     }
     
     if (itr.value().is_string() && itr.key() == "item_group") {
       info.m_groupId = Type::get(itr.value().get<std::string>());
+      continue;
     }
     
-    if (itr.value().is_string() && itr.key() == "item_ability") {
+    if (itr.value().is_boolean() && itr.key() == "is_item") {
+      info.item = itr.value().get<bool>();
+      continue;
+    }
+    
+    if (itr.value().is_object() && itr.key() == "on_use") {
       hasItemAbility = true;
-      info.m_itemAbility = Type::get(itr.value().get<std::string>());
-    }
-    
-    if (itr.value().is_array() && itr.key() == "pickup_effects") {
-      for (size_t i = 0; i < itr.value().size(); ++i) {
-        info.m_pickupEffects.push_back(Type::get(itr.value()[i].get<std::string>()));
-      }
-    }
-    
-    if (itr.value().is_array() && itr.key() == "weapon_effects") {
-      for (size_t i = 0; i < itr.value().size(); ++i) {
-        info.m_weaponEffects.push_back(Type::get(itr.value()[i].get<std::string>()));
-      }
-    }
-    
-    if (itr.value().is_object() && itr.key() == "abilities") {
-      for (auto abilityItr = itr.value().begin(); abilityItr != itr.value().end(); ++abilityItr) {
-        if (!abilityItr.value().is_object()) {
-          ErrorDesc desc(mark, ItemTypeLoader::ERROR_ABILITY_SLOT_IS_NOT_VALID, "Could not parse ability slot "+abilityItr.key());
-          std::cout << "Error: " << desc.description << "\n";
-          errors.push_back(desc);
+      
+      for (auto itemData = itr.value().begin(); itemData != itr.value().end(); ++itemData) {
+        if (itemData.value().is_string() && itemData.key() == "ability") {
+          info.m_use.type = ResourceID::get(itemData.value().get<std::string>());
           continue;
         }
         
-        size_t index = parseSlot(abilityItr.key());
-        if (index == SIZE_MAX) {
-          ErrorDesc desc(mark, ItemTypeLoader::ERROR_SLOT_KEY_IS_NOT_VALID, "Could not parse slot index "+abilityItr.key());
-          std::cout << "Error: " << desc.description << "\n";
-          errors.push_back(desc);
+        if (itemData.value().is_string() && itemData.key() == "state") {
+          info.m_use.state = Type::get(itemData.value().get<std::string>());
           continue;
         }
-        
-        bool hasAbilityType = false;
-        ItemTypeLoader::LoadData::AbilitySlot slotInfo{
-          index,
-          Type(),
-          Type()
-        };
-        for (auto slot = abilityItr.value().begin(); slot != abilityItr.value().end(); ++slot) {
-          if (slot.value().is_string() && slot.key() == "type") {
-            hasAbilityType = true;
-            slotInfo.ability = Type::get(slot.value().get<std::string>());
-          }
-          
-          if (slot.value().is_string() && slot.key() == "state") {
-            slotInfo.state = Type::get(slot.value().get<std::string>());
-          }
-        }
-        
-        if (!hasAbilityType) {
-          ErrorDesc desc(mark, ItemTypeLoader::ERROR_BAD_SLOT_ABILITY_TYPE, "Could not find ability type in slot "+abilityItr.key());
-          std::cout << "Error: " << desc.description << "\n";
-          errors.push_back(desc);
-          continue;
-        }
-        
-        info.m_abilities.push_back(slotInfo);
       }
+      
+      if (!info.m_use.type.valid() && !info.m_use.state.valid()) {
+        ErrorDesc desc(mark, ItemTypeLoader::ERROR_BAD_ON_USE_DATA, "Item on use data must contain ability type or state id");
+        std::cout << "Error: " << desc.description << "\n";
+        errors.push_back(desc);
+      }
+      
+      continue;
     }
+    
+    if (itr.value().is_object() && itr.key() == "on_attack") {
+      hasWeaponAbilities = true;
+      
+      for (auto attackData = itr.value().begin(); attackData != itr.value().end(); ++attackData) {
+        info.m_attacks.push_back({ResourceID::get(attackData.value().get<std::string>()), Type::get(attackData.key())});
+      }
+      continue;
+    }
+    
+//     if (itr.value().is_array() && itr.key() == "pickup_effects") {
+//       for (size_t i = 0; i < itr.value().size(); ++i) {
+//         info.m_pickupEffects.push_back(Type::get(itr.value()[i].get<std::string>()));
+//       }
+//     }
+//     
+//     if (itr.value().is_array() && itr.key() == "weapon_effects") {
+//       for (size_t i = 0; i < itr.value().size(); ++i) {
+//         info.m_weaponEffects.push_back(Type::get(itr.value()[i].get<std::string>()));
+//       }
+//     }
+//     
+//     if (itr.value().is_object() && itr.key() == "abilities") {
+//       for (auto abilityItr = itr.value().begin(); abilityItr != itr.value().end(); ++abilityItr) {
+//         if (!abilityItr.value().is_object()) {
+//           ErrorDesc desc(mark, ItemTypeLoader::ERROR_ABILITY_SLOT_IS_NOT_VALID, "Could not parse ability slot "+abilityItr.key());
+//           std::cout << "Error: " << desc.description << "\n";
+//           errors.push_back(desc);
+//           continue;
+//         }
+//         
+//         size_t index = parseSlot(abilityItr.key());
+//         if (index == SIZE_MAX) {
+//           ErrorDesc desc(mark, ItemTypeLoader::ERROR_SLOT_KEY_IS_NOT_VALID, "Could not parse slot index "+abilityItr.key());
+//           std::cout << "Error: " << desc.description << "\n";
+//           errors.push_back(desc);
+//           continue;
+//         }
+//         
+//         bool hasAbilityType = false;
+//         ItemTypeLoader::LoadData::AbilitySlot slotInfo{
+//           index,
+//           Type(),
+//           Type()
+//         };
+//         for (auto slot = abilityItr.value().begin(); slot != abilityItr.value().end(); ++slot) {
+//           if (slot.value().is_string() && slot.key() == "type") {
+//             hasAbilityType = true;
+//             slotInfo.ability = Type::get(slot.value().get<std::string>());
+//           }
+//           
+//           if (slot.value().is_string() && slot.key() == "state") {
+//             slotInfo.state = Type::get(slot.value().get<std::string>());
+//           }
+//         }
+//         
+//         if (!hasAbilityType) {
+//           ErrorDesc desc(mark, ItemTypeLoader::ERROR_BAD_SLOT_ABILITY_TYPE, "Could not find ability type in slot "+abilityItr.key());
+//           std::cout << "Error: " << desc.description << "\n";
+//           errors.push_back(desc);
+//           continue;
+//         }
+//         
+//         info.m_abilities.push_back(slotInfo);
+//       }
+//     }
   }
   
   if (!hasId) {
@@ -119,18 +161,31 @@ bool checkJsonItemValidity(const std::string &path, const nlohmann::json &json, 
     return false;
   }
   
-  if (!hasItemAbility && !hasWeaponAbilities) {
-    ErrorDesc desc(mark, ItemTypeLoader::ERROR_BAD_ITEM_TYPE_DATA, "Item id must be specified");
+  if (!info.item && !hasItemAbility && !hasWeaponAbilities) {
+    ErrorDesc desc(mark, ItemTypeLoader::ERROR_BAD_ITEM_TYPE_DATA, "Item on use or on attack data must be specified");
     std::cout << "Error: " << desc.description << "\n";
     errors.push_back(desc);
     return false;
   }
   
-  if (hasItemAbility && hasWeaponAbilities) {
-    WarningDesc desc(mark, ItemTypeLoader::WARNING_TOO_MUCH_DATA_WEAPON_PART_IS_IGNORED, "Item data contain item_ability and weapon abilities. Weapon part would be ignored");
+  if (info.item && !hasItemAbility) {
+    ErrorDesc desc(mark, ItemTypeLoader::ERROR_BAD_ITEM_TYPE_DATA, "Item on use data must be specified");
+    std::cout << "Error: " << desc.description << "\n";
+    errors.push_back(desc);
+    return false;
+  }
+  
+  if (info.item && !info.m_attacks.empty()) {
+    WarningDesc desc(mark, ItemTypeLoader::WARNING_ATTACKS_DATA_IS_IGNORED, "On attack data is ignored for item");
     std::cout << "Warning: " << desc.description << "\n";
     warnings.push_back(desc);
   }
+  
+//   if (hasItemAbility && hasWeaponAbilities) {
+//     WarningDesc desc(mark, ItemTypeLoader::WARNING_TOO_MUCH_DATA_WEAPON_PART_IS_IGNORED, "Item data contain item_ability and weapon abilities. Weapon part would be ignored");
+//     std::cout << "Warning: " << desc.description << "\n";
+//     warnings.push_back(desc);
+//   }
   
   return true;
 }
@@ -240,79 +295,99 @@ bool ItemTypeLoader::load(const ModificationParser* modifications, const Resourc
   auto loadData = tempData->container.get(resource->id());
   if (loadData == nullptr) return false;
   
-  if (loadData->itemAbility().valid()) {
-    const bool ret = abilityTypeLoader->load(nullptr, abilityTypeLoader->getParsedResource(ResourceID::get(loadData->itemAbility().name())));
-    if (!ret) throw std::runtime_error("Could not load ability "+loadData->itemAbility().name());
+  const AbilityType* onUseAbility = nullptr;
+  if (loadData->whenUse().type.valid()) {
+    const bool ret = abilityTypeLoader->load(nullptr, abilityTypeLoader->getParsedResource(loadData->whenUse().type));
+    if (!ret) throw std::runtime_error("Could not load ability "+loadData->whenUse().type.name());
     
-    auto ability = abilityTypeLoader->getAbilityType(loadData->itemAbility());
-    if (ability == nullptr) throw std::runtime_error("Could not find ability type "+loadData->itemAbility().name());
-    
-    std::vector<const Effect*> effects(loadData->pickupEffects().size());
-    for (size_t i = 0; i < loadData->pickupEffects().size(); ++i) {
-      const bool ret = effectsLoader->load(nullptr, effectsLoader->getParsedResource(ResourceID::get(loadData->pickupEffects()[i].name())));
-      if (!ret) throw std::runtime_error("Could not load effect "+loadData->pickupEffects()[i].name());
-      
-      effects[i] = effectsLoader->getEffect(loadData->pickupEffects()[i]);
-      if (effects[i] == nullptr) throw std::runtime_error("Could not find effect "+loadData->pickupEffects()[i].name());
-    }
-    
-    const ItemType::CreateInfo info{
-      loadData->itemId(),
-      loadData->groupId(),
-      ability,
-      loadData->name(),
-      loadData->description(),
-      effects,
-      {},
-      {}
-    };
-    auto ptr = itemPool.newElement(info);
-    itemPointers.push_back(ptr);
-    itemTypes[loadData->itemId()] = ptr;
-    return true;
+    const Type id = Type::get(loadData->whenUse().type.name());
+    onUseAbility = abilityTypeLoader->getAbilityType(id);
+    if (onUseAbility == nullptr) throw std::runtime_error("Could not find ability "+loadData->whenUse().type.name());
   }
   
-  std::vector<ItemType::AbilitySlot> slots(loadData->abilities().size());
-  for (size_t i = 0; i < loadData->abilities().size(); ++i) {
-    const bool ret = abilityTypeLoader->load(nullptr, abilityTypeLoader->getParsedResource(ResourceID::get(loadData->abilities()[i].ability.name())));
-    if (!ret) throw std::runtime_error("Could not load ability "+loadData->abilities()[i].ability.name());
+  std::vector<ItemType::Ability> abilities(loadData->whenAttack().size());
+  for (size_t i = 0; i < loadData->whenAttack().size(); ++i) {
+    const bool ret = abilityTypeLoader->load(nullptr, abilityTypeLoader->getParsedResource(loadData->whenAttack()[i].type));
+    if (!ret) throw std::runtime_error("Could not load ability "+loadData->whenAttack()[i].type.name());
     
-    auto ability = abilityTypeLoader->getAbilityType(loadData->abilities()[i].ability);
-    if (ability == nullptr) throw std::runtime_error("Could not find ability type "+loadData->abilities()[i].ability.name());
-    slots[i] = {
-      loadData->abilities()[i].slot,
-      ability,
-      loadData->abilities()[i].state
-    };
+    const Type id = Type::get(loadData->whenAttack()[i].type.name());
+    abilities[i].ability = abilityTypeLoader->getAbilityType(id);
+    if (abilities[i].ability == nullptr) throw std::runtime_error("Could not find ability "+loadData->whenAttack()[i].type.name());
+    abilities[i].state = loadData->whenAttack()[i].state;
   }
   
-  std::vector<const Effect*> pickupEffects(loadData->pickupEffects().size());
-  for (size_t i = 0; i < loadData->pickupEffects().size(); ++i) {
-    const bool ret = effectsLoader->load(nullptr, effectsLoader->getParsedResource(ResourceID::get(loadData->pickupEffects()[i].name())));
-    if (!ret) throw std::runtime_error("Could not load effect "+loadData->pickupEffects()[i].name());
-    
-    pickupEffects[i] = effectsLoader->getEffect(loadData->pickupEffects()[i]);
-    if (pickupEffects[i] == nullptr) throw std::runtime_error("Could not find effect "+loadData->pickupEffects()[i].name());
-  }
+//   if (loadData->itemAbility().valid()) {
+//     const bool ret = abilityTypeLoader->load(nullptr, abilityTypeLoader->getParsedResource(ResourceID::get(loadData->itemAbility().name())));
+//     if (!ret) throw std::runtime_error("Could not load ability "+loadData->itemAbility().name());
+//     
+//     auto ability = abilityTypeLoader->getAbilityType(loadData->itemAbility());
+//     if (ability == nullptr) throw std::runtime_error("Could not find ability type "+loadData->itemAbility().name());
+//     
+//     std::vector<const Effect*> effects(loadData->pickupEffects().size());
+//     for (size_t i = 0; i < loadData->pickupEffects().size(); ++i) {
+//       const bool ret = effectsLoader->load(nullptr, effectsLoader->getParsedResource(ResourceID::get(loadData->pickupEffects()[i].name())));
+//       if (!ret) throw std::runtime_error("Could not load effect "+loadData->pickupEffects()[i].name());
+//       
+//       effects[i] = effectsLoader->getEffect(loadData->pickupEffects()[i]);
+//       if (effects[i] == nullptr) throw std::runtime_error("Could not find effect "+loadData->pickupEffects()[i].name());
+//     }
+//     
+//     const ItemType::CreateInfo info{
+//       loadData->itemId(),
+//       loadData->groupId(),
+//       ability,
+//       loadData->name(),
+//       loadData->description(),
+//       effects,
+//       {},
+//       {}
+//     };
+//     auto ptr = itemPool.newElement(info);
+//     itemPointers.push_back(ptr);
+//     itemTypes[loadData->itemId()] = ptr;
+//     return true;
+//   }
   
-  std::vector<const Effect*> weaponEffects(loadData->weaponEffects().size());
-  for (size_t i = 0; i < loadData->weaponEffects().size(); ++i) {
-    const bool ret = effectsLoader->load(nullptr, effectsLoader->getParsedResource(ResourceID::get(loadData->weaponEffects()[i].name())));
-    if (!ret) throw std::runtime_error("Could not load effect "+loadData->weaponEffects()[i].name());
-    
-    weaponEffects[i] = effectsLoader->getEffect(loadData->weaponEffects()[i]);
-    if (weaponEffects[i] == nullptr) throw std::runtime_error("Could not find effect "+loadData->weaponEffects()[i].name());
-  }
+//   std::vector<ItemType::AbilitySlot> slots(loadData->abilities().size());
+//   for (size_t i = 0; i < loadData->abilities().size(); ++i) {
+//     const bool ret = abilityTypeLoader->load(nullptr, abilityTypeLoader->getParsedResource(ResourceID::get(loadData->abilities()[i].ability.name())));
+//     if (!ret) throw std::runtime_error("Could not load ability "+loadData->abilities()[i].ability.name());
+//     
+//     auto ability = abilityTypeLoader->getAbilityType(loadData->abilities()[i].ability);
+//     if (ability == nullptr) throw std::runtime_error("Could not find ability type "+loadData->abilities()[i].ability.name());
+//     slots[i] = {
+//       loadData->abilities()[i].slot,
+//       ability,
+//       loadData->abilities()[i].state
+//     };
+//   }
+//   
+//   std::vector<const Effect*> pickupEffects(loadData->pickupEffects().size());
+//   for (size_t i = 0; i < loadData->pickupEffects().size(); ++i) {
+//     const bool ret = effectsLoader->load(nullptr, effectsLoader->getParsedResource(ResourceID::get(loadData->pickupEffects()[i].name())));
+//     if (!ret) throw std::runtime_error("Could not load effect "+loadData->pickupEffects()[i].name());
+//     
+//     pickupEffects[i] = effectsLoader->getEffect(loadData->pickupEffects()[i]);
+//     if (pickupEffects[i] == nullptr) throw std::runtime_error("Could not find effect "+loadData->pickupEffects()[i].name());
+//   }
+//   
+//   std::vector<const Effect*> weaponEffects(loadData->weaponEffects().size());
+//   for (size_t i = 0; i < loadData->weaponEffects().size(); ++i) {
+//     const bool ret = effectsLoader->load(nullptr, effectsLoader->getParsedResource(ResourceID::get(loadData->weaponEffects()[i].name())));
+//     if (!ret) throw std::runtime_error("Could not load effect "+loadData->weaponEffects()[i].name());
+//     
+//     weaponEffects[i] = effectsLoader->getEffect(loadData->weaponEffects()[i]);
+//     if (weaponEffects[i] == nullptr) throw std::runtime_error("Could not find effect "+loadData->weaponEffects()[i].name());
+//   }
   
   const ItemType::CreateInfo info{
     loadData->itemId(),
     loadData->groupId(),
-    nullptr,
     loadData->name(),
     loadData->description(),
-    pickupEffects,
-    weaponEffects,
-    slots
+    loadData->isItem(),
+    {onUseAbility, loadData->whenUse().state},
+    abilities
   };
   auto ptr = itemPool.newElement(info);
   itemPointers.push_back(ptr);
@@ -348,71 +423,7 @@ bool ItemTypeLoader::unload(const ResourceID &id) {
 
 void ItemTypeLoader::end() {
   if (tempData == nullptr) throw std::runtime_error("Not in loading state");
-  
-//   for (auto loadData : tempData->dataToLoad) {
-//     if (loadData->itemAbility().valid()) {
-//       auto ability = abilityTypeLoader->getAbilityType(loadData->itemAbility());
-//       if (ability == nullptr) throw std::runtime_error("Could not find ability type "+loadData->itemAbility().name());
-//       
-//       std::vector<const Effect*> effects(loadData->pickupEffects().size());
-//       for (size_t i = 0; i < loadData->pickupEffects().size(); ++i) {
-//         effects[i] = effectsLoader->getEffect(loadData->pickupEffects()[i]);
-//         if (effects[i] == nullptr) throw std::runtime_error("Could not find effect "+loadData->pickupEffects()[i].name());
-//       }
-//       
-//       const ItemType::CreateInfo info{
-//         loadData->itemId(),
-//         loadData->groupId(),
-//         ability,
-//         loadData->name(),
-//         loadData->description(),
-//         effects,
-//         {},
-//         {}
-//       };
-//       auto ptr = itemPool.newElement(info);
-//       itemPointers.push_back(ptr);
-//       itemTypes[loadData->itemId()] = ptr;
-//       continue;
-//     }
-//     
-//     std::vector<ItemType::AbilitySlot> slots(loadData->abilities().size());
-//     for (size_t i = 0; i < loadData->abilities().size(); ++i) {
-//       auto ability = abilityTypeLoader->getAbilityType(loadData->abilities()[i].ability);
-//       if (ability == nullptr) throw std::runtime_error("Could not find ability type "+loadData->abilities()[i].ability.name());
-//       slots[i] = {
-//         loadData->abilities()[i].slot,
-//         ability,
-//         loadData->abilities()[i].state
-//       };
-//     }
-//     
-//     std::vector<const Effect*> pickupEffects(loadData->pickupEffects().size());
-//     for (size_t i = 0; i < loadData->pickupEffects().size(); ++i) {
-//       pickupEffects[i] = effectsLoader->getEffect(loadData->pickupEffects()[i]);
-//       if (pickupEffects[i] == nullptr) throw std::runtime_error("Could not find effect "+loadData->pickupEffects()[i].name());
-//     }
-//     
-//     std::vector<const Effect*> weaponEffects(loadData->weaponEffects().size());
-//     for (size_t i = 0; i < loadData->weaponEffects().size(); ++i) {
-//       weaponEffects[i] = effectsLoader->getEffect(loadData->weaponEffects()[i]);
-//       if (weaponEffects[i] == nullptr) throw std::runtime_error("Could not find effect "+loadData->weaponEffects()[i].name());
-//     }
-//     
-//     const ItemType::CreateInfo info{
-//       loadData->itemId(),
-//       loadData->groupId(),
-//       nullptr,
-//       loadData->name(),
-//       loadData->description(),
-//       pickupEffects,
-//       weaponEffects,
-//       slots
-//     };
-//     auto ptr = itemPool.newElement(info);
-//     itemPointers.push_back(ptr);
-//     itemTypes[loadData->itemId()] = ptr;
-//   }
+
 }
 
 void ItemTypeLoader::clear() {

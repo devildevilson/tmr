@@ -25,7 +25,9 @@ public:
   };
   
   enum WarningTypes {
-    WARNING_SPECIFIED_WEAPON_TYPE_AND_ENTITY_CREATE_DATA
+    WARNING_SPECIFIED_WEAPON_TYPE_AND_ENTITY_CREATE_DATA,
+    WARNING_INHERIT_TRANSFORM_EXPLISITLY_SPECIFIED_FUNCTION_IS_IGNORED,
+    WARNING_INHERIT_ATTRIBUTES_EXPLISITLY_SPECIFIED_FUNCTION_IS_IGNORED
   };
   
   class LoadData : public Resource {
@@ -41,16 +43,16 @@ public:
     };
     
     struct EntityCreateData {
-      ResourceID entityType;
+      Type entityType;
       bool inheritTransform;
       bool inheritAttributes;
       bool inheritEffects;
-      Type impactEvent;
+//       Type impactEvent;
       size_t delayTime;
       std::string transformComputeFunction;
       std::string attributesComputeFunction;
       std::vector<AttributeListElement> attributesList;
-      std::vector<ResourceID> impactEffects;
+//       std::vector<ResourceID> impactEffects;
     };
     
     struct CreateInfo {
@@ -59,33 +61,37 @@ public:
       Type m_id;
       std::string m_name;
       std::string m_description;
-      size_t m_castTime;
+      Type m_castType;
       size_t m_cooldown;
-      Cost m_costs[MAX_ATTRIBUTES_COST_COUNT];
-      std::vector<ResourceID> m_effectsType; // это должен быть ResourceID
-      ResourceID m_weaponType;
+      ResourceID m_cost;
+      ResourceID m_abilityEffect;
+      Type m_nextAbility;
       EntityCreateData m_createData;
+      //size_t m_castTime;
+      //Cost m_costs[MAX_ATTRIBUTES_COST_COUNT];
+      //std::vector<ResourceID> m_effectsType; // это должен быть ResourceID
+      //ResourceID m_weaponType;
     };
     LoadData(const CreateInfo &info);
     
     Type abilityId() const;
     std::string name() const;
     std::string description() const;
-    size_t castTime() const;
+    Type castType() const;
     size_t cooldown() const;
-    Cost costs(const size_t &index) const;
-    const std::vector<ResourceID> & effects() const;
-    ResourceID weapon() const;
+    ResourceID cost() const;
+    ResourceID abilityEffect() const;
+    Type nextAbility() const;
     const EntityCreateData & entityCreateData() const;
   private:
     Type m_id;
     std::string m_name;
     std::string m_description;
-    size_t m_castTime;
+    Type m_castType;
     size_t m_cooldown;
-    Cost m_costs[MAX_ATTRIBUTES_COST_COUNT];
-    std::vector<ResourceID> m_effectsType;
-    ResourceID m_weaponType;
+    ResourceID m_cost;
+    ResourceID m_abilityEffect;
+    Type m_nextAbility;
     EntityCreateData m_createData;
   };
   

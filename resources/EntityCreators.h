@@ -7,6 +7,7 @@
 #include "RenderStructures.h"
 
 #include "AttributesComponent.h"
+#include "shared_collision_constants.h"
 
 #include <vector>
 
@@ -50,7 +51,7 @@ struct WallData {
 
 class WallCreator : public EntityCreator {
 public:
-  yacs::entity* create(yacs::entity* parent, void* data) const override;
+  yacs::entity* create(yacs::entity* parent, const void* data) const override;
 };
 
 // указатель воид должен быть преобразован видимо в AbilityType
@@ -63,6 +64,18 @@ public:
 // };
 
 // что такое действие?
+
+// я так понимаю, мне нужно пометить с помощью тега энтити, которое проснется при взаимодействии с игроком
+// нужно задать список действий которые могут вообще произойти с объектом или предметом
+
+enum {
+  ACTION_OBJECT_COLLIDE  = 1 << 0,
+  ACTION_OBJECT_USE      = 1 << 1,
+  ACTION_OBJECT_ABILITY  = 1 << 2,
+  ACTION_OBJECT_SOUND    = 1 << 3,
+  ACTION_OBJECT_PICK_UP  = 1 << 4,
+  // ???
+};
 
 struct ObjectData {
   // максимально необходимые данные для объекта какие? позиция, направление, ???
@@ -78,16 +91,19 @@ struct ObjectData {
   uint32_t defaultAction;
   
   const AbilityType* ability;
+  size_t entityIndex;
 };
 
 class ObjectCreator : public EntityCreator {
 public:
   struct PhysData {
+    bool dynamic;
     uint32_t collisionGroup;
     uint32_t collisionFilter;
     float stairHeight;
     float height;
     float width;
+    float gravCoef;
   };
   
   struct GraphicsData {
@@ -165,7 +181,7 @@ public:
   };
   ObjectCreator(const CreateInfo &info);
   
-  yacs::entity* create(yacs::entity* parent, void* data) const override;
+  yacs::entity* create(yacs::entity* parent, const void* data) const override;
 private:
   PhysData physData;
   GraphicsData graphicsData;
@@ -185,12 +201,21 @@ public:
   };
   PlayerCreator(const CreateInfo &info);
   
-  yacs::entity* create(yacs::entity* parent, void* data) const override;
+  yacs::entity* create(yacs::entity* parent, const void* data) const override;
 private:
 //   PhysData physData;
   // attrib
   // abilities
   // states
+};
+
+struct AbilityData {
+  const AbilityType* ability;
+  // ???
+  // может быть нужно добавить указатель на айтем? 
+  // если мы все же укажем в информации об энтити как создать интеракцию
+  // то нам потребуются скорее всего только данные абилки
+  // лучше не разделять
 };
 
 #endif

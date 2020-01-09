@@ -41,12 +41,13 @@ public:
     ERROR_BAD_SLOT_ABILITY_TYPE,
     ERROR_SLOT_KEY_IS_NOT_VALID,
     ERROR_ITEM_ID_IS_NOT_SPECIFIED,
-    ERROR_BAD_ITEM_TYPE_DATA
+    ERROR_BAD_ITEM_TYPE_DATA,
+    ERROR_BAD_ON_USE_DATA,
   };
   
   enum Warnings {
     WARNING_TOO_MUCH_DATA_WEAPON_PART_IS_IGNORED = 0,
-    
+    WARNING_ATTACKS_DATA_IS_IGNORED,
   };
   
   class LoadData : public Resource {
@@ -58,6 +59,11 @@ public:
       Type state;
     };
     
+    struct Ability {
+      ResourceID type;
+      Type state;
+    };
+    
     struct CreateInfo {
       Resource::CreateInfo resInfo;
       
@@ -65,10 +71,14 @@ public:
       Type m_groupId;
       std::string m_name;
       std::string m_description;
-      Type m_itemAbility;
-      std::vector<Type> m_pickupEffects;
-      std::vector<Type> m_weaponEffects;
-      std::vector<AbilitySlot> m_abilities;
+      bool item;
+      Ability m_use;
+      std::vector<Ability> m_attacks;
+      
+//       Type m_itemAbility;
+//       std::vector<Type> m_pickupEffects;
+//       std::vector<Type> m_weaponEffects;
+//       std::vector<AbilitySlot> m_abilities;
     };
     LoadData(const CreateInfo &info);
     
@@ -76,19 +86,27 @@ public:
     Type groupId() const;
     std::string name() const;
     std::string description() const;
-    Type itemAbility() const;
-    const std::vector<Type> & pickupEffects() const;
-    const std::vector<Type> & weaponEffects() const;
-    const std::vector<AbilitySlot> & abilities() const;
+    bool isItem() const;
+    Ability whenUse() const;
+    const std::vector<Ability> & whenAttack() const;
+    
+//     Type itemAbility() const;
+//     const std::vector<Type> & pickupEffects() const;
+//     const std::vector<Type> & weaponEffects() const;
+//     const std::vector<AbilitySlot> & abilities() const;
   private:
+    bool item;
     Type m_id;
     Type m_groupId;
     std::string m_name;
     std::string m_description;
-    Type m_itemAbility;
-    std::vector<Type> m_pickupEffects;
-    std::vector<Type> m_weaponEffects;
-    std::vector<AbilitySlot> m_abilities;
+    Ability m_use;
+    std::vector<Ability> m_attacks;
+    
+//     Type m_itemAbility;
+//     std::vector<Type> m_pickupEffects;
+//     std::vector<Type> m_weaponEffects;
+//     std::vector<AbilitySlot> m_abilities;
   };
   
   struct CreateInfo {

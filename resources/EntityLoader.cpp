@@ -7,6 +7,35 @@
 #include "EffectsLoader.h"
 #include "ImageLoader.h"
 
+EntityLoader::LoadData::Interaction::VariableType::VariableType() : container(0) {}
+EntityLoader::LoadData::Interaction::VariableType::VariableType(const bool angleNum, const bool distanceNum, const bool minDistNum, const bool tickCountNum, const bool attackSpeedNum, const bool attackTimeNum) {
+  
+}
+
+bool EntityLoader::LoadData::Interaction::VariableType::isAngleNumber() const {
+  
+}
+
+bool EntityLoader::LoadData::Interaction::VariableType::isDistanceNumber() const {
+  
+}
+
+bool EntityLoader::LoadData::Interaction::VariableType::isMinDistanceNumber() const {
+  
+}
+
+bool EntityLoader::LoadData::Interaction::VariableType::isTickCountNumber() const {
+  
+}
+
+bool EntityLoader::LoadData::Interaction::VariableType::isAttackSpeedNumber() const {
+  
+}
+
+bool EntityLoader::LoadData::Interaction::VariableType::isAttackTimeNumber() const {
+  
+}
+
 EntityLoader::LoadData::LoadData(const CreateInfo &info) : Resource(info.resInfo), m_id(info.m_id), m_physData(info.m_physData), m_graphicsData(info.m_graphicsData), m_attributesData(info.m_attributesData), m_effectsData(info.m_effectsData), m_inventoryData(info.m_inventoryData), m_weaponsData(info.m_weaponsData), m_abilitiesData(info.m_abilitiesData), m_intelligence(info.m_intelligence), m_statesData(info.m_statesData), m_defaultTexture(info.m_defaultTexture) {}
 Type EntityLoader::LoadData::creatorId() const { return m_id; }
 EntityLoader::LoadData::PhysData EntityLoader::LoadData::physData() const { return m_physData; }
@@ -19,9 +48,18 @@ EntityLoader::LoadData::Abilities EntityLoader::LoadData::abilitiesData() const 
 EntityLoader::LoadData::Intelligence EntityLoader::LoadData::intelligence() const { return m_intelligence; }
 EntityLoader::LoadData::States EntityLoader::LoadData::statesData() const { return m_statesData; }
 EntityLoader::LoadData::Texture EntityLoader::LoadData::defaultTexture() const { return m_defaultTexture; }
+EntityLoader::LoadData::Interaction EntityLoader::LoadData::interaction() const { return m_interaction; }
 
 bool checkJsonEntityValidity(const std::string &path, const nlohmann::json &data, const size_t &mark, EntityLoader::LoadData::CreateInfo &info, std::vector<ErrorDesc> &errors, std::vector<WarningDesc> &warnings) {
   bool hasId = false, hasStates = false, hasTexture = false, hasPhysicsData = false, hasImage = false;
+  info.m_interaction.type = EntityLoader::LoadData::Interaction::type::none;
+  info.m_physData.dynamic = false;
+  info.m_physData.collisionGroup = MONSTER_COLLISION_TYPE;
+  info.m_physData.collisionFilter = monster_collision_filter;
+  info.m_physData.gravCoef = 1.0f;
+  info.m_physData.height = 1.0f;
+  info.m_physData.width = 1.0f;
+  info.m_physData.stairHeight = 0.4f;
   
   const size_t errorCount = errors.size();
   
@@ -99,7 +137,7 @@ bool checkJsonEntityValidity(const std::string &path, const nlohmann::json &data
           Type(),
           Type()
         };
-        for (auto abilitySlot = slot.value().begin(); slot != slot.value().end(); ++slot) {
+        for (auto abilitySlot = slot.value().begin(); abilitySlot != slot.value().end(); ++abilitySlot) {
           if (abilitySlot.value().is_string() && abilitySlot.key() == "type") {
             hasAbilityType = true;
             slotInfo.ability = Type::get(abilitySlot.value().get<std::string>());
@@ -285,6 +323,43 @@ bool checkJsonEntityValidity(const std::string &path, const nlohmann::json &data
           info.m_physData.stairHeight = physData.value().get<float>();
           continue;
         }
+        
+        if (physData.value().is_number() && physData.key() == "gravitational_coefficient") {
+          info.m_physData.gravCoef = physData.value().get<float>();
+          continue;
+        }
+        
+        if (physData.value().is_boolean() && physData.key() == "dynamic") {
+          info.m_physData.dynamic = physData.value().get<bool>();
+          continue;
+        }
+        
+        if (physData.value().is_string() && physData.key() == "collision_group") {
+          const std::string &str = physData.value().get<std::string>();
+          
+          if (str == "monster") {
+            info.m_physData.collisionGroup = MONSTER_COLLISION_TYPE;
+            info.m_physData.collisionFilter = monster_collision_filter;
+          } else if (str == "small_decoration") {
+            info.m_physData.collisionGroup = SMALL_DECORATION_COLLISION_TYPE;
+            info.m_physData.collisionFilter = small_decoration_collision_filter;
+          } else if (str == "big_decoration") {
+            info.m_physData.collisionGroup = BIG_DECORATION_COLLISION_TYPE;
+            info.m_physData.collisionFilter = big_decoration_collision_filter;
+          } else if (str == "ghost") {
+            info.m_physData.collisionGroup = GHOST_COLLISION_TYPE;
+            info.m_physData.collisionFilter = ghost_collision_filter;
+          } else {
+            WarningDesc desc(mark, EntityLoader::WARNING_BAD_COLLISION_GROUP, "Bad collision group. Using default (monster)");
+            std::cout << "Warning: " << desc.description << "\n";
+            warnings.push_back(desc);
+            
+            info.m_physData.collisionGroup = MONSTER_COLLISION_TYPE;
+            info.m_physData.collisionFilter = monster_collision_filter;
+          }
+          
+          continue;
+        }
       }
       
       if (!(hasHeight && hasWidth)) {
@@ -294,7 +369,7 @@ bool checkJsonEntityValidity(const std::string &path, const nlohmann::json &data
       }
       
       if (!hasStairHeight) {
-        info.m_physData.stairHeight = info.m_physData.height * 0.33f;
+        info.m_physData.stairHeight = info.m_physData.height * 0.333f;
       }
       
       continue;
@@ -308,12 +383,98 @@ bool checkJsonEntityValidity(const std::string &path, const nlohmann::json &data
     };
     if (itr.value().is_string() && itr.key() == "texture") {
       const auto &str = itr.value().get<std::string>();
-      std::cout << "Proccessing texture" << "\n";
+      //std::cout << "Proccessing texture" << "\n";
       parseTextureDataString(str, info.m_defaultTexture.id, info.m_defaultTexture.index, info.m_defaultTexture.flipU, info.m_defaultTexture.flipV);
       if (!info.m_defaultTexture.id.valid()) {
         throw std::runtime_error("Could not proccess texture "+str);
       }
       continue;
+    }
+    
+    if (itr.value().is_object() && itr.key() == "interaction") {
+      EntityLoader::LoadData::Interaction::Variable angle, distance, minDist, tickCount, attackSpeed, attackTime;
+      bool angleNum = true, distanceNum = true, minDistNum = true, tickCountNum = true, attackSpeedNum = true, attackTimeNum = true;
+      
+      for (auto interaction = itr.value().begin(); interaction != itr.value().end(); ++interaction) {
+        if (interaction.value().is_string() && interaction.key() == "type") {
+          const auto &str = interaction.value().get<std::string>();
+          
+          if (str == "target") info.m_interaction.type = EntityLoader::LoadData::Interaction::type::target;
+          else if (str == "ray_casting") info.m_interaction.type = EntityLoader::LoadData::Interaction::type::ray;
+          else if (str == "slashing") info.m_interaction.type = EntityLoader::LoadData::Interaction::type::slashing;
+          else if (str == "stabbing") info.m_interaction.type = EntityLoader::LoadData::Interaction::type::stabbing;
+          else if (str == "impact") info.m_interaction.type = EntityLoader::LoadData::Interaction::type::impact;
+          
+          continue;
+        }
+        
+        if (interaction.key() == "angle") {
+          if (interaction.value().is_number()) {
+            info.m_interaction.angle.var = interaction.value().get<double>();
+          } else if (interaction.value().is_string()) {
+            angleNum = false;
+            info.m_interaction.angle.attributeType = Type::get(interaction.value().get<std::string>());
+          }
+          continue;
+        }
+        
+        if (interaction.key() == "distance") {
+          if (interaction.value().is_number()) {
+            info.m_interaction.distance.var = interaction.value().get<double>(); 
+          } else if (interaction.value().is_string()) {
+            distanceNum = false;
+            info.m_interaction.distance.attributeType = Type::get(interaction.value().get<std::string>());
+          }
+          continue;
+        }
+        
+        if (interaction.key() == "min_distance") {
+          if (interaction.value().is_number()) {
+            info.m_interaction.minDist.var = interaction.value().get<double>();
+          } else if (interaction.value().is_string()) {
+            minDistNum = false;
+            info.m_interaction.minDist.attributeType = Type::get(interaction.value().get<std::string>());
+          }
+          continue;
+        }
+        
+        if (interaction.key() == "tick_count") {
+          if (interaction.value().is_number()) {
+            info.m_interaction.tickCount.var = interaction.value().get<double>();
+          } else if (interaction.value().is_string()) {
+            tickCountNum = false;
+            info.m_interaction.tickCount.attributeType = Type::get(interaction.value().get<std::string>());
+          }
+          continue;
+        }
+        
+        if (interaction.key() == "attack_speed") {
+          if (interaction.value().is_number()) {
+            info.m_interaction.attackSpeed.var = interaction.value().get<double>();
+          } else if (interaction.value().is_string()) {
+            attackSpeedNum = false;
+            info.m_interaction.attackSpeed.attributeType = Type::get(interaction.value().get<std::string>());
+          }
+          continue;
+        }
+        
+        if (interaction.key() == "attack_time") {
+          if (interaction.value().is_number()) {
+            info.m_interaction.attackTime.var = interaction.value().get<double>();
+          } else if (interaction.value().is_string()) {
+            attackTimeNum = false;
+            info.m_interaction.attackTime.attributeType = Type::get(interaction.value().get<std::string>());
+          }
+          continue;
+        }
+      }
+      
+      info.m_interaction.variables = EntityLoader::LoadData::Interaction::VariableType(angleNum, distanceNum, minDistNum, tickCountNum, attackSpeedNum, attackTimeNum);
+      if (info.m_interaction.type == EntityLoader::LoadData::Interaction::type::none) {
+        ErrorDesc desc(mark, EntityLoader::ERROR_COULD_NOT_FIND_INTERACTION_TYPE, "Could not find interaction type");
+        std::cout << "Error: " << desc.description << "\n";
+        errors.push_back(desc);
+      }
     }
   }
   
@@ -324,8 +485,15 @@ bool checkJsonEntityValidity(const std::string &path, const nlohmann::json &data
     return false;
   }
   
-  if (!hasPhysicsData) {
-    ErrorDesc desc(mark, EntityLoader::ERROR_COULD_NOT_FIND_PHYSICS_DATA, "Could not find physics data");
+//   if (!hasPhysicsData) {
+//     ErrorDesc desc(mark, EntityLoader::ERROR_COULD_NOT_FIND_PHYSICS_DATA, "Could not find physics data");
+//     std::cout << "Error: " << desc.description << "\n";
+//     errors.push_back(desc);
+//     return false;
+//   }
+  
+  if (!hasPhysicsData && info.m_interaction.type == EntityLoader::LoadData::Interaction::type::none) {
+    ErrorDesc desc(mark, EntityLoader::ERROR_EITHER_INTERACTION_DATA_OR_PHYSICS_DATA_MUST_BE_SPECIFIED, "Interaction data or physics data must be specified");
     std::cout << "Error: " << desc.description << "\n";
     errors.push_back(desc);
     return false;
@@ -335,12 +503,18 @@ bool checkJsonEntityValidity(const std::string &path, const nlohmann::json &data
     
   }
   
-  const size_t tmp = size_t(hasStates) + size_t(hasTexture) + size_t(hasImage);
-  if (tmp > 1) {
-    WarningDesc desc(mark, EntityLoader::WARNING_TOO_MUCH_APPEARENCE_DATA, "Too much appearence data. Priority: states > texture > image");
+  if (hasPhysicsData && info.m_interaction.type != EntityLoader::LoadData::Interaction::type::none) {
+    WarningDesc desc(mark, EntityLoader::WARNING_PHYSICS_DATA_IS_IGNORED, "Interaction data is specified. Physics data is ignored");
     std::cout << "Warning: " << desc.description << "\n";
     warnings.push_back(desc);
   }
+  
+//   const size_t tmp = size_t(hasStates) + size_t(hasTexture) + size_t(hasImage);
+//   if (tmp > 1) {
+//     WarningDesc desc(mark, EntityLoader::WARNING_TOO_MUCH_APPEARENCE_DATA, "Too much appearence data. Priority: states > texture > image");
+//     std::cout << "Warning: " << desc.description << "\n";
+//     warnings.push_back(desc);
+//   }
   
   return errorCount == errors.size();
 }
@@ -348,6 +522,7 @@ bool checkJsonEntityValidity(const std::string &path, const nlohmann::json &data
 EntityLoader::EntityLoader(const CreateInfo &info) : imageLoader(info.imageLoader), abilityTypeLoader(info.abilityTypeLoader), attributesLoader(info.attributesLoader), effectsLoader(info.effectsLoader), itemTypeLoader(info.itemTypeLoader), animationLoader(info.animationLoader), soundLoader(info.soundLoader) {
   Global g;
   g.setWorld(&world);
+  Global::get(&world);
 }
 
 EntityLoader::~EntityLoader() {
@@ -452,20 +627,28 @@ bool EntityLoader::load(const ModificationParser* modifications, const Resource*
   if (loadData == nullptr) return false;
   
   const ObjectCreator::PhysData physData{
-    1,
-    1,
+    loadData->physData().dynamic,
+    loadData->physData().collisionGroup,
+    loadData->physData().collisionFilter,
     loadData->physData().stairHeight,
     loadData->physData().height,
-    loadData->physData().width
+    loadData->physData().width,
+    loadData->physData().gravCoef
   };
   
-  auto parsedres = imageLoader->getParsedResource(loadData->defaultTexture().id);
-  if (parsedres == nullptr) throw std::runtime_error("Could not load image "+loadData->defaultTexture().id.name());
-  const bool ret = imageLoader->load(nullptr, parsedres);
-  if (!ret) throw std::runtime_error("Could not load image "+loadData->defaultTexture().id.name());
-  
-  const auto img = imageLoader->image(loadData->defaultTexture().id, loadData->defaultTexture().index);
-  if (img.index == UINT32_MAX || img.layer == UINT32_MAX) throw std::runtime_error("Could not find image "+loadData->defaultTexture().id.name()+" with index "+std::to_string(loadData->defaultTexture().index));
+  Image img = {
+    UINT32_MAX,
+    UINT32_MAX
+  };
+  if (loadData->defaultTexture().id.valid()) {
+    auto parsedres = imageLoader->getParsedResource(loadData->defaultTexture().id);
+    if (parsedres == nullptr) throw std::runtime_error("Could not load image "+loadData->defaultTexture().id.name());
+    const bool ret = imageLoader->load(nullptr, parsedres);
+    if (!ret) throw std::runtime_error("Could not load image "+loadData->defaultTexture().id.name());
+    
+    img = imageLoader->image(loadData->defaultTexture().id, loadData->defaultTexture().index);
+    if (img.index == UINT32_MAX || img.layer == UINT32_MAX) throw std::runtime_error("Could not find image "+loadData->defaultTexture().id.name()+" with index "+std::to_string(loadData->defaultTexture().index));
+  }
   
   const ObjectCreator::GraphicsData graphics{
     {
@@ -668,7 +851,7 @@ std::string EntityLoader::hint() const {
 
 const Type wallType = Type::get("wall_creator_type");
 
-yacs::entity* EntityLoader::create(const Type &type, yacs::entity* parent, void* data) const {
+yacs::entity* EntityLoader::create(const Type &type, yacs::entity* parent, const void* data) const {
   //if (container == nullptr) throw std::runtime_error("Entity creators is not loaded");
   
   if (type == wallType) return wallCreator.create(parent, data);

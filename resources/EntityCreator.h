@@ -13,7 +13,7 @@ class EntityCreator {
 public:
   virtual ~EntityCreator() {}
   
-  virtual yacs::entity* create(yacs::entity* parent, void* data) const = 0; // тут мы создаем все от начала до конца, в data хранится необходимые данные для конкретного типа энтити
+  virtual yacs::entity* create(yacs::entity* parent, const void* data) const = 0; // тут мы создаем все от начала до конца, в data хранится необходимые данные для конкретного типа энтити
 };
 
 #endif

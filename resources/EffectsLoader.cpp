@@ -48,29 +48,35 @@ bool checkEffectJsonValidity(const std::string &pathPrefix, const std::string &p
     if (concreteTIt.value().is_string() && concreteTIt.key() == "id") {
       hasId = true;
       info.m_id = Type::get(concreteTIt.value().get<std::string>());
+      continue;
     }
     
     if (concreteTIt.value().is_string() && concreteTIt.key() == "name") {
       hasName = true;
       info.m_name = concreteTIt.value().get<std::string>();
+      continue;
     }
     
     if (concreteTIt.value().is_string() && concreteTIt.key() == "description") {
       hasDesc = true;
       info.m_description = concreteTIt.value().get<std::string>();
+      continue;
     }
     
     if (concreteTIt.value().is_number_unsigned() && concreteTIt.key() == "base_effect_time") {
       hasTime = true;
       info.m_baseEffectTime = concreteTIt.value().get<size_t>();
+      continue;
     }
     
     if (concreteTIt.value().is_boolean() && concreteTIt.key() == "raw_attrib_add") {
       raw_add = concreteTIt.value().get<bool>();
+      continue;
     }
     
     if (concreteTIt.value().is_boolean() && concreteTIt.key() == "add_bonuses") {
       effect_add = concreteTIt.value().get<bool>();
+      continue;
     }
     
     if (concreteTIt.value().is_array() && concreteTIt.key() == "effect_bonuses") {
@@ -78,7 +84,7 @@ bool checkEffectJsonValidity(const std::string &pathPrefix, const std::string &p
         EffectsLoader::LoadData::BonusType bonus;
         for (auto itr = concreteTIt.value()[i].begin(); itr != concreteTIt.value()[i].end(); ++itr) {
           if (itr.value().is_string() && itr.key() == "attribute_type") {
-            bonus.attribId = ResourceID::get(itr.value().get<std::string>());
+            bonus.attrib = Type::get(itr.value().get<std::string>());
           }
           
           if (itr.value().is_number() && itr.key() == "add") {
@@ -92,30 +98,37 @@ bool checkEffectJsonValidity(const std::string &pathPrefix, const std::string &p
         
         info.m_bonuses.push_back(bonus);
       }
+      continue;
     }
     
     if (concreteTIt.value().is_boolean() && concreteTIt.key() == "periodic") {
       periodic = concreteTIt.value().get<bool>();
+      continue;
     }
     
     if (concreteTIt.value().is_boolean() && concreteTIt.key() == "one_time_effect") {
       one_time_effect = concreteTIt.value().get<bool>();
+      continue;
     }
     
     if (concreteTIt.value().is_boolean() && concreteTIt.key() == "resetable") {
       resetable = concreteTIt.value().get<bool>();
+      continue;
     }
     
     if (concreteTIt.value().is_boolean() && concreteTIt.key() == "stackable") {
       stackable = concreteTIt.value().get<bool>();
+      continue;
     }
     
     if (concreteTIt.value().is_boolean() && concreteTIt.key() == "easy_stack") {
       easy_stack = concreteTIt.value().get<bool>();
+      continue;
     }
     
     if (concreteTIt.value().is_number_unsigned() && concreteTIt.key() == "base_period_time") {
       info.m_periodTime = concreteTIt.value().get<size_t>();
+      continue;
     }
     
     if (concreteTIt.value().is_array() && concreteTIt.key() == "modificators") {
@@ -133,14 +146,17 @@ bool checkEffectJsonValidity(const std::string &pathPrefix, const std::string &p
         
         info.m_mods.push_back(mod);
       }
+      continue;
     }
     
     if (concreteTIt.value().is_string() && concreteTIt.key() == "compute_function") {
       info.m_computeFuncPath = concreteTIt.value().get<std::string>();
+      continue;
     }
     
     if (concreteTIt.value().is_string() && concreteTIt.key() == "resist_function") {
       info.m_resistFuncPath = concreteTIt.value().get<std::string>();
+      continue;
     }
   }
   
@@ -308,21 +324,22 @@ bool EffectsLoader::load(const ModificationParser* modifications, const Resource
   
   std::vector<BonusType> bonuses(res->bonuses().size());
   for (size_t i = 0; i < res->bonuses().size(); ++i) {
-    const bool ret = attributesLoader->load(nullptr, attributesLoader->getParsedResource(res->bonuses()[i].attribId));
-    if (!ret) throw std::runtime_error("Could not load attribute "+res->bonuses()[i].attribId.name());
+    const ResourceID id = ResourceID::get(res->bonuses()[i].attrib.name());
+    const bool ret = attributesLoader->load(nullptr, attributesLoader->getParsedResource(id));
+    if (!ret) throw std::runtime_error("Could not load attribute "+res->bonuses()[i].attrib.name());
     
-    Type attribId = Type::get(res->bonuses()[i].attribId.name());
+    const Type attribId = res->bonuses()[i].attrib; //Type::get(res->bonuses()[i].attribId.name());
     auto attribFloat = attributesLoader->getFloatType(attribId);
     if (attribFloat != nullptr) {
       bonuses[i].bonus = res->bonuses()[i].bonus;
-      bonuses[i].type = TypelessAttributeType(attribFloat);
+      bonuses[i].type = attribId;
       continue;
     }
     
     auto attribInt = attributesLoader->getIntType(attribId);
     if (attribInt != nullptr) {
       bonuses[i].bonus = res->bonuses()[i].bonus;
-      bonuses[i].type = TypelessAttributeType(attribInt);
+      bonuses[i].type = attribId;
       continue;
     }
     

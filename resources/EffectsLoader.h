@@ -19,7 +19,8 @@ public:
   class LoadData : public Resource {
   public:
     struct BonusType {
-      ResourceID attribId;
+      //ResourceID attribId;
+      Type attrib;
       Bonus bonus;
     };
     

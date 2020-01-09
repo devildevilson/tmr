@@ -50,21 +50,65 @@ public:
     ERROR_TEXTURE_IMAGE_IS_NOT_SPECIFIED,
     ERROR_COULD_NOT_FIND_ENTITY_ID,
     ERROR_COULD_NOT_FIND_PHYSICS_DATA,
-    
+    ERROR_COULD_NOT_FIND_INTERACTION_TYPE,
+    ERROR_EITHER_INTERACTION_DATA_OR_PHYSICS_DATA_MUST_BE_SPECIFIED
   };
   
   enum Warnings {
     WARNING_TOO_MUCH_APPEARENCE_DATA = 0,
+    WARNING_PHYSICS_DATA_IS_IGNORED,
+    WARNING_BAD_COLLISION_GROUP
   };
   
   class LoadData : public Resource {
   public:
     struct PhysData {
+      bool dynamic;
       uint32_t collisionGroup;
       uint32_t collisionFilter;
       float stairHeight;
       float height;
       float width;
+      float gravCoef;
+    };
+    
+    struct Interaction {
+      enum class type {
+        target,
+        ray,
+        slashing,
+        stabbing,
+        impact,
+        none
+      };
+      
+      struct VariableType {
+        uint32_t container;
+        
+        VariableType();
+        VariableType(const bool angleNum, const bool distanceNum, const bool minDistNum, const bool tickCountNum, const bool attackSpeedNum, const bool attackTimeNum);
+        
+        bool isAngleNumber() const;
+        bool isDistanceNumber() const;
+        bool isMinDistanceNumber() const;
+        bool isTickCountNumber() const;
+        bool isAttackSpeedNumber() const;
+        bool isAttackTimeNumber() const;
+      };
+      
+      struct Variable {
+        Type attributeType;
+        double var;
+      };
+      
+      enum type type;
+      VariableType variables;
+      Variable angle;
+      Variable distance;
+      Variable minDist;
+      Variable tickCount;
+      Variable attackSpeed;
+      Variable attackTime;
     };
     
     struct GraphicsData {
@@ -159,6 +203,7 @@ public:
       Intelligence m_intelligence;
       States m_statesData;
       Texture m_defaultTexture;
+      Interaction m_interaction;
     };
     LoadData(const CreateInfo &info);
     
@@ -173,6 +218,7 @@ public:
     Intelligence intelligence() const;
     States statesData() const;
     Texture defaultTexture() const;
+    Interaction interaction() const;
   private:
     Type m_id;
     
@@ -186,6 +232,7 @@ public:
     Intelligence m_intelligence;
     States m_statesData;
     Texture m_defaultTexture;
+    Interaction m_interaction;
   };
   
   struct CreateInfo {
@@ -225,7 +272,7 @@ public:
   std::string hint() const override;
   
 //   yacs::entity* create(const Type &type, yacs::entity* parent, const UniversalDataContainer* container); // по идее это необходимо и достаточно для создания энтити
-  yacs::entity* create(const Type &type, yacs::entity* parent, void* data) const;
+  yacs::entity* create(const Type &type, yacs::entity* parent, const void* data) const;
 private:
   LoadingTemporaryData<LoadData, 10>* tempData;
   
