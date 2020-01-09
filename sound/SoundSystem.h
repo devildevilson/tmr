@@ -31,10 +31,13 @@
 // class Buffer;
 //class BufferAllocator;
 
-struct ALCdevice_struct;
-typedef struct ALCdevice_struct ALCdevice;
-struct ALCcontext_struct;
-typedef struct ALCcontext_struct ALCcontext;
+// struct ALCdevice_struct;
+// typedef struct ALCdevice_struct ALCdevice;
+// struct ALCcontext_struct;
+// typedef struct ALCcontext_struct ALCcontext;
+
+typedef struct ALCdevice ALCdevice;
+typedef struct ALCcontext ALCcontext;
 
 // а как загружать данные из зип архива
 // придется же его постоянно держать включенным для того чтобы грузить по кускам

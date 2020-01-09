@@ -57,7 +57,7 @@ private:
     float relativePos[4];
     bool needVelocity;
   };
-
+  
   TransformComponent* transform;
   PhysicsComponent* physics;
 //  EventComponent* events;

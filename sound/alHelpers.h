@@ -4,8 +4,9 @@
 #include <string>
 
 //struct ALCdevice;
-struct ALCdevice_struct;
-typedef struct ALCdevice_struct ALCdevice;
+// struct ALCdevice_struct;
+// typedef struct ALCdevice_struct ALCdevice;
+typedef struct ALCdevice ALCdevice;
 typedef int ALenum;
 
 void openalError(const std::string &err);
