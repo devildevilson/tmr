@@ -193,11 +193,12 @@ CPUPathFindingPhaseParallel::~CPUPathFindingPhaseParallel() {
 
 // создадим тип
 // добавим запрос на путь
-void CPUPathFindingPhaseParallel::registerPathType(const Type &type, const std::function<bool(const vertex_t*, const vertex_t*, const edge_t*)> &predicate) {
+void CPUPathFindingPhaseParallel::registerPathType(const Type &type, const std::function<bool(const vertex_t*, const vertex_t*, const edge_t*)> &predicate, const float &offset) {
   auto itr = types.find(type);
   if (itr != types.end()) throw std::runtime_error("Path finding type with name " + type.name() + " is already registered");
   
   types[type].predicate = predicate;
+  types[type].offset = offset;
 }
 
 void CPUPathFindingPhaseParallel::queueRequest(const FindRequest &request) {
@@ -229,7 +230,7 @@ void CPUPathFindingPhaseParallel::queueRequest(const FindRequest &request) {
 void CPUPathFindingPhaseParallel::update() {
   typedef std::unordered_map<std::pair<const vertex_t*, const vertex_t*>, PathFindingReturn>::iterator localIterator;
   
-  static const auto pathFinding = [&] (const Type &type, const std::function<bool(const vertex_t*, const vertex_t*, const edge_t*)> &predicate, localIterator itr) {
+  static const auto pathFinding = [&] (const Type &type, const std::function<bool(const vertex_t*, const vertex_t*, const edge_t*)> &predicate, const float &funnelOffset, localIterator itr) {
     (void)type;
     
     //if (itr->second.path != nullptr && itr->second.state == path_finding_state::has_path) return;
@@ -338,7 +339,7 @@ void CPUPathFindingPhaseParallel::update() {
     }
     searchPtr = nullptr;
     
-    computeFunnel(path);
+    computeFunnel(path, funnelOffset);
     
 //     size_t count = 0;
 //     for (size_t i = 0; i < path->graphData().size(); ++i) {
@@ -449,7 +450,7 @@ void CPUPathFindingPhaseParallel::update() {
   size_t taskCount = 0;
   for (auto &type : types) {
     for (auto itr = type.second.queue.begin(); itr != type.second.queue.end(); ++itr) {
-      pool->submitnr(pathFinding, type.first, type.second.predicate, itr);
+      pool->submitnr(pathFinding, type.first, type.second.predicate, type.second.offset, itr);
       ++taskCount;
       // макс размер
     }
@@ -500,7 +501,7 @@ void CPUPathFindingPhaseParallel::releasePath(const FindRequest &req) {
   }
 }
 
-void CPUPathFindingPhaseParallel::computeFunnel(RawPath* path) {
+void CPUPathFindingPhaseParallel::computeFunnel(RawPath* path, const float &offset) {
   // тут мне нужно заполнить данные всех вершин, то есть точку справа (или все же ближайшую?),
   // направление от этой точки (наверное еще длину ребра), точку в которую я направляюсь
   
@@ -533,6 +534,14 @@ void CPUPathFindingPhaseParallel::computeFunnel(RawPath* path) {
   leftP.loadu(&firstA.x);
   rightP.loadu(&firstB.x);
   
+  // нужно ко всем точкам добавлять оффсет, как это сделать правильно?
+  // причем для fakeEdge нужно наоборот вычитать
+  // у нас есть левая и правая точка и вектор направления
+  // нам нужно сместить левую и правую точки ближе к центру на небольшой оффсет
+  // причем он может быть совсем маленьким, только лишь для того чтобы точки на углах не были похожи 1к1
+  const glm::vec4 tmpEdgeDir = edge->getDir();
+  correctCornerPoints(simd::vec4(&tmpEdgeDir.x), edge->getWidth(), offset, leftP, rightP);
+  
   for (size_t i = 1; i < path->graphData().size(); ++i) {
     const vertex_t* vertex = path->graphData()[i].vertex;
     
@@ -557,6 +566,9 @@ void CPUPathFindingPhaseParallel::computeFunnel(RawPath* path) {
       } else {
         edge->getSegment().leftRight(center, normal, left, right);
       }
+      
+      const glm::vec4 tmpEdgeDir = edge->getDir();
+      correctCornerPoints(simd::vec4(&tmpEdgeDir.x), edge->getWidth(), offset, left, right);
     } else {
       left = center;
       right = center;
@@ -636,6 +648,18 @@ void CPUPathFindingPhaseParallel::computeFunnel(RawPath* path) {
   
   const glm::vec4 &lastPoint = path->graphData().back().vertex->getVertexData()->center;
   path->funnelData().push_back({simd::vec4(&lastPoint.x), simd::vec4(0.0f)});
+}
+
+void CPUPathFindingPhaseParallel::correctCornerPoints(const simd::vec4 &dir, const float &width, const float &offset, simd::vec4 &left, simd::vec4 &right) {
+  // предположительно dir это направление от одной из точек к другой, width это растояние между точками, offset - требуемое отстояние
+  const float finalOffset = std::min(offset, width/2.0f);
+  if (finalOffset < EPSILON) return;
+  
+  const simd::vec4 &localDir = right - left;
+  const float dot = simd::dot(localDir, dir);
+  const simd::vec4 &finalDir = dot > 0.0f ? dir : -dir;
+  left = left + finalDir * finalOffset;
+  right = right - finalDir * finalOffset;
 }
 
 // void CPUPathFindingPhaseParallel::computeFunnel(RawPath* path) {

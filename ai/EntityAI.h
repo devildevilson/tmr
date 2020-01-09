@@ -14,59 +14,144 @@ class vertex_t;
 class edge_t;
 class EntityAI;
 class StateController;
+class MovementComponent;
+class AbilityComponent;
+class InventoryComponent;
+class WeaponsComponent;
+class AttributeComponent;
+class EffectComponent;
+class AttribChangeData;
+namespace yacs {
+  class entity;
+}
 
-// скорее всего синхронизация не нужна
-struct StateFlagsContainer {
-  uint32_t container;
-  
-  StateFlagsContainer();
-  
-  bool isBlocking() const;
-  bool isBlockingMovement() const;
-  bool hasPath() const;
-  bool isOnGround() const;
-  
-  // полюбому добавится еще много чего
-  
-  void setBlocking(const bool value);
-  void setBlockingMovement(const bool value);
-  void setPathExisting(const bool value);
-  void setOnGround(const bool value);
+enum class entity_type {
+  player,
+  npc,
+  decoration,
+  wall
 };
 
-struct AdditionalAIData {
-  float r;
-  vertex_t* vertex;
-  vertex_t* lastVertex; // поидее всегда должен быть определен, для того чтобы можно было бы понять хотя бы где был
+// скорее всего синхронизация не нужна
+// struct StateFlagsContainer {
+//   uint32_t container;
+//   
+//   StateFlagsContainer();
+//   
+//   bool isBlocking() const;
+//   bool isBlockingMovement() const;
+//   bool hasPath() const;
+//   bool isOnGround() const;
+//   
+//   // полюбому добавится еще много чего
+//   
+//   void setBlocking(const bool value);
+//   void setBlockingMovement(const bool value);
+//   void setPathExisting(const bool value);
+//   void setOnGround(const bool value);
+// };
+
+// тут по идее также поведенческое дерево
   
-  // нужно время для ограничения установления цели
-  // я полагаю что нужно не здесь хранить это значение
-  // из глобала брать какое-то число
+//StateController* states; // пригодится чтобы узнать текущее состояние
+//AttributeContainer* attributes; // атрибуты всегда могут потребоваться
+//Vertex* vertex; // вершина (ну точнее то на чем мы сейчас стоим)
+
+// указатель на локальные эвенты
+
+// также у нас должны быть указатели на данные восприятия
+// то есть мы должны взять коллизию, пересечение лучей
+// и еще какие данные
+// в коллизии наверное имеет смысл указать только колизию с ии объектами
+// пересечение лучей для видимости 
+
+// нужно наверное еще сделать какую-нибудь проверку на то достиг ли энтити конца пути?
+// вообще, какие то вещи еще можно сделать отправкой эвентов, но это скорее всего капец душно
+// путь по идее это общие данные, и наверное можно вытащить его сюда
+
+// нужно также подумать о сне, чтобы не вызывать все эти вещи безовсякого смысла
+// сон означает что нужно вызывать проверки не отсюда
+// то есть попадание в область видимости или распространение звука 
+
+// короче видимо рейкастинга совсем не избежать, но его можно значительно порезать
+// как? во первых кастить вне конуса видимости не имеет смысла
+// кастить после некоторого расстояния не имеет смысла
+// кастить в определенных игровых условиях (например когда монстр в засаде) не имеет смысла
+// кастить можно на несколько объектов сразу
+// цель можно выдавать и без этих инсинуаций (например опять же при засаде, цель выдается если игрок наступил на какую-ниудь платформу)
+// таким образом можно очень сильно сократить реальную необходимость кастить лучи
+
+// что со звуком? тут проще, так как звук это по сути сферический триггер путешествующий с игроком
+// триггерим и дело с концом
+
+// неплохая идея возвращать running при отправке эвента вызывающего то же действие что и сейчас происходит
+// например отправляем ховл в первый раз, начинаем анимацию, отправляем ховл во второй раз, ничего не делаем получаем running
+
+class Blackboard {
+public:
+  union Data {
+    const void* ptr;
+    double valueF;
+    size_t value;
+  };
   
-  const EntityAI* targetPtr;
-  AIGroup* groupPtr;
+  void setPtr(const Type &id, const void* ptr);
+  void setValueF(const Type &id, const double &value);
+  void setValue(const Type &id, const size_t &value);
+  
+  const void* getPtr(const Type &id) const;
+  double getValueF(const Type &id) const;
+  size_t getValue(const Type &id) const;
+private:
+  std::unordered_map<Type, Data> map;
 };
 
 class EntityAI {
 public:
   struct CreateInfo {
-    UserDataComponent* usrData;
+    entity_type entType;
+    float r;
+    vertex_t* m_vertex;
+    yacs::entity* ent;
   };
   EntityAI(const CreateInfo &info);
   ~EntityAI();
   
-  // этот класс будет вызывать эвенты
-  event pushEvent(const Type &event, void* data);
+  // теперь мы возвращаем компоненты действий которых хотим совершить
+  // + функция pickup где то здесь должна находиться
+  // все действия делаем с помощью этих компонентов
   
-  //event addToGroup(const EntityAI* chief); // по идее это мы делаем эвентом
+  void target(const EntityAI* target);
+  bool pickup(const EntityAI* obj); // тут потребуется взять указатель на энтити, придется указатель приводить к не конст... а может и нет
   
-  void setTarget(const EntityAI* target);
+  // должна быть функция отвечающая за смерть
+  // как она должна выглядеть?
+  // должна ли она принимать стейт? 
+  // как определить нужно ли мне удалять энтити полностью 
+  // либо можно только сократить память который он занимает
+  // либо ничего не делать только стейт сменить?
+  // стейт сменить я могу и так, нужно наверное только функцию слип какую нибудь сделать
+  // наверное я могу выделить два состояния энтити: полное удаление и частичная чистка
+  void removeSelf(const bool fullRemove = false);
   
-  void addTag(const Type &type);
+  void sleep(const size_t &time = SIZE_MAX); // пропускаем несколько кадров, SIZE_MAX - пропускаем до того как нас подымут
+  // как заставлять энтити проснуться? я думаю что через эвент "use", нужно тогда наверное разделить "use" и "awake"
+  // в этом случае конечно удобнее оповещать все компоненты через эвент
+  // точнее не все а те что мы использовали
+  
+  void addTag(const Type &type); // нужно ли добавлять теги из других источников?
   void removeTag(const Type &type);
   
-  // тут еще пригодится локальный блэкбоард
-  size_t & getBlackboardValue(const Type &type);
+  Blackboard & blackboard();
+  
+  MovementComponent* movement();
+  AbilityComponent* actions();
+  StateController* state();
+  const InventoryComponent* inventory() const;
+  const WeaponsComponent* weapons() const;
+  const AttributeComponent* attributes() const;
+  const EffectComponent* effects() const;
+  const StateController* state() const;
   
   const EntityAI* target() const;
   bool hasTarget() const;
@@ -90,32 +175,43 @@ public:
   // опять же мне сейчас быстро ничего в голову не приходит, и на мой взгляд этих данных достаточно
   // для тех задач, которые у меня будут
   
+  // еще потребуется какой-нибудь быстрый тип (игрок, монстр, декорация, стена)
+  entity_type entityType() const;
+  
   // еще наверное в будущем пригодится ориентация в графе (вообще когда я получаю вершину, я получаю возможность ориентироваться в графе)
   // + скорее всего нужно добавить метод который соберет все объекты вокруг
-  std::vector<const EntityAI*> getObjectsInRadius(const float &radius) const;
+  std::vector<const EntityAI*> getObjectsInRadius(const float &radius) const; // стоит эту функцию сделать с учетом быстрого типа
+  std::vector<const EntityAI*> getObjectsInRadius(const entity_type &type, const float &radius) const;
+  // какая еще ориентация в графе нужна?
   
   // коллизия, что я должен вернуть в коллизии? лучше всего работать только с EntityAI (и наверное потом придется сделать враппер для луа)
   // следовательно я должен каким то образом обойти коллизию, в поисках объектов с которыми у меня есть коллизия
   // какие физические данные их мне пригодятся? я могу получить случайно ступеньку и мне нужно будет как то определить что это именно ступенька
-  const EntityAI* getNextCollider() const;
+  const EntityAI* getNextCollider(size_t &index) const;
   
   // что с видимостью? как проверить? лучше всего это конечно луч кинуть, 
   // нужно еще чекнуть попадает ли в пирамиду видимости, но скорее всего это будет просто угол
   // как лучше всего это сделать? (проверки на пирамиду видимости, проверки на дальность, и в конце концов рейкастинг)
+  // в принципе было бы полезно делать разные проверки физики, что находится в радиусе, лучи
+  // TODO: физика обнуляет результаты каждый кадр, мне нужно чтобы данные оставались по крайней мере updateDelta (DELTA_TIME_CONSTANT)
+  uint32_t rayCast(const simd::vec4 &pos, const simd::vec4 &dir, const float &dist) const;
+  const EntityAI* nextRayCollider(const uint32_t &rayIndex, size_t &index) const;
   
   // нужно еще данные о том кто нас атаковал (нужно собственно атаку сделать)
+  // по идее это мы можем получить из аттрибутов, но там та же проблема - данные чистятся каждое некоторое время
+  // видимо необходимо сделать кольцевой буфер фиксированного размера (какого?), либо можно запоминать сколько данных добавлено было
+  const AttribChangeData* getAttributeChange(const Type &type, size_t &index) const;
   
   // данные о звуках (звук это триггер, как его получить?)
+  // звук должен распространяться по вершинам графа, стены блокируют звук 100% (то есть если нет в графе соединений, то и звук туда не дойдет)
   
   // возможно мне пригодится выдать какой нибудь тэг энтити
   // например, чтобы легко определить игрока или легко определить сторону
   bool hasTag(const Type &tag) const;
   
-  Type getLastEventType() const;
-  bool blocked() const;
-  bool movementBlocked() const;
-  bool hasPath() const;
   bool grounded() const;
+  
+  const yacs::entity* getEntity() const;
 protected:
   // так ли нам необходимо держать здесь pos, dir, vel?
   // первостепенной необходимости в этом нет, но это поможет обеспечить локальность данных
@@ -128,56 +224,27 @@ protected:
   
   uint32_t objectIndex; // этот индекс мне нужен для того чтобы определить пересечения
   
-  StateFlagsContainer states;
+  entity_type entType;
+  float r;
+  vertex_t* m_vertex;
+  vertex_t* lastVertex;
   
-  AdditionalAIData aiData;
-  
-  mutable size_t collidingIndex;
-  
-//  EventComponent* localEvents;
+  const EntityAI* targetPtr;
+  AIGroup* groupPtr;
+
+//   UserDataComponent* usrData; // стоит ли возвращать его в EntityAI?
+//   
+//   MovementComponent* mv;
+//   AbilityComponent* abilityComponent;
+//   InventoryComponent* inventoryComponent;
+//   WeaponsComponent* weaponsComponent;
+//   AttributeComponent* attribs;
+//   EffectComponent* effectsComp;
 //   StateController* states;
-  UserDataComponent* usrData; // стоит ли возвращать его в EntityAI?
-  
-  Type lastEvent;
+  yacs::entity* ent;
   
   std::unordered_set<Type> tags;
-  std::unordered_map<Type, size_t> localBlackboard;
-  
-  // тут по идее также поведенческое дерево
-  
-  //StateController* states; // пригодится чтобы узнать текущее состояние
-  //AttributeContainer* attributes; // атрибуты всегда могут потребоваться
-  //Vertex* vertex; // вершина (ну точнее то на чем мы сейчас стоим)
-  
-  // указатель на локальные эвенты
-  
-  // также у нас должны быть указатели на данные восприятия
-  // то есть мы должны взять коллизию, пересечение лучей
-  // и еще какие данные
-  // в коллизии наверное имеет смысл указать только колизию с ии объектами
-  // пересечение лучей для видимости 
-  
-  // нужно наверное еще сделать какую-нибудь проверку на то достиг ли энтити конца пути?
-  // вообще, какие то вещи еще можно сделать отправкой эвентов, но это скорее всего капец душно
-  // путь по идее это общие данные, и наверное можно вытащить его сюда
-  
-  // нужно также подумать о сне, чтобы не вызывать все эти вещи безовсякого смысла
-  // сон означает что нужно вызывать проверки не отсюда
-  // то есть попадание в область видимости или распространение звука 
-
-  // короче видимо рейкастинга совсем не избежать, но его можно значительно порезать
-  // как? во первых кастить вне конуса видимости не имеет смысла
-  // кастить после некоторого расстояния не имеет смысла
-  // кастить в определенных игровых условиях (например когда монстр в засаде) не имеет смысла
-  // кастить можно на несколько объектов сразу
-  // цель можно выдавать и без этих инсинуаций (например опять же при засаде, цель выдается если игрок наступил на какую-ниудь платформу)
-  // таким образом можно очень сильно сократить реальную необходимость кастить лучи
-  
-  // что со звуком? тут проще, так как звук это по сути сферический триггер путешествующий с игроком
-  // триггерим и дело с концом
-  
-  // неплохая идея возвращать running при отправке эвента вызывающего то же действие что и сейчас происходит
-  // например отправляем ховл в первый раз, начинаем анимацию, отправляем ховл во второй раз, ничего не делаем получаем running
+  Blackboard localBlackboard;
 };
 
 // слот в группе, использоваться должен для того чтобы отделить одного актора группы от другого

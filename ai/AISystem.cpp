@@ -7,21 +7,21 @@
 
 #include "Graph.h"
 
-Blackboard::Blackboard() {}
-Blackboard::~Blackboard() {}
+GlobalBlackboard::GlobalBlackboard() {}
+GlobalBlackboard::~GlobalBlackboard() {}
 
-void Blackboard::setData(const Type &name, const size_t &data) {
+void GlobalBlackboard::setData(const Type &name, const size_t &data) {
   board[name] = data;
 }
 
-std::atomic<size_t> & Blackboard::data(const Type &name) {
+std::atomic<size_t> & GlobalBlackboard::data(const Type &name) {
   auto itr = board.find(name);
   if (itr == board.end()) throw std::runtime_error("Need to set data to board before use");
   
   return itr->second;
 }
 
-const std::atomic<size_t> & Blackboard::data(const Type &name) const {
+const std::atomic<size_t> & GlobalBlackboard::data(const Type &name) const {
   auto itr = board.find(name);
   if (itr == board.end()) throw std::runtime_error("Need to set data to board before use");
   

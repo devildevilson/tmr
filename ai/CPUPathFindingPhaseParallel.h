@@ -31,9 +31,10 @@ namespace std {
 }
 
 struct PathFindingType {
+  float offset;
   std::function<bool(const vertex_t*, const vertex_t*, const edge_t*)> predicate;
   std::mutex mutex;
-  std::vector<RawPath> foundPaths;
+  //std::vector<RawPath> foundPaths;
   
   std::unordered_map<std::pair<const vertex_t*, const vertex_t*>, PathFindingReturn> queue;
 };
@@ -51,7 +52,7 @@ public:
   
   // создадим тип
   // добавим запрос на путь
-  void registerPathType(const Type &type, const std::function<bool(const vertex_t*, const vertex_t*, const edge_t*)> &predicate) override;
+  void registerPathType(const Type &type, const std::function<bool(const vertex_t*, const vertex_t*, const edge_t*)> &predicate, const float &offset) override;
   void queueRequest(const FindRequest &request) override;
   
   void update() override;
@@ -85,7 +86,8 @@ private:
   std::mutex poolMutex;
   MemoryPool<RawPath, sizeof(RawPath)*50> pathsPool;
   
-  void computeFunnel(RawPath* path);
+  void computeFunnel(RawPath* path, const float &offset);
+  void correctCornerPoints(const simd::vec4 &dir, const float &width, const float &offset, simd::vec4 &left, simd::vec4 &right);
   
   static size_t newUniqueId;
 };

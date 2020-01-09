@@ -121,10 +121,10 @@ struct MinEntityData {
   // радиус, для боундинг сферы
 };
 
-class Blackboard {
+class GlobalBlackboard {
 public:
-  Blackboard();
-  ~Blackboard();
+  GlobalBlackboard();
+  ~GlobalBlackboard();
   
   void setData(const Type &name, const size_t &data);
   

@@ -97,7 +97,7 @@ class PathFindingPhase {
 public:
   virtual ~PathFindingPhase() {}
   
-  virtual void registerPathType(const Type &type, const std::function<bool(const vertex_t*, const vertex_t*, const edge_t*)> &predicate) = 0;
+  virtual void registerPathType(const Type &type, const std::function<bool(const vertex_t*, const vertex_t*, const edge_t*)> &predicate, const float &offset) = 0;
   virtual void queueRequest(const FindRequest &request) = 0;
 //   virtual size_t requestCount() const = 0;
   
