@@ -24,22 +24,32 @@
       "sound1.json"
     ],
     "animations": [
-      "animation.json"
+      "animation.json",
+      "idle_anim.json"
     ],
     "abilities": [
-
+      "fireball_ability.json"
     ],
     "items": [
 
     ],
     "attributes": [
-      "attribute1.json"
+      "health.json",
+      "damage.json",
+      "blue_mana.json",
+      "red_mana.json",
+      "green_mana.json",
+      "shield.json",
+      "max_speed.json"
     ],
     "effects": [
 
     ],
     "entities": [
-      "default_entity.json"
+      "default_entity.json",
+      "zombie.json",
+      "fireball.json",
+      "attack_entity.json"
     ],
     "maps": [
 

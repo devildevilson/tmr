@@ -1,0 +1,7 @@
+{
+  "id": "green_mana",
+  "type": "integer",
+  "name": "Green mana amount attribute",
+  "description": "Green mana is using as ammo for some weapons.",
+  "compute_function": "default"
+}

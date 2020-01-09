@@ -1,0 +1,20 @@
+"physics": {
+    "static": false,
+    "height": 1.02,
+    "width": 0.5,
+    "stair_height": 0.3,
+    "gravitation_coefficient": 1.0,
+    "collision": "monster"
+  },
+  "states": {
+    "idle": {
+      "time": 400000,
+      "loop": true,
+      "blocked": false,
+      "blocked_movement": false,
+      "animation": {
+        "id": "idle",
+        "delay": 0
+      }
+    }
+  } 

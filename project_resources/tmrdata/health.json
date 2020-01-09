@@ -1,0 +1,8 @@
+{
+  "id": "health",
+  "type": "integer",
+  "name": "Health attribute",
+  "description": "Health is the amount of damage you can take before dying.",
+  "compute_function": "default"
+}
+ 

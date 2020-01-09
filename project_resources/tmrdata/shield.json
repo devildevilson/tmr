@@ -1,0 +1,7 @@
+{
+  "id": "shield",
+  "type": "integer",
+  "name": "Shield amount attribute",
+  "description": "Shield is the amount of damage you can sustain before your health is inflicted.",
+  "compute_function": "default"
+}

@@ -1,0 +1,18 @@
+{
+  "id": "fireball_ability",
+  "name": "Fireball",
+  "description": "Casts fireball that hit enemy",
+  "cooldown": 400000,
+  "entity_create_data": {
+    "type": "fireball",
+    "delay_time": 0,
+    "transform_compute_func": "func1",
+    "attributes_compute_func": "func2",
+    "attributes_list": {
+      "damage": 100
+    },
+    "inherit_transform": false,
+    "inherit_attributes": false,
+    "inherit_effects": false
+  }
+}

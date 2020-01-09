@@ -1,0 +1,11 @@
+{
+  "id": "attack_interaction",
+  "interaction": {
+    "type": "slashing",
+    "angle": 120,
+    "distance": 2.0,
+    "tick_count": 3,
+    "attack_speed": 1.0,
+    "attack_time": 400000
+  }
+}

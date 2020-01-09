@@ -1,0 +1,58 @@
+{
+  "id": "zombie",
+  "attributes": {
+    "health": 100,
+    "damage": 30.5,
+    "max_speed": 7
+  },
+  "intelligence": {
+    "behaviour": "simple_tree",
+    "path_find_function": "default"
+  },
+  "drop_item": "sfasgsagsg",
+  "abilities": [
+    "zombie_attack",
+    "zombie_fireball"
+  ],
+  "states": {
+    "idle": {
+      "time": 400000,
+      "loop": true,
+      "blocked": false,
+      "blocked_movement": false,
+      "animation": {
+        "id": "idle",
+        "delay": 0
+      }
+    },
+    "walking": {
+      "time": 400000,
+      "loop": true,
+      "blocked": false,
+      "blocked_movement": false,
+      "animation": {
+        "id": "walking",
+        "delay": 0
+      }
+    },
+    "attack" : {
+      "time": 400000,
+      "loop": false,
+      "blocked": true,
+      "blocked_movement": true,
+      "animation": {
+        "id": "walking",
+        "delay": 0
+      }
+    }
+  },
+  "default_state": "idle",
+  "physics": {
+    "dynamic": true,
+    "height": 1.02,
+    "width": 0.5,
+    "stair_height": 0.3,
+    "gravitational_coefficient": 1.0,
+    "collision": "monster"
+  }
+}

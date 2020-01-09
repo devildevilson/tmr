@@ -1,0 +1,56 @@
+{
+  "id": "monster1",
+  "attributes": {
+    "health": 100,
+    "damage": 30.5,
+    "max_speed": 7
+  },
+  "effects": {
+    "attack": "damage_effect"
+  },
+  "weapons": {
+    "slot0": "weapon1"
+  },
+  "inventory": {
+    "item1": 3,
+    "item2": 1
+  },
+  "initial_weapons???": [
+    "weapon1"
+  ],
+  "initial_weapon_slot???": "slot0",
+  "abilities": {
+    "slot0": {
+      "type": "attack_ability",
+      "state": "attack"
+    },
+    "slot1": {
+      "type": "attack_ability",
+      "state": "attack"
+    }
+  },
+  "intelligence": {
+    "behaviour": "simple_tree",
+    "path_find_function": "default"
+  },
+  "states": {
+    "walking": {
+      "time": 400000,
+      "loop": true,
+      "blocked": false,
+      "blocked_movement": false,
+      "animation": {
+        "id": "walking",
+        "delay": 0
+      }
+    }
+  },
+  "default_state": "walking",
+  "physics": {
+    "dynamic": true,
+    "height": 1.02,
+    "width": 0.5,
+    "collision": "asfafasfafs?????",
+    "stair_height": 0.3
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "id": "max_speed",
+  "type": "fractional",
+  "compute_function": "default"
+}

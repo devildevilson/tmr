@@ -1,0 +1,7 @@
+{
+  "id": "blue_mana",
+  "type": "integer",
+  "name": "Blue mana amount attribute",
+  "description": "Blue mana is using as ammo for some weapons.",
+  "compute_function": "default"
+}

@@ -1,0 +1,7 @@
+{
+  "id": "damage",
+  "type": "fractional",
+  "name": "Attack damage attribute",
+  "description": "Amount of damage that enemy receive.",
+  "compute_function": "default"
+}
