@@ -127,15 +127,15 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
 
   solver->calculateRayData();
 
-  pool->submitnr([&] () {
+  pool->submitbase([&] () {
     sorter->sort(&frustumTestsResult);
   });
 
-  pool->submitnr([&] () {
+  pool->submitbase([&] () {
     sorter->sort(&overlappingData, &dataIndices, 0);
   });
 
-  pool->submitnr([&] () {
+  pool->submitbase([&] () {
     sorter->sort(&raysData, &raysIndices, 1);
   });
 
@@ -827,58 +827,94 @@ bool feq(const float first, const float second) {
 }
 
 void CPUPhysicsParallel::updateVelocities() {
-  //static const auto calcVel = [&] (const uint32_t &index) {
-  static const auto calcVel = [&] (const uint32_t &start, const uint32_t &count) {
-    for (uint32_t index = start; index < start+count; ++index) {
-      if (physicsDatas[index].objectIndex == UINT32_MAX) return;
+  const size_t count = std::ceil(float(physicsDatas.size()) / float(pool->size()+1));
+  size_t start = 0;
+  for (uint32_t i = 0; i < pool->size()+1; ++i) {
+    const size_t jobCount = std::min(count, physicsDatas.size()-start);
+    if (jobCount == 0) break;
 
-      const PhysData2 &current = physicsDatas[index];
-      const uint32_t &transIndex = current.transformIndex;
-      //const Transform &trans = transforms->at(transIndex);
-      const Transform &trans = currState.at(transIndex);
-      const uint32_t externalDataIndex = current.externalDataIndex;
+    //pool->submitnr(calcVel, start, jobCount);
+    pool->submitbase([this, start, jobCount] () {
+      updateVelocities(start, jobCount);
+    });
 
-      const uint32_t &groundPhysicsIndex = current.groundIndex;
+    start += jobCount;
+  }
 
-      const InputData &currentInput = inputs->at(current.inputIndex);
-      simd::vec4 frontOnGround = currentInput.moves.z == 0.0f ? simd::vec4(0.0f, 0.0f, 0.0f, 0.0f) :
-        projectVectorOnPlane(-gravityBuffer.data()->gravityNormal, trans.pos, currentInput.front);
+  pool->compute();
+  pool->wait();
 
-      const float &lengthFront = simd::length(frontOnGround);
-      if (lengthFront > EPSILON) frontOnGround /= lengthFront;
-      else frontOnGround = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+  std::atomic<uint32_t> counter(indices[0]);
 
-      const simd::vec4 &acceleration = frontOnGround * currentInput.moves.z + currentInput.right * currentInput.moves.x;// + currentInput.up * currentInput.moves.y;
+  start = 0;
+  for (uint32_t i = 0; i < pool->size()+1; ++i) {
+    const size_t jobCount = std::min(count, physicsDatas.size()-start);
+    if (jobCount == 0) break;
 
-      const float accelLenght = simd::length(acceleration);
-      simd::vec4 aDir = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
-      if (accelLenght > EPSILON) aDir = acceleration / accelLenght;
+//     pool->submitnr(calcPos, i, std::ref(counter));
+    //pool->submitnr(calcPos, start, jobCount, std::ref(counter));
+    pool->submitbase([this, start, jobCount, &counter] () {
+      updatePos(start, jobCount, counter);
+    });
 
-      const simd::vec4 additionalForce = externalDatas->at(externalDataIndex).additionalForce;
-      const float maxSpeed = externalDatas->at(externalDataIndex).maxSpeed;
-      const float accelerationScalar = externalDatas->at(externalDataIndex).acceleration;
+    start += jobCount;
+  }
 
-      const simd::vec4 oldVel = simd::vec4(current.velocity.x, current.velocity.y, current.velocity.z, 0.0f);
-      float scalar = simd::length(oldVel);
-      simd::vec4 vel = oldVel;
+  pool->compute();
+  pool->wait();
 
-//       std::cout << "index " << index << " scalar " << scalar << "\n";
+  indices[0] = counter;
+}
 
-      const float groundFriction = groundPhysicsIndex != UINT32_MAX ?
-                                    staticPhysicDatas[groundPhysicsIndex].groundFriction : DEFAULT_GROUND_FRICTION;
+void CPUPhysicsParallel::updateVelocities(const uint32_t &start, const uint32_t &count) {
+  for (uint32_t index = start; index < start+count; ++index) {
+    if (physicsDatas[index].objectIndex == UINT32_MAX) return;
 
-      if ((physicsDatas[index].onGroundBits & 0x1) == 0x1) {
-        computeGroundVelocity(aDir,
-                              oldVel,
-                              gravityBuffer.data()->time,
-                              bool(currentInput.moves.y),
-                              additionalForce,
-                              gravityBuffer.data()->gravityNormal,
-                              maxSpeed,
-                              accelerationScalar,
-                              groundFriction,
-                              vel,
-                              scalar);
+    const PhysData2 &current = physicsDatas[index];
+    const uint32_t &transIndex = current.transformIndex;
+    //const Transform &trans = transforms->at(transIndex);
+    const Transform &trans = currState.at(transIndex);
+    const uint32_t externalDataIndex = current.externalDataIndex;
+
+    const uint32_t &groundPhysicsIndex = current.groundIndex;
+
+    const InputData &currentInput = inputs->at(current.inputIndex);
+    simd::vec4 frontOnGround = currentInput.moves.z == 0.0f ? simd::vec4(0.0f, 0.0f, 0.0f, 0.0f) :
+      projectVectorOnPlane(-gravityBuffer.data()->gravityNormal, trans.pos, currentInput.front);
+
+    const float &lengthFront = simd::length(frontOnGround);
+    if (lengthFront > EPSILON) frontOnGround /= lengthFront;
+    else frontOnGround = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+
+    const simd::vec4 &acceleration = frontOnGround * currentInput.moves.z + currentInput.right * currentInput.moves.x;// + currentInput.up * currentInput.moves.y;
+
+    const float accelLenght = simd::length(acceleration);
+    simd::vec4 aDir = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+    if (accelLenght > EPSILON) aDir = acceleration / accelLenght;
+
+    const simd::vec4 additionalForce = externalDatas->at(externalDataIndex).additionalForce;
+    const float maxSpeed = externalDatas->at(externalDataIndex).maxSpeed;
+    const float accelerationScalar = externalDatas->at(externalDataIndex).acceleration;
+
+    const simd::vec4 oldVel = simd::vec4(current.velocity.x, current.velocity.y, current.velocity.z, 0.0f);
+    float scalar = simd::length(oldVel);
+    simd::vec4 vel = oldVel;
+
+    const float groundFriction = groundPhysicsIndex != UINT32_MAX ?
+                                  staticPhysicDatas[groundPhysicsIndex].groundFriction : DEFAULT_GROUND_FRICTION;
+
+    if ((physicsDatas[index].onGroundBits & 0x1) == 0x1) {
+      computeGroundVelocity(aDir,
+                            oldVel,
+                            gravityBuffer.data()->time,
+                            bool(currentInput.moves.y),
+                            additionalForce,
+                            gravityBuffer.data()->gravityNormal,
+                            maxSpeed,
+                            accelerationScalar,
+                            groundFriction,
+                            vel,
+                            scalar);
 
 //         const float dt1 = MCS_TO_SEC(gravityBuffer.data()->time);
 //
@@ -911,120 +947,71 @@ void CPUPhysicsParallel::updateVelocities() {
 //
 //         vel = newVelNorm * newSpeed + jumpAccelerationDir*dt1; // - globalData.gravity*aJump;
 //         scalar = glm::length(vel);
-    } else {
-//         computeAirVelocity(aDir,
-//                           oldVel,
-//                           gravityBuffer.data()->time,
-//                           additionalForce,
-//                           gravityBuffer.data()->gravity,
-//                           vel,
-//                           scalar);
+  } else {
+      const float dt1 = MCS_TO_SEC(gravityBuffer.data()->time);
 
-        const float dt1 = MCS_TO_SEC(gravityBuffer.data()->time);
+      const simd::vec4 vn = scalar > EPSILON ? oldVel / scalar : simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 
-        const simd::vec4 vn = scalar > EPSILON ? oldVel / scalar : simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+      const float airFriction = 0.0f;
+      const simd::vec4 a = -simd::vec4(vn)*airFriction + additionalForce + gravity + AIR_ACCELERATION_DIR*aDir*AIR_ACCELERATION;
 
-        const float airFriction = 0.0f;
-        const simd::vec4 a = -simd::vec4(vn)*airFriction + additionalForce + gravity + AIR_ACCELERATION_DIR*aDir*AIR_ACCELERATION;
+      vel = oldVel + a * dt1;
+      scalar = simd::length(vel);
 
-        vel = oldVel + a * dt1;
-        scalar = simd::length(vel);
-
-        physicsDatas[index].groundIndex = UINT32_MAX;
-      }
-
-      physicsDatas[index].scalar = scalar;
-      //physicsDatas[index].velocity = glm::vec3(vel);
-      float arr[4];
-      vel.store(arr);
-      physicsDatas[index].velocity = glm::vec3(arr[0], arr[1], arr[2]);
-
-      physicsDatas[index].onGroundBits = bool(physicsDatas[index].onGroundBits & 0x1) && currentInput.moves.y > 0.0f ? 0 : physicsDatas[index].onGroundBits;
-      if (!bool(physicsDatas[index].onGroundBits & 0x1)) physicsDatas[index].groundIndex = UINT32_MAX;
+      physicsDatas[index].groundIndex = UINT32_MAX;
     }
-  };
 
-  //static const auto calcPos = [&] (const uint32_t &index, std::atomic<uint32_t> &counter) {
-  static const auto calcPos = [&] (const uint32_t &start, const uint32_t &count, std::atomic<uint32_t> &counter) {
-    for (uint32_t index = start; index < start+count; ++index) {
-      if (physicsDatas[index].objectIndex == UINT32_MAX) return;
-      
-      const glm::vec3 &vel = physicsDatas[index].velocity;
-      simd::vec4 velocity = simd::vec4(vel.x, vel.y, vel.z, 0.0f);
+    physicsDatas[index].scalar = scalar;
+    //physicsDatas[index].velocity = glm::vec3(vel);
+    float arr[4];
+    vel.store(arr);
+    physicsDatas[index].velocity = glm::vec3(arr[0], arr[1], arr[2]);
 
-      uint32_t groundIndex = physicsDatas[index].groundIndex;
-      while (groundIndex != UINT32_MAX) {
-        const uint32_t physDataIndex = staticPhysicDatas[groundIndex].physDataIndex;
+    physicsDatas[index].onGroundBits = bool(physicsDatas[index].onGroundBits & 0x1) && currentInput.moves.y > 0.0f ? 0 : physicsDatas[index].onGroundBits;
+    if (!bool(physicsDatas[index].onGroundBits & 0x1)) physicsDatas[index].groundIndex = UINT32_MAX;
+  }
+}
 
-        if (physDataIndex != UINT32_MAX) {
-          const PhysData2 &data = physicsDatas[physDataIndex];
-          const glm::vec3 &vel = data.velocity;
-          velocity += simd::vec4(vel.x, vel.y, vel.z, 0.0f);
-          groundIndex = data.groundIndex;
-        } else {
-          groundIndex = UINT32_MAX;
-        }
-      }
+void CPUPhysicsParallel::updatePos(const uint32_t &start, const uint32_t &count, std::atomic<uint32_t> &counter) {
+  for (uint32_t index = start; index < start+count; ++index) {
+    if (physicsDatas[index].objectIndex == UINT32_MAX) return;
+    
+    const glm::vec3 &vel = physicsDatas[index].velocity;
+    simd::vec4 velocity = simd::vec4(vel.x, vel.y, vel.z, 0.0f);
 
-      const float globalScalar = simd::length(velocity);
+    uint32_t groundIndex = physicsDatas[index].groundIndex;
+    while (groundIndex != UINT32_MAX) {
+      const uint32_t physDataIndex = staticPhysicDatas[groundIndex].physDataIndex;
 
-      const uint32_t &transIndex = physicsDatas[index].transformIndex;
-
-      //physicsDatas[index].oldPos = transforms->at(transIndex).pos;
-      physicsDatas[index].oldPos = currState.at(transIndex).pos;
-      //transforms->at(transIndex).pos = transforms->at(transIndex).pos + velocity*MCS_TO_SEC(gravityBuffer.data()->time);
-      currState.at(transIndex).pos += velocity*MCS_TO_SEC(gravityBuffer.data()->time);
-
-      globalVel[index] = velocity;
-
-      if (globalScalar > EPSILON) {
-        // const uint id = atomicAdd(count, 1);
-        // indexies[id] = datas[index].objectIndex;
-        const uint32_t id = counter.fetch_add(1);
-
-        indices[id+1] = physicsDatas[index].objectIndex;
+      if (physDataIndex != UINT32_MAX) {
+        const PhysData2 &data = physicsDatas[physDataIndex];
+        const glm::vec3 &vel = data.velocity;
+        velocity += simd::vec4(vel.x, vel.y, vel.z, 0.0f);
+        groundIndex = data.groundIndex;
+      } else {
+        groundIndex = UINT32_MAX;
       }
     }
-  };
 
-//   std::cout << "physicsDatas.size() " << physicsDatas.size() << "\n";
-//   if (physicsDatas.size() > 2) throw std::runtime_error("physicsDatas.size() > 2");
+    const float globalScalar = simd::length(velocity);
 
-  const size_t count = std::ceil(float(physicsDatas.size()) / float(pool->size()+1));
-  size_t start = 0;
-  for (uint32_t i = 0; i < pool->size()+1; ++i) {
-    const size_t jobCount = std::min(count, physicsDatas.size()-start);
-    if (jobCount == 0) break;
+    const uint32_t &transIndex = physicsDatas[index].transformIndex;
 
-    pool->submitnr(calcVel, start, jobCount);
+    //physicsDatas[index].oldPos = transforms->at(transIndex).pos;
+    physicsDatas[index].oldPos = currState.at(transIndex).pos;
+    //transforms->at(transIndex).pos = transforms->at(transIndex).pos + velocity*MCS_TO_SEC(gravityBuffer.data()->time);
+    currState.at(transIndex).pos += velocity*MCS_TO_SEC(gravityBuffer.data()->time);
 
-    start += jobCount;
+    globalVel[index] = velocity;
+
+    if (globalScalar > EPSILON) {
+      // const uint id = atomicAdd(count, 1);
+      // indexies[id] = datas[index].objectIndex;
+      const uint32_t id = counter.fetch_add(1);
+
+      indices[id+1] = physicsDatas[index].objectIndex;
+    }
   }
-
-//   for (uint32_t i = 0; i < physicsDatas.size(); ++i) {
-//     pool->submitnr(calcVel, i);
-//   }
-
-  pool->compute();
-  pool->wait();
-
-  std::atomic<uint32_t> counter(indices[0]);
-
-  start = 0;
-  for (uint32_t i = 0; i < pool->size()+1; ++i) {
-    const size_t jobCount = std::min(count, physicsDatas.size()-start);
-    if (jobCount == 0) break;
-
-//     pool->submitnr(calcPos, i, std::ref(counter));
-    pool->submitnr(calcPos, start, jobCount, std::ref(counter));
-
-    start += jobCount;
-  }
-
-  pool->compute();
-  pool->wait();
-
-  indices[0] = counter;
 }
 
 void CPUPhysicsParallel::updateRotationDatas() {
@@ -1068,37 +1055,30 @@ void CPUPhysicsParallel::updateRotationDatas() {
 }
 
 void CPUPhysicsParallel::interpolate(const float &alpha) {
-//   std::cout << "alpha " << alpha << "\n";
-  
-  static const auto interpolateFunc = [&] (const size_t &start, const size_t &count, const float &alpha) {
-    for (size_t index = start; index < start+count; ++index) {
-      if (physicsDatas[index].objectIndex == UINT32_MAX) return;
-
-//       const simd::vec4 vel = globalVel[index];
-
-//       const size_t sixteeFrames = 16667;
-      const uint32_t &transIndex = physicsDatas[index].transformIndex;
-      //transforms->at(transIndex).pos = transforms->at(transIndex).pos + vel*alpha*MCS_TO_SEC(sixteeFrames);
-      transforms->at(transIndex).pos = simd::mix(prevState[transIndex].pos, currState[transIndex].pos, alpha);
-      // потом добавится кватернион который мы будем slerp'ать
-    }
-  };
-
   const size_t count = std::ceil(float(physicsDatas.size()) / float(pool->size()+1));
   size_t start = 0;
   for (uint32_t i = 0; i < pool->size()+1; ++i) {
     const size_t jobCount = std::min(count, physicsDatas.size()-start);
     if (jobCount == 0) break;
 
-    pool->submitnr(interpolateFunc, start, jobCount, alpha);
+    pool->submitbase([this, start, jobCount, alpha] () {
+      interpolate(start, jobCount, alpha);
+    });
 
     start += jobCount;
   }
 
-//   for (uint32_t i = 0; i < physicsDatas.size(); ++i) {
-//     pool->submitnr(interpolateFunc, i, alpha);
-//   }
-
   pool->compute();
   pool->wait();
+}
+
+void CPUPhysicsParallel::interpolate(const size_t &start, const size_t &count, const float &alpha) {
+  for (size_t index = start; index < start+count; ++index) {
+    if (physicsDatas[index].objectIndex == UINT32_MAX) return;
+    
+    const uint32_t &transIndex = physicsDatas[index].transformIndex;
+    //transforms->at(transIndex).pos = transforms->at(transIndex).pos + vel*alpha*MCS_TO_SEC(sixteeFrames);
+    transforms->at(transIndex).pos = simd::mix(prevState[transIndex].pos, currState[transIndex].pos, alpha);
+    // потом добавится кватернион который мы будем slerp'ать
+  }
 }

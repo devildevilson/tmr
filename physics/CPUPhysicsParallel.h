@@ -171,9 +171,12 @@ protected:
   void updateInputOutput();
   
   void updateVelocities();
+  void updateVelocities(const uint32_t &start, const uint32_t &count);
+  void updatePos(const uint32_t &start, const uint32_t &count, std::atomic<uint32_t> &counter);
   void updateRotationDatas();
   
   void interpolate(const float &alpha);
+  void interpolate(const size_t &start, const size_t &count, const float &alpha);
 };
 
 #endif // !CPU_PHYSICS_H
