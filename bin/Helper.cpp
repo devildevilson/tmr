@@ -1169,24 +1169,105 @@ void createBehaviourTrees() {
   Global::ai()->setBehaviourTreePointer(Type::get("simple_tree"), tree);
 }
 
-void createLoaders(ParserContainer &loaderContainer, GraphicsContainer* graphicsContainer, std::vector<Loader*> &loaders, HardcodedMapLoader** mapLoader, ModificationContainer** mods) {
-  ImageLoader* textureLoader = nullptr;
-  SoundLoader* soundLoader = nullptr;
-  AnimationLoader* animationLoader = nullptr;
-  EntityLoader* entityLoader = nullptr;
-  ItemTypeLoader* itemLoader = nullptr;
-  AbilityTypeLoader* abilityTypeLoader = nullptr;
-  AttributesLoader* attributesLoader = nullptr;
-  EffectsLoader* effectsLoader = nullptr;
-  
-  std::unordered_map<std::string, AttributeType<FLOAT_ATTRIBUTE_TYPE>::FuncType> floatComputeFuncs;
-  std::unordered_map<std::string, AttributeType<INT_ATTRIBUTE_TYPE>::FuncType> intComputeFuncs;
-  
-  floatComputeFuncs["default"] = [] (const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, const FLOAT_ATTRIBUTE_TYPE &base, const FLOAT_ATTRIBUTE_TYPE &rawAdd, const FLOAT_ATTRIBUTE_TYPE &rawMul, const FLOAT_ATTRIBUTE_TYPE &finalAdd, const FLOAT_ATTRIBUTE_TYPE &finalMul) {
-    (void)float_finder;
-    (void)int_finder;
+resources_ptr::resources_ptr(yavf::Device* device) : resources_containers(
+    sizeof(game::image_data_container_load) +
+    sizeof(game::image_resources_load) +
+    sizeof(game::sounds_container_load) +
+    sizeof(game::abilities_container_load) + 
+    sizeof(game::effects_container_load) + 
+    sizeof(game::states_container_load) + 
+    sizeof(game::weapons_container_load) + 
+    sizeof(game::float_attribute_types_container_load) + 
+    sizeof(game::int_attribute_types_container_load) +
+    sizeof(game::entity_creators_container_load)
+  ), images(nullptr), image_res(nullptr), sounds(nullptr), abilities(nullptr), effects(nullptr), states(nullptr), weapons(nullptr), float_attribs(nullptr), int_attribs(nullptr), entities(nullptr) {
+    {
+      images = resources_containers.create<game::image_data_container_load>();
+      Global::get<game::image_data_container>(images);
+    }
     
-    FLOAT_ATTRIBUTE_TYPE value = base;
+    {
+      image_res = resources_containers.create<game::image_resources_load>(device);
+      Global::get<game::image_resources>(image_res);
+    }
+    
+    {
+      sounds = resources_containers.create<game::sounds_container_load>();
+      Global::get<game::sounds_container>(sounds);
+    }
+    
+    {
+      abilities = resources_containers.create<game::abilities_container_load>();
+      Global::get<game::abilities_container>(abilities);
+    }
+    
+    {
+      effects = resources_containers.create<game::effects_container_load>();
+      Global::get<game::effects_container>(effects);
+    }
+    
+    {
+      states = resources_containers.create<game::states_container_load>();
+      Global::get<game::states_container>(states);
+    }
+    
+    {
+      weapons = resources_containers.create<game::weapons_container_load>();
+      Global::get<game::weapons_container>(weapons);
+    }
+    
+    {
+      float_attribs = resources_containers.create<game::float_attribute_types_container_load>();
+      Global::get<game::float_attribute_types_container>(float_attribs);
+    }
+    
+    {
+      int_attribs = resources_containers.create<game::int_attribute_types_container_load>();
+      Global::get<game::int_attribute_types_container>(int_attribs);
+    }
+    
+    {
+      entities = resources_containers.create<game::entity_creators_container_load>();
+      Global::get<game::entity_creators_container>(entities);
+    }
+  }
+resources_ptr::~resources_ptr() {
+  if (images != nullptr) resources_containers.destroy(images);
+  if (abilities != nullptr) resources_containers.destroy(abilities);
+  if (effects != nullptr) resources_containers.destroy(effects);
+  if (states != nullptr) resources_containers.destroy(states);
+  if (weapons != nullptr) resources_containers.destroy(weapons);
+  if (float_attribs != nullptr) resources_containers.destroy(float_attribs);
+  if (int_attribs != nullptr) resources_containers.destroy(int_attribs);
+}
+
+void createLoaders(resources::modification_container &mods, GraphicsContainer* graphicsContainer, render::image_container* images, resources_ptr &res, HardcodedMapLoader** mapLoader) {
+//   ImageLoader* textureLoader = nullptr;
+//   SoundLoader* soundLoader = nullptr;
+//   AnimationLoader* animationLoader = nullptr;
+//   EntityLoader* entityLoader = nullptr;
+//   ItemTypeLoader* itemLoader = nullptr;
+//   AbilityTypeLoader* abilityTypeLoader = nullptr;
+//   AttributesLoader* attributesLoader = nullptr;
+//   EffectsLoader* effectsLoader = nullptr;
+  resources::image_loader* texture_loader = nullptr;
+  resources::state_loader* state_loader = nullptr;
+  resources::entity_loader* entity_loader = nullptr;
+  resources::abilities_loader* abilities_loader = nullptr;
+  resources::attributes_loader* attributes_loader = nullptr;
+  resources::effects_loader* effects_loader = nullptr;
+  resources::sound_loader* sound_loader = nullptr;
+  //resources::image_loader* sound_loader = nullptr;
+  
+  std::unordered_map<std::string, core::attribute_t<core::float_type>::type::func_type> floatComputeFuncs;
+  std::unordered_map<std::string, core::attribute_t<core::int_type>::type::func_type> intComputeFuncs;
+  std::unordered_map<std::string, std::function<void(yacs::entity*, const size_t &)>> functions;
+  std::unordered_map<utils::id, tb::BehaviorTree*> behaviors;
+  
+  floatComputeFuncs["default"] = [] (yacs::entity* ent, const struct core::attribute_t<core::float_type>::type* type, const core::float_type &base, const core::float_type &rawAdd, const float &rawMul, const core::float_type &finalAdd, const float &finalMul) -> core::float_type {
+    (void)ent;
+    (void)type;
+    core::float_type value = base;
     
     value *= rawMul;
     value += rawAdd;
@@ -1197,11 +1278,10 @@ void createLoaders(ParserContainer &loaderContainer, GraphicsContainer* graphics
     return value;
   };
   
-  intComputeFuncs["default"] = [] (const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, const INT_ATTRIBUTE_TYPE &base, const INT_ATTRIBUTE_TYPE &rawAdd, const FLOAT_ATTRIBUTE_TYPE &rawMul, const INT_ATTRIBUTE_TYPE &finalAdd, const FLOAT_ATTRIBUTE_TYPE &finalMul) {
-    (void)float_finder;
-    (void)int_finder;
-    
-    INT_ATTRIBUTE_TYPE value = base;
+  intComputeFuncs["default"] = [] (yacs::entity* ent, const struct core::attribute_t<core::int_type>::type* type, const core::int_type &base, const core::int_type &rawAdd, const float &rawMul, const core::int_type &finalAdd, const float &finalMul) -> core::int_type {
+    (void)ent;
+    (void)type;
+    core::int_type value = base;
     
     value *= rawMul;
     value += rawAdd;
@@ -1212,108 +1292,111 @@ void createLoaders(ParserContainer &loaderContainer, GraphicsContainer* graphics
     return value;
   };
   
-  std::unordered_map<std::string, Effect::FuncType> hardcodedComputeFunc;
-  std::unordered_map<std::string, Effect::FuncType> hardcodedResistFunc;
+  intComputeFuncs["compute_health"] = game::health_func;
   
-  std::unordered_map<std::string, AbilityType::ComputeTransformFunction> transFuncs;
-  std::unordered_map<std::string, AbilityType::ComputeAttributesFunction> attribsFuncs;
-  
-  const ImageLoader::CreateInfo tInfo{
-    graphicsContainer->device()
-  };
-  textureLoader = loaderContainer.add<ImageLoader>(tInfo);
-  loaders.push_back(textureLoader);
+  {
+    const resources::image_loader::create_info info{
+      graphicsContainer->device(),
+      images,
+      res.images,
+      res.image_res
+    };
+    texture_loader = mods.add_loader<resources::image_loader>(info);
+  }
 
-  soundLoader = loaderContainer.add<SoundLoader>();
-  loaders.push_back(soundLoader);
+  {
+    const resources::sound_loader::create_info info{
+      res.sounds
+    };
+    sound_loader = mods.add_loader<resources::sound_loader>(info);
+  }
   
-  const AnimationLoader::CreateInfo aInfo{
-    textureLoader
-  };
-  animationLoader = loaderContainer.add<AnimationLoader>(aInfo);
-  loaders.push_back(animationLoader);
+  {
+    const resources::attributes_loader::create_info info{
+      res.float_attribs,
+      res.int_attribs,
+      floatComputeFuncs,
+      intComputeFuncs
+    };
+    attributes_loader = mods.add_loader<resources::attributes_loader>(info);
+  }
   
-  const AttributesLoader::CreateInfo attribsInfo{
-    floatComputeFuncs,
-    intComputeFuncs
-  };
-  attributesLoader = loaderContainer.add<AttributesLoader>(attribsInfo);
-  loaders.push_back(attributesLoader);
+  {
+    const resources::effects_loader::create_info info{
+      attributes_loader,
+      res.effects
+    };
+    effects_loader = mods.add_loader<resources::effects_loader>(info);
+  }
   
-  const EffectsLoader::CreateInfo effectsInfo{
-    attributesLoader,
-    hardcodedComputeFunc,
-    hardcodedResistFunc
-  };
-  effectsLoader = loaderContainer.add<EffectsLoader>(effectsInfo);
-  loaders.push_back(effectsLoader);
+  {
+    const resources::state_loader::create_info info{
+      res.states,
+      nullptr,
+      texture_loader,
+      functions
+    };
+    state_loader = mods.add_loader<resources::state_loader>(info);
+  }
   
-  const AbilityTypeLoader::CreateInfo abilityInfo{
-    attributesLoader,
-    effectsLoader,
-    transFuncs,
-    attribsFuncs
-  };
-  abilityTypeLoader = loaderContainer.add<AbilityTypeLoader>(abilityInfo);
-  loaders.push_back(abilityTypeLoader);
+  {
+    const resources::abilities_loader::create_info info{
+      res.abilities,
+      state_loader,
+      effects_loader
+    };
+    abilities_loader = mods.add_loader<resources::abilities_loader>(info);
+  }
   
-  const ItemTypeLoader::CreateInfo itemInfo{
-    abilityTypeLoader,
-    effectsLoader
-  };
-  itemLoader = loaderContainer.add<ItemTypeLoader>(itemInfo);
-  loaders.push_back(itemLoader);
-
-  const EntityLoader::CreateInfo entInfo{
-    textureLoader,
-    soundLoader,
-    animationLoader,
-    attributesLoader,
-    effectsLoader,
-    abilityTypeLoader,
-    itemLoader
-  };
-  entityLoader = loaderContainer.add<EntityLoader>(entInfo);
-  loaders.push_back(entityLoader);
+  {
+    const resources::entity_loader::create_info info{
+      abilities_loader,
+      attributes_loader,
+      state_loader,
+      res.entities,
+      behaviors
+    };
+    entity_loader = mods.add_loader<resources::entity_loader>(info);
+  }
 
   const HardcodedMapLoader::CreateInfo mInfo{
     graphicsContainer->device(),
-    entityLoader,
-    textureLoader
+    entity_loader,
+    texture_loader
   };
-  *mapLoader = loaderContainer.add<HardcodedMapLoader>(mInfo);
-  loaders.push_back(*mapLoader);
+  *mapLoader = new HardcodedMapLoader(mInfo);
 
-  const ModificationContainer::CreateInfo pInfo{
-    0
-  };
-  *mods = loaderContainer.addModParser<ModificationContainer>(pInfo);
-  
-  ModificationContainer* cont = *mods;
-  cont->addParser(textureLoader);
-  cont->addParser(soundLoader);
-  cont->addParser(animationLoader);
-  cont->addParser(attributesLoader);
-  cont->addParser(effectsLoader);
-  cont->addParser(abilityTypeLoader);
-  cont->addParser(itemLoader);
-  cont->addParser(entityLoader);
-  cont->addParser(*mapLoader);
+//   const ModificationContainer::CreateInfo pInfo{
+//     0
+//   };
+//   *mods = loaderContainer.addModParser<ModificationContainer>(pInfo);
+//   
+//   ModificationContainer* cont = *mods;
+//   cont->addParser(textureLoader);
+//   cont->addParser(soundLoader);
+//   cont->addParser(animationLoader);
+//   cont->addParser(attributesLoader);
+//   cont->addParser(effectsLoader);
+//   cont->addParser(abilityTypeLoader);
+//   cont->addParser(itemLoader);
+//   cont->addParser(entityLoader);
+//   cont->addParser(*mapLoader);
 }
 
-void createSoundSystem(dt::thread_pool* threadPool, SoundLoader* soundLoader, DelayedWorkSystem* delaySoundWork, GameSystemContainer &container) {
+void createSoundSystem(dt::thread_pool* threadPool, GameSystemContainer &container) {
   TimeLogDestructor soundSystemLog("Sound system initialization");
   //SoundLoader* soundLoader = static_cast<SoundLoader*>(loaders[1]);
   
-  const SoundSystem::CreateInfo sInfo {
-    threadPool,
-    soundLoader, // должен быть контейнер
-    delaySoundWork
-  };
-  auto* soundSystem = container.addSystem<SoundSystem>(sInfo);
+  (void)threadPool;
+  
+//   const SoundSystem::CreateInfo sInfo {
+//     threadPool,
+//     soundLoader, // должен быть контейнер
+//     delaySoundWork
+//   };
+  
+  auto soundSystem = container.addSystem<systems::sound>();
   Global::get(soundSystem);
-  Global g;
-  g.setSound(soundSystem);
 
 //     const SoundLoader::LoadData sound{
 //       "default_sound",
@@ -1461,31 +1544,31 @@ void createReactions(const ReactionsCreateInfo &info) {
     lastFocus = Global::data()->focusOnInterface;
   });
   
-  auto brain = info.brain;
-  info.container->create("Set target", [brain, input] () {
-    const AIComponent* comp = static_cast<const AIComponent*>(brain);
-
-    //auto* phys = input->getEntity()->get<PhysicsComponent2>().get();
-    auto phys = comp->components()->entity->at<PhysicsComponent>(PHYSICS_COMPONENT_INDEX);
-    if (phys->getGround() == nullptr) {
-      const Object obj = Global::physics()->getObjectData(&phys->getIndexContainer());
-      std::cout << "obj index " << obj.objectId << "\n";
-      std::cout << "obj ground index " << obj.groundObjIndex << "\n";
-      throw std::runtime_error("phys->getGround() return nullptr");
-    }
-    auto data = reinterpret_cast<UserDataComponent*>(phys->getGround()->userData);
-    
-    if (data->aiComponent == nullptr) {
-      const Object obj = Global::physics()->getObjectData(&phys->getIndexContainer());
-      std::cout << "obj index " << obj.objectId << "\n";
-      std::cout << "obj ground index " << obj.groundObjIndex << "\n";
-      throw std::runtime_error("data->aiComponent return nullptr");
-    }
-    
-    std::cout << "setting target " << data->aiComponent << "\n";
-    
-    brain->target(data->aiComponent);
-  });
+//   auto brain = info.brain;
+//   info.container->create("Set target", [brain, input] () {
+//     const AIComponent* comp = static_cast<const AIComponent*>(brain);
+// 
+//     //auto* phys = input->getEntity()->get<PhysicsComponent2>().get();
+//     auto phys = comp->components()->entity->at<PhysicsComponent>(PHYSICS_COMPONENT_INDEX);
+//     if (phys->getGround() == nullptr) {
+//       const Object obj = Global::physics()->getObjectData(&phys->getIndexContainer());
+//       std::cout << "obj index " << obj.objectId << "\n";
+//       std::cout << "obj ground index " << obj.groundObjIndex << "\n";
+//       throw std::runtime_error("phys->getGround() return nullptr");
+//     }
+//     auto data = reinterpret_cast<UserDataComponent*>(phys->getGround()->userData);
+//     
+//     if (data->aiComponent == nullptr) {
+//       const Object obj = Global::physics()->getObjectData(&phys->getIndexContainer());
+//       std::cout << "obj index " << obj.objectId << "\n";
+//       std::cout << "obj ground index " << obj.groundObjIndex << "\n";
+//       throw std::runtime_error("data->aiComponent return nullptr");
+//     }
+//     
+//     std::cout << "setting target " << data->aiComponent << "\n";
+//     
+//     brain->target(data->aiComponent);
+//   });
 
   // а также use, attack, spells (1-9?), item use, hide weapon
   // и прочее
@@ -1511,7 +1594,7 @@ void setUpKeys(KeyContainer* container) {
   
   container->create({key::state::click}, false, key::modificator::none, GLFW_KEY_ESCAPE, container->config.reactions["Menu"]);
   
-  container->create({key::state::click}, true, key::modificator::none, GLFW_KEY_M, container->config.reactions["Set target"]);
+//   container->create({key::state::click}, true, key::modificator::none, GLFW_KEY_M, container->config.reactions["Set target"]);
 }
 
 void mouseInput(UserInputComponent* input, const uint64_t &time) {

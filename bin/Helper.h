@@ -8,6 +8,8 @@
 #include "GraphicsContainer.h"
 #include "TimeMeter.h"
 #include "Settings.h"
+#include "typeless_container.h"
+#include "system.h"
 
 #include "CPUArray.h"
 #include "CPUBuffer.h"
@@ -19,8 +21,9 @@
 #include "RenderStages.h"
 #include "Optimizers.h"
 #include "GPUOptimizers.h"
+#include "image_container.h"
 
-#include "CPUAnimationSystemParallel.h"
+//#include "CPUAnimationSystemParallel.h"
 
 #include "PhysicsUtils.h"
 #include "CPUPhysicsParallel.h"
@@ -28,6 +31,7 @@
 #include "CPUNarrowphaseParallel.h"
 #include "CPUSolverParallel.h"
 #include "CPUPhysicsSorter.h"
+#include "collision_interaction_system.h"
 
 #include "PostPhysics.h"
 
@@ -36,39 +40,73 @@
 #include "TransformComponent.h"
 #include "PhysicsComponent.h"
 #include "InputComponent.h"
-#include "InfoComponent.h"
-#include "AIInputComponent.h"
+//#include "InfoComponent.h"
+#include "type_info_component.h"
+//#include "AIInputComponent.h"
 #include "CameraComponent.h"
-#include "GraphicComponets.h"
-#include "SoundComponent.h"
-#include "StateController.h"
-#include "AnimationComponent.h"
-#include "EffectComponent.h"
-#include "AttributesComponent.h"
-#include "Interactions.h"
-#include "MovementComponent.h"
-#include "AbilityComponent.h"
-#include "InventoryComponent.h"
+//#include "GraphicComponets.h"
+#include "graphics_component.h"
+//#include "SoundComponent.h"
+//#include "StateController.h"
+#include "states_component.h"
+//#include "AnimationComponent.h"
+//#include "EffectComponent.h"
+#include "effects_component.h"
+//#include "AttributesComponent.h"
+#include "attributes_component.h"
+//#include "Interactions.h"
+#include "interaction.h"
+//#include "MovementComponent.h"
+#include "movement_component.h"
+//#include "AbilityComponent.h"
+#include "abilities_component.h"
+//#include "InventoryComponent.h"
+#include "inventory_component.h"
 #include "global_components_indicies.h"
+#include "vertex_component.h"
 
 //#include "ParticleSystem.h"
 //#include "DecalSystem.h"
-#include "SoundSystem.h"
+//#include "SoundSystem.h"
+#include "sound_system.h"
 
 //#include "../resources/ResourceManager.h"
-#include "ModificationContainer.h"
-#include "Modification.h"
-#include "ImageLoader.h"
-#include "SoundLoader.h"
-#include "AnimationLoader.h"
-#include "EffectsLoader.h"
-#include "AttributesLoader.h"
-#include "AbilityTypeLoader.h"
-#include "ItemLoader.h"
-#include "EntityLoader.h"
+#include "resource.h"
+#include "resource_container.h"
+#include "resource_parser.h"
+#include "modification_container.h"
+#include "image_loader.h"
+#include "state_loader.h"
+#include "effects_loader.h"
+#include "attributes_loader.h"
+#include "abilities_loader.h"
+#include "entity_loader.h"
+#include "sound_loader.h"
+// #include "ModificationContainer.h"
+// #include "Modification.h"
+// #include "ImageLoader.h"
+// #include "SoundLoader.h"
+// #include "AnimationLoader.h"
+// #include "EffectsLoader.h"
+// #include "AttributesLoader.h"
+// #include "AbilityTypeLoader.h"
+// #include "ItemLoader.h"
+// #include "EntityLoader.h"
 #include "HardcodedLoaders.h"
 
-#include "DelayedWorkSystem.h"
+#define ABILITIES_CONTAINER
+#define EFFECTS_CONTAINER
+#define STATES_CONTAINER
+#define WEAPONS_CONTAINER
+#define ATTRIBUTE_TYPES_CONTAINER
+#include "game_resources.h"
+#include "sound_data.h"
+
+#include "core_funcs.h"
+#include "game_funcs.h"
+
+//#include "DelayedWorkSystem.h"
+#include "delayed_work_system.h"
 
 // #include "Menu.h"
 // #include "MenuItems.h"
@@ -76,10 +114,14 @@
 #include "Interfaces.h"
 #include "overlay.h"
 
-#include "AISystem.h"
-#include "AIComponent.h"
-#include "CPUPathFindingPhaseParallel.h"
-#include "Graph.h"
+//#include "AISystem.h"
+//#include "AIComponent.h"
+//#include "CPUPathFindingPhaseParallel.h"
+//#include "Graph.h"
+#include "ai_component.h"
+#include "pathfinder_system.h"
+#include "graph.h"
+#include "vertex_component.h"
 #define TINY_BEHAVIOUR_MULTITHREADING
 #include "tiny_behaviour/TinyBehavior.h"
 
@@ -157,7 +199,7 @@ struct DataArrays {
   Container<RotationData>* rotations;
   Container<ExternalData>* externals;
   Container<Texture>* textures;
-  Container<AnimationState>* animStates;
+  //Container<AnimationState>* animStates;
 //   ArrayInterface<BroadphasePair>* broadphasePairs;
 };
 
@@ -276,6 +318,36 @@ namespace key {
   };
 }
 
+// нам требуется получить состояние любого действия по кнопке
+// то есть "attack" -> click + нужно проверить изменилось ли это состояние
+// по сравнению с чем? необходимо правильно обработать длительное нажатие
+// (пулемет или очень быстрые атаки) понятно что если я зажму кнопку 
+// во время анимации чего либо, то это не должно учитываться как длительное нажатие
+// в думе длительное нажатие сделано через bool attackdown
+// я могу сделать примерно то же самое + там есть переменная refire
+// которая отвечает видимо за лицо персонажа (не могу найти использование)
+// у меня не особ много возможностей к изменению како то переменной
+// например я могу менять аттрибут или как то поиграться с инвентарем
+// игроку так или иначе необходимо задать какой то компонент с различными переменными
+// для статистики например. я сделал memory 
+
+// блин я только что понял что статистика собирается в момент смерти энтити
+// а у меня смерть отложена до вычислений функций хп
+// и более того я удаляю инфу об атакующем раньше чем захожу в вычисление аттрибутов
+// мне нужно иначе вычислять аттрибуты (самостоятельно обходить все эффекты?)
+// самый очевидный вариант в том чтобы обойти текущие эффекты и проверить есть ли здесь игрок
+// при добавлении эффекта сразу закидывать изменения в аттрибуты, обновлять эффекты после 
+// обновления аттрибутов, лучше добавить штук 16 переменных для каждого объекта
+// да и их просто изменять, возможно стоит сделать атомик переменные мутабл
+// статистика будет храниться в int_container в type_info
+
+// шум при использовании оружия должны "слышать" монстры
+// как это сделать? должна быть условная сила шума
+// и скорее всего в вершине нужно запомнить объект который этот шум издал
+// (ну и силу шума), мне нужно обойти последовательно вершины 
+// ну и задать источник шума, в думе задается 2 переменных validcount и soundtraversed
+// (первая - глобальная переменная, не знаю откуда она берется, вторая - то сколько звук прошел)
+
 // class ActionKey {
 // public:
 //   ActionKey(const KeyConfiguration &keys, const std::vector<ActionKey*> &keysPtr);
@@ -335,8 +407,25 @@ void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, const 
 void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystemContainer &container);
 void createBehaviourTrees();
 
-void createLoaders(ParserContainer &loaderContainer, GraphicsContainer* graphicsContainer, std::vector<Loader*> &loaders, HardcodedMapLoader** mapLoader, ModificationContainer** mods);
-void createSoundSystem(dt::thread_pool* threadPool, SoundLoader* soundLoader, DelayedWorkSystem* delaySoundWork, GameSystemContainer &container);
+// мне нужно это аккуратно удалить в конце
+struct resources_ptr {
+  resources_ptr(yavf::Device* device);
+  ~resources_ptr();
+  
+  utils::typeless_container resources_containers;
+  game::image_data_container_load* images;
+  game::image_resources_load* image_res;
+  game::sounds_container_load* sounds;
+  game::abilities_container_load* abilities;
+  game::effects_container_load* effects;
+  game::states_container_load* states;
+  game::weapons_container_load* weapons;
+  game::float_attribute_types_container_load* float_attribs;
+  game::int_attribute_types_container_load* int_attribs;
+  game::entity_creators_container_load* entities;
+};
+void createLoaders(resources::modification_container &mods, GraphicsContainer* graphicsContainer, render::image_container* images, resources_ptr &res, HardcodedMapLoader** mapLoader);
+void createSoundSystem(dt::thread_pool* threadPool, GameSystemContainer &container);
 
 void initnk(yavf::Device* device, Window* window, nuklear_data &data);
 void deinitnk(nuklear_data &data);
@@ -365,7 +454,7 @@ struct ReactionsCreateInfo {
   UserInputComponent* input;
   Window* window;
   interface::container* menuContainer;
-  EntityAI* brain;
+  yacs::entity* brain;
 };
 void createReactions(const ReactionsCreateInfo &info);
 void setUpKeys(KeyContainer* container);

@@ -6,29 +6,28 @@
 #include "TransformComponent.h"
 #include "Physics.h"
 #include "PhysicsComponent.h"
+#include "SoundComponent.h"
 #include "global_components_indicies.h"
+#include "AnimationLoader.h"
 
-// void AnimationComponent::setStateContainer(Container<AnimationState>* stateContainer) {
-//   AnimationComponent::stateContainer = stateContainer;
-// }
+// удаление объектов требуется совсем немногим энтити
+// в основном только проджекттайлам
+// можно ли это привязать к интеракции? наверное
+// что еще необходимо удалить?
+
+enum {
+  ANIMATION_LOOPING = (1<<0),
+  ANIMATION_DIRECTION = (1<<1),
+  ANIMATION_LOOPING_RESET = (1<<2)
+};
 
 AnimationComponent::AnimationComponent(const CreateInfo &info)
-  : looping(false),
-    direction(true),
-    currentAnimationIndex(UINT32_MAX),
-    oldAnimationIndex(UINT32_MAX),
-    speedMod(1.0f),
-    uvtrans({0.0f, 0.0f,}),
-    uvAnim{UVAnimation::type::none,
-           {0.0f, 0.0f,},
-           0},
+  : speedMod(1.0f),
+    bool_container(0),
+    currentAnimation(nullptr),
+    oldAnimation(nullptr),
     accumulatedTime(0),
-    animationTime(0),
-//    localEvents(info.localEvents),
     ent(info.ent) {}
-//     trans(info.trans),
-//     phys(info.phys),
-//     graphics(info.graphics) {}
 
 AnimationComponent::~AnimationComponent() {}
 
@@ -36,23 +35,43 @@ void AnimationComponent::update(const uint64_t &time) {
   auto trans = ent->at<TransformComponent>(TRANSFORM_COMPONENT_INDEX);
   auto phys = ent->at<PhysicsComponent>(PHYSICS_COMPONENT_INDEX);
   auto graphics = ent->at<GraphicComponent>(GRAPHICS_COMPONENT_INDEX);
+  auto sound = ent->at<SoundComponent>(SOUND_COMPONENT_INDEX);
   
   // вычисляем прибавочное время
   const size_t newTime = speedMod * time;
 
   Animation::Image image = {graphics->getTexture().image, false, false};
-  if (currentAnimationIndex != UINT32_MAX) {
-    const Animation &anim = Global::animations()->getAnimationById(currentAnimationIndex);
+//   if (currentAnimationIndex != UINT32_MAX) {
+//     const Animation &anim = Global::animations()->getAnimationById(currentAnimationIndex);
 //  const bool finished = anim.isFinished(accumulatedTime+newTime);
 //  if (finished) accumulatedTime = 0; // по идее по разному нужно реагировать
 
     accumulatedTime += newTime;
-    if (looping) {
-      accumulatedTime %= animationTime;
+    if ((bool_container & ANIMATION_LOOPING) == ANIMATION_LOOPING) {
+      accumulatedTime %= currentAnimation->time();
+      bool_container &= ~ANIMATION_LOOPING_RESET;
+    }
+    
+    // делэй + если looping
+    if (currentAnimation->sound()->sound != nullptr && accumulatedTime >= currentAnimation->sound()->delay && ((bool_container & ANIMATION_LOOPING_RESET) == ANIMATION_LOOPING_RESET)) {
+      bool_container |= ANIMATION_LOOPING_RESET;
+      const SoundComponent::PlayInfo info{
+        currentAnimation->sound()->sound,
+        false,
+        !(currentAnimation->sound()->static_sound || currentAnimation->sound()->relative_pos),
+        false, //currentAnimation->sound()->relative_pos,
+        !currentAnimation->sound()->static_sound,
+        currentAnimation->sound()->scalar,
+        100.0f,
+        1.0f,
+        1.0f,
+        1.0f
+      };
+      sound->play(info);
     }
 
-    const size_t textureOffset = anim.getCurrentFrameOffset(accumulatedTime, animationTime);
-    const uint8_t frameSize = anim.frameSize();
+    const size_t textureOffset = currentAnimation->getCurrentFrameOffset(accumulatedTime);
+    const uint8_t frameSize = currentAnimation->frameSize();
 
     int a = 0;
     if (trans.valid() && frameSize > 1) { // trans != nullptr
@@ -91,52 +110,52 @@ void AnimationComponent::update(const uint64_t &time) {
 
     const size_t finalTextureIndex = textureOffset + a;
     image = Global::animations()->getAnimationTextureData(finalTextureIndex);
-  }
+//   }
 
   Texture texture{
     image.image,
     0, // сэмплер здесь меняться не будет
-    0.0f,
-    0.0f,
+    1.0f,
+    1.0f,
   };
 
-  // должна быть только для игрока
-  glm::vec2 finalUV = glm::vec2(0.0f, 0.0f);
-  if (uvAnim.type == UVAnimation::type::speed) {
-    const float speed = phys->getSpeed();
-    const float maxSpeed = phys->getMaxSpeed();
-    const float ratio = speed/maxSpeed;
-
-    const float timeRatio = float(newTime) / float(uvAnim.time);
-
-    uvtrans.x += direction ? timeRatio : -timeRatio;
-    if (uvtrans.x >= PI_H) {
-      direction = !direction;
-      uvtrans.x = PI_H;
-    } else if (uvtrans.x <= -PI_H) {
-      direction = !direction;
-      uvtrans.x = -PI_H;
-    }
-
-    uvtrans.y = -fast_fabsf(std::cos(uvtrans.x));
-    // trans.x В РАДИАНАХ!!!
-
-    finalUV = ratio * glm::vec2(fast_fabsf(uvtrans.x) / PI_H, uvtrans.y);
-    texture.movementU = finalUV.x;
-    texture.movementV = finalUV.y;
-  }
-
-  if (uvAnim.type == UVAnimation::type::uv) {
-    const float timeRatio = float(newTime) / float(uvAnim.time);
-
-    // хотя тут наверное uvAnim.uvtransition = конечному положению, а может и нет
-
-    uvtrans += timeRatio * uvAnim.uvtransition;
-    uvtrans = glm::fract(uvtrans);
-
-    texture.movementU = uvtrans.x;
-    texture.movementV = uvtrans.y;
-  }
+//   // должна быть только для игрока
+//   glm::vec2 finalUV = glm::vec2(0.0f, 0.0f);
+//   if (uvAnim.type == UVAnimation::type::speed) {
+//     const float speed = phys->getSpeed();
+//     const float maxSpeed = phys->getMaxSpeed();
+//     const float ratio = speed/maxSpeed;
+// 
+//     const float timeRatio = float(newTime) / float(uvAnim.time);
+// 
+//     uvtrans.x += direction ? timeRatio : -timeRatio;
+//     if (uvtrans.x >= PI_H) {
+//       direction = !direction;
+//       uvtrans.x = PI_H;
+//     } else if (uvtrans.x <= -PI_H) {
+//       direction = !direction;
+//       uvtrans.x = -PI_H;
+//     }
+// 
+//     uvtrans.y = -fast_fabsf(std::cos(uvtrans.x));
+//     // trans.x В РАДИАНАХ!!!
+// 
+//     finalUV = ratio * glm::vec2(fast_fabsf(uvtrans.x) / PI_H, uvtrans.y);
+//     texture.movementU = finalUV.x;
+//     texture.movementV = finalUV.y;
+//   }
+// 
+//   if (uvAnim.type == UVAnimation::type::uv) {
+//     const float timeRatio = float(newTime) / float(uvAnim.time);
+// 
+//     // хотя тут наверное uvAnim.uvtransition = конечному положению, а может и нет
+// 
+//     uvtrans += timeRatio * uvAnim.uvtransition;
+//     uvtrans = glm::fract(uvtrans);
+// 
+//     texture.movementU = uvtrans.x;
+//     texture.movementV = uvtrans.y;
+//   }
 
   // u: [-1.0f, 0.0f] = mirror X
   // v: [-1.0f, 0.0f] = mirror Y
@@ -146,57 +165,32 @@ void AnimationComponent::update(const uint64_t &time) {
   graphics->setTexture(texture);
 }
 
-//void AnimationComponent::init(void* userData) {
-//  (void)userData;
-//
-//  localEvents = getEntity()->get<EventComponent>().get();
-//  if (localEvents == nullptr) {
-//    Global::console()->printE("Initializing animation without event component");
-//    throw std::runtime_error("Initializing animation without event component");
-//  }
-//
-//  trans = getEntity()->get<TransformComponent>().get();
-//
-//  graphics = getEntity()->get<GraphicComponent>().get();
-//  if (graphics == nullptr) {
-//    Global::console()->printE("Initializing animation without graphics");
-//    throw std::runtime_error("Initializing animation without graphics");
-//  }
-//}
-
-//void AnimationComponent::setAnimation(const Type &state, const ResourceID &id) {
-//  static const auto changeAnimId = [&] (const Type &type, const EventData &data, const uint32_t &index) {
-//    (void)data;
-//    (void)type;
-//
-//    currentAnimationIndex = index;
-//    if (oldAnimationIndex != currentAnimationIndex) {
-//      accumulatedTime = 0;
-//      oldAnimationIndex = currentAnimationIndex;
-//    }
-//
-//    return success;
-//  };
-//
-//  localEvents->registerEvent(state, std::bind(changeAnimId, std::placeholders::_1, std::placeholders::_2, Global::animations()->getAnimationId(id)));
-//}
-
 void AnimationComponent::play(const PlayInfo &info) {
-  oldAnimationIndex = currentAnimationIndex;
-  currentAnimationIndex = Global::animations()->getAnimationId(info.id);
+  oldAnimation = currentAnimation;
+  currentAnimation = Global::get<AnimationLoader>()->getAnim(info.id);
+  ASSERT(currentAnimation != nullptr);
+  
+//   oldAnimationIndex = currentAnimationIndex;
+//   currentAnimationIndex = Global::animations()->getAnimationId(info.id);
+//   ASSERT(currentAnimationIndex != UINT32_MAX);
 
   speedMod = info.speedMod;
-  animationTime = info.animationTime;
-  looping = info.looping;
-  uvAnim.type = UVAnimation::type::none;
+  //animationTime = info.animationTime;
+  bool_container = info.looping ? bool_container | ANIMATION_LOOPING : bool_container & ~ANIMATION_LOOPING;
+  bool_container &= ~ANIMATION_LOOPING_RESET;
+//   uvAnim.type = UVAnimation::type::none;
 }
 
-void AnimationComponent::apply(const UVAnimation &uvAnim) {
-  this->uvAnim = uvAnim;
+void AnimationComponent::play(const PlayInfoPtr &info) {
+  oldAnimation = currentAnimation;
+  currentAnimation = info.animation;// get
+  ASSERT(currentAnimation != nullptr);
+  
+  speedMod = info.speedMod;
+  bool_container = info.looping ? bool_container | ANIMATION_LOOPING : bool_container & ~ANIMATION_LOOPING;
+  bool_container &= ~ANIMATION_LOOPING_RESET;
 }
 
-//size_t & AnimationComponent::getInternalIndex() {
-//  return internalIndex;
-//}
-
-// Container<AnimationState>* AnimationComponent::stateContainer = nullptr;
+// void AnimationComponent::apply(const UVAnimation &uvAnim) {
+//   this->uvAnim = uvAnim;
+// }

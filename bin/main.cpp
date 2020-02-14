@@ -66,14 +66,14 @@ int main(int argc, char** argv) {
     }
   }
   
-  GetSpeedFunc speed_func_temp_container{
-    [] (yacs::entity* ent) -> float {
-      auto phys = ent->at<PhysicsComponent>(PHYSICS_COMPONENT_INDEX);
-      if (phys.valid()) return phys->getSpeed();
-      return 0.0f;
-    }
-  };
-  Global::get(&speed_func_temp_container);
+//   GetSpeedFunc speed_func_temp_container{
+//     [] (yacs::entity* ent) -> float {
+//       auto phys = ent->at<PhysicsComponent>(PHYSICS_COMPONENT_INDEX);
+//       if (phys.valid()) return phys->getSpeed();
+//       return 0.0f;
+//     }
+//   };
+//   Global::get(&speed_func_temp_container);
 
   // у нас тут еще есть создание треад пула
   // причем неплохо было бы создавать его только тогда когда системы его используют
@@ -83,6 +83,7 @@ int main(int argc, char** argv) {
   // чаще всего пул необходим, не могу честно говоря представить когда он не нужен в современных условиях
   //std::cout << "std::thread::hardware_concurrency() " << std::thread::hardware_concurrency() << "\n";
   dt::thread_pool threadPool(std::max(std::thread::hardware_concurrency()-1, uint32_t(1)));
+  systems::collision_interaction inter(systems::collision_interaction::create_info{&threadPool});
 
   initGLFW();
 
@@ -93,7 +94,7 @@ int main(int argc, char** argv) {
   // еще где то здесь мы обрабатываем входные данные с консоли (забыл как это называется верно лол)
 
   // теперь создаем контейнер sizeof(ParticleSystem) + sizeof(DecalSystem) +
-  const size_t &systemsSize = sizeof(GraphicsContainer) + sizeof(PostPhysics) + sizeof(CPUAnimationSystemParallel) + sizeof(SoundSystem) + sizeof(CPUAISystem) + sizeof(StateControllerSystem) + sizeof(InteractionSystem) + sizeof(EffectSystem) + sizeof(AttributeSystem);
+  const size_t &systemsSize = sizeof(GraphicsContainer) + sizeof(PostPhysics) + sizeof(systems::sound);
   GameSystemContainer systemContainer(systemsSize);
   GraphicsContainer* graphicsContainer;
   {
@@ -109,27 +110,6 @@ int main(int argc, char** argv) {
     Global::get(graphicsContainer);
   }
 
-  // так же нам нужно будет загрузить какие-нибудь ресурсы
-  // загрузчик ресурсов поди будет и их менеджером
-  // (ну точнее загрузчик и менеджер будут все же разными, но обитать очень близко друг к другу)
-  // мы в этот же загрузчик наверное поместим загрузку хардкодных данных
-  // как тогда это должно выглядеть?
-  // наряду с системами типа консоли, должна быть система загрузки, но должна она быть
-  // собираема из разных загрузчиков
-  // для этих загрузчиков (менеджеров) могут потребоваться кое какие вещи из систем (например рендер девайс)
-  // следовательно системы и менеджеры должны уметь взаимодействовать друг с другом
-  // (может не напрямую, но тем не менее)
-
-  // здесь грузим какой-нибудь стейт по умолчанию
-  // это скорее всего будет менюшка
-  // кстати в менюшке должно быть переключение на демку
-  // то есть рендер то поди один,
-  // только нужен какой нибудь метод для отрисовки единичной текстуры на весь экран
-  // см. ранее
-  // скорее всего для разных состояний приложения у нас разные контейнеры с ресурсами
-  // типо для менюшки (для гуи) и общий контейнер, по идее никаких особых проблем с этим у нас не будет
-  // таким образом не нужно будет менять рендер, скорее всего мне нужно будет чутка изменить текстур лоадер
-
   // как создать буфферы с данными (трансформа, ротация, матрица и прочее)?
   // создать их здесь - будет куча лишних указателей (или не лишних??)
   // удаление я могу упрятать в отдельный контейнер, когда окончательно пойму сколько массивов мне нужно будет
@@ -140,8 +120,7 @@ int main(int argc, char** argv) {
                                   sizeof(GPUBuffer<uint32_t>) +
                                   sizeof(GPUContainer<RotationData>) +
                                   sizeof(GPUContainer<Transform>) +
-                                  sizeof(GPUContainer<Texture>) +
-                                  sizeof(GPUContainer<AnimationState>));
+                                  sizeof(GPUContainer<Texture>));
                                   //sizeof(GPUArray<BroadphasePair>));
   createDataArrays(graphicsContainer->device(), arraysContainer, arrays);
 
@@ -168,13 +147,17 @@ int main(int argc, char** argv) {
 
 //     GraphicComponent::setOptimizer(mon);
 //     GraphicComponentIndexes::setOptimizer(geo);
-    Light::setOptimizer(lights);
-    GraphicComponent::setDebugOptimizer(monDebug);
-    GraphicComponentIndexes::setDebugOptimizer(geoDebug);
+//     Light::setOptimizer(lights);
+//     GraphicComponent::setDebugOptimizer(monDebug);
+//     GraphicComponentIndexes::setDebugOptimizer(geoDebug);
 
     Global::render()->addOptimizerToClear(lights);
     Global::render()->addOptimizerToClear(monDebug);
     Global::render()->addOptimizerToClear(geoDebug);
+    
+    Global::get(lights);
+    Global::get(monDebug);
+    Global::get(geoDebug);
   }
   
   const size_t updateDelta = DELTA_TIME_CONSTANT;
@@ -196,88 +179,27 @@ int main(int argc, char** argv) {
   createAI(&threadPool, updateDelta, systemContainer);
   createBehaviourTrees();
 
-  // создадим еще какое то количество систем
-  // и заодно парсеры для них
-  // затем мы все это дело добавим в контейнер
-//  DecalSystem* decalSystem = nullptr;
-  StateControllerSystem* statesSys = nullptr;
-  {
-    CPUAnimationSystemParallel* animSys = systemContainer.addSystem<CPUAnimationSystemParallel>(&threadPool);
-
-    Global::get<AnimationSystem>(animSys);
-    Global g;
-    g.setAnimations(animSys);
-    
-    statesSys = systemContainer.addSystem<StateControllerSystem>(StateControllerSystem::CreateInfo{&threadPool});
-    Global::get(statesSys);
-    
-    ASSERT(Global::get<StateControllerSystem>());
-    ASSERT(Global::get<AnimationSystem>());
-    ASSERT(Global::get<CPUAnimationSystemParallel>() == nullptr);
-    
-    // нужно переделать глобальный контейнер, так чтобы мне проще было бы получать доступ к системам
-    // возможно что нибудь вроде Global::get<SystemName>(); как сделать? 
-    // для использования темплейтов нужно менять cpp код, эт сложно сделать просто 
-
-    // что тут еще надо создать?
-    // еще будет боевая система (там нужно будет придумать быстрый и эффективный способ вычислить весь (почти) урон)
-    // система эффектов, хотя может быть очень родствена боевой
-    // что еще? частицы посчитать?
-    // у меня будет скорее не боевая система, а система которая будет обрабатывать большое количество локальных эвентов параллельно
-    // то есть в нее будут входить много разных подсистем которые будут так или иначе запускать эвенты
-    // от ии будет отличаться тем что вызов эвентов может пересекать друг друга
-    
-//    ParticleSystem* particleSystem = systemContainer.addSystem<ParticleSystem>(graphicsContainer.device());
-//    g.setParticles(particleSystem);
-//
-//    DecalSystem::setContainer(arrays.matrices);
-//    DecalSystem::setContainer(arrays.transforms);
-//
-//    decalSystem = systemContainer.addSystem<DecalSystem>();
-    // глобальный указатель?
-  }
+  // частицы?
+  
+  resources_ptr resources(graphicsContainer->device());
 
   // создадим лоадер (лоадер бы лучше в контейнере создавать) 
   // лоадеры неплохо было бы создавать перед непосредственной загрузкой, пока так создадим
-  const size_t loaderContainerSize = sizeof(ImageLoader) + sizeof(SoundLoader) + sizeof(EntityLoader) + sizeof(HardcodedMapLoader) + sizeof(AnimationLoader) + sizeof(AttributesLoader) + sizeof(EffectsLoader) + sizeof(AbilityTypeLoader) + sizeof(ItemTypeLoader) + sizeof(ModificationContainer);
-  ParserContainer loaderContainer(loaderContainerSize);
-//   ImageLoader* textureLoader = nullptr;
-//   SoundLoader* soundLoader = nullptr;
-//   AnimationLoader* animationLoader = nullptr;
-//   EntityLoader* entityLoader = nullptr;
-//   ItemTypeLoader* itemLoader = nullptr;
-//   AbilityTypeLoader* abilityTypeLoader = nullptr;
-//   AttributesLoader* attributesLoader = nullptr;
-//   EffectsLoader* effectsLoader = nullptr;
+  const size_t loaderContainerSize = sizeof(resources::image_loader) + sizeof(resources::sound_loader) + sizeof(resources::entity_loader) + sizeof(HardcodedMapLoader) + sizeof(resources::attributes_loader) + sizeof(resources::effects_loader) + sizeof(resources::abilities_loader) + sizeof(resources::state_loader); //  + sizeof(ModificationContainer)
   HardcodedMapLoader* mapLoader = nullptr;
-//   HardcodedAnimationLoader* animationLoader = nullptr;
-//   HardcodedEntityLoader* entityLoader = nullptr;
-//  ParserHelper* parser = nullptr;
-  ModificationContainer* mods = nullptr;
-  std::vector<Loader*> loaders; // первый должен быть текстурным лоадером
+  resources::modification_container mods(loaderContainerSize);
+  render::image_container images(render::image_container::create_info{graphicsContainer->device()});
   {
-    createLoaders(loaderContainer, graphicsContainer, loaders, &mapLoader, &mods);
+    createLoaders(mods, graphicsContainer, &images, resources, &mapLoader);
     
-    // я хочу из энда перенести загрузку всего в метод load
-    // единственное что мне мешает это сделать сейчас это текстурлоадер
-    // если там угадывать количество изображений и какие изображения могут потребоваться
-    // то действительно можно перенести всю загрузку из энда в лоад
-    // а в энде оставить только непосредственную загрузку текстур
-    // на основе этого можно будет сделать стриминговую загрузку данных
-    // (ну то есть я надеюсь на то что мне удастся сделать правильно и быстро ротацию текстур)
-    // (в пуле, помимо текстур подгрузить 100% нужно будет данные карты и возможно звуки)
-    // (все остальные вещи скорее всего будут занимать очень мало места)
-    // (постройки тоже поди нужно будет стримить)
-    
-    // стриминг видимо будет предполагать что мы должны загрузить данные покрайней мере > 256.0f (дальность видимости) расстояния от персонажа
-    // вместе с этим придется решить несколько проблем связанных с текущей физикой, нужно будет перескакивать из локации в локацию
-    // тут может быть два решения - либо держать несколько экземляров физики одновременно (-оператива), либо писать другую броадфазу
-    // нужно посмотреть, сколько занимает физика в текущем виде
+    // теперь мне нужно загружать сразу все ресурсы, кроме всех карт
   }
 
-  DelayedWorkSystem delaySoundWork(DelayedWorkSystem::CreateInfo{&threadPool});
+  //DelayedWorkSystem delaySoundWork(DelayedWorkSystem::CreateInfo{&threadPool});
+  utils::delayed_work_system works(utils::delayed_work_system::create_info{&threadPool});
+  Global::get(&works);
 
-  createSoundSystem(&threadPool, static_cast<SoundLoader*>(loaders[1]), &delaySoundWork, systemContainer);
+  createSoundSystem(&threadPool, systemContainer);
 
   nuklear_data data;
   initnk(graphicsContainer->device(), Global::window(), data);
@@ -307,10 +229,10 @@ int main(int argc, char** argv) {
   CameraComponent* camera = nullptr;
   UserInputComponent* input = nullptr;
   TransformComponent* playerTransform = nullptr;
-  EntityAI* entityWithBrain = nullptr;
+  yacs::entity* entityWithBrain = nullptr;
   {
     // теперь мы сначало грузим какие нибудь данные мода
-    auto mod = mods->loadModData(Global::getGameDir() + "tmrdata/main.json");
+    auto mod = mods.load_mod(Global::getGameDir() + "tmrdata/main.json");
 
     PRINT_VAR("mod name", mod->name())
     PRINT_VAR("mod description", mod->description())
@@ -318,80 +240,27 @@ int main(int argc, char** argv) {
     PRINT_VAR("mod path", mod->path())
 
     // теперь парсим мод
-    mods->parseModification(mod);
+    mods.parse_mod(mod);
 
-    PRINT_VAR("resource count", mod->resources().size())
+    PRINT_VAR("resource count", mod->size())
 
-    // теперь сгружаем это все дело в лоадер
-    for (size_t i = 0; i < mod->resources().size(); ++i) {
-      //textureLoader->load(mods, mod->resources()[i]);
-      loaders[0]->load(mods, mod->resources()[i]);
-    }
+    // все ресурсы в лоадеры?
+//     for (size_t i = 0; i < mod->resources().size(); ++i) {
+//       //textureLoader->load(mods, mod->resources()[i]);
+//       loaders[0]->load(mods, mod->resources()[i]);
+//     }
+// 
+//     for (auto loader : loaders) {
+//       loader->end();
+//     }
+//     
+//     for (auto loader : loaders) {
+//       loader->clear();
+//     }
     
-    // где лоадеры хранить? пока что вектор видимо
-    
-    // попытаемся че нибудь загрузить
-//    parser->loadPlugin("tmrdata/main.json");
-    // тут список модов к загрузке
-    // мы их парсим с помощью parser
-
-    // еще тут нужно передать список того чо надо загрузить
-    // то есть например из мапы будут приходить данные для загрузки текстурок
-    // и мы постепенно сверху вниз резолвим все ресурсы
-    // как тогда загружать мапу? (мне номер какой-то нужен и что то такое)
-    // ну то есть парсер хелпер должен все распарсить, данные должны оказаться в нужных лоадерах,
-    // и затем мы должны вызвать что нибудь вроде лоад дефаулт левел
-//    if (!textureLoader->load("texture")) throw std::runtime_error("Cannot load texture");
-//    if (!textureLoader->load("Rough Block Wall")) throw std::runtime_error("Cannot load Rough Block Wall");
-//    if (!textureLoader->load("552c34f8e3469")) throw std::runtime_error("Cannot load 552c34f8e3469");
-//    if (!textureLoader->load("14626771132270")) throw std::runtime_error("Cannot load 14626771132270");
-//    if (!textureLoader->load("7037.970")) throw std::runtime_error("Cannot load 7037.970");
-//    if (!textureLoader->load("n")) throw std::runtime_error("Cannot load n");
-//    if (!textureLoader->load("ne")) throw std::runtime_error("Cannot load ne");
-//    if (!textureLoader->load("e")) throw std::runtime_error("Cannot load e");
-//    if (!textureLoader->load("se")) throw std::runtime_error("Cannot load se");
-//    if (!textureLoader->load("s")) throw std::runtime_error("Cannot load s");
-//    if (!textureLoader->load("sw")) throw std::runtime_error("Cannot load sw");
-//    if (!textureLoader->load("w")) throw std::runtime_error("Cannot load w");
-//    if (!textureLoader->load("nw")) throw std::runtime_error("Cannot load nw");
-
-//     std::cout << "texture loading" << "\n";
-    
-    // карта по умолчанию - главное меню, несколько текстур, интерфейс, одна плоскость
-//    mapLoader->load("default");
-    //levelLoader->load(0);
-
-//     std::cout << "map loading" << "\n";
-
-//     textureLoader->end();
-// //     std::cout << "texture loading 2" << "\n";
-//     animationLoader->end();
-// 
-// //     std::cout << "texture & animation loading" << "\n";
-// 
-//     //entityLoader->create(); // по идее этот метод будет потом переделан под нужды mapLoader
-// 
-//     entityLoader->end();
-// 
-//     mapLoader->end();
-// 
-// //     std::cout << "entity loading" << "\n";
-// 
-//     // при этом у нас еще должен быть загрузчик демок
-//     // и этот же механизм нам должен загрузить вещи необходимые для меню (да и вообще для ui)
-// 
-//     // после того как все загрузили чистим загрузчики
-// //    parser->clear();
-// 
-//     textureLoader->clear();
-
-    for (auto loader : loaders) {
-      loader->end();
-    }
-    
-    for (auto loader : loaders) {
-      loader->clear();
-    }
+    mods.validate();
+    mods.load_data();
+    mapLoader->end();
 
 //     std::cout << "clearing" << "\n";
 
@@ -405,7 +274,7 @@ int main(int argc, char** argv) {
     // понадобится для того чтобы обновлять, например, пайплайны
     // возможно понадобится что то еще
     
-    throw std::runtime_error("no more");
+    //throw std::runtime_error("no more");
   }
 
   PostPhysics* postPhysics = nullptr;
@@ -434,12 +303,13 @@ int main(int argc, char** argv) {
   
   // обновлять textureLoader и пайплайны нужно будет динамически при изменении состояния textureLoader
   for (size_t i = 0; i < dynPipe.size(); ++i) {
-    ImageLoader* textureLoader = static_cast<ImageLoader*>(loaders[0]);
-    dynPipe[i]->recreatePipelines(textureLoader);
+    //ImageLoader* textureLoader = static_cast<ImageLoader*>(loaders[0]);
+    dynPipe[i]->recreatePipelines(resources.image_res);
   }
 
   Global::physics()->setGravity(simd::vec4(0.0f, -9.8f, 0.0f, 0.0f));
   
+  size_t current_time = 0;
   TimeMeter tm(ONE_SECOND);
   Global::window()->show();
   game_state currentState = game_state::loading;
@@ -465,6 +335,8 @@ int main(int argc, char** argv) {
         // наверное даже вот как: должен быть загружен уровень меню, состоящий из плоской картинки,
         // камеры и меню, через какое то время загрузка демо
         // вполне возможно что этого стейта просто не будет
+        // в думе не этот конкретно стейт использовался, а стейт демо плеинг
+        // и просто по умолчанию включалось меню
         
         break;
       }
@@ -478,10 +350,15 @@ int main(int argc, char** argv) {
 
     // чекаем время
     const size_t time = tm.time();
+    ASSERT(time != 0);
 
     // где то здесь нам нужно сделать проверки на конец уровня, начало другого (или в синке это делать)
     // еще же статистику выводить (в конце уровня я имею ввиду)
+    // нужно определить функцию некст левел, которая просто будет выставлять флажок следующего уровня
+    // а здесь мы будем проверять и соответственно начинать загружаться
     
+    // инпут игрока нужно чуть чуть переделать 
+    // (необходимо сделать какой то буфер нажатия клавиш и возможность использовать его в разных местах)
     mouseInput(input, time);
     if (menu_container.is_opened()) menuKeysCallback(&menu_container);
     else keysCallbacks(&keyContainer, time);
@@ -493,86 +370,63 @@ int main(int argc, char** argv) {
 
     // ии тоже нужно ограничить при открытии менюхи
     if (!menu_container.is_opened()) {
-      //Global::ai()->update(time);
-      Global::get<AISystem>()->update(time);
-      Global::physics()->update(time);
+      Global::get<PhysicsEngine>()->update(time);
       {
         Global g;
         g.setPlayerPos(playerTransform->pos());
       }
-      // где должны обновляться анимации?
-      //Global::animations()->update(time);
-      Global::get<AnimationSystem>()->update(time);
-  //     statesSys->update(time);
     }
 
+    // обход видимых объектов 
     Global::get<PostPhysics>()->update(time);
-    //postPhysics->update(time);
-
-//     {
-//       const uint32_t rayOutputCount = Global::physics()->getRayTracingSize();
-//       const uint32_t frustumOutputCount = Global::physics()->getFrustumTestSize();
-//       const SimpleOverlayData overlayData{
-//         playerTransform->pos(),
-//         playerTransform->rot(),
-//         tm.accumulatedFrameTime(),
-//         tm.accumulatedSleepTime(),
-//         tm.lastIntervalFrameTime(),
-//         tm.lastIntervalSleepTime(),
-//         tm.framesCount(),
-//         tm.fps(),
-//         frustumOutputCount,
-//         rayOutputCount,
-//         0
-//       };
-//       nkOverlay(overlayData, &data.ctx);
-//     }
 
     // гуи
     const interface::data::extent screenSize{
-      1280,
-      720
+      static_cast<float>(Global::window()->size().extent.width), // почему float?
+      static_cast<float>(Global::window()->size().extent.height)
     };
-    overlay.draw(screenSize);
+    overlay.draw(screenSize); // аттрибуты, иконки, текст, все что не меню (иконка аттрибута?)
     menu_container.proccess(screenSize);
     
     // дебаг
     // и прочее
 
-    //graphicsContainer->update(time);
+    // это и звук вполне могут быть сделаны паралельно
+    // и вместе с этом я запущу работу в ворксистеме
+    // где то рядом нужно обойти всю коллизию 
     Global::get<GraphicsContainer>()->update(time);
+    Global::get<systems::sound>()->update_listener(player);
+    Global::get<systems::sound>()->update(time);
     
-    // звук идет после запуска графики
-    // сюда же мы можем засунуть и другие вычисления
-    //Global::animations()->update(time); // ???
-//     Global::get<AnimationSystem>()->update(time);
-    Global::get<StateControllerSystem>()->update(time);
+    current_time += time;
+    if (current_time < updateDelta || time >= 20000) {
+      // во время исполнения этих работ могут добавится еще несколько, но их необходимо обработать уже в следующий раз
+      // если здесь добавляются работы которые удаляют какой то объект, то необходимо правильно обновить tree_ai и func_ai
+      // это значит что tree_ai и func_ai должны обновляться каждый кадр или detach_works должно работать иначе
+      const size_t count = works.works_count();
+      works.detach_works(count);
+    }
     
-    //     Global::sound()->update(time);
-    delaySoundWork.detach_work();
+    if (current_time >= updateDelta) {
+      current_time -= updateDelta;
+      if (!menu_container.is_opened()) {
+        utils::update<components::states>(&threadPool, updateDelta);
+        utils::update<components::attributes>(&threadPool, updateDelta); // здесь скорее всего будем умирать чаще всего
+        utils::update<components::effects>(&threadPool, updateDelta);
+        utils::update<components::tree_ai>(&threadPool, updateDelta); 
+        utils::update<components::func_ai>(&threadPool, updateDelta);
+        // функции ниже добавляют работу в works
+        // функции коллизии
+        inter.update(updateDelta); // не должны ли и они быть синхронизированы по времени? судя по моей физике - да
+        // интеракции
+        utils::update<core::slashing_interaction>(&threadPool, updateDelta);
+        utils::update<core::stabbing_interaction>(&threadPool, updateDelta);
+      }
+    }
 
     // здесь же у нас должна быть настройка: тип какую частоту обновления экрана использовать?
     const size_t syncTime = Global::window()->isVsync() ? Global::window()->refreshTime() : 0; //16667
     sync(tm, syncTime);
-
-//    const size_t entityCount = 5000;
-//    for (size_t i = entityCount; i < arrays.textures->size(); ++i) {
-//      PRINT_VAR("array index", i)
-//      PRINT_VAR("image index", arrays.textures->at(i).t.imageArrayIndex)
-//      PRINT_VAR("image layer", arrays.textures->at(i).t.imageArrayLayer)
-//    }
-//
-//    throw std::runtime_error("dvdsvlasdvbmk;lbs");
-
-    // неплохо было бы подумать на счет того чтобы отрисовывать часть вещей не дожидаясь свопчейна
-    // вообще это означает что мне нужно будет сделать два таск интерфейса и дополнительный семафор
-    // правильно их стартануть и закончить + собрать VkSubmitInfo с дополнительным семафором, да и все
-    // для этого нам нужно пересмотреть механизм рендер таргетов и стоит отказаться от таргета в котором 3 фреймбуфера
-    // каждый фреймбуфер в отделном таргете, так я смогу гораздо гибче подходить к решению проблем
-    // и не придется плодить костыли. это откроет для меня возможность использования двойной буферизации
-    // (рисуем в картинку, пока показываем другую, верно? у меня сейчас походу не так)
-    // для этого придется опять все переписывать =(
-    // для этого нужно несколько командных буферов
   }
   
   appTime.updateTime();

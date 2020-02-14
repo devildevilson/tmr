@@ -6,8 +6,8 @@
 #include "Optimizer.h"
 //#include "../resources/Manager.h"
 //#include "../resources/ResourceManager.h"
-#include "ResourceParser.h"
-#include "ModificationParser.h"
+// #include "ResourceParser.h"
+// #include "ModificationParser.h"
 
 #include "ArrayInterface.h"
 
@@ -90,48 +90,48 @@ private:
   std::vector<Optimizer*> optimizers;
 };
 
-class ParserContainer {
-public:
-  ParserContainer(const size_t &size) : ptr(nullptr), parserContainers(size) {}
-  ~ParserContainer() {
-//    if (ptr != nullptr) {
-//      delete ptr;
-//    }
-    
-    for (auto & parser : parsers) {
-      parserContainers.destroy(parser);
-    }
-
-    parserContainers.destroy(ptr);
-  }
-  
-  template <typename T, typename ...Args>
-  T* add(Args&&... args) {
-    T* ptr = parserContainers.create<T>(std::forward<Args>(args)...);
-    parsers.push_back(ptr);
-    
-    return ptr;
-  }
-  
-  template <typename T, typename ...Args>
-  T* addModParser(Args&&... args) {
-    if (ptr != nullptr) throw std::runtime_error("ParserContainer error: ptr is already exist");
-
-//    auto* ret = new T(std::forward<Args>(args)...);
-    auto* ret = parserContainers.create<T>(std::forward<Args>(args)...);
-    ptr = ret;
-    
-    return ret;
-  }
-  
-  size_t size() const {
-    return parserContainers.size();
-  }
-private:
-  std::vector<ResourceParser*> parsers;
-  ModificationParser* ptr;
-  TypelessContainer parserContainers;
-};
+// class ParserContainer {
+// public:
+//   ParserContainer(const size_t &size) : ptr(nullptr), parserContainers(size) {}
+//   ~ParserContainer() {
+// //    if (ptr != nullptr) {
+// //      delete ptr;
+// //    }
+//     
+//     for (auto & parser : parsers) {
+//       parserContainers.destroy(parser);
+//     }
+// 
+//     parserContainers.destroy(ptr);
+//   }
+//   
+//   template <typename T, typename ...Args>
+//   T* add(Args&&... args) {
+//     T* ptr = parserContainers.create<T>(std::forward<Args>(args)...);
+//     parsers.push_back(ptr);
+//     
+//     return ptr;
+//   }
+//   
+//   template <typename T, typename ...Args>
+//   T* addModParser(Args&&... args) {
+//     if (ptr != nullptr) throw std::runtime_error("ParserContainer error: ptr is already exist");
+// 
+// //    auto* ret = new T(std::forward<Args>(args)...);
+//     auto* ret = parserContainers.create<T>(std::forward<Args>(args)...);
+//     ptr = ret;
+//     
+//     return ret;
+//   }
+//   
+//   size_t size() const {
+//     return parserContainers.size();
+//   }
+// private:
+//   std::vector<ResourceParser*> parsers;
+//   ModificationParser* ptr;
+//   TypelessContainer parserContainers;
+// };
 
 class PhysicsContainer {
 public:

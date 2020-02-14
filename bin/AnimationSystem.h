@@ -11,6 +11,9 @@
 #include "PhysicsTemporary.h"
 
 #include "ResourceID.h"
+#include "Type.h"
+
+class SoundData;
 
 // этот класс по сути просто выставляет соответствие между состоянием энтити
 // и состоянием анимации, конкретно здесь будет большинство состояний задействовано
@@ -63,6 +66,14 @@
 // с другой стороны возможно не нужно их получать из основного класса
 class Animation {
 public:
+  struct sound {
+    const SoundData* sound;
+    size_t delay;
+    bool static_sound;
+    bool relative_pos;
+    float scalar;
+  };
+  
   struct Image {
     ::Image image;
     bool flipU;
@@ -71,6 +82,8 @@ public:
 
   // по сути мне нужны теперь только фреймы, время и наверное свойства (только одно: повторение?) я буду передавать иначе
   struct CreateInfo {
+    struct sound sound_data;
+    size_t time;
     std::vector<std::vector<Animation::Image>> frames;
   };
 
@@ -78,31 +91,41 @@ public:
     ResourceID existingId;
     uint32_t animStart;
     uint32_t animEnd; // animEnd = lastIndex + 1, или size
+    struct sound sound_data;
   };
 
-  Animation(const size_t &imageOffset, const uint8_t &animFrameSize, const size_t &frameStart, const size_t &frameCount);
+  struct ConstructorInfo {
+    Type id;
+    size_t imageOffset;
+    uint8_t animFrameSize;
+    size_t frameStart;
+    size_t frameCount;
+    size_t time;
+    struct sound sound_data;
+  };
+  Animation(const ConstructorInfo &info);
   
-//  bool isFinished(const size_t &time) const;
-//  bool isRepeated() const;
   uint8_t frameSize() const;  // скорее всего один на всю анимацию
   uint32_t frameStart() const;
   uint32_t frameCount() const;
   size_t offset() const;
   size_t imagesCount() const;
+  size_t time() const;
 
-  // нужно передавать текущее время и общее время
-//  size_t getCurrentFrameOffset(const size_t &time) const; // возвращаем старт фрейма, к которому прибавляем нужную сторону
-  size_t getCurrentFrameOffset(const size_t &currentTime, const size_t &animTime) const;
+  size_t getCurrentFrameOffset(const size_t &currentTime) const;
+  
+  const struct sound* sound() const;
 private:
-//  AnimType type; // тип сократится до frameSize
   uint8_t animFrameSize;
-//  size_t frameTime;
-
   uint32_t animFrameStart;
   uint32_t animFrameCount;
   // если animStart > animSize то мы идем в обратную сторону
 
   size_t imageOffset;
+  
+  size_t animTime;
+  
+  struct sound sound_data;
 };
 
 typedef uint32_t AnimationState;
@@ -185,8 +208,8 @@ public:
   
   // вообще мне кажется что такие вещи как анимации текстурки и прочее (то есть ресурсы игры с диска... как то так)
   // лучше бы создавать и получать по какому-нибудь интерфесу
-  virtual uint32_t createAnimation(const ResourceID &animId, const Animation::CreateInfo &info) = 0;
-  virtual uint32_t createAnimation(const ResourceID &animId, const Animation::DependantInfo &info) = 0;
+//   virtual uint32_t createAnimation(const ResourceID &animId, const Animation::CreateInfo &info) = 0;
+//   virtual uint32_t createAnimation(const ResourceID &animId, const Animation::DependantInfo &info) = 0;
   
   virtual uint32_t getAnimationId(const ResourceID &animId) const = 0;
   
@@ -196,6 +219,7 @@ public:
   virtual Animation & getAnimationByName(const ResourceID &animId) = 0;
   virtual const Animation & getAnimationByName(const ResourceID &animId) const = 0;
   
+  virtual size_t addAnimationTextureData(const std::vector<std::vector<Animation::Image>> &frames) = 0;
   virtual Animation::Image getAnimationTextureData(const size_t &index) const = 0;
 };
 

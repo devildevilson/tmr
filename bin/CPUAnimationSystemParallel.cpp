@@ -27,14 +27,14 @@ void CPUAnimationSystemParallel::update(const uint64_t & time) {
 //  pool->compute();
 //  pool->wait();
 
-  static const auto func = [&] (const size_t &start, const size_t &count) {
-    for (size_t i = start; i < start+count; ++i) {
-      // надеюсь так ничего не сломается
-      yacs::component_handle<AnimationComponent> handle = Global::world()->get_component<AnimationComponent>(i);
-      handle->update(time);
-//      components[i]->update(time);
-    }
-  };
+//   static const auto func = [&] (const size_t &start, const size_t &count) {
+//     for (size_t i = start; i < start+count; ++i) {
+//       // надеюсь так ничего не сломается
+//       yacs::component_handle<AnimationComponent> handle = Global::world()->get_component<AnimationComponent>(i);
+//       handle->update(time);
+// //      components[i]->update(time);
+//     }
+//   };
 
   const size_t componentsCount = Global::world()->count_components<AnimationComponent>();
   const size_t count = std::ceil(float(componentsCount) / float(pool->size() + 1));
@@ -43,7 +43,15 @@ void CPUAnimationSystemParallel::update(const uint64_t & time) {
     const size_t jobCount = std::min(count, componentsCount-start);
     if (jobCount == 0) break;
 
-    pool->submitnr(func, start, jobCount);
+    //pool->submitnr(func, start, jobCount);
+    pool->submitbase([start, jobCount, time] () {
+      for (size_t i = start; i < start+jobCount; ++i) {
+        // надеюсь так ничего не сломается
+        yacs::component_handle<AnimationComponent> handle = Global::world()->get_component<AnimationComponent>(i);
+        handle->update(time);
+  //      components[i]->update(time);
+      }
+    });
 
     start += jobCount;
   }
@@ -144,6 +152,17 @@ const Animation & CPUAnimationSystemParallel::getAnimationByName(const ResourceI
   if (itr == animationIdx.end()) throw std::runtime_error("Animation with name " + animId.name() + " is not exist");
   
   return animations[itr->second];
+}
+
+size_t CPUAnimationSystemParallel::addAnimationTextureData(const std::vector<std::vector<Animation::Image>> &frames) {
+  size_t index = textures.size();
+  for (size_t i = 0; i < frames.size(); ++i) {
+    for (size_t j = 0; j < frames[i].size(); ++j) {
+      textures.push_back(frames[i][j]);
+    }
+  }
+  
+  return index;
 }
 
 Animation::Image CPUAnimationSystemParallel::getAnimationTextureData(const size_t &index) const {

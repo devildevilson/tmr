@@ -16,8 +16,8 @@ public:
   void registerAnimationUnit(AnimationComponent* component) override;
   void removeAnimationUnit(AnimationComponent* component) override;
 
-  uint32_t createAnimation(const ResourceID &animId, const Animation::CreateInfo &info) override;
-  uint32_t createAnimation(const ResourceID &animId, const Animation::DependantInfo &info) override;
+//   uint32_t createAnimation(const ResourceID &animId, const Animation::CreateInfo &info) override;
+//   uint32_t createAnimation(const ResourceID &animId, const Animation::DependantInfo &info) override;
   
   uint32_t getAnimationId(const ResourceID &animId) const override;
   
@@ -27,6 +27,7 @@ public:
   Animation & getAnimationByName(const ResourceID &animId) override;
   const Animation & getAnimationByName(const ResourceID &animId) const override;
   
+  size_t addAnimationTextureData(const std::vector<std::vector<Animation::Image>> &frames) override;
   Animation::Image getAnimationTextureData(const size_t &index) const override;
 private:
   dt::thread_pool* pool;

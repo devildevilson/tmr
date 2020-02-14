@@ -14,7 +14,7 @@ static const Type cancel = Type::get("cancel");
 static const Type change_weapon = Type::get("change_weapon");
 static const Type movement = Type::get("movement");
 
-StateController::StateController(const CreateInfo &info) : ent(info.ent), currentTime(0), lastTime(0), currentState(info.controllerType->defaultState()), controllerType(info.controllerType) {}
+StateController::StateController(const CreateInfo &info) : ent(info.ent), speedMod(1.0f), currentTime(0), lastTime(0), currentState(info.controllerType->defaultState()), controllerType(info.controllerType) {}
 
 // есть несколько специальных состояний: cancel, change_weapon, use_item
 // еще нужно учесть скорость атаки, вот тут то лучше передавать помимо
@@ -68,7 +68,9 @@ void StateController::update(const size_t &time) {
   
   currentTime += speedMod * time;
   
-  if (currentState->animation.valid() && (currentState->animationDelay == 0 ||  (currentTime >= currentState->animationDelay && lastTime < currentState->animationDelay))) {
+  //PRINT("anim: "+currentState->animation.name())
+  
+  if (currentState->animation.valid() && (currentState->animationDelay == 0 || (currentTime >= currentState->animationDelay && lastTime < currentState->animationDelay))) {
     const AnimationComponent::PlayInfo info{
       currentState->animation,
       speedMod,
