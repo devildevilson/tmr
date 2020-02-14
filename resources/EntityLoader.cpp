@@ -6,6 +6,8 @@
 #include "AttributesLoader.h"
 #include "EffectsLoader.h"
 #include "ImageLoader.h"
+#include "AnimationLoader.h"
+#include "SoundLoader.h"
 
 EntityLoader::LoadData::Interaction::VariableType::VariableType() : container(0) {}
 EntityLoader::LoadData::Interaction::VariableType::VariableType(const bool angleNum, const bool distanceNum, const bool minDistNum, const bool tickCountNum, const bool attackSpeedNum, const bool attackTimeNum) {
@@ -36,7 +38,7 @@ bool EntityLoader::LoadData::Interaction::VariableType::isAttackTimeNumber() con
   
 }
 
-EntityLoader::LoadData::LoadData(const CreateInfo &info) : Resource(info.resInfo), m_id(info.m_id), m_physData(info.m_physData), m_graphicsData(info.m_graphicsData), m_attributesData(info.m_attributesData), m_effectsData(info.m_effectsData), m_inventoryData(info.m_inventoryData), m_weaponsData(info.m_weaponsData), m_abilitiesData(info.m_abilitiesData), m_intelligence(info.m_intelligence), m_statesData(info.m_statesData), m_defaultTexture(info.m_defaultTexture) {}
+EntityLoader::LoadData::LoadData(const CreateInfo &info) : Resource(info.resInfo), m_id(info.m_id), m_physData(info.m_physData), m_graphicsData(info.m_graphicsData), m_attributesData(info.m_attributesData), m_effectsData(info.m_effectsData), m_inventoryData(info.m_inventoryData), m_weaponsData(info.m_weaponsData), m_abilitiesData(info.m_abilitiesData), m_intelligence(info.m_intelligence), m_statesData(info.m_statesData), m_defaultTexture(info.m_defaultTexture), m_interaction(info.m_interaction) {}
 Type EntityLoader::LoadData::creatorId() const { return m_id; }
 EntityLoader::LoadData::PhysData EntityLoader::LoadData::physData() const { return m_physData; }
 EntityLoader::LoadData::GraphicsData EntityLoader::LoadData::graphicsData() const { return m_graphicsData; }
@@ -772,6 +774,18 @@ bool EntityLoader::load(const ModificationParser* modifications, const Resource*
         if (attrib == nullptr) throw std::runtime_error("Could not find attribute "+loadData->statesData().states[i].speedAttribute.name());
       }
       
+      if (loadData->statesData().states[i].animationId.valid()) {
+        const ResourceID id = loadData->statesData().states[i].animationId;
+        const bool ret = animationLoader->load(nullptr, animationLoader->getParsedResource(id));
+        if (!ret) throw std::runtime_error("Could not load animation "+loadData->statesData().states[i].animationId.name());
+      }
+      
+      if (loadData->statesData().states[i].soundId.valid()) {
+        const ResourceID id = loadData->statesData().states[i].animationId;
+        const bool ret = soundLoader->load(nullptr, soundLoader->getParsedResource(id));
+        if (!ret) throw std::runtime_error("Could not load sound "+loadData->statesData().states[i].soundId.name());
+      }
+      
       statesInfo[i] = {
         StateFlags(loadData->statesData().states[i].blocked, loadData->statesData().states[i].blockedMovement, loadData->statesData().states[i].loop, false, false),
         loadData->statesData().states[i].time,
@@ -795,7 +809,25 @@ bool EntityLoader::load(const ModificationParser* modifications, const Resource*
     statesPtr
   };
   
-  auto ptr = objectCreatorPool.newElement(ObjectCreator::CreateInfo{physData, graphics, attribs, effects, inventory, weaponsData, abilitiesData, intelligence, statesData});
+  const ObjectCreator::Interaction_data interaction_data {
+    static_cast<enum ObjectCreator::Interaction_data::type>(loadData->interaction().type),
+    ObjectCreator::Interaction_data::VariableType(
+      loadData->interaction().variables.isAngleNumber(), 
+      loadData->interaction().variables.isDistanceNumber(), 
+      loadData->interaction().variables.isMinDistanceNumber(), 
+      loadData->interaction().variables.isTickCountNumber(), 
+      loadData->interaction().variables.isAttackSpeedNumber(), 
+      loadData->interaction().variables.isAttackTimeNumber()
+    ),
+    {loadData->interaction().angle.attributeType, loadData->interaction().angle.var},
+    {loadData->interaction().distance.attributeType, loadData->interaction().distance.var},
+    {loadData->interaction().minDist.attributeType, loadData->interaction().minDist.var},
+    {loadData->interaction().tickCount.attributeType, loadData->interaction().tickCount.var},
+    {loadData->interaction().attackSpeed.attributeType, loadData->interaction().attackSpeed.var},
+    {loadData->interaction().attackTime.attributeType, loadData->interaction().attackTime.var}
+  };
+  
+  auto ptr = objectCreatorPool.newElement(ObjectCreator::CreateInfo{physData, graphics, attribs, effects, inventory, weaponsData, abilitiesData, intelligence, statesData, interaction_data});
   creatorsPtr.push_back(ptr);
   entityCreators[loadData->creatorId()] = ptr;
   

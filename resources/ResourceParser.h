@@ -5,6 +5,7 @@
 #include "ResourceID.h"
 
 #include "nlohmann/json.hpp"
+#include <mutex>
 
 struct ErrorDesc {
   ErrorDesc() {}

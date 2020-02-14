@@ -366,6 +366,7 @@ bool AttributesLoader::unload(const ResourceID &id) {
   tempData->tempPool.deleteElement(tempData->tempPtr[res]);
   std::swap(tempData->tempPtr[res], tempData->tempPtr.back());
   tempData->tempPtr.pop_back();
+  return true;
 }
 
 void AttributesLoader::end() {

@@ -5,6 +5,7 @@
 #include "ImageLoader.h"
 #include "Globals.h"
 #include "AnimationSystem.h"
+#include "SoundLoader.h"
 
 AnimationLoader::LoadData::LoadData(const CreateInfo &info) : Resource(info.resInfo), m_frames(info.frames) {}
 const std::vector<AnimationLoader::LoadData::Frame> & AnimationLoader::LoadData::frames() const { return m_frames; }
@@ -98,15 +99,65 @@ const std::vector<AnimationLoader::LoadData::Frame> & AnimationLoader::LoadData:
 // }
 
 bool checkAnimationJsonValidity(const std::string &path, const nlohmann::json &data, const size_t &mark, AnimationLoader::LoadData::CreateInfo &info, std::vector<ErrorDesc> &errors, std::vector<WarningDesc> &warnings) {
-  bool hasId = false;
+  bool hasId = false, hasTime = false;
   
   const size_t errorsCount = errors.size();
+  
+  info.m_time = 0;
+  info.m_sound.sound = ResourceID();
+  info.m_sound.delay = 0;
+  info.m_sound.static_sound = true;
+  info.m_sound.relative = false;
+  info.m_sound.scalar = 0.0f;
   
   for (auto itr = data.begin(); itr != data.end(); ++itr) {
     if (itr.value().is_string() && itr.key() == "id") {
       hasId = true;
       info.resInfo.resId = ResourceID::get(itr.value().get<std::string>());
       continue;
+    }
+    
+    if (itr.value().is_number_unsigned() && itr.key() == "time") {
+      info.m_time = itr.value().get<size_t>();
+      hasTime = true;
+      continue;
+    }
+    
+    if (itr.value().is_object() && itr.key() == "sound") {
+      bool hasId = false;
+      for (auto soundItr = itr.value().begin(); soundItr != itr.value().end(); ++soundItr) {
+        if (soundItr.value().is_string() && soundItr.key() == "id") {
+          info.m_sound.sound = ResourceID::get(soundItr.value().get<std::string>());
+          hasId = true;
+          continue;
+        }
+        
+        if (soundItr.value().is_number_unsigned() && soundItr.key() == "delay") {
+          info.m_sound.delay = soundItr.value().get<size_t>();
+          continue;
+        }
+        
+        if (soundItr.value().is_boolean() && soundItr.key() == "static") {
+          info.m_sound.static_sound = soundItr.value().get<bool>();
+          continue;
+        }
+        
+        if (soundItr.value().is_boolean() && soundItr.key() == "relative") {
+          info.m_sound.relative = soundItr.value().get<bool>();
+          continue;
+        }
+        
+        if (soundItr.value().is_number() && soundItr.key() == "scalar") {
+          info.m_sound.scalar = soundItr.value().get<float>();
+          continue;
+        }
+      }
+      
+      if (!hasId) {
+        ErrorDesc desc(mark, AnimationLoader::ERROR_SOUND_RESOURCE_ID_MUST_BE_SPECIFIED, "Could not find sound resource id");
+        std::cout << "Error: " << desc.description << "\n";
+        errors.push_back(desc);
+      }
     }
     
     if (itr.value().is_array() && itr.key() == "frames") {
@@ -224,7 +275,12 @@ bool checkAnimationJsonValidity(const std::string &path, const nlohmann::json &d
     ErrorDesc desc(mark, AnimationLoader::ERROR_ANIMATION_MUST_HAVE_AN_ID, "Animation must have an id");
     std::cout << "Error: " << desc.description << "\n";
     errors.push_back(desc);
-    return false;
+  }
+  
+  if (!hasTime) {
+    ErrorDesc desc(mark, AnimationLoader::ERROR_COULD_NOT_FIND_ANIMATION_TIME, "Animation time must be specified");
+    std::cout << "Error: " << desc.description << "\n";
+    errors.push_back(desc);
   }
   
   const size_t sideCount = info.frames[0].sides.size();
@@ -233,14 +289,13 @@ bool checkAnimationJsonValidity(const std::string &path, const nlohmann::json &d
       ErrorDesc desc(mark, AnimationLoader::ERROR_EVERY_ANIMATION_FRAME_MUST_HAVE_EQUAL_NUMBER_OF_SIDES, "Every animation frame must have equal number of sides");
       std::cout << "Error: " << desc.description << "\n";
       errors.push_back(desc);
-      return false;
     }
   }
   
   return errorsCount == errors.size();
 }
 
-AnimationLoader::AnimationLoader(const CreateInfo &info) : imageLoader(info.imageLoader) {}
+AnimationLoader::AnimationLoader(const CreateInfo &info) : imageLoader(info.imageLoader), soundLoader(info.soundLoader) {}
 AnimationLoader::~AnimationLoader() {
   clear();
 }
@@ -348,6 +403,16 @@ bool AnimationLoader::load(const ModificationParser* modifications, const Resour
   // мне нужно предоставить доступ к конфликтам 
   // а пока можно загрузить и так
   
+  if (res->frames().empty()) throw std::runtime_error("Empty animation");
+  
+  const size_t frameSize = res->frames()[0].sides.size();
+  if (frameSize > 256) throw std::runtime_error("Frame size > 256 is not allowed");
+  if (frameSize == 0) throw std::runtime_error("Frames size == 0");
+  
+  for (uint32_t i = 1; i < res->frames().size(); ++i) {
+    if (res->frames()[i].sides.size() != frameSize) throw std::runtime_error("Frame size must be the same across animation");
+  }
+  
   std::vector<std::vector<Animation::Image>> frames(res->frames().size(), std::vector<Animation::Image>(res->frames()[0].sides.size()));
   for (size_t i = 0; i < res->frames().size(); ++i) {
     for (size_t j = 0; j < res->frames()[i].sides.size(); ++j) {
@@ -365,7 +430,34 @@ bool AnimationLoader::load(const ModificationParser* modifications, const Resour
     }
   }
   
-  Global::animations()->createAnimation(res->id(), Animation::CreateInfo{frames});
+  const SoundData* sound = nullptr;
+  if (res->sound().sound.valid()) {
+    const bool load = soundLoader->load(nullptr, soundLoader->getParsedResource(res->sound().sound));
+    if (!load) throw std::runtime_error("Could not load sound "+res->sound().sound.name());
+    
+    sound = soundLoader->getSound(res->sound().sound);
+    if (sound == nullptr) throw std::runtime_error("Could not find sound "+res->sound().sound.name());
+  }
+  
+  uint8_t concreteFrameSize = static_cast<uint8_t>(frameSize);
+  const Animation::ConstructorInfo cInfo{
+    Type::get(res->id().name()),
+    Global::get<AnimationSystem>()->addAnimationTextureData(frames),
+    concreteFrameSize,
+    0, res->frames().size(),
+    res->time(),
+    {
+      sound,
+      res->sound().delay,
+      res->sound().static_sound,
+      res->sound().relative,
+      res->sound().scalar
+    }
+  };
+  container.create(cInfo);
+  
+  //auto id = Global::animations()->createAnimation(res->id(), Animation::CreateInfo{frames});
+  //PRINT("ANIMATION ID: "+std::to_string(id))  
   
   return true;
 }
@@ -424,6 +516,10 @@ size_t AnimationLoader::loadingState() const {
 
 std::string AnimationLoader::hint() const {
   
+}
+
+const Animation* AnimationLoader::getAnim(const Type &id) const {
+  return container.get(id);
 }
 
 size_t AnimationLoader::findTempData(const ResourceID &id) const {

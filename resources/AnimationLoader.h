@@ -8,6 +8,8 @@
 
 #include "LoadingTemporaryData.h"
 
+class SoundLoader;
+
 // class Animation {
 // public:
 //   struct Side {
@@ -38,7 +40,9 @@ public:
     ERROR_SIDE_MUST_HAVE_AN_IMAGE_ID,
     ERROR_FRAME_MUST_HAVE_AT_LEAST_ONE_SIDE,
     ERROR_ANIMATION_MUST_HAVE_AN_ID,
-    ERROR_EVERY_ANIMATION_FRAME_MUST_HAVE_EQUAL_NUMBER_OF_SIDES
+    ERROR_EVERY_ANIMATION_FRAME_MUST_HAVE_EQUAL_NUMBER_OF_SIDES,
+    ERROR_SOUND_RESOURCE_ID_MUST_BE_SPECIFIED,
+    ERROR_COULD_NOT_FIND_ANIMATION_TIME
   };
   
   class LoadData : public Resource {
@@ -54,15 +58,29 @@ public:
       std::vector<Side> sides;
     };
     
+    struct SoundData {
+      ResourceID sound;
+      size_t delay;
+      bool static_sound;
+      bool relative;
+      float scalar;
+    };
+    
     struct CreateInfo {
       Resource::CreateInfo resInfo;
       
+      size_t m_time;
+      SoundData m_sound;
       std::vector<Frame> frames;
     };
     LoadData(const CreateInfo &info);
     
+    size_t time() const;
+    SoundData sound() const;
     const std::vector<Frame> & frames() const;
   private:
+    size_t m_time;
+    SoundData m_sound;
     std::vector<Frame> m_frames;
   };
   
@@ -70,6 +88,7 @@ public:
   
   struct CreateInfo {
     ImageLoader* imageLoader;
+    SoundLoader* soundLoader;
   };
   AnimationLoader(const CreateInfo &info);
   ~AnimationLoader();
@@ -98,6 +117,8 @@ public:
   size_t loadingState() const override;
   std::string hint() const override;
   
+  const Animation* getAnim(const Type &id) const;
+  
   // сейчас все анимации у меня лежат в системе анимаций
   // вполне возможно указатель на анимацию перенести в состояние
   // пока что наверное так оставлю, как проверить что мы загрузили анимацию? getParsedResource?
@@ -105,8 +126,9 @@ public:
   // видимо придется делать в самих загрузчиках конфликты 
 private:
   ImageLoader* imageLoader;
-  
+  SoundLoader* soundLoader;
   LoadingTemporaryData<LoadData, 30>* tempData;
+  ResourceContainerArray<Type, Animation, 30> container;
   
   size_t findTempData(const ResourceID &id) const;
 };

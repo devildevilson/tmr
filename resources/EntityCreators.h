@@ -23,6 +23,26 @@ namespace tb {
   class BehaviorTree;
 }
 
+class InfoComponent;
+struct UserDataComponent;
+class TransformComponent;
+class InputComponent;
+class PhysicsComponent;
+class GraphicComponent;
+class AnimationComponent;
+class SoundComponent;
+class AttributeComponent;
+class EffectComponent;
+class StateController;
+class MovementComponent;
+class InventoryComponent;
+class WeaponsComponent;
+class AbilityComponent;
+class AIBasicComponent;
+class AIComponent;
+struct TransOut;
+class Interaction;
+
 // должно быть преобразовано из воид в это
 struct WallData {
   std::string name;
@@ -91,11 +111,21 @@ struct ObjectData {
   uint32_t defaultAction;
   
   const AbilityType* ability;
-  size_t entityIndex;
+//   size_t entityIndex;
 };
 
 class ObjectCreator : public EntityCreator {
 public:
+  struct ComponentCreationData {
+    yacs::entity* ent; 
+    yacs::entity* parent;
+    AttributeComponent* parentAttribs;
+    TransformComponent* parentTransform;
+    EffectComponent* parentEffects;
+    PhysicsComponent* parentPhysics;
+    const ObjectData* obj_data;
+  };
+  
   struct PhysData {
     bool dynamic;
     uint32_t collisionGroup;
@@ -168,6 +198,47 @@ public:
     const StateControllerType* type;
   };
   
+  struct Interaction_data {
+    enum class type {
+      target,
+      ray,
+      slashing,
+      stabbing,
+      impact,
+      none
+    };
+    
+    struct VariableType {
+      uint32_t container;
+      
+      VariableType();
+      VariableType(const bool angleNum, const bool distanceNum, const bool minDistNum, const bool tickCountNum, const bool attackSpeedNum, const bool attackTimeNum);
+      
+      void make(const bool angleNum, const bool distanceNum, const bool minDistNum, const bool tickCountNum, const bool attackSpeedNum, const bool attackTimeNum);
+      
+      bool isAngleNumber() const;
+      bool isDistanceNumber() const;
+      bool isMinDistanceNumber() const;
+      bool isTickCountNumber() const;
+      bool isAttackSpeedNumber() const;
+      bool isAttackTimeNumber() const;
+    };
+    
+    struct Variable {
+      Type attributeType;
+      double var;
+    };
+    
+    enum type type;
+    VariableType variables;
+    Variable angle;
+    Variable distance;
+    Variable minDist;
+    Variable tickCount;
+    Variable attackSpeed;
+    Variable attackTime;
+  };
+  
   struct CreateInfo {
     PhysData physData;
     GraphicsData graphicsData;
@@ -178,11 +249,23 @@ public:
     Abilities abilitiesData;
     Intelligence intelligence;
     States statesData;
+    Interaction_data interaction;
   };
   ObjectCreator(const CreateInfo &info);
   
   yacs::entity* create(yacs::entity* parent, const void* data) const override;
 private:
+  struct variables {
+    float max_speed;
+    float radius;
+    size_t delay;
+    float angle;
+    uint32_t tickCount;
+    float attackSpeed;
+    float minDist;
+    size_t attackTime;
+  };
+  
   PhysData physData;
   GraphicsData graphicsData;
   AttributesData attributesData;
@@ -192,6 +275,27 @@ private:
   Abilities abilitiesData;
   Intelligence intelligence;
   States statesData;
+  Interaction_data interaction;
+  
+  variables find_variables(const ComponentCreationData &data) const;
+  
+  InfoComponent* create_info(const ComponentCreationData &data) const;
+  UserDataComponent* create_usrdata(const ComponentCreationData &data) const;
+  TransformComponent* create_transform(const ComponentCreationData &data, const TransOut* transData) const;
+  InputComponent* create_input(const ComponentCreationData &data) const;
+  PhysicsComponent* create_physics(const ComponentCreationData &data, const PhysicsType &physObjType, const variables &vars, TransformComponent* trans, InputComponent* input, UserDataComponent* usrData) const;
+  GraphicComponent* create_graphics(const ComponentCreationData &data, TransformComponent* trans) const;
+  AnimationComponent* create_animation(const ComponentCreationData &data) const;
+  SoundComponent* create_sound(const ComponentCreationData &data, TransformComponent* trans, PhysicsComponent* phys) const;
+  AttributeComponent* create_attributes(const ComponentCreationData &data, PhysicsComponent* phys) const;
+  EffectComponent* create_effects(const ComponentCreationData &data, AttributeComponent* attribs) const;
+  StateController* create_states(const ComponentCreationData &data) const;
+  MovementComponent* create_movement(const ComponentCreationData &data, const PhysicsType &physObjType) const;
+  InventoryComponent* create_inventory(const ComponentCreationData &data) const;
+  WeaponsComponent* create_weapons(const ComponentCreationData &data) const;
+  AbilityComponent* create_abilities(const ComponentCreationData &data) const;
+  AIBasicComponent* create_ai(const ComponentCreationData &data) const;
+  Interaction* create_interaction(const ComponentCreationData &data, const variables &vars, PhysicsComponent* physics, TransformComponent* trans) const;
 };
 
 class PlayerCreator : public EntityCreator {
