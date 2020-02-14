@@ -25,8 +25,6 @@ struct PhysicsIndexContainer {
 };
 
 struct PhysicsObjectCreateInfo {
-  bool rotation;
-
   PhysicsType type;
   uint32_t collisionGroup;
   uint32_t collisionFilter;
@@ -36,6 +34,7 @@ struct PhysicsObjectCreateInfo {
   float groundFricion;
   
   float radius;
+  float gravityCoef;
 
   uint32_t inputIndex;
   uint32_t transformIndex;
@@ -152,8 +151,14 @@ public:
   // нужно наверное также переделать класс с сортировками
   // тип обозвать его как-нибудь физиксУтилс, и он будет сортировать разные массивы
   // точнее наверное один (два) тип разных массивов
+  
   virtual uint32_t add(const RayData &ray) = 0; // лучи и фрустумы нужно передобавлять каждый кадр
   virtual uint32_t add(const simd::mat4 &frustum, const simd::vec4 &pos = simd::vec4(10000.0f)) = 0; // так добавить фрустум, или вычислить его вне?
+  
+  // нужно добавить рай каст только с полигонами и только со сферами и боксами
+  // такой рей каст должен работать только с одним объектом (с самым ближайшим например)
+  virtual uint32_t add_ray_poligons(const RayData &ray) = 0;
+  virtual uint32_t add_ray_boxes(const RayData &ray) = 0;
   
   virtual Object & getObjectData(const PhysicsIndexContainer* container) = 0;
   virtual const Object & getObjectData(const PhysicsIndexContainer* container) const = 0;
@@ -169,6 +174,8 @@ public:
   virtual const simd::vec4* getObjectShapePoints(const PhysicsIndexContainer* container) const = 0;
   virtual uint32_t getObjectShapeFacesSize(const PhysicsIndexContainer* container) const = 0;
   virtual const simd::vec4* getObjectShapeFaces(const PhysicsIndexContainer* container) const = 0;
+  
+  virtual bool intersect(const RayData &ray, const PhysicsIndexContainer* container, simd::vec4 &point) const = 0;
   
   virtual uint32_t getTransformIndex(const PhysicsIndexContainer* container) const = 0;
   virtual uint32_t getRotationDataIndex(const PhysicsIndexContainer* container) const = 0;
@@ -202,6 +209,9 @@ public:
   virtual ArrayInterface<BroadphasePair>* getFrustumPairs() = 0;
   virtual const ArrayInterface<BroadphasePair>* getFrustumPairs() const = 0;
 
+  virtual const PhysicsIndexContainer* get_ray_polygons(const uint32_t &index) = 0;
+  virtual const PhysicsIndexContainer* get_ray_boxes(const uint32_t &index) = 0;
+  
   uint32_t getOverlappingDataSize() const;
   uint32_t getTriggerPairsIndicesSize() const;
   uint32_t getRayTracingSize() const;

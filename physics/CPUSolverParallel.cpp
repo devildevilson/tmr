@@ -1089,7 +1089,8 @@ float CPUSolverParallel::SATOneAxis(const uint32_t &objectIndexFirst,  const uin
       tmpPos1.store(arr);
       
       const simd::vec4 pos = simd::vec4(arr[0], arr[1], arr[2], 1.0f);
-      const float radius = arr[3];
+      //const float radius = arr[3];
+      const float radius = glm::floatBitsToUint(second.faceCount);
       
       project(axis, pos, radius, minFirst, maxFirst);
     }
@@ -1119,7 +1120,8 @@ float CPUSolverParallel::SATOneAxis(const uint32_t &objectIndexFirst,  const uin
       tmpPos2.store(arr);
       
       const simd::vec4 pos = simd::vec4(arr[0], arr[1], arr[2], 1.0f);
-      const float radius = arr[3];
+      //const float radius = arr[3];
+      const float radius = glm::floatBitsToUint(second.faceCount);
       
       project(axis, pos, radius, minSecond, maxSecond);
     }
@@ -1686,8 +1688,7 @@ bool testRayPoly(const ArrayInterface<simd::vec4>* verts, const RayData &ray, co
   // может ли тут где нибудь быть мина?
 }
 
-bool CPUSolverParallel::intersect(const uint32_t &rayIndex, const uint32_t &objIndex, const uint32_t &transformIndex, simd::vec4 &point) const {
-  const RayData &ray = rays->at(rayIndex);
+bool CPUSolverParallel::intersect(const RayData &ray, const uint32_t &objIndex, const uint32_t &transformIndex, simd::vec4 &point) const {
   const Object &object = objects->at(objIndex);
 
   const simd::vec4 pos = transformIndex != 0xFFFFFFFF ? transforms->at(transformIndex).pos : simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -1703,7 +1704,8 @@ bool CPUSolverParallel::intersect(const uint32_t &rayIndex, const uint32_t &objI
       float arr[4];
       pos.store(arr);
       simd::vec4 tmpPos = simd::vec4(arr[0], arr[1], arr[2], 1.0f);
-      float radius = arr[3];
+      //float radius = arr[3];
+      const float radius = glm::floatBitsToUint(object.faceCount);
       
       return testRaySphere(ray, tmpPos, radius, point);
     }
@@ -1718,6 +1720,11 @@ bool CPUSolverParallel::intersect(const uint32_t &rayIndex, const uint32_t &objI
   }
 
   return false;
+}
+
+bool CPUSolverParallel::intersect(const uint32_t &rayIndex, const uint32_t &objIndex, const uint32_t &transformIndex, simd::vec4 &point) const {
+  const RayData &ray = rays->at(rayIndex);
+  return intersect(ray, objIndex, transformIndex, point);
 }
 
 template <typename T>

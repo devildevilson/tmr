@@ -34,6 +34,9 @@ public:
   void solve() override;
 
   void printStats() override;
+  
+  bool intersect(const RayData &ray, const uint32_t &objIndex, const uint32_t &transformIndex, simd::vec4 &point) const override;
+  bool intersect(const uint32_t &rayIndex, const uint32_t &objIndex, const uint32_t &transformIndex, simd::vec4 &point) const override;
 protected:
   dt::thread_pool* pool = nullptr;
   
@@ -92,8 +95,6 @@ protected:
   void computePair(const BroadphasePair &pair);
   void computePairWithGround(const BroadphasePair &pair, const simd::vec4 &normal);
   void applyChanges(const OverlappingDataForSolver &data);
-  
-  bool intersect(const uint32_t &rayIndex, const uint32_t &objIndex, const uint32_t &transformIndex, simd::vec4 &point) const;
 };
 
 #endif // !CPU_SOLVER_PARALLEL_H

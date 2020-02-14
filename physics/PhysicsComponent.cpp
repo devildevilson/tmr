@@ -9,7 +9,6 @@ void PhysicsComponent::setContainer(Container<ExternalData>* externalDatas) {
 // PhysicsComponent::PhysicsComponent() : externalDataIndex(externalDatas->insert({})), container{UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, nullptr} {}
 PhysicsComponent::PhysicsComponent(const CreateInfo &info) : externalDataIndex(info.physInfo.type.isDynamic() ? externalDatas->insert(info.externalData) : UINT32_MAX), container{UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, info.userData} {
   Global::physics()->add({
-    info.physInfo.rotation,
     info.physInfo.type,
     info.physInfo.collisionGroup,
     info.physInfo.collisionFilter,
@@ -17,6 +16,7 @@ PhysicsComponent::PhysicsComponent(const CreateInfo &info) : externalDataIndex(i
     info.physInfo.overbounce,
     info.physInfo.groundFricion,
     info.physInfo.radius,
+    info.physInfo.gravityCoef,
     info.physInfo.inputIndex,
     info.physInfo.transformIndex,
     externalDataIndex,
@@ -132,6 +132,11 @@ void PhysicsComponent::setUserData(void* ptr) {
 
 void* PhysicsComponent::getUserData() const {
   return container.userData;
+}
+
+bool PhysicsComponent::collide_ray(const simd::vec4 &pos, const simd::vec4 &dir, simd::vec4 &point) const {
+  const RayData ray(pos, dir, 0.0f, 10000.0f, UINT32_MAX, 0);
+  return Global::get<PhysicsEngine>()->intersect(ray, &container, point);
 }
 
 Container<ExternalData>* PhysicsComponent::externalDatas = nullptr;

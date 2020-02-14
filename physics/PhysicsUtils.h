@@ -208,7 +208,8 @@ struct PhysData2 {
   uint32_t objectIndex;
   uint32_t inputIndex;
   uint32_t groundIndex; // тут тип константИндекс
-  uint32_t blockingIndex;
+  //uint32_t blockingIndex;
+  float gravCoef;
 
   //uint32_t velocityIndex;
   uint32_t externalDataIndex;

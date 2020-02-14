@@ -49,6 +49,9 @@ public:
   
   uint32_t add(const simd::mat4 &frustum, const simd::vec4 &pos = simd::vec4(10000.0f)) override; // так добавить фрустум, или вычислить его вне?
   
+  uint32_t add_ray_poligons(const RayData &ray) override;
+  uint32_t add_ray_boxes(const RayData &ray) override;
+  
   Object & getObjectData(const PhysicsIndexContainer* container) override;
   const Object & getObjectData(const PhysicsIndexContainer* container) const override;
   
@@ -63,6 +66,8 @@ public:
   const simd::vec4* getObjectShapePoints(const PhysicsIndexContainer* container) const override;
   uint32_t getObjectShapeFacesSize(const PhysicsIndexContainer* container) const override;
   const simd::vec4* getObjectShapeFaces(const PhysicsIndexContainer* container) const override;
+  
+  bool intersect(const RayData &ray, const PhysicsIndexContainer* container, simd::vec4 &point) const override;
   
 //   uint32_t getObjectIndex(const PhysicsIndexContainer* container) const override;
   uint32_t getTransformIndex(const PhysicsIndexContainer* container) const override;
@@ -87,9 +92,17 @@ public:
 
   ArrayInterface<BroadphasePair>* getFrustumPairs() override;
   const ArrayInterface<BroadphasePair>* getFrustumPairs() const override;
+  
+  const PhysicsIndexContainer* get_ray_polygons(const uint32_t &index) override;
+  const PhysicsIndexContainer* get_ray_boxes(const uint32_t &index) override;
 
   void printStats() override;
 protected:
+  struct one_ray_data {
+    uint32_t object_index;
+    uint32_t next_free_index;
+  };
+  
   dt::thread_pool* pool = nullptr;
   Broadphase* broad = nullptr;
   Narrowphase* narrow = nullptr;
@@ -121,6 +134,9 @@ protected:
 //   uint32_t freeInput = UINT32_MAX;
 //   uint32_t freeStaticPhys = UINT32_MAX;
 //   uint32_t freeRotation = UINT32_MAX;
+  
+  uint32_t free_polygon = UINT32_MAX;
+  uint32_t free_box = UINT32_MAX;
 
   CPUBuffer<Gravity> gravityBuffer;
 
@@ -139,6 +155,10 @@ protected:
 
   std::mutex rayMutex;
   CPUArray<RayData> rays; // надо ли их нормализовывать? скорее всего
+  CPUArray<RayData> rays_polygons;
+  CPUArray<RayData> rays_boxes;
+  CPUArray<one_ray_data> polygons;
+  CPUArray<one_ray_data> boxes;
   CPUArray<Frustum> frustums;
   CPUArray<simd::vec4> frustumPoses;
   
@@ -177,6 +197,8 @@ protected:
   
   void interpolate(const float &alpha);
   void interpolate(const size_t &start, const size_t &count, const float &alpha);
+  
+  void ray_casting();
 };
 
 #endif // !CPU_PHYSICS_H

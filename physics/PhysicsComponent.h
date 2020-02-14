@@ -51,6 +51,8 @@ public:
   uint32_t getExternalDataIndex() const;
   void setUserData(void* ptr);
   void* getUserData() const;
+  
+  bool collide_ray(const simd::vec4 &pos, const simd::vec4 &dir, simd::vec4 &point) const; // max/min ?
 protected:
   uint32_t externalDataIndex;
 //  TransformComponent* trans;

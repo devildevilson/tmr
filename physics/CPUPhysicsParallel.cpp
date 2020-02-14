@@ -96,11 +96,11 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
     
     narrow->calculateBatches();
 
-    pool->submitnr([&] () {
+    pool->submitbase([&] () {
       sorter->sort(&overlappingPairCache);
     });
 
-    pool->submitnr([&] () {
+    pool->submitbase([&] () {
       sorter->sort(&staticOverlappingPairCache);
     });
 
@@ -110,6 +110,9 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
     narrow->postCalculation();
     solver->calculateData();
     solver->solve();
+    
+    // обойти все лучи
+    ray_casting();
     
     overlappingDataSize = dataIndices.data()->count;
     triggerPairsIndicesSize = dataIndices.data()->triggerIndicesCount;
@@ -402,7 +405,7 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
       container->objectDataIndex,
       container->inputIndex,
       0xFFFFFFFF,
-      0xFFFFFFFF,
+      info.gravityCoef,
 
       info.externalDataIndex,
       container->transformIndex,
@@ -491,6 +494,42 @@ uint32_t CPUPhysicsParallel::add(const simd::mat4 &frustum, const simd::vec4 &po
   return index;
 }
 
+uint32_t CPUPhysicsParallel::add_ray_poligons(const RayData &ray) {
+  std::unique_lock<std::mutex> lock(rayMutex);
+  
+  if (free_polygon == UINT32_MAX) {
+    const uint32_t index = polygons.size();
+    polygons.push_back({UINT32_MAX, free_polygon});
+    rays_polygons.push_back(ray);
+    ASSERT(polygons.size() == rays_polygons.size());
+    return index;
+  }
+  
+  const uint32_t index = free_polygon;
+  free_polygon = polygons[index].next_free_index;
+  polygons[index].next_free_index = UINT32_MAX;
+  rays_polygons[index] = ray;
+  return index;
+}
+
+uint32_t CPUPhysicsParallel::add_ray_boxes(const RayData &ray) {
+  std::unique_lock<std::mutex> lock(rayMutex);
+  
+  if (free_polygon == UINT32_MAX) {
+    const uint32_t index = boxes.size();
+    boxes.push_back({UINT32_MAX, free_polygon});
+    rays_boxes.push_back(ray);
+    ASSERT(boxes.size() == rays_boxes.size());
+    return index;
+  }
+  
+  const uint32_t index = free_box;
+  free_box = boxes[index].next_free_index;
+  boxes[index].next_free_index = UINT32_MAX;
+  rays_boxes[index] = ray;
+  return index;
+}
+
 Object & CPUPhysicsParallel::getObjectData(const PhysicsIndexContainer* container) {
   return objects[container->objectDataIndex];
 }
@@ -534,6 +573,10 @@ uint32_t CPUPhysicsParallel::getObjectShapeFacesSize(const PhysicsIndexContainer
 const simd::vec4* CPUPhysicsParallel::getObjectShapeFaces(const PhysicsIndexContainer* container) const {
   const Object &obj = objects[container->objectDataIndex];
   return &verts[obj.vertexOffset+obj.vertexCount+1];
+}
+
+bool CPUPhysicsParallel::intersect(const RayData &ray, const PhysicsIndexContainer* container, simd::vec4 &point) const {
+  return solver->intersect(ray, container->objectDataIndex, container->transformIndex, point);
 }
 
 uint32_t CPUPhysicsParallel::getTransformIndex(const PhysicsIndexContainer* container) const {
@@ -620,6 +663,30 @@ ArrayInterface<BroadphasePair>* CPUPhysicsParallel::getFrustumPairs() {
 
 const ArrayInterface<BroadphasePair>* CPUPhysicsParallel::getFrustumPairs() const {
   return &frustumTestsResult;
+}
+
+const PhysicsIndexContainer* CPUPhysicsParallel::get_ray_polygons(const uint32_t &index) {
+  std::unique_lock<std::mutex> lock(rayMutex);
+  
+  if (polygons[index].object_index == UINT32_MAX) return nullptr;
+  
+  const uint32_t obj_index = polygons[index].object_index;
+  polygons[index].object_index = UINT32_MAX;
+  polygons[index].next_free_index = free_polygon;
+  free_polygon = index;
+  return getIndexContainer(obj_index);
+}
+
+const PhysicsIndexContainer* CPUPhysicsParallel::get_ray_boxes(const uint32_t &index) {
+  std::unique_lock<std::mutex> lock(rayMutex);
+  
+  if (boxes[index].object_index == UINT32_MAX) return nullptr;
+  
+  const uint32_t obj_index = boxes[index].object_index;
+  boxes[index].object_index = UINT32_MAX;
+  boxes[index].next_free_index = free_box;
+  free_box = index;
+  return getIndexContainer(obj_index);
 }
 
 void CPUPhysicsParallel::printStats() {
@@ -802,6 +869,7 @@ void computeAirVelocity(const simd::vec4 &accelerationDir,
                         const simd::vec4 &oldVelocity,
                         const uint32_t  &dt,
                         const simd::vec4 &additionalForce,
+                        const float &gravityCoef,
                         const simd::vec4 &gravity,
                         simd::vec4 &velocity,
                         float &velocityScalar) {
@@ -810,7 +878,7 @@ void computeAirVelocity(const simd::vec4 &accelerationDir,
   const simd::vec4 vn = velocityScalar > EPSILON ? oldVelocity / velocityScalar : simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 
   const float airFriction = 0.0f;
-  const simd::vec4 a = -simd::vec4(vn)*airFriction + additionalForce + gravity + AIR_ACCELERATION_DIR*accelerationDir*AIR_ACCELERATION;
+  const simd::vec4 a = -simd::vec4(vn)*airFriction + additionalForce + gravity*gravityCoef + AIR_ACCELERATION_DIR*accelerationDir*AIR_ACCELERATION;
 
   velocity = oldVelocity + a * dt1;
   velocityScalar = simd::length(velocity);
@@ -953,7 +1021,7 @@ void CPUPhysicsParallel::updateVelocities(const uint32_t &start, const uint32_t 
       const simd::vec4 vn = scalar > EPSILON ? oldVel / scalar : simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 
       const float airFriction = 0.0f;
-      const simd::vec4 a = -simd::vec4(vn)*airFriction + additionalForce + gravity + AIR_ACCELERATION_DIR*aDir*AIR_ACCELERATION;
+      const simd::vec4 a = -simd::vec4(vn)*airFriction + additionalForce + gravity*physicsDatas[index].gravCoef + AIR_ACCELERATION_DIR*aDir*AIR_ACCELERATION;
 
       vel = oldVel + a * dt1;
       scalar = simd::length(vel);
@@ -1081,4 +1149,81 @@ void CPUPhysicsParallel::interpolate(const size_t &start, const size_t &count, c
     transforms->at(transIndex).pos = simd::mix(prevState[transIndex].pos, currState[transIndex].pos, alpha);
     // потом добавится кватернион который мы будем slerp'ать
   }
+}
+
+void CPUPhysicsParallel::ray_casting() {
+  static const auto func_poly = [&] (const size_t &index) {
+//     const auto func = [this, index] (const RayData &ray, const BroadphaseProxy* proxy) {
+//       (void)ray;
+//       polygons[index].object_index = proxy->getObjectIndex();
+//     };
+    
+    const auto ray = rays_polygons[index];
+    float dist = 10000.0f;
+    std::mutex mutex;
+    broad->traverse(ray, [this, index, &dist, &mutex] (const RayData &ray, const BroadphaseProxy* proxy) {
+      const uint32_t obj_index = proxy->getObjectIndex();
+      auto cont = this->getIndexContainer(obj_index);
+      simd::vec4 p;
+      const bool ret = solver->intersect(ray, obj_index, cont->transformIndex, p);
+      if (ret) {
+        const float dist2 = simd::distance2(ray.pos, p);
+        std::unique_lock<std::mutex> lock(mutex);
+        if (dist2 < dist) {
+          polygons[index].object_index = obj_index;
+          dist = dist2;
+        }
+      }
+    });
+  };
+  
+  static const auto func_box = [&] (const size_t &index) {
+    const auto ray = rays_boxes[index];
+    float dist = 10000.0f;
+    std::mutex mutex;
+    broad->traverse(ray, [this, index, &dist, &mutex] (const RayData &ray, const BroadphaseProxy* proxy) {
+      const uint32_t obj_index = proxy->getObjectIndex();
+      auto cont = this->getIndexContainer(obj_index);
+      simd::vec4 p;
+      const bool ret = solver->intersect(ray, obj_index, cont->transformIndex, p);
+      if (ret) {
+        const float dist2 = simd::distance2(ray.pos, p);
+        std::unique_lock<std::mutex> lock(mutex);
+        if (dist2 < dist) {
+          boxes[index].object_index = obj_index;
+          dist = dist2;
+        }
+      }
+    });
+  };
+  
+  static const auto func = [&] (const size_t &start, const size_t &count) {
+    for (size_t i = start; i < start+count; ++i) {
+      if (i >= rays_polygons.size()) {
+        const size_t index = i - rays_polygons.size();
+        func_box(index);
+      } else {
+        const size_t index = i;
+        func_poly(index);
+      }
+    }
+  };
+  
+  const size_t size = rays_polygons.size()+rays_boxes.size();
+  if (size == 0) return;
+  const size_t count = std::ceil(float(size) / float(pool->size()+1));
+  size_t start = 0;
+  for (uint32_t i = 0; i < pool->size()+1; ++i) {
+    const size_t jobCount = std::min(count, size-start);
+    if (jobCount == 0) break;
+
+    pool->submitbase([&, start, jobCount] () {
+      func(start, jobCount);
+    });
+
+    start += jobCount;
+  }
+
+  pool->compute();
+  pool->wait();
 }

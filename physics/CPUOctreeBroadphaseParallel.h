@@ -87,6 +87,8 @@ public:
 
   void postlude() override;
 
+  void traverse(const RayData &ray, const std::function<void(const RayData &ray, const BroadphaseProxy* proxy)> &func) const override;
+  
 //   ArrayInterface<BroadphasePair>* getOverlappingPairCache() override;
 //   const ArrayInterface<BroadphasePair>* getOverlappingPairCache() const override;
 //

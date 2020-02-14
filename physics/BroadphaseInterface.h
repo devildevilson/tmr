@@ -80,6 +80,8 @@ public:
 
   virtual void postlude() = 0;
   
+  virtual void traverse(const RayData &ray, const std::function<void(const RayData &ray, const BroadphaseProxy* proxy)> &func) const = 0;
+  
 //   virtual ArrayInterface<BroadphasePair>* getOverlappingPairCache() = 0;
 //   virtual const ArrayInterface<BroadphasePair>* getOverlappingPairCache() const = 0;
 //   

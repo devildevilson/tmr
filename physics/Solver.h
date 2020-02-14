@@ -80,6 +80,9 @@ public:
 // 
 //   virtual ArrayInterface<DataIndices>* getRayIndices() = 0;
 //   virtual const ArrayInterface<DataIndices>* getRayIndices() const = 0;
+  
+  virtual bool intersect(const RayData &ray, const uint32_t &objIndex, const uint32_t &transformIndex, simd::vec4 &point) const = 0;
+  virtual bool intersect(const uint32_t &rayIndex, const uint32_t &objIndex, const uint32_t &transformIndex, simd::vec4 &point) const = 0;
 
   virtual void printStats() = 0;
 };

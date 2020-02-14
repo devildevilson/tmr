@@ -910,6 +910,75 @@ void CPUOctreeBroadphaseParallel::postlude() {
 
 }
 
+void CPUOctreeBroadphaseParallel::traverse(const RayData &ray, const std::function<void(const RayData &ray, const BroadphaseProxy* proxy)> &func) const {
+  using func_type = std::function<void(const RayData &ray, const BroadphaseProxy* proxy)>;
+  static const auto checkAndAdd = [&] (const RayData &current, const CPUOctreeProxyParallel* proxy, const func_type &func) {
+    if (!proxy->getType().canBlockRays()) return;
+
+    const FastAABB &box = proxy->getAABB();
+    
+    const uint32_t filter = current.filter();
+    const uint32_t ignore = current.ignoreObject();
+    
+    if (proxy->getObjectIndex() == ignore) return;
+    if ((proxy->collisionGroup() & filter) == 0) return;
+
+    if (intersection(box, current)) func(current, proxy);
+  };
+
+  static const std::function<void(const CPUParallelOctreeNode* node, const RayData &current, const func_type &func)> calcRayPairsReq = 
+  [&] (const CPUParallelOctreeNode* node, const RayData &current, const func_type &func) -> void {
+    for (uint32_t i = 0; i < node->proxies.size(); ++i) {
+      if (node->proxies[i] == UINT32_MAX) continue;
+
+      checkAndAdd(current, &proxies[node->proxies[i]], func);
+    }
+
+    if (node->childIndex == UINT32_MAX) return;
+
+    for (uint32_t i = 0; i < 8; ++i) {
+      const CPUParallelOctreeNode* childNode = &nodes[node->childIndex + i];
+      const FastAABB &nodeBox = nodeBoxes[childNode->nodeIndex];
+      
+      if (!intersection(nodeBox, current)) continue;
+
+      calcRayPairsReq(childNode, current, func);
+    }
+  };
+
+  static const auto calcRayPairs = [&] (const RayData &ray, const func_type &func) {
+//     for (size_t index = start; index < start+count; ++index) {
+      const RayData &current = ray;
+
+      const FastAABB &nodeBox = nodeBoxes[0];
+      if (!intersection(nodeBox, current)) return;
+
+      const CPUParallelOctreeNode* node = &nodes[0];
+
+      for (uint32_t i = 0; i < node->proxies.size(); ++i) {
+        if (node->proxies[i] == UINT32_MAX) continue;
+
+        checkAndAdd(current, &proxies[node->proxies[i]], func);
+      }
+
+      if (node->childIndex == UINT32_MAX) return;
+
+      for (uint32_t i = 0; i < 8; ++i) {
+        const CPUParallelOctreeNode* childNode = &nodes[node->childIndex + i];
+        const FastAABB &nodeBox = nodeBoxes[childNode->nodeIndex];
+        
+        if (!intersection(nodeBox, current)) continue;
+
+        pool->submitbase([childNode, current, func] () {
+          calcRayPairsReq(childNode, current, func);
+        });
+      }
+//     }
+  };
+  
+  calcRayPairs(ray, func);
+}
+
 void CPUOctreeBroadphaseParallel::printStats() {
   const size_t totalMemory = proxies.capacity() * sizeof(proxies[0]) +
                              nodes.capacity() * sizeof(nodes[0]) +
