@@ -13,39 +13,52 @@
 #endif
 
 namespace yacs {
-  class base_component_storage {
-  public:
-    base_component_storage() = default;
-    virtual ~base_component_storage() = default;
-
-    //virtual void destroy() = 0;
-    size_t & index() { return componentIndex; }
-  private:
-    size_t componentIndex; // может не получиться индекс, но можно тогда сюда добавить указатель на энтити
-  };
-
-  // дополнительные 16 байт к каждому объекту, можно ли сократить?
-  // убрать componentIndex, но тогда удаление будет O(n)
   template <typename T>
-  class component_storage : public base_component_storage {
-  public:
+  struct component_storage { //alignas(alignof(T))
     static size_t type;
-
+    T obj;
+    
     template <typename... Args>
-    component_storage(Args&& ...args) : data(std::forward<Args>(args)...) {}
-    ~component_storage() = default;
-
-    T* ptr() { return &data; }
-    const T* ptr() const { return &data; }
-
-    T & ref() { return data; }
-    const T & ref() const { return data; }
-  private:
-    T data;
+    component_storage(Args&& ...args) : obj(std::forward<Args>(args)...) {}
+    T* ptr() { return &obj; }
+    const T* ptr() const { return &obj; }
   };
+  
+//   class base_component_storage {
+//   public:
+//     base_component_storage() = default;
+//     virtual ~base_component_storage() = default;
+// 
+//     //virtual void destroy() = 0;
+//     size_t & index() { return componentIndex; }
+//   private:
+//     size_t componentIndex; // может не получиться индекс, но можно тогда сюда добавить указатель на энтити
+//   };
+// 
+//   // дополнительные 16 байт к каждому объекту, можно ли сократить?
+//   // убрать componentIndex, но тогда удаление будет O(n)
+//   template <typename T>
+//   class component_storage : public base_component_storage {
+//   public:
+//     static size_t type;
+// 
+//     template <typename... Args>
+//     component_storage(Args&& ...args) : data(std::forward<Args>(args)...) {}
+//     ~component_storage() = default;
+// 
+//     T* ptr() { return &data; }
+//     const T* ptr() const { return &data; }
+// 
+//     T & ref() { return data; }
+//     const T & ref() const { return data; }
+//   private:
+//     T data;
+//   };
 
   template <typename T>
   size_t component_storage<T>::type = SIZE_MAX;
+//   template <typename T>
+//   size_t component_storage<T>::type = SIZE_MAX;
 
   template <typename T>
   class component_handle {

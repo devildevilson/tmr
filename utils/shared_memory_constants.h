@@ -21,12 +21,18 @@ constexpr size_t power_of_four(const uint32_t &power) { return 1 << (power*2); }
 #define MB_SIZE   power_of_two(20)
 #define GB_SIZE   power_of_two(30)
 
-#define FLOAT_ATTRIBUTES_MAX_COUNT power_of_two(8)
-#define INT_ATTRIBUTES_MAX_COUNT power_of_two(8)
-#define EFFECT_BASE_VALUES_MAX_COUNT power_of_two(8)
+#define FLOAT_ATTRIBUTES_MAX_COUNT power_of_two(4)
+#define INT_ATTRIBUTES_MAX_COUNT power_of_two(4)
+#define EFFECT_BASE_VALUES_MAX_COUNT power_of_two(4)
 #define IMPACT_EFFECT_MAX_COUNT power_of_two(4)
 #define ABILITY_MEMORY_MAX_COUNT 3
 #define ATTRIBUTE_CHANGE_MEMORY_SIZE 20
+#define STIMULUS_BUFFER_SIZE 20
 
+// ограничить контейнер? в принципе идея норм
+//#define EFFECT_MAX_BONUSES 16
+
+// #define FLOAT_ATTRIBUTES_MAX_COUNT 16
+// #define INT_ATTRIBUTES_MAX_COUNT 16
 
 #endif

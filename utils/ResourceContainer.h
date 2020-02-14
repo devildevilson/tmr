@@ -1,5 +1,5 @@
-#ifndef RESOURCE_CONTAINER_H
-#define RESOURCE_CONTAINER_H
+#ifndef RESOURCE_CONTAINER_H_OLD
+#define RESOURCE_CONTAINER_H_OLD
 
 #include "Type.h"
 #include "MemoryPool.h"
@@ -88,6 +88,18 @@ public:
     if (index != SIZE_MAX) return resources[index].second;
     
     return nullptr;
+  }
+  
+  size_t size() const {
+    return resources.size();
+  }
+  
+  const T* at(const size_t &index) const {
+    return index >= size() ? nullptr : resources[index].second;
+  }
+  
+  T* at(const size_t &index) {
+    return index >= size() ? nullptr : resources[index].second;
   }
 private:
   MemoryPool<T, sizeof(T)*N> resourcePool;

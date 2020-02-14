@@ -2,10 +2,13 @@
 
 #include <cstring>
 
-PickupItem::PickupItem(const CreateInfo &info) : m_quantity(info.quantity), m_type(info.type), m_effect(info.effect) {}
+PickupItem::PickupItem(const CreateInfo &info) : m_quantity(info.quantity), m_type(info.type), m_effect(info.effect), pickup_func(info.pickup_func) {}
 size_t PickupItem::quantity() const { return m_quantity; }
 const ItemType* PickupItem::type() const { return m_type; }
 const Effect* PickupItem::effect() const { return m_effect; }
+bool PickupItem::check_pickup(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, const EffectComponent* effects, const InventoryComponent* inventory) const {
+  return pickup_func ? pickup_func(float_finder, int_finder, effects, inventory, this) : true;
+}
 
 PickupWeapon::PickupWeapon(const CreateInfo &info) : m_type(info.m_type) {}
 const ItemType* PickupWeapon::type() const { return m_type; }

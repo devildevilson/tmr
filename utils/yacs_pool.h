@@ -75,15 +75,15 @@ namespace yacs {
       freeSlots = reinterpret_cast<_Slot*>(ptr);
     }
 
-    void destroy(const size_t &type, base_component_storage* ptr) {
-      if (ptr == nullptr) return;
-      ASSERT(type == typeId && "Wrong object type for typeless pool");
-
-      ptr->~base_component_storage();
-
-      reinterpret_cast<_Slot*>(ptr)->next = freeSlots;
-      freeSlots = reinterpret_cast<_Slot*>(ptr);
-    }
+//     void destroy(const size_t &type, base_component_storage* ptr) {
+//       if (ptr == nullptr) return;
+//       ASSERT(type == typeId && "Wrong object type for typeless pool");
+// 
+//       ptr->~base_component_storage();
+// 
+//       reinterpret_cast<_Slot*>(ptr)->next = freeSlots;
+//       freeSlots = reinterpret_cast<_Slot*>(ptr);
+//     }
 
     typeless_pool & operator=(const typeless_pool &pool) = delete;
     typeless_pool & operator=(typeless_pool &&pool) = delete;

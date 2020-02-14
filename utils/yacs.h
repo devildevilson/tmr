@@ -159,22 +159,20 @@ namespace yacs {
     size_t find(const size_t &type) const;
     
     template <typename T>
-    void add_to_array(const component_handle<T> &comp);
+    void add_to_array(component_handle<T> comp);
     template <typename T>
     void remove_from_array(const size_t &index);
 
     //std::unordered_map<size_t, base_component_storage*> m_components;
-    std::vector<std::pair<size_t, base_component_storage*>> m_components;
+    std::vector<std::pair<size_t, void*>> m_components;
   };
 
   class world {
   public:
-    template <typename T>
-    static component_storage<T>* get_component_storage(component_handle<T> handle);
-
     world();
     ~world();
 
+    // нужно добавить размер инициализируемого массива
     entity* create_entity();
     void destroy_entity(entity* ent);
 
@@ -187,7 +185,7 @@ namespace yacs {
     template <typename T>
     void destroy_component(component_handle<T> handle);
 
-    void destroy_component(const size_t &type, base_component_storage* storage);
+    void destroy_component(const size_t &type, void* storage);
 
     void register_system(system* system);
     void remove_system(system* system);
@@ -214,13 +212,37 @@ namespace yacs {
     template <typename T>
     component_handle<T> get_component(const size_t &index);
   private:
+    // так по идее мы можем удалять компоненты 
+    // и при этом у нас расходуется 32 байта для каждого типа компонента
+    // вместо 8 (16) байт для каждого компонента в принципе
+    struct components_data {
+      components_data(const size_t &typeId, const size_t &size, const std::function<void(void*, typeless_pool&)> &destructor);
+      components_data(components_data &&data);
+      ~components_data();
+      
+      template <typename T, typename ...Args>
+      component_handle<T> create(Args&& ...args);
+      
+      // удаление в этом случае к сожалению будет O(n)
+      // иначе не сделать, нужны дополнительные данные (индекс) для быстрого удаления
+      // но зато можно прикрутить сюда мультитрединг
+      template <typename T>
+      void destroy(component_handle<T> handle);
+      void destroy(void* storage);
+      
+      typeless_pool pool;
+      std::vector<void*> components;
+      std::function<void(void*, typeless_pool&)> destructor;
+    };
+    
     template <typename T>
     void allocate_pool();
 
     typeless_pool entityPool;
     std::vector<entity*> entities;
-    std::vector<typeless_pool> componentsPool;
-    std::vector<std::vector<base_component_storage*>> components;
+//     std::vector<typeless_pool> componentsPool;
+//     std::vector<std::vector<base_component_storage*>> components;
+    std::vector<struct components_data> components_data;
 
     std::vector<system*> systems;
     std::vector<std::vector<subscriber_base*>> subscribers;
@@ -269,7 +291,7 @@ namespace yacs {
     const size_t index = find<T>();
     if (index == SIZE_MAX) return false;
 
-    auto* ptr = static_cast<component_storage<T>*>(m_components[index].second);
+    auto* ptr = reinterpret_cast<component_storage<T>*>(m_components[index].second);
     m_world->emit(component_destroyed<T>{this, component_handle<T>(ptr->ptr())});
     m_world->destroy_component(component_handle<T>(ptr->ptr()));
     remove_from_array<T>(index);
@@ -300,8 +322,7 @@ namespace yacs {
     
     const size_t index = find<T>();
     if (index == SIZE_MAX) return component_handle<T>(nullptr);
-
-    auto* ptr = static_cast<component_storage<T>*>(m_components[index].second);
+    auto* ptr = reinterpret_cast<component_storage<T>*>(m_components[index].second);
     return component_handle<T>(ptr->ptr());
   }
 
@@ -315,8 +336,7 @@ namespace yacs {
     
     const size_t index = find<T>();
     if (index == SIZE_MAX) return const_component_handle<T>(nullptr);
-
-    const auto* ptr = static_cast<const component_storage<T>*>(m_components[index].second);
+    const auto* ptr = reinterpret_cast<const component_storage<T>*>(m_components[index].second);
     return const_component_handle<T>(ptr->ptr());
   }
   
@@ -324,7 +344,7 @@ namespace yacs {
   component_handle<T> entity::at(const size_t &index) {
     if (index >= m_components.size()) return component_handle<T>(nullptr);
     if (m_components[index].first != component_storage<T>::type) return component_handle<T>(nullptr);
-    auto* ptr = static_cast<component_storage<T>*>(m_components[index].second);
+    auto* ptr = reinterpret_cast<component_storage<T>*>(m_components[index].second);
     return component_handle<T>(ptr->ptr());
   }
   
@@ -332,7 +352,7 @@ namespace yacs {
   const_component_handle<T> entity::at(const size_t &index) const {
     if (index >= m_components.size()) return const_component_handle<T>(nullptr);
     if (m_components[index].first != component_storage<T>::type) return const_component_handle<T>(nullptr);
-    const auto* ptr = static_cast<const component_storage<T>*>(m_components[index].second);
+    const auto* ptr = reinterpret_cast<const component_storage<T>*>(m_components[index].second);
     return const_component_handle<T>(ptr->ptr());
   }
 
@@ -372,9 +392,8 @@ namespace yacs {
   }
   
   template <typename T>
-  void entity::add_to_array(const component_handle<T> &comp) {
-    component_storage<T>* ptr = world::get_component_storage(comp);
-    m_components.push_back(std::make_pair(component_storage<T>::type, ptr));
+  void entity::add_to_array(component_handle<T> comp) {
+    m_components.push_back(std::make_pair(component_storage<T>::type, comp.get()));
   }
   
   template <typename T>
@@ -383,51 +402,52 @@ namespace yacs {
     m_components.pop_back();
   }
 
-  template <typename T>
-  component_storage<T>* world::get_component_storage(component_handle<T> handle) {
-    const size_t size = sizeof(component_storage<T>) - sizeof(T);
-    char* start = reinterpret_cast<char*>(handle.get()) - size;
-    return reinterpret_cast<component_storage<T>*>(start);
-  }
+//   template <typename T>
+//   component_storage<T>* world::get_component_storage(component_handle<T> handle) {
+//     const size_t size = sizeof(component_storage<T>) - sizeof(T);
+//     char* start = reinterpret_cast<char*>(handle.get()) - size;
+//     return reinterpret_cast<component_storage<T>*>(start);
+//   }
 
   template <typename T>
   void world::create_allocator(const size_t &size) {
-    if (component_storage<T>::type < componentsPool.size()) return;
+    if (component_storage<T>::type < components_data.size()) return;
 
-    component_storage<T>::type = componentsPool.size();
-    componentsPool.emplace_back(component_storage<T>::type, size);
-    components.emplace_back();
+    component_storage<T>::type = components_data.size();
+    components_data.emplace_back(component_storage<T>::type, size, [] (void* ptr, typeless_pool &pool) {
+      auto p = reinterpret_cast<component_storage<T>*>(ptr);
+      pool.destroy(p);
+    });
   }
   
   // в многопоточной версии нужно убедиться что components не используется во время того как мы добавляем 
   // созданный компонент, это можно гарантировать создав пул для каждого ThreadsafeArray
   template <typename T, typename ...Args>
   component_handle<T> world::create_component(Args&& ...args) {
-    if (component_storage<T>::type >= componentsPool.size()) {
+    if (component_storage<T>::type >= components_data.size()) {
       allocate_pool<T>();
-      ASSERT(component_storage<T>::type < componentsPool.size());
-      ASSERT(component_storage<T>::type < components.size());
+      ASSERT(component_storage<T>::type < components_data.size());
     }
-
     const size_t poolIndex = component_storage<T>::type;
-    component_storage<T>* storage = componentsPool[poolIndex].create<component_storage<T>>(std::forward<Args>(args)...);
-    storage->index() = components[poolIndex].size();
-    components[poolIndex].push_back(storage);
-
-    return component_handle<T>(storage->ptr());
+    return components_data[poolIndex].create<T>(std::forward<Args>(args)...);
   }
 
   template <typename T>
   void world::destroy_component(component_handle<T> handle) {
+//     if (!handle.valid()) return;
+//     if (component_storage<T>::type >= componentsPool.size()) return;
+// 
+//     const size_t poolIndex = component_storage<T>::type;
+//     component_storage<T>* storage = world::get_component_storage(handle);
+//     components[poolIndex].back()->index() = storage->index();
+//     std::swap(components[poolIndex].back(), components[poolIndex][storage->index()]);
+//     components[poolIndex].pop_back();
+//     componentsPool[poolIndex].destroy<T>(storage);
+    
     if (!handle.valid()) return;
-    if (component_storage<T>::type >= componentsPool.size()) return;
-
+    if (component_storage<T>::type >= components_data.size()) return;
     const size_t poolIndex = component_storage<T>::type;
-    component_storage<T>* storage = world::get_component_storage(handle);
-    components[poolIndex].back()->index() = storage->index();
-    std::swap(components[poolIndex].back(), components[poolIndex][storage->index()]);
-    components[poolIndex].pop_back();
-    componentsPool[poolIndex].destroy<T>(storage);
+    components_data[poolIndex].destroy(handle);
   }
 
   template <typename T>
@@ -466,9 +486,10 @@ namespace yacs {
 
   template <typename T>
   size_t world::count_components() const {
-    if (component_storage<T>::type >= componentsPool.size()) return 0;
-
-    return components[component_storage<T>::type].size();
+//     if (component_storage<T>::type >= componentsPool.size()) return 0;
+//     return components[component_storage<T>::type].size();
+    if (component_storage<T>::type >= components_data.size()) return 0;
+    return components_data[component_storage<T>::type].components.size();
   }
 
   template <typename ...Types>
@@ -483,19 +504,51 @@ namespace yacs {
 
   template <typename T>
   component_handle<T> world::get_component(const size_t &index) {
-    if (component_storage<T>::type >= componentsPool.size()) return component_handle<T>(nullptr);
+//     if (component_storage<T>::type >= componentsPool.size()) return component_handle<T>(nullptr);
+//     const size_t poolIndex = component_storage<T>::type;
+//     if (index >= components[poolIndex].size()) return component_handle<T>(nullptr);
+// 
+//     auto storage = static_cast<component_storage<T>*>(components[poolIndex][index]);
+//     return component_handle<T>(storage->ptr());
+    
+    if (component_storage<T>::type >= components_data.size()) return component_handle<T>(nullptr);
     const size_t poolIndex = component_storage<T>::type;
-    if (index >= components[poolIndex].size()) return component_handle<T>(nullptr);
-
-    auto storage = static_cast<component_storage<T>*>(components[poolIndex][index]);
+    if (index >= components_data[poolIndex].components.size()) return component_handle<T>(nullptr);
+    auto storage = reinterpret_cast<component_storage<T>*>(components_data[poolIndex].components[index]);
     return component_handle<T>(storage->ptr());
+  }
+  
+  template <typename T, typename ...Args>
+  component_handle<T> world::components_data::create(Args&& ...args) {
+    auto ptr = pool.create<component_storage<T>>(std::forward<Args>(args)...);
+    components.push_back(ptr);
+    return component_handle<T>(ptr->ptr());
+  }
+  
+  // удаление в этом случае к сожалению будет O(n)
+  template <typename T>
+  void world::components_data::destroy(component_handle<T> handle) {
+    for (size_t i = 0; i < components.size(); ++i) {
+      if (components[i] == handle.get()) {
+        destructor(components[i], pool);
+        std::swap(components[i], components.back());
+        components.pop_back();
+        break;
+      }
+    }
   }
 
   template <typename T>
   void world::allocate_pool() {
-    component_storage<T>::type = componentsPool.size();
-    componentsPool.emplace_back(component_storage<T>::type, sizeof(component_storage<T>) * YACS_DEFAULT_COMPONENTS_COUNT);
-    components.emplace_back();
+//     component_storage<T>::type = componentsPool.size();
+//     componentsPool.emplace_back(component_storage<T>::type, sizeof(component_storage<T>) * YACS_DEFAULT_COMPONENTS_COUNT);
+//     components.emplace_back();
+    
+    component_storage<T>::type = components_data.size();
+    components_data.emplace_back(component_storage<T>::type, sizeof(component_storage<T>) * YACS_DEFAULT_COMPONENTS_COUNT, [] (void* ptr, typeless_pool &pool) {
+      auto p = reinterpret_cast<component_storage<T>*>(ptr);
+      pool.destroy(p);
+    });
   }
 }
 
@@ -545,11 +598,11 @@ namespace yacs {
       entityPool.destroy<class entity>(entity);
     }
 
-    for (size_t i = 0; i < components.size(); ++i) {
-      for (auto comp : components[i]) {
-        componentsPool[i].destroy(i, comp);
-      }
-    }
+//     for (size_t i = 0; i < components_data.size(); ++i) {
+//       for (auto & comp : components_data[i].components) {
+//         componentsPool[i].destroy(i, comp);
+//       }
+//     }
   }
 
   entity* world::create_entity() {
@@ -574,14 +627,10 @@ namespace yacs {
     entityPool.destroy<entity>(ent);
   }
 
-  void world::destroy_component(const size_t &type, base_component_storage* storage) {
-    if (type >= componentsPool.size()) return;
-
+  void world::destroy_component(const size_t &type, void* storage) {
+    if (type >= components_data.size()) return;
     const size_t poolIndex = type;
-    components[poolIndex].back()->index() = storage->index();
-    std::swap(components[poolIndex].back(), components[poolIndex][storage->index()]);
-    components[poolIndex].pop_back();
-    componentsPool[poolIndex].destroy(type, storage);
+    components_data[poolIndex].destroy(storage);
   }
 
   void world::register_system(system* system) {
@@ -606,6 +655,25 @@ namespace yacs {
 
   size_t world::size() const {
     return entities.size();
+  }
+  
+  world::components_data::components_data(const size_t &typeId, const size_t &size, const std::function<void(void*, typeless_pool&)> &destructor) : pool(typeId, size), destructor(destructor) {}
+  world::components_data::components_data(components_data &&data) : pool(std::move(data.pool)), components(std::move(data.components)), destructor(std::move(data.destructor)) {}
+  world::components_data::~components_data() {
+    for (auto ptr : components) {
+      destructor(ptr, pool);
+    }
+  }
+  
+  void world::components_data::destroy(void* storage) {
+    for (size_t i = 0; i < components.size(); ++i) {
+      if (components[i] == storage) {
+        destructor(components[i], pool);
+        std::swap(components[i], components.back());
+        components.pop_back();
+        break;
+      }
+    }
   }
 }
 #endif

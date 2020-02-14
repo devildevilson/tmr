@@ -38,7 +38,7 @@ class TimeLogDestructor {
 public:
   explicit TimeLogDestructor(const std::string &desc);
   ~TimeLogDestructor();
-  
+
   void updateTime();
 private:
   std::string desc;

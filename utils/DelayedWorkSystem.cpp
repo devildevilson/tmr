@@ -25,9 +25,19 @@ void DelayedWorkSystem::do_work() {
 }
 
 void DelayedWorkSystem::detach_work() {
-  pool->submitnr([this] () {
+  pool->submitbase([this] () {
     this->do_work();
   });
+}
+
+void DelayedWorkSystem::distribute_works() {
+  {
+    std::unique_lock<std::mutex> lock(mutex);
+    for (size_t i = 0; i < works.size(); ++i) {
+      pool->submitbase(works.back());
+      works.pop_back();
+    }
+  }
 }
 
 void DelayedWorkSystem::wait() {
@@ -145,3 +155,21 @@ void DelayedWorkSystem::wait() {
 //     };
 //   }
 // }
+
+// все равно есть проблема как учесть объекты физики например, они не константны
+// class work_list {
+// public:
+//   virtual ~work_list() {}
+//   virtual void do_work() = 0;
+// };
+// 
+// class persistant_work_list : public work_list {
+// public:
+//   void do_work() override;
+//   
+// private:
+//   dt::thread_pool* pool;
+//   std::vector<std::function<void()>> works;
+//   
+//   void reset();
+// };

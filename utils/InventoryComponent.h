@@ -10,6 +10,7 @@
 #include "MemoryPool.h"
 #include "Interaction.h"
 #include "ItemType.h"
+#include "Attributes.h"
 
 #include "EventFunctor.h"
 
@@ -41,23 +42,30 @@ class EffectComponent;
 class InteractionComponent;
 class Effect;
 class StateControllerType;
+class InventoryComponent;
 
 class PickupItem {
 public:
+  using PickupFunc = std::function<bool(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>>&, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>>&, const EffectComponent*, const InventoryComponent*, const PickupItem*)>;
+  
   struct CreateInfo {
     size_t quantity;
     const ItemType* type;
     const Effect* effect;
+    PickupFunc pickup_func;
   };
   PickupItem(const CreateInfo &info);
 
   size_t quantity() const;
   const ItemType* type() const;
   const Effect* effect() const;
+  bool check_pickup(const AttributeFinder<Attribute<FLOAT_ATTRIBUTE_TYPE>> &float_finder, const AttributeFinder<Attribute<INT_ATTRIBUTE_TYPE>> &int_finder, const EffectComponent* effects, const InventoryComponent* inventory) const;
 protected:
   size_t m_quantity;
   const ItemType* m_type;
   const Effect* m_effect;
+  
+  PickupFunc pickup_func;
 };
 
 class PickupWeapon {

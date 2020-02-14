@@ -193,7 +193,7 @@ public:
 
   const AttributeType<Type>* type() const noexcept { return t; }
   TypelessAttributeType typeless_type() const noexcept { return TypelessAttributeType(t); }
-private:
+protected:
   Type baseValue;
   Type current;
 

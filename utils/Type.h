@@ -1,5 +1,5 @@
-#ifndef TYPE_H
-#define TYPE_H
+#ifndef TYPE_OLD_H
+#define TYPE_OLD_H
 
 #include <string>
 #include <unordered_map>
