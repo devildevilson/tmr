@@ -34,7 +34,7 @@ void GraphicComponent::setDebugOptimizer(MonsterDebugOptimizer* debugOptimizer) 
 //   this->pipelineIndex = pipelineIndex;
 // }
 
-GraphicComponent::GraphicComponent(const CreateInfo &info) : matrixIndex(UINT32_MAX), rotationDataIndex(UINT32_MAX), textureContainerIndex(UINT32_MAX), transformIndex(info.transformIndex) {
+GraphicComponent::GraphicComponent(const CreateInfo &info) : matrixIndex(UINT32_MAX), rotationDataIndex(UINT32_MAX), textureContainerIndex(UINT32_MAX), transformIndex(info.transformIndex), scale(info.scale) {
   textureContainerIndex = textureContainer->insert(info.t);
 }
 
@@ -51,7 +51,8 @@ void GraphicComponent::update() { //const uint64_t &time
     transformIndex,
     matrixIndex,           // для монстров это поди не нужно
     rotationDataIndex,     // и это
-    textureContainerIndex
+    textureContainerIndex,
+    scale
   };
   optimizer->add(info);
 }
@@ -100,7 +101,7 @@ Container<Texture>* GraphicComponent::textureContainer = nullptr;
 MonsterGPUOptimizer* GraphicComponent::optimizer = nullptr;
 MonsterDebugOptimizer* GraphicComponent::debugOptimizer = nullptr;
 
-GraphicComponentIndexes::GraphicComponentIndexes(const CreateInfo &info) : GraphicComponent({info.t, info.transformIndex}), faceIndex(info.faceIndex), offset(info.offset), elemCount(info.elemCount) {}
+GraphicComponentIndexes::GraphicComponentIndexes(const CreateInfo &info) : GraphicComponent({info.t, info.transformIndex, 1.0f}), faceIndex(info.faceIndex), offset(info.offset), elemCount(info.elemCount) {}
 GraphicComponentIndexes::~GraphicComponentIndexes() {}
 
 void GraphicComponentIndexes::setOptimizer(GeometryGPUOptimizer* geo) {

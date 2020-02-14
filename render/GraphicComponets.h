@@ -42,9 +42,10 @@ public:
   struct CreateInfo {
     Texture t;
     uint32_t transformIndex;
+    float scale;
   };
   GraphicComponent(const CreateInfo &info);
-  virtual ~GraphicComponent();
+  ~GraphicComponent();
 
   void update() override;
 //  void update(const uint64_t &time = 0) override;
@@ -72,6 +73,10 @@ protected:
   
   //TransformComponent* trans;
   uint32_t transformIndex;
+  
+  // нужен иной скейл для графического компонента
+  // наверное пригодится только одна переменная, какая? height? скорее всего этого достаточно
+  float scale;
   
   // эти контейнеры будут использованы скорее всего только в одном потомке (тот что будет отвечать за отрисовку сложных объектов)
   // должны ли быть здесь матрицы или все же они должны быть в другом месте? (и данные о повороте тоже?)

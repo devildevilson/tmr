@@ -36,6 +36,7 @@ public:
     uint32_t matrix;
     uint32_t rotation;
     uint32_t texture;
+    float scale;
   };
   
   struct CreateInfo {

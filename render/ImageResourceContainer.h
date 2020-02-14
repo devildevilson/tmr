@@ -4,10 +4,13 @@
 #include "vulkan_lite.h"
 
 VK_DEFINE_HANDLE(VkDescriptorSetLayout)
+VK_DEFINE_HANDLE(VkDescriptorPool)
 
 namespace yavf {
+  class Device;
   class DescriptorSet;
   typedef VkDescriptorSetLayout DescriptorSetLayout;
+  typedef VkDescriptorPool DescriptorPool;
 }
 
 class ImageResourceContainer {
