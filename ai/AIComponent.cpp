@@ -53,6 +53,10 @@ UserDataComponent* AIBasicComponent::components() const {
   return ent->at<UserDataComponent>(USER_DATA_COMPONENT_INDEX).get();
 }
 
+// void AIBasicComponent::addStimulus(const Type &type, const EntityAI* source) {
+//   stimulus.push_back({type, source});
+// }
+
 AIComponent::AIComponent(const CreateInfo &info)
   : AIBasicComponent({info.entType, info.radius, info.currentVertex, info.ent}),
     tree(info.tree),

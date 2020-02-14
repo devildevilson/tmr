@@ -3,7 +3,7 @@
 
 #include "EntityAI.h"
 #include "PathFindingPhase.h"
-// #include "EventFunctor.h"
+#include "ring_buffer.h"
 
 namespace tb {
   class BehaviorTree;
@@ -57,12 +57,7 @@ public:
 
   UserDataComponent* components() const;
 protected:
-  // тут будет что нибудь?
   
-//   size_t internalIndexVal;
-  
-  // нужно тут сохранить позицию (центр) и направление (нормаль)
-  // 
 };
 
 // так ли необходимо наследоваться от AIBasicComponent?

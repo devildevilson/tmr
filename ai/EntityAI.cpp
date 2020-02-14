@@ -151,6 +151,17 @@ Blackboard & EntityAI::blackboard() {
   return localBlackboard;
 }
 
+void EntityAI::addStimulus(const Type &type, const EntityAI* source) {
+  stimulus.push_back({type, source});
+}
+
+EntityAI::Stimulus EntityAI::getStimulus() {
+  if (stimulus.empty()) return {Type(), nullptr};
+  auto s = stimulus.front();
+  stimulus.pop_front();
+  return s;
+}
+
 MovementComponent* EntityAI::movement() {
   return ent->at<MovementComponent>(MOVEMENT_COMPONENT_INDEX).get();
 }

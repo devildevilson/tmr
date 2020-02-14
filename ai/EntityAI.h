@@ -5,6 +5,8 @@
 #include "EventComponent.h"
 
 #include "Utility.h"
+#include "shared_memory_constants.h"
+#include "ring_buffer.h"
 
 #include <unordered_set>
 #include <unordered_map>
@@ -20,7 +22,7 @@ class InventoryComponent;
 class WeaponsComponent;
 class AttributeComponent;
 class EffectComponent;
-class AttribChangeData;
+struct AttribChangeData;
 namespace yacs {
   class entity;
 }
@@ -108,6 +110,11 @@ private:
 
 class EntityAI {
 public:
+  struct Stimulus {
+    Type type;
+    const EntityAI* source;
+  };
+  
   struct CreateInfo {
     entity_type entType;
     float r;
@@ -143,6 +150,9 @@ public:
   void removeTag(const Type &type);
   
   Blackboard & blackboard();
+  
+  void addStimulus(const Type &type, const EntityAI* source);
+  Stimulus getStimulus();
   
   MovementComponent* movement();
   AbilityComponent* actions();
@@ -210,6 +220,9 @@ public:
   bool hasTag(const Type &tag) const;
   
   bool grounded() const;
+  bool is_dead() const; // я должен удостовериться что не буду ссылаться на мертвые объекты
+  bool deletion_proccess() const; // нужно ли? мне бы валидировать не все мертвые объекты, а только те объекты которые скоро удаляться
+  // да было бы неплохо иметь возможность узнать какой объект скоро удалится
   
   const yacs::entity* getEntity() const;
 protected:
@@ -245,6 +258,7 @@ protected:
   
   std::unordered_set<Type> tags;
   Blackboard localBlackboard;
+  devils_engine::utils::ring_buffer<Stimulus, STIMULUS_BUFFER_SIZE> stimulus;
 };
 
 // слот в группе, использоваться должен для того чтобы отделить одного актора группы от другого
