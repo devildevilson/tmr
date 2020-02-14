@@ -870,6 +870,9 @@ void SoundSystem::update(const size_t &time) {
   }
 
   // делэим задачу
+  // мы можем эту задачу добавить в пул спокойно, 
+  // скорее всего звук будет вычисляться последним
+  // даже если не так, то вряд ли это сильно помешает
   delayedWork->add_work(delayedFunc);
   
 //  const glm::vec3 pos = Listener::getPos();
@@ -1231,6 +1234,13 @@ QueueSoundData* SoundSystem::queueSound(const ResourceID &id) {
   ptr->data = sound;
   soundQueue.push_back(ptr);
   
+  return ptr;
+}
+
+QueueSoundData* SoundSystem::queueSound(const SoundData* sound) {
+  QueueSoundData* ptr = queueDataPool.newElement();
+  ptr->data = sound;
+  soundQueue.push_back(ptr);
   return ptr;
 }
 

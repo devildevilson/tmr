@@ -216,6 +216,7 @@ public:
   void setBackgroundSoundPosition(const float &pos);
 
   QueueSoundData* queueSound(const ResourceID &id);
+  QueueSoundData* queueSound(const SoundData* sound);
   void unqueueSound(QueueSoundData* ptr);
   
   // методы для загрузки и удаления звуков

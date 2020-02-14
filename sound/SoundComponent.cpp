@@ -11,9 +11,9 @@ SoundComponent::SoundComponent(const CreateInfo &info) : transform(info.transfor
   for (uint32_t i = 0; i < QUEUE_SOUND_DATA_COUNT; ++i) {
     queuedSounds[i] = {
       nullptr,
-      SIZE_MAX,
-      {0.0f, 0.0f, 0.0f, 0.0f},
-      false
+      false,
+      0.0f
+      //{0.0f, 0.0f, 0.0f, 0.0f}
     };
   }
 }
@@ -27,70 +27,18 @@ void SoundComponent::update(const size_t &time) {
     if (queuedSounds[i].sound == nullptr) continue;
 
     const float pos = queuedSounds[i].sound->playingPosition();
-    const size_t timePos = pos * queuedSounds[i].time;
+    //const size_t timePos = pos * queuedSounds[i].time;
 
-    if (timePos >= queuedSounds[i].time) {
+    if (pos >= 1.0f) {
       Global::sound()->unqueueSound(queuedSounds[i].sound);
       queuedSounds[i].sound = nullptr;
-      queuedSounds[i].time = SIZE_MAX;
+//       queuedSounds[i].time = SIZE_MAX;
       continue;
     }
 
-    if (transform != nullptr) {
-      (transform->pos() + simd::vec4(queuedSounds[i].relativePos)).storeu(queuedSounds[i].sound->pos);
-      transform->rot().storeu(queuedSounds[i].sound->dir);
-    }
-
-    if (physics != nullptr && queuedSounds[i].needVelocity) {
-      physics->getVelocity().storeu(queuedSounds[i].sound->vel);
-    }
+    updateSoundPosition(queuedSounds[i].sound, queuedSounds[i].scalar, queuedSounds[i].needVelocity, false);
   }
 }
-
-//void SoundComponent::init(void* userData) {
-//  (void)userData;
-//
-//  transform = getEntity()->get<TransformComponent>().get();
-//  physics = getEntity()->get<PhysicsComponent2>().get();
-//
-//  events = getEntity()->get<EventComponent>().get();
-//  if (events == nullptr) {
-//    Global::console()->printE("Trying to create SoundComponent without events");
-//    throw std::runtime_error("Trying to create SoundComponent without events");
-//  }
-//
-//  Global::sound()->addComponent(this);
-//}
-
-//void SoundComponent::setSound(const Type &type, const ResourceID &soundId, const float &maxDist) {
-//  static const auto eventFunc = [&] (const Type type, const EventData &data, const ResourceID &soundId, const float &maxDist) {
-//    (void)type;
-//    (void)data;
-//    // тут нам нужно запихать данные для воспроизведения
-//    // большинство звуков которые мы отсюда стартуем, будут проигрываться лишь единожды
-//    // следовательно нет необходимости держать указатель на это дело
-//    // в каких случаях нам нужен указатель?
-//
-//    QueueSoundData* q = Global::sound()->queueSound(soundId);
-//    q->maxDist = maxDist;
-//
-//    if (transform != nullptr) {
-//      transform->pos().storeu(q->pos);
-//      transform->rot().storeu(q->dir);
-//    }
-//
-//    if (physics != nullptr) {
-//      physics->getVelocity().storeu(q->vel);
-//    }
-//
-//    // pitch? на форумах говорят что нужно брать какое то случайное число
-//
-//    q->updateSource();
-//    return success;
-//  };
-//
-//  events->registerEvent(type, std::bind(eventFunc, std::placeholders::_1, std::placeholders::_2, soundId, maxDist));
-//}
 
 void SoundComponent::play(const PlayInfo &info) {
   uint32_t index = 0;
@@ -104,13 +52,15 @@ void SoundComponent::play(const PlayInfo &info) {
     throw std::runtime_error("Every sounds is busy now");
   }
 
-  QueueSoundData* q = Global::sound()->queueSound(info.soundId);
+  QueueSoundData* q = Global::get<SoundSystem>()->queueSound(info.sound);
 
   if (info.memorised) {
     queuedSounds[index].sound = q;
-    queuedSounds[index].time = info.time;
-    memcpy(queuedSounds[index].relativePos, info.relativePos, sizeof(float)*4);
+    //queuedSounds[index].time = info.time;
+    //memcpy(queuedSounds[index].relativePos, info.relativePos, sizeof(float)*4);
     queuedSounds[index].needVelocity = info.needVelocity;
+    queuedSounds[index].scalar = info.scalar;
+    
   }
 
   q->type = QueueSoundType(info.relative, true, true, info.looping);
@@ -119,21 +69,23 @@ void SoundComponent::play(const PlayInfo &info) {
   q->pitch = info.pitch;
   q->rolloff = info.rolloff;
   q->refDist = info.refDist;
-
-  if (transform != nullptr) {
-    (transform->pos() + simd::vec4(info.relativePos)).storeu(q->pos);
-    transform->rot().storeu(q->dir);
-  } else {
-    memcpy(q->pos, info.relativePos, sizeof(float)*4);
-  }
-
-  if (physics != nullptr && info.needVelocity) {
-    physics->getVelocity().storeu(q->vel);
-  } else {
-    memset(q->vel, 0, sizeof(float)*4);
-  }
+  
+  updateSoundPosition(q, info.scalar, info.needVelocity, info.relative);
 }
 
 void SoundComponent::cancel() {
 
+}
+
+void SoundComponent::updateSoundPosition(QueueSoundData* q, const float &scalar, const bool needVelocity, const bool relative) {
+  if (transform != nullptr) {
+    const auto pos = float(!relative)*transform->pos() + transform->rot()*scalar;
+    const auto rot = transform->rot();
+    pos.storeu(q->pos);
+    rot.storeu(q->dir);
+  }
+  
+  if (physics != nullptr && needVelocity) {
+    physics->getVelocity().storeu(q->vel);
+  }
 }

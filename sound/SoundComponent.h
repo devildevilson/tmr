@@ -11,6 +11,9 @@ class EventComponent;
 class TransformComponent;
 class PhysicsComponent;
 
+// это звуки только от монстров? возможно
+// тогда relative можно убрать
+
 class SoundComponent {
 public:
   struct CreateInfo {
@@ -22,21 +25,16 @@ public:
   ~SoundComponent();
   
   void update(const size_t &time);
-  
-//  void setSound(const Type &type, const ResourceID &soundId, const float &maxDist);
 
   struct PlayInfo {
-    ResourceID soundId;
-    size_t time;
-
-    // делэй нужно еще сделать
+    const SoundData* sound;
 
     bool looping;
     bool memorised;
     bool relative;
     bool needVelocity;
 
-    float relativePos[4];
+    float scalar;
 
     float maxDist;
 
@@ -44,25 +42,22 @@ public:
 
     float rolloff; // полезная вещь, но нужно много проверять как именно работает
     float refDist; // полезная вещь, но нужно много проверять как именно работает
-
-    // должен быть способ создать звук за которым не нужно следить
-    // то есть у этого звука: константное положение, скорость, направление
   };
   void play(const PlayInfo &info);
   void cancel();
 private:
   struct SoundData {
     QueueSoundData* sound;
-    size_t time;
-    float relativePos[4];
     bool needVelocity;
+    float scalar;
   };
   
   TransformComponent* transform;
   PhysicsComponent* physics;
-//  EventComponent* events;
 
   SoundData queuedSounds[QUEUE_SOUND_DATA_COUNT]; // этого то поди несколько будет
+  
+  void updateSoundPosition(QueueSoundData* q, const float &scalar, const bool needVelocity, const bool relative);
 };
 
 #endif
