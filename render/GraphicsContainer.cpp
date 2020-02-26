@@ -6,7 +6,7 @@
 
 #include "Utility.h"
 #include "Globals.h"
-#include "../resources/Settings.h"
+#include "settings.h"
 
 static const std::vector<const char*> instanceLayers = {
   "VK_LAYER_LUNARG_standard_validation",
@@ -29,13 +29,17 @@ struct WindowData {
 
 void createGLFWwindow(yavf::Instance* inst, WindowData &data) {
 //   const bool fullscreen = false;
-  const bool fullscreen = bool(Global::settings()->get<int64_t>("game.graphics.fullscreen"));
+  //const bool fullscreen = bool(Global::settings()->get<int64_t>("game.graphics.fullscreen"));
+  const bool fullscreen = Global::get<devils_engine::utils::settings>()->graphics.fullscreen;
 //   uint32_t width = 1280;
 //   uint32_t height = 720;
-  uint32_t width = Global::settings()->get<int64_t>("game.graphics.width");
-  uint32_t height = Global::settings()->get<int64_t>("game.graphics.height");
+//   uint32_t width = Global::settings()->get<int64_t>("game.graphics.width");
+//   uint32_t height = Global::settings()->get<int64_t>("game.graphics.height");
+  uint32_t width = Global::get<devils_engine::utils::settings>()->graphics.width;
+  uint32_t height = Global::get<devils_engine::utils::settings>()->graphics.height;
 //   const float fov = 60.0f;
-  const float fov = Global::settings()->get<float>("game.graphics.fov");
+  //const float fov = Global::settings()->get<float>("game.graphics.fov");
+  const float fov = Global::get<devils_engine::utils::settings>()->graphics.fov;
   GLFWmonitor* monitor = nullptr;
   GLFWwindow* glfwWindow = nullptr;
   VkSurfaceKHR surface = VK_NULL_HANDLE;
@@ -58,8 +62,8 @@ void createGLFWwindow(yavf::Instance* inst, WindowData &data) {
     width = data->width;
     height = data->height;
 
-    Global::settings()->get<int64_t>("game.graphics.width") = data->width;
-    Global::settings()->get<int64_t>("game.graphics.height") = data->height;
+    Global::get<devils_engine::utils::settings>()->graphics.width = data->width;
+    Global::get<devils_engine::utils::settings>()->graphics.height = data->height;
 
     // в какой то момент мне может потребоваться даунсэмплить изображение чтоб зернистость появилась
     // возможно это делается другим способом
@@ -237,7 +241,7 @@ void createKHRdisplay(yavf::Instance* inst, WindowData &data) {
   yavf::vkCheckError("vkCreateDisplayPlaneSurfaceKHR", nullptr, 
   vkCreateDisplayPlaneSurfaceKHR(inst->handle(), &create_info, NULL, &surface)); 
   
-  const float fov = Global::settings()->get<float>("game.graphics.fov");
+  const float fov = Global::get<devils_engine::utils::settings>()->graphics.fov;
   data.fov = fov;
   data.fullscreen = true;
   data.glfwWindow = nullptr;

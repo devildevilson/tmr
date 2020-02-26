@@ -1,4 +1,4 @@
-#include "graphics_componet.h"
+#include "graphics_component.h"
 
 #include "EntityComponentSystem.h"
 #include "Globals.h"
@@ -37,7 +37,8 @@ namespace devils_engine {
       int index = 0;
       if (frame_size > 1) {
         // вычислим сторону 
-        const simd::vec4 playerPos = Global::getPlayerPos();
+        //const simd::vec4 playerPos = Global::getPlayerPos();
+        const simd::vec4 playerPos = core::player_pos();
 
         simd::vec4 dir = playerPos - trans->pos();
 

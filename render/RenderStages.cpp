@@ -1,13 +1,14 @@
 #include "RenderStages.h"
 
 #include "Globals.h"
+#include "input.h"
 
 #include "SceneData.h"
 
 #include "Window.h"
 // #include "imgui/imgui.h"
 #include "nuklear_header.h"
-#include "Variable.h"
+#include "console_variable.h"
 
 #include "RAII.h"
 
@@ -1102,12 +1103,12 @@ void drawGUI(nuklear_data* data, const yavf::Pipeline &pipe, yavf::Buffer* verte
 
     const VkRect2D scissor{
       {
-        static_cast<int32_t>(std::max(cmd->clip_rect.x * Global::data()->fbScaleX, 0.0f)),
-        static_cast<int32_t>(std::max(cmd->clip_rect.y * Global::data()->fbScaleY, 0.0f)),
+        static_cast<int32_t>(std::max(cmd->clip_rect.x * Global::get<devils_engine::input::data>()->fb_scale.x, 0.0f)),
+        static_cast<int32_t>(std::max(cmd->clip_rect.y * Global::get<devils_engine::input::data>()->fb_scale.y, 0.0f)),
       },
       {
-        static_cast<uint32_t>(cmd->clip_rect.w * Global::data()->fbScaleX),
-        static_cast<uint32_t>(cmd->clip_rect.h * Global::data()->fbScaleY),
+        static_cast<uint32_t>(cmd->clip_rect.w * Global::get<devils_engine::input::data>()->fb_scale.x),
+        static_cast<uint32_t>(cmd->clip_rect.h * Global::get<devils_engine::input::data>()->fb_scale.y),
       }
     };
     
@@ -1421,8 +1422,8 @@ void MonsterDebugStage::begin() {
 }
 
 void MonsterDebugStage::doWork(RenderContext* context) {
-  static cvar debugDraw("debugDraw");
-  if (!bool(debugDraw.getFloat())) return;
+  static devils_engine::utils::cvar debugDraw = devils_engine::utils::cvar::get(devils_engine::utils::id::get("debugDraw"));
+  if (!debugDraw.to_bool()) return;
   if (instanceCount == 0) return;
   
   yavf::GraphicTask* task = context->graphics();
@@ -1530,8 +1531,8 @@ void GeometryDebugStage::begin() {
 }
 
 void GeometryDebugStage::doWork(RenderContext* context) {
-  static cvar debugDraw("debugDraw");
-  if (!bool(debugDraw.getFloat())) return;
+  static devils_engine::utils::cvar debugDraw = devils_engine::utils::cvar::get(devils_engine::utils::id::get("debugDraw"));
+  if (!debugDraw.to_bool()) return;
   if (indexCount == 0) return;
   
   yavf::GraphicTask* task = context->graphics();

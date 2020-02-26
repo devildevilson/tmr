@@ -7,6 +7,7 @@
 #include "ring_buffer.h"
 #include "ArrayInterface.h"
 #include "RenderStructures.h"
+#include "state.h"
 
 // 5 разных штук нужно отрисовать
 // спрайт монстра, стена, свет, руки игрока, интерфейс
@@ -71,6 +72,7 @@ namespace devils_engine {
       
       float movu;
       float movv;
+      const core::state_t* player_state;
       
       void draw(const size_t &time);
       
@@ -82,6 +84,7 @@ namespace devils_engine {
       yacs::entity* ent;
       
       utils::ring_buffer<std::string, 3> strings;
+      const core::state_t* face_state;
       
       void draw(const size_t &time);
       void message(const std::string &string);
