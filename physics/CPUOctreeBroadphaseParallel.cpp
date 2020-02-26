@@ -18,8 +18,8 @@
 
 #include <HelperFunctions.h>
 
-CPUOctreeProxyParallel::CPUOctreeProxyParallel(const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter) :
-                  BroadphaseProxy(objIndex, type, collisionGroup, collisionFilter) {
+CPUOctreeProxyParallel::CPUOctreeProxyParallel(const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter, const uint32_t &collisionTrigger) :
+                  BroadphaseProxy(objIndex, type, collisionGroup, collisionFilter, collisionTrigger) {
   nodeIndex = UINT32_MAX;
   containerIndex = UINT32_MAX-1;
   //objType = type;
@@ -94,112 +94,17 @@ size_t CPUOctreeBroadphaseParallel::CPUParallelOctreeNode::size() const {
 
 CPUOctreeBroadphaseParallel::CPUOctreeBroadphaseParallel(dt::thread_pool* pool, const OctreeCreateInfo &octreeInfo) {
   this->pool = pool;
-
-  size_t nodesCount = 0;
-  size_t eight = 1;
-  for (uint32_t i = 0; i < octreeInfo.depth; ++i) {
-    nodesCount += eight;
-    eight *= 8;
-  }
-
-  this->nodesCount = nodesCount;
-
-  if (octreeInfo.depth > 10) throw std::runtime_error("Depth > 10 is not supported");
-  // при 10 получается буфер будет весить больше 10 Гб - это тоже плохо лол
-  this->depth = octreeInfo.depth;
-
-  // нужно бы как нибудь выделить аабб нодов в отдельный буфер
-  // proxies.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-  // proxies.reserve(nodesCount + 10000);
-  // nodes.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, nodesCount);
-  // indices1.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 10000);
-  // indices2.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 10000);
-
-  // changes.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 10000);
-  // proxyIndices.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 10000);
-  // toPairsCalculate.construct(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 10000);
-
   proxies.reserve(1000);
-
-  std::vector<CPUParallelOctreeNode> list(nodesCount);
-  nodes.swap(list);
-  nodeBoxes.resize(nodesCount);
-  //nodes.resize(nodesCount);
-  //mutexies.resize(nodesCount);
   indices1.resize(1000);
   indices2.resize(1000);
-
-  //std::vector<std::mutex> list(nodesCount);
-  //mutexes.swap(list);
-
-//   for (uint32_t i = 0; i < nodesCount; ++i) {
-//     mutexies.emplace();
-//   }
 
   changes.resize(1000);
   proxyIndices.resize(1000);
   toPairsCalculate.resize(1000);
 
   memset(proxies.data(), 0, proxies.capacity() * sizeof(proxies[0]));
-  memset(nodes.data(), 0, nodes.capacity() * sizeof(nodes[0]));
-  memset(indices1.data(), 0, indices1.capacity() * sizeof(indices1[0]));
-  memset(indices2.data(), 0, indices2.capacity() * sizeof(indices2[0]));
-  memset(changes.data(), 0, changes.capacity() * sizeof(changes[0]));
-  memset(proxyIndices.data(), 0, proxyIndices.capacity() * sizeof(proxyIndices[0]));
-  memset(toPairsCalculate.data(), 0, toPairsCalculate.capacity() * sizeof(toPairsCalculate[0]));
-
-  nodes[0].nodeIndex = 0;
-  nodes[0].childIndex = 1;
-  nodeBoxes[0] = {octreeInfo.center, octreeInfo.extent};
-  //nodes[0].box = {octreeInfo.center, octreeInfo.extent};
-
-  std::vector<size_t> nodeIdx;
-  nodeIdx.reserve(nodesCount);
-  nodeIdx.push_back(0);
-  size_t size = 1;
-  size_t offset = 0;
-  size_t mul = 1;
-  size_t count = 1;
-  size_t lastCount = 0;
-  const uint8_t xMask = (1<<0);
-  const uint8_t yMask = (1<<2);
-  const uint8_t zMask = (1<<1);
-  for (uint32_t i = 1; i < octreeInfo.depth; ++i) { // тут должен быть 1 так как мы уже какбы прошли root
-    for (uint32_t j = 0; j < size - offset; ++j) {
-      const size_t parentIndex = nodeIdx[offset + j];
-      nodes[parentIndex].childIndex = count + (parentIndex - lastCount) * 8;
-
-      for (uint8_t k = 0; k < 8; ++k) {
-        const size_t index = count + (parentIndex - lastCount) * 8 + k;
-        const FastAABB &parentBox = nodeBoxes[parentIndex];
-
-        //nodes.push_back({});
-//         nodes[index].basePtr = this;
-        nodes[index].nodeIndex = index;
-        nodes[index].childIndex = UINT32_MAX;
-
-        simd::vec4 extent = parentBox.extent / 2.0f;
-        simd::vec4 center;
-        center.x = xMask & k ? parentBox.center.x + extent.x : parentBox.center.x - extent.x;
-        center.y = yMask & k ? parentBox.center.y + extent.y : parentBox.center.y - extent.y;
-        center.z = zMask & k ? parentBox.center.z + extent.z : parentBox.center.z - extent.z;
-        center.w = 1.0f;
-
-        nodeBoxes[index] = FastAABB{center, extent};
-
-//         proxies.emplace_back(UINT32_MAX, PhysicsType(0, 0, 0, 0, 0, 0), 0, 0);
-//         proxies.back().setAABB({center, extent});
-
-        nodeIdx.push_back(index);
-      }
-    }
-
-    offset = size;
-    size = nodeIdx.size();
-    mul *= 8;
-    lastCount = count;
-    count += mul;
-  }
+  
+  make_octree(octreeInfo);
 }
 
 CPUOctreeBroadphaseParallel::~CPUOctreeBroadphaseParallel() {
@@ -226,7 +131,7 @@ void CPUOctreeBroadphaseParallel::setOutputBuffers(const OutputBuffers &buffers,
   frustumTestsResult = buffers.frustumTestsResult;
 }
 
-uint32_t CPUOctreeBroadphaseParallel::createProxy(const FastAABB &box, const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter) {
+uint32_t CPUOctreeBroadphaseParallel::createProxy(const FastAABB &box, const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter, const uint32_t &collisionTrigger) {
   // можно здесь залочить мьютекс
   // но я пока не уверен нужно ли мне это
   // создание и удаление прокси параллельно
@@ -238,12 +143,12 @@ uint32_t CPUOctreeBroadphaseParallel::createProxy(const FastAABB &box, const uin
   if (freeProxy != UINT32_MAX) {
     index = freeProxy;
     freeProxy = proxies[index].dummy2;
-    proxies[index] = CPUOctreeProxyParallel(objIndex, type, collisionGroup, collisionFilter);
+    proxies[index] = CPUOctreeProxyParallel(objIndex, type, collisionGroup, collisionFilter, collisionTrigger);
     proxies[index].setAABB(box);
     proxies[index].proxyIndex = index;
   } else {
     index = proxies.size();
-    proxies.emplace_back(objIndex, type, collisionGroup, collisionFilter);
+    proxies.emplace_back(objIndex, type, collisionGroup, collisionFilter, collisionTrigger);
     proxies.back().setAABB(box);
     proxies[index].proxyIndex = index;
   }
@@ -485,12 +390,16 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
                   // x - это тип объекта, y - это те объекты с которыми есть коллизия
     const bool collide = (first->collisionGroup() & second->collisionFilter()) != 0 &&
                          (second->collisionGroup() & first->collisionFilter()) != 0;
+                         
+    const bool trigger = (first->collisionGroup() & second->collisionTrigger()) != 0 &&
+                         (second->collisionGroup() & first->collisionTrigger()) != 0;
 
-    if (!collide) return;
+    if (!collide && !trigger) return;
 
-    const bool currentObjTrigget = first->getType().isTrigger() && (!first->getType().isBlocking());
-    const bool proxyTrigget = second->getType().isTrigger() && (!second->getType().isBlocking());
-    const bool triggerOnly = currentObjTrigget || proxyTrigget;
+//     const bool currentObjTrigget = first->getType().isTrigger() && (!first->getType().isBlocking());
+//     const bool proxyTrigget = second->getType().isTrigger() && (!second->getType().isBlocking());
+//     const bool triggerOnly = currentObjTrigget || proxyTrigget;
+    const bool triggerOnly = !collide && trigger;
 
     const bool dynamicPair = first->getType().isDynamic() && second->getType().isDynamic();
 
@@ -1136,6 +1045,106 @@ void CPUOctreeBroadphaseParallel::printStats() {
   //   std::cout << indices2[i] << " ";
   // }
   // std::cout << '\n';
+}
+
+void CPUOctreeBroadphaseParallel::make_octree(const OctreeCreateInfo &octreeInfo) {
+  memset(nodes.data(), 0, nodes.capacity() * sizeof(nodes[0]));
+  memset(indices1.data(), 0, indices1.capacity() * sizeof(indices1[0]));
+  memset(indices2.data(), 0, indices2.capacity() * sizeof(indices2[0]));
+  memset(changes.data(), 0, changes.capacity() * sizeof(changes[0]));
+  memset(proxyIndices.data(), 0, proxyIndices.capacity() * sizeof(proxyIndices[0]));
+  memset(toPairsCalculate.data(), 0, toPairsCalculate.capacity() * sizeof(toPairsCalculate[0]));
+  
+  size_t nodesCount = 0;
+  size_t eight = 1;
+  for (uint32_t i = 0; i < octreeInfo.depth; ++i) {
+    nodesCount += eight;
+    eight *= 8;
+  }
+
+  this->nodesCount = nodesCount;
+
+  if (octreeInfo.depth > 10) throw std::runtime_error("Depth > 10 is not supported");
+  // при 10 получается буфер будет весить больше 10 Гб - это тоже плохо лол
+  this->depth = octreeInfo.depth;
+
+  std::vector<CPUParallelOctreeNode> list(nodesCount);
+  nodes.swap(list);
+  nodeBoxes.resize(nodesCount);
+  //nodes.resize(nodesCount);
+  //mutexies.resize(nodesCount);
+  
+
+  nodes[0].nodeIndex = 0;
+  nodes[0].childIndex = 1;
+  nodeBoxes[0] = {octreeInfo.center, octreeInfo.extent};
+  //nodes[0].box = {octreeInfo.center, octreeInfo.extent};
+
+  std::vector<size_t> nodeIdx;
+  nodeIdx.reserve(nodesCount);
+  nodeIdx.push_back(0);
+  size_t size = 1;
+  size_t offset = 0;
+  size_t mul = 1;
+  size_t count = 1;
+  size_t lastCount = 0;
+  const uint8_t xMask = (1<<0);
+  const uint8_t yMask = (1<<2);
+  const uint8_t zMask = (1<<1);
+  for (uint32_t i = 1; i < octreeInfo.depth; ++i) { // тут должен быть 1 так как мы уже какбы прошли root
+    for (uint32_t j = 0; j < size - offset; ++j) {
+      const size_t parentIndex = nodeIdx[offset + j];
+      nodes[parentIndex].childIndex = count + (parentIndex - lastCount) * 8;
+
+      for (uint8_t k = 0; k < 8; ++k) {
+        const size_t index = count + (parentIndex - lastCount) * 8 + k;
+        const FastAABB &parentBox = nodeBoxes[parentIndex];
+
+        //nodes.push_back({});
+//         nodes[index].basePtr = this;
+        nodes[index].nodeIndex = index;
+        nodes[index].childIndex = UINT32_MAX;
+
+        simd::vec4 extent = parentBox.extent / 2.0f;
+//         simd::vec4 center;
+//         center.x = xMask & k ? parentBox.center.x + extent.x : parentBox.center.x - extent.x;
+//         center.y = yMask & k ? parentBox.center.y + extent.y : parentBox.center.y - extent.y;
+//         center.z = zMask & k ? parentBox.center.z + extent.z : parentBox.center.z - extent.z;
+//         center.w = 1.0f;
+        
+        float extent_arr[4];
+        float parent_box_center[4];
+        float center_arr[4];
+        
+        extent.storeu(extent_arr);
+        parentBox.center.storeu(parent_box_center);
+        center_arr[0] = xMask & k ? parent_box_center[0] + extent_arr[0] : parent_box_center[0] - extent_arr[0];
+        center_arr[1] = yMask & k ? parent_box_center[1] + extent_arr[1] : parent_box_center[1] - extent_arr[1];
+        center_arr[2] = zMask & k ? parent_box_center[2] + extent_arr[2] : parent_box_center[2] - extent_arr[2];
+        center_arr[3] = 1.0f;
+
+        nodeBoxes[index] = FastAABB{simd::vec4(center_arr), extent};
+
+//         proxies.emplace_back(UINT32_MAX, PhysicsType(0, 0, 0, 0, 0, 0), 0, 0);
+//         proxies.back().setAABB({center, extent});
+
+        nodeIdx.push_back(index);
+      }
+    }
+
+    offset = size;
+    size = nodeIdx.size();
+    mul *= 8;
+    lastCount = count;
+    count += mul;
+  }
+  
+  ASSERT(proxies.empty()); 
+}
+
+void CPUOctreeBroadphaseParallel::make_structure(const void* info) {
+  auto i = reinterpret_cast<const OctreeCreateInfo*>(info);
+  make_octree(*i);
 }
 
 // simd::vec4 getVertex(const simd::vec4 &pos, const simd::vec4 &ext, const simd::mat4 &orn, const uint32_t &index) {

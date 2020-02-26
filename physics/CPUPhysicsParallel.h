@@ -33,6 +33,8 @@ public:
   CPUPhysicsParallel(const CreateInfo &info);
   ~CPUPhysicsParallel();
 
+  void remake_broadphase(const void* info) override;
+  
   void update(const uint64_t &time) override;
 //   void decoupledUpdate(const uint64_t &time) override;
   

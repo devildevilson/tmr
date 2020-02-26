@@ -8,10 +8,11 @@ void PhysicsComponent::setContainer(Container<ExternalData>* externalDatas) {
 
 // PhysicsComponent::PhysicsComponent() : externalDataIndex(externalDatas->insert({})), container{UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, nullptr} {}
 PhysicsComponent::PhysicsComponent(const CreateInfo &info) : externalDataIndex(info.physInfo.type.isDynamic() ? externalDatas->insert(info.externalData) : UINT32_MAX), container{UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, info.userData} {
-  Global::physics()->add({
+  Global::get<PhysicsEngine>()->add({
     info.physInfo.type,
     info.physInfo.collisionGroup,
     info.physInfo.collisionFilter,
+    info.physInfo.collisionTrigger,
     info.physInfo.stairHeight,
     info.physInfo.overbounce,
     info.physInfo.groundFricion,
@@ -28,7 +29,7 @@ PhysicsComponent::PhysicsComponent(const CreateInfo &info) : externalDataIndex(i
 
 PhysicsComponent::~PhysicsComponent() {
   if (externalDataIndex != UINT32_MAX) externalDatas->erase(externalDataIndex);
-  Global::physics()->remove(&container);
+  Global::get<PhysicsEngine>()->remove(&container);
 }
 
 // void PhysicsComponent::init(const CreateInfo &info) {
@@ -69,14 +70,14 @@ const PhysicsIndexContainer & PhysicsComponent::getIndexContainer() const {
 simd::vec4 PhysicsComponent::getVelocity() const {
   if (container.physicDataIndex == UINT32_MAX) return simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 
-  const glm::vec3 &vel = Global::physics()->getPhysicData(&container).velocity;
+  const glm::vec3 &vel = Global::get<PhysicsEngine>()->getPhysicData(&container).velocity;
   return simd::vec4(vel.x, vel.y, vel.z, 0.0f);
 }
 
 float PhysicsComponent::getSpeed() const {
   if (container.physicDataIndex == UINT32_MAX) return 0.0f;
 
-  const float &speed = Global::physics()->getPhysicData(&container).scalar;
+  const float &speed = Global::get<PhysicsEngine>()->getPhysicData(&container).scalar;
   return speed;
 }
 
@@ -90,33 +91,33 @@ void PhysicsComponent::setVelocity(const simd::vec4 &vel) {
   float arr[4];
   vel.storeu(arr);
   
-  Global::physics()->getPhysicData(&container).velocity = glm::vec3(arr[0], arr[1], arr[2]);
-  Global::physics()->getPhysicData(&container).scalar = simd::length(vel);
+  Global::get<PhysicsEngine>()->getPhysicData(&container).velocity = glm::vec3(arr[0], arr[1], arr[2]);
+  Global::get<PhysicsEngine>()->getPhysicData(&container).scalar = simd::length(vel);
 }
 
 uint32_t PhysicsComponent::getObjectShapePointsSize() const {
-  return Global::physics()->getObjectShapePointsSize(&container);
+  return Global::get<PhysicsEngine>()->getObjectShapePointsSize(&container);
 }
 
 const simd::vec4* PhysicsComponent::getObjectShapePoints() const {
-  return Global::physics()->getObjectShapePoints(&container);
+  return Global::get<PhysicsEngine>()->getObjectShapePoints(&container);
 }
 
 uint32_t PhysicsComponent::getObjectShapeFacesSize() const {
-  return Global::physics()->getObjectShapeFacesSize(&container);
+  return Global::get<PhysicsEngine>()->getObjectShapeFacesSize(&container);
 }
 
 const simd::vec4* PhysicsComponent::getObjectShapeFaces() const {
-  return Global::physics()->getObjectShapeFaces(&container);
+  return Global::get<PhysicsEngine>()->getObjectShapeFaces(&container);
 }
 
 PhysicsIndexContainer* PhysicsComponent::getGround() const {
-  const Object* obj = &Global::physics()->getObjectData(&container);
+  const Object* obj = &Global::get<PhysicsEngine>()->getObjectData(&container);
   PhysicsIndexContainer* ret = nullptr;
 
   while (obj->groundObjIndex != UINT32_MAX) {
-    ret = Global::physics()->getIndexContainer(obj->groundObjIndex);
-    obj = &Global::physics()->getObjectData(ret);
+    ret = Global::get<PhysicsEngine>()->getIndexContainer(obj->groundObjIndex);
+    obj = &Global::get<PhysicsEngine>()->getObjectData(ret);
   }
 
   return ret;

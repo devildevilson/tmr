@@ -164,7 +164,10 @@ FastAABB recalcAABB(const ArrayInterface<simd::vec4>* verticies, const simd::vec
 // }
 
 bool testAABBPoint(const FastAABB &box, const simd::vec4 &point) {
+  const simd::vec4 boxMin = box.center - box.extent;
+  const simd::vec4 boxMax = box.center + box.extent;
   
+  return simd::all_xyz((point >= boxMin) & (point <= boxMax));
 }
 
 bool intersection(const FastAABB &box, const RayData &ray) {

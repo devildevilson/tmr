@@ -776,6 +776,7 @@ bool CPUSolverParallel::BoxBoxSAT(const float &treshold, const Object &first,  c
   }
 
   if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
+  (void)treshold;
 
   return true;
 }
@@ -811,6 +812,7 @@ bool CPUSolverParallel::BoxSphereSAT(const float &treshold, const Object &first,
   }
 
   if (simd::dot(-delta, mtv) > 0.0f) mtv = -mtv;
+  (void)treshold;
 
   return true;
 }
@@ -861,6 +863,7 @@ bool CPUSolverParallel::BoxPolySAT(const float &treshold, const Object &first,  
   }
 
   if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
+  (void)treshold;
 
   return true;
 }
@@ -894,6 +897,7 @@ bool CPUSolverParallel::SphereSphereSAT(const float &treshold, const Object &fir
   if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
 
   if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
+  (void)treshold;
 
   return true;
 }
@@ -938,6 +942,7 @@ bool CPUSolverParallel::PolySphereSAT(const float &treshold, const Object &first
   }
 
   if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
+  (void)treshold;
 
   return true;
 }
@@ -1009,6 +1014,7 @@ bool CPUSolverParallel::PolyPolySAT(const float &treshold, const Object &first, 
   }
 
   if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
+  (void)treshold;
 
   return true;
 }

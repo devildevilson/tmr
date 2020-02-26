@@ -45,6 +45,31 @@ CPUPhysicsParallel::CPUPhysicsParallel(const CreateInfo &info) : pool(info.pool)
 
 CPUPhysicsParallel::~CPUPhysicsParallel() {}
 
+void CPUPhysicsParallel::remake_broadphase(const void* info) {
+  struct abc {
+    uint32_t index;
+    PhysicsType type;
+    uint32_t collisionGroup;
+    uint32_t collisionFilter;
+    uint32_t collisionTrigger;
+  };
+  std::vector<abc> memory;
+  
+  for (size_t i = 0; i < objects.size(); ++i) {
+    if (objects[i].staticPhysicDataIndex == UINT32_MAX) continue;
+    
+    auto proxy = broad->getProxy(objects[i].proxyIndex);
+    memory.push_back({static_cast<uint32_t>(i), proxy->getType(), proxy->collisionGroup(), proxy->collisionFilter(), proxy->collisionTrigger()});
+    broad->destroyProxy(objects[i].proxyIndex);
+  }
+  
+  broad->make_structure(info);
+  
+  for (auto &mem : memory) {
+    objects[mem.index].proxyIndex = broad->createProxy({}, mem.index, mem.type, mem.collisionGroup, mem.collisionFilter, mem.collisionTrigger);
+  }
+}
+
 void CPUPhysicsParallel::update(const uint64_t &time) {
   Gravity* data = gravityBuffer.data();
   data->objCount = physicsDatas.size();
@@ -365,7 +390,7 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
   container->rotationIndex = info.rotationIndex;
 
 //   std::cout << "container->objectDataIndex " << container->objectDataIndex << "\n";
-  const uint32_t proxyIndex = broad->createProxy({}, container->objectDataIndex, info.type, info.collisionGroup, info.collisionFilter);
+  const uint32_t proxyIndex = broad->createProxy({}, container->objectDataIndex, info.type, info.collisionGroup, info.collisionFilter, info.collisionTrigger);
 
   const Object obj{
     container->internalIndex,
@@ -386,6 +411,7 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
   };
 
   objects[container->objectDataIndex] = obj;
+  ASSERT(staticPhysIndex != UINT32_MAX);
 
   const Constants c{
     info.groundFricion,
@@ -453,6 +479,7 @@ void CPUPhysicsParallel::remove(PhysicsIndexContainer* comp) {
 
   objects[comp->objectDataIndex].objectId = freeObj;
   freeObj = comp->objectDataIndex;
+  objects[comp->objectDataIndex].staticPhysicDataIndex = UINT32_MAX;
 
   if (comp->physicDataIndex != UINT32_MAX) {
     physicsDatas[comp->physicDataIndex].velocity.x = glm::uintBitsToFloat(freePhys);

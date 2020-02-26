@@ -10,7 +10,7 @@
 class CPUOctreeProxyParallel : public BroadphaseProxy {
   friend class CPUOctreeBroadphaseParallel;
 public:
-  CPUOctreeProxyParallel(const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter);
+  CPUOctreeProxyParallel(const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter, const uint32_t &collisionTrigger);
   ~CPUOctreeProxyParallel();
 
   uint32_t getProxyIndex() const;
@@ -73,7 +73,7 @@ public:
   void setOutputBuffers(const OutputBuffers &buffers, void* indirectPairBuffer = nullptr) override;
 
   //virtual BroadphaseProxy* createProxy(const AABB &box, uint32_t type, void* obj, const uint32_t &collisionGroup, const uint32_t &collisionFilter) = 0;
-  uint32_t createProxy(const FastAABB &box, const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter) override;
+  uint32_t createProxy(const FastAABB &box, const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter, const uint32_t &collisionTrigger) override;
   BroadphaseProxy* getProxy(const uint32_t &index) override;
   void destroyProxy(BroadphaseProxy* proxy) override;
   void destroyProxy(const uint32_t &index) override;
@@ -102,6 +102,11 @@ public:
 //   const ArrayInterface<BroadphasePair>* getFrustumTestsResult() const override;
 
   void printStats() override;
+  
+  // нужно сделать учесть непосредственно в физике нет возможности понять тип Broadphase
+  // воид указатель? видимо единственный более менее адекватный путь
+  void make_octree(const OctreeCreateInfo &octreeInfo);
+  void make_structure(const void* info) override;
 protected:
   dt::thread_pool* pool = nullptr;
 

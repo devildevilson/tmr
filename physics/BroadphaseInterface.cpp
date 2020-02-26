@@ -1,8 +1,9 @@
 #include "BroadphaseInterface.h"
 
-BroadphaseProxy::BroadphaseProxy(const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter) {
+BroadphaseProxy::BroadphaseProxy(const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter, const uint32_t &collisionTrigger) {
   this->filter = collisionFilter;
   this->group = collisionGroup;
+  this->trigger = collisionTrigger;
   this->objType = type;
   this->objIndex = objIndex;
 }
@@ -31,6 +32,10 @@ uint32_t BroadphaseProxy::collisionGroup() const {
 
 uint32_t BroadphaseProxy::collisionFilter() const {
   return filter;
+}
+
+uint32_t BroadphaseProxy::collisionTrigger() const {
+  return trigger;
 }
 
 uint32_t BroadphaseProxy::getIndex() const {

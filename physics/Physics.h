@@ -28,6 +28,7 @@ struct PhysicsObjectCreateInfo {
   PhysicsType type;
   uint32_t collisionGroup;
   uint32_t collisionFilter;
+  uint32_t collisionTrigger;
 
   float stairHeight;
   float overbounce;
@@ -140,6 +141,8 @@ public:
   
 //   virtual void decoupledUpdate(const uint64_t &time) = 0;
 
+  virtual void remake_broadphase(const void* info) = 0;
+  
   virtual void setBuffers(const PhysicsExternalBuffers &buffers) = 0;
   
   virtual void registerShape(const Type &type, const uint32_t shapeType, const RegisterNewShapeInfo &info) = 0;

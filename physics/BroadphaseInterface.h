@@ -5,11 +5,12 @@
 #include "PhysicsUtils.h"
 
 #include "Frustum.h"
+#include <functional>
 
 // алигн 16, могут возникнуть проблемы
 class BroadphaseProxy {
 public:
-  BroadphaseProxy(const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter);
+  BroadphaseProxy(const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter, const uint32_t &collisionTrigger);
   ~BroadphaseProxy();
   
   void setAABB(const FastAABB &box);
@@ -20,6 +21,7 @@ public:
   
   uint32_t collisionGroup() const;
   uint32_t collisionFilter() const;
+  uint32_t collisionTrigger() const;
   
   uint32_t getIndex() const;
   uint32_t getObjectIndex() const;
@@ -31,6 +33,7 @@ protected:
 //   float extent[4];
   uint32_t group;
   uint32_t filter;
+  uint32_t trigger;
   PhysicsType objType; //proxyIndex
   uint32_t objIndex;
 };
@@ -58,6 +61,7 @@ public:
   };
   
   virtual ~Broadphase();
+  virtual void make_structure(const void* info) = 0;
   
 //   void getBroadphaseAabb(FastAABB &box) const;
   
@@ -65,7 +69,7 @@ public:
   virtual void setOutputBuffers(const OutputBuffers &buffers, void* indirectPairBuffer = nullptr) = 0;
   
   //virtual BroadphaseProxy* createProxy(const AABB &box, uint32_t type, void* obj, const uint32_t &collisionGroup, const uint32_t &collisionFilter) = 0;
-  virtual uint32_t createProxy(const FastAABB &box, const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter) = 0;
+  virtual uint32_t createProxy(const FastAABB &box, const uint32_t &objIndex, const PhysicsType &type, const uint32_t &collisionGroup, const uint32_t &collisionFilter, const uint32_t &collisionTrigger) = 0;
   virtual BroadphaseProxy* getProxy(const uint32_t &index) = 0;
   virtual void destroyProxy(BroadphaseProxy* proxy) = 0;
   virtual void destroyProxy(const uint32_t &index) = 0;
@@ -97,6 +101,7 @@ public:
   //virtual void* getIndirectPairBuffer() { return nullptr; }
   
   virtual void printStats() = 0;
+  
 protected:
 //   FastAABB box;
 };
