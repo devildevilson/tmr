@@ -58,7 +58,7 @@ namespace devils_engine {
       };
       main_menu(const create_info &info);
       
-      page* proccess(const data::extent &screen_size, const data::command &command, size_t &focus) override;
+      page* proccess(const data::extent &screen_size, const utils::id &event, size_t &focus) override;
       page* escape(size_t &focus) const override;
       
       void set_pointers(page* quit, page* settings, page* new_game);
@@ -83,7 +83,7 @@ namespace devils_engine {
       };
       settings(const create_info &info);
       
-      page* proccess(const data::extent &screen_size, const data::command &command, size_t &focus) override;
+      page* proccess(const data::extent &screen_size, const utils::id &event, size_t &focus) override;
       page* escape(size_t &focus) const override;
       
       void set_pointers(page* main_menu);
@@ -107,7 +107,7 @@ namespace devils_engine {
       };
       quit_game(const create_info &info);
       
-      page* proccess(const data::extent &screen_size, const data::command &command, size_t &focus) override;
+      page* proccess(const data::extent &screen_size, const utils::id &event, size_t &focus) override;
       page* escape(size_t &focus) const override;
       
       void set_pointers(page* main_menu);

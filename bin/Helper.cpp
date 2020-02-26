@@ -27,6 +27,89 @@ void clipbardCopy(nk_handle usr, const char *text, const int len) {
   glfwSetClipboardString(reinterpret_cast<Window*>(usr.ptr)->handle(), str);
 }
 
+system_container::system_container() :
+  container(
+    sizeof(GraphicsContainer) +
+//     sizeof(PostPhysics) +
+    sizeof(systems::sound) +
+                       
+    sizeof(MonsterGPUOptimizer) +
+    sizeof(MonsterGPUOptimizer) +
+    sizeof(LightOptimizer) +
+    sizeof(MonsterDebugOptimizer) +
+    sizeof(GeometryDebugOptimizer) +
+                       
+    sizeof(CPUOctreeBroadphaseParallel) +
+    sizeof(CPUNarrowphaseParallel) +
+    sizeof(CPUSolverParallel) +
+    sizeof(CPUPhysicsSorter) +
+    sizeof(CPUPhysicsParallel) +
+    
+    sizeof(graph::container) +
+    sizeof(systems::pathfinder)
+  ),
+  graphics_container(nullptr),
+//   post_physics(nullptr),
+  sound_system(nullptr),
+  
+  monster_optimiser(nullptr),
+  geometry_optimiser(nullptr),
+  lights_optimiser(nullptr),
+  monster_debug_optimiser(nullptr),
+  geometry_debug_optimiser(nullptr),
+  
+  broad(nullptr),
+  narrow(nullptr),
+  solver(nullptr),
+  sorter(nullptr),
+  physics(nullptr),
+  
+  edge_container(nullptr),
+  pathfinder_system(nullptr)
+{}
+
+#define DESTROY_CONTAINERS(var) if (var != nullptr) container.destroy(var); var = nullptr;
+system_container::~system_container() {
+  DESTROY_CONTAINERS(graphics_container)
+//   DESTROY_CONTAINERS(post_physics)
+  DESTROY_CONTAINERS(sound_system)
+  
+  DESTROY_CONTAINERS(monster_optimiser)
+  DESTROY_CONTAINERS(geometry_optimiser)
+  DESTROY_CONTAINERS(lights_optimiser)
+  DESTROY_CONTAINERS(monster_debug_optimiser)
+  DESTROY_CONTAINERS(geometry_debug_optimiser)
+  
+  DESTROY_CONTAINERS(broad)
+  DESTROY_CONTAINERS(narrow)
+  DESTROY_CONTAINERS(solver)
+  DESTROY_CONTAINERS(sorter)
+  DESTROY_CONTAINERS(physics)
+  
+  DESTROY_CONTAINERS(edge_container)
+  DESTROY_CONTAINERS(pathfinder_system)
+}
+
+DataArrays::DataArrays() : 
+  container(
+    sizeof(GPUContainer<Transform>) +
+    sizeof(GPUContainer<InputData>) +
+    sizeof(GPUContainer<simd::mat4>) +
+    sizeof(GPUBuffer<uint32_t>) +
+    sizeof(GPUContainer<RotationData>) +
+    sizeof(GPUContainer<ExternalData>) +
+    sizeof(GPUContainer<Texture>)
+  ), transforms(nullptr), inputs(nullptr), matrices(nullptr), rotationCountBuffer(nullptr), rotations(nullptr), externals(nullptr), textures(nullptr) {}
+  
+DataArrays::~DataArrays() {
+  DESTROY_CONTAINERS(transforms)
+  DESTROY_CONTAINERS(inputs)
+  DESTROY_CONTAINERS(matrices)
+  DESTROY_CONTAINERS(rotations)
+  DESTROY_CONTAINERS(externals)
+  DESTROY_CONTAINERS(textures)
+}
+
 KeyConfiguration::KeyConfiguration(const KeyConfiguration &copy) {
   cont = copy.cont;
 }
@@ -457,6 +540,155 @@ void deinitGLFW() {
   glfwTerminate();
 }
 
+void create_graphics(system_container &container) {
+  const size_t stageContainerSize = sizeof(BeginTaskStage) + sizeof(EndTaskStage) + sizeof(MonsterGPUOptimizer) + sizeof(GeometryGPUOptimizer) + 
+                                    sizeof(GBufferStage) + sizeof(DefferedLightStage) + sizeof(ToneMappingStage) + sizeof(CopyStage) + sizeof(PostRenderStage);
+
+    GraphicsContainer::CreateInfo info{
+      stageContainerSize
+      //&systemContainer
+    };
+    container.graphics_container = container.container.create<GraphicsContainer>();
+    container.graphics_container->construct(info);
+    Global::get(container.graphics_container);
+}
+
+void create_optimizers(system_container &container, DataArrays &arrays) {
+  container.lights_optimiser = container.container.create<LightOptimizer>();
+  container.monster_debug_optimiser = container.container.create<MonsterDebugOptimizer>();
+  container.geometry_debug_optimiser = container.container.create<GeometryDebugOptimizer>();
+  
+  container.lights_optimiser->setInputBuffers({arrays.transforms});
+  container.monster_debug_optimiser->setInputBuffers({arrays.transforms});
+  
+  Global::render()->addOptimizerToClear(container.lights_optimiser);
+  Global::render()->addOptimizerToClear(container.monster_debug_optimiser);
+  Global::render()->addOptimizerToClear(container.geometry_debug_optimiser);
+  
+  Global::get(container.lights_optimiser);
+  Global::get(container.monster_debug_optimiser);
+  Global::get(container.geometry_debug_optimiser);
+}
+
+void create_physics(system_container &container, dt::thread_pool* pool, DataArrays &arrays, const size_t &updateDelta) {
+  TimeLogDestructor physics("Physics system initialization");
+  
+// const GPUOctreeBroadphase::GPUOctreeBroadphaseCreateInfo octreeInfo{
+  //   {simd::vec4(0.0f, 0.0f, 0.0f, 1.0f), simd::vec4(100.0f, 100.0f, 100.0f, 0.0f), 5},
+  //   device,
+  //   task, // таск
+  //   nullptr
+  // };
+  // GPUOctreeBroadphase broad(octreeInfo);
+
+//   const CPUOctreeBroadphase::OctreeCreateInfo octree{
+//     simd::vec4(0.0f, 0.0f, 0.0f, 1.0f),
+//     simd::vec4(100.0f, 100.0f, 100.0f, 0.0f),
+//     4
+//   };
+//   CPUOctreeBroadphase broad(octree);
+
+  const CPUOctreeBroadphaseParallel::OctreeCreateInfo octree{
+    simd::vec4(0.0f, 0.0f, 0.0f, 1.0f),
+    simd::vec4(100.0f, 100.0f, 100.0f, 0.0f),
+    5
+  };
+  container.broad = container.container.create<CPUOctreeBroadphaseParallel>(pool, octree);
+
+  //GPUNarrowphase narrow(device, task);
+  //CPUNarrowphase narrow(octree.depth);
+  //CPUNarrowphaseParallel narrow(&threadPool, octree.depth);
+  container.narrow = container.container.create<CPUNarrowphaseParallel>(pool, octree.depth);
+
+  //GPUSolver solver(device, task);
+  //CPUSolver solver;
+  //CPUSolverParallel solver(&threadPool);
+  container.solver = container.container.create<CPUSolverParallel>(pool);
+  
+//   if (solver == nullptr) {
+//     throw std::runtime_error("wtf");
+//   }
+
+  // const GPUPhysicsSorterCreateInfo sorterInfo{
+  //   {
+  //     "shaders/sorting.spv"
+  //   },
+  //   {
+  //     "shaders/sortingOverlapping1.spv", "shaders/sortingOverlapping2.spv"
+  //   }
+  // };
+  // GPUPhysicsSorter sorter(device, task, sorterInfo);
+
+  //CPUPhysicsSorter sorter;
+  container.sorter = container.container.create<CPUPhysicsSorter>();
+
+  const uint32_t staticMatrix = arrays.matrices->insert(simd::mat4(1.0f));
+  const uint32_t dynamicMatrix = arrays.matrices->insert(simd::mat4(1.0f));
+  const PhysicsExternalBuffers bufferInfo{
+    staticMatrix,
+    dynamicMatrix,
+    arrays.inputs,
+    arrays.transforms,
+    arrays.matrices,
+    arrays.rotationCountBuffer,
+    arrays.rotations,
+    arrays.externals
+  };
+
+//   const GPUPhysicsCreateInfo physInfo {
+//     &broad,
+//     &narrow,
+//     &solver,
+//     &sorter,
+//     &bufferInfo
+//   };
+//   GPUPhysics phys(device, task, physInfo);
+
+  const CPUPhysicsParallel::CreateInfo physInfo{
+    container.broad,
+    container.narrow,
+    container.solver,
+    container.sorter,
+
+    pool,
+    &bufferInfo,
+    
+    updateDelta
+  };
+  //CPUPhysicsParallel phys(physInfo);
+  container.physics = container.container.create<CPUPhysicsParallel>(physInfo);
+  Global::get<PhysicsEngine>(container.physics);
+}
+
+void create_ai(system_container &container, dt::thread_pool* pool) {
+  TimeLogDestructor AIsystem("AI system initialization");
+  
+  container.edge_container = container.container.create<graph::container>();
+  Global::get(container.edge_container);
+  
+  const systems::pathfinder::create_info info{
+    pool,
+    container.edge_container,
+    [] (const components::vertex* vert, const components::vertex* neighbor, const graph::edge* edge) -> float {
+      (void)vert;
+      (void)neighbor;
+      return edge->length;
+    },
+    [] (const components::vertex* vert, const components::vertex* neighbor) -> float {
+      return vert->goal_distance_estimate(neighbor);
+    }
+  };
+  
+  container.pathfinder_system = container.container.create<systems::pathfinder>(info);
+  Global::get(container.pathfinder_system);
+}
+
+void create_sound_system(system_container &container) {
+  TimeLogDestructor AIsystem("Sound system initialization");
+  container.sound_system = container.container.create<systems::sound>();
+  Global::get(container.sound_system);
+}
+
 void initnk(yavf::Device* device, Window* window, nuklear_data &data) {
   glfwSetKeyCallback(window->handle(), keyCallback);
   glfwSetCharCallback(window->handle(), charCallback);
@@ -551,7 +783,7 @@ void initnk(yavf::Device* device, Window* window, nuklear_data &data) {
   data.ctx.clip.copy = clipbardCopy;
   data.ctx.clip.paste = clipbardPaste;
   data.ctx.clip.userdata = nk_handle_ptr(window);
-  Global::data()->currentText = 0;
+  Global::get<input::data>()->current_text = 0;
 }
 
 void deinitnk(nuklear_data &data) {
@@ -565,61 +797,100 @@ void nextnkFrame(Window* window, nk_context* ctx) {
   int widht, height, display_width, display_height;
   glfwGetWindowSize(window->handle(), &widht, &height);
   glfwGetFramebufferSize(window->handle(), &display_width, &display_height);
-  Global::data()->fbScaleX = float(display_width / widht);
-  Global::data()->fbScaleY = float(display_height / height);
+  Global::get<input::data>()->fb_scale.x = float(display_width / widht);
+  Global::get<input::data>()->fb_scale.y = float(display_height / height);
 
-  if (Global::data()->focusOnInterface) {
+  if (Global::get<input::data>()->interface_focus) {
     nk_input_begin(ctx);
     // nk_input_unicode нужен для того чтобы собирать набранный текст
     // можем ли мы воспользоваться им сразу из коллбека?
     // по идее можем, там не оч сложные вычисления
     //nk_input_unicode(ctx, 'f');
 
-    for (uint32_t i = 0; i < Global::data()->currentText; ++i) {
-      nk_input_unicode(ctx, Global::data()->text[i]);
+    for (uint32_t i = 0; i < Global::get<input::data>()->current_text; ++i) {
+      nk_input_unicode(ctx, Global::get<input::data>()->text[i]);
     }
 
-    const bool* keys = Global::data()->keys;
-    nk_input_key(ctx, NK_KEY_DEL, keys[GLFW_KEY_DELETE]);
-    nk_input_key(ctx, NK_KEY_ENTER, keys[GLFW_KEY_ENTER]);
-    nk_input_key(ctx, NK_KEY_TAB, keys[GLFW_KEY_TAB]);
-    nk_input_key(ctx, NK_KEY_BACKSPACE, keys[GLFW_KEY_BACKSPACE]);
-    nk_input_key(ctx, NK_KEY_UP, keys[GLFW_KEY_UP]);
-    nk_input_key(ctx, NK_KEY_DOWN, keys[GLFW_KEY_DOWN]);
-    nk_input_key(ctx, NK_KEY_SHIFT, keys[GLFW_KEY_LEFT_SHIFT] ||
-                                    keys[GLFW_KEY_RIGHT_SHIFT]);
+    const uint32_t rel_event = static_cast<uint32_t>(input::type::release);
+    //const bool* keys = Global::data()->keys;
+    const auto keys = Global::get<input::data>()->key_events.container;
+    nk_input_key(ctx, NK_KEY_DEL, keys[GLFW_KEY_DELETE].event != rel_event);
+    nk_input_key(ctx, NK_KEY_ENTER, keys[GLFW_KEY_ENTER].event != rel_event);
+    nk_input_key(ctx, NK_KEY_TAB, keys[GLFW_KEY_TAB].event != rel_event);
+    nk_input_key(ctx, NK_KEY_BACKSPACE, keys[GLFW_KEY_BACKSPACE].event != rel_event);
+    nk_input_key(ctx, NK_KEY_UP, keys[GLFW_KEY_UP].event != rel_event);
+    nk_input_key(ctx, NK_KEY_DOWN, keys[GLFW_KEY_DOWN].event != rel_event);
+    nk_input_key(ctx, NK_KEY_SHIFT, keys[GLFW_KEY_LEFT_SHIFT].event != rel_event ||
+                                    keys[GLFW_KEY_RIGHT_SHIFT].event != rel_event);
 
-    if (keys[GLFW_KEY_LEFT_CONTROL] ||
-      keys[GLFW_KEY_RIGHT_CONTROL]) {
-      nk_input_key(ctx, NK_KEY_COPY, keys[GLFW_KEY_C]);
-      nk_input_key(ctx, NK_KEY_PASTE, keys[GLFW_KEY_V]);
-      nk_input_key(ctx, NK_KEY_CUT, keys[GLFW_KEY_X]);
-      nk_input_key(ctx, NK_KEY_TEXT_UNDO, keys[GLFW_KEY_Z]);
-      nk_input_key(ctx, NK_KEY_TEXT_REDO, keys[GLFW_KEY_R]);
-      nk_input_key(ctx, NK_KEY_TEXT_WORD_LEFT, keys[GLFW_KEY_LEFT]);
-      nk_input_key(ctx, NK_KEY_TEXT_WORD_RIGHT, keys[GLFW_KEY_RIGHT]);
-      nk_input_key(ctx, NK_KEY_TEXT_SELECT_ALL, keys[GLFW_KEY_A]);
+    if (keys[GLFW_KEY_LEFT_CONTROL].event != rel_event ||
+      keys[GLFW_KEY_RIGHT_CONTROL].event != rel_event) {
+      nk_input_key(ctx, NK_KEY_COPY, keys[GLFW_KEY_C].event != rel_event);
+      nk_input_key(ctx, NK_KEY_PASTE, keys[GLFW_KEY_V].event != rel_event);
+      nk_input_key(ctx, NK_KEY_CUT, keys[GLFW_KEY_X].event != rel_event);
+      nk_input_key(ctx, NK_KEY_TEXT_UNDO, keys[GLFW_KEY_Z].event != rel_event);
+      nk_input_key(ctx, NK_KEY_TEXT_REDO, keys[GLFW_KEY_R].event != rel_event);
+      nk_input_key(ctx, NK_KEY_TEXT_WORD_LEFT, keys[GLFW_KEY_LEFT].event != rel_event);
+      nk_input_key(ctx, NK_KEY_TEXT_WORD_RIGHT, keys[GLFW_KEY_RIGHT].event != rel_event);
+      nk_input_key(ctx, NK_KEY_TEXT_SELECT_ALL, keys[GLFW_KEY_A].event != rel_event);
 
-      nk_input_key(ctx, NK_KEY_SCROLL_START, keys[GLFW_KEY_PAGE_DOWN]);
-      nk_input_key(ctx, NK_KEY_SCROLL_END, keys[GLFW_KEY_PAGE_UP]);
-      nk_input_key(ctx, NK_KEY_TEXT_START, keys[GLFW_KEY_HOME]);
-      nk_input_key(ctx, NK_KEY_TEXT_END, keys[GLFW_KEY_END]);
+      nk_input_key(ctx, NK_KEY_SCROLL_START, keys[GLFW_KEY_PAGE_DOWN].event != rel_event);
+      nk_input_key(ctx, NK_KEY_SCROLL_END, keys[GLFW_KEY_PAGE_UP].event != rel_event);
+      nk_input_key(ctx, NK_KEY_TEXT_START, keys[GLFW_KEY_HOME].event != rel_event);
+      nk_input_key(ctx, NK_KEY_TEXT_END, keys[GLFW_KEY_END].event != rel_event);
     } else {
-      nk_input_key(ctx, NK_KEY_LEFT, keys[GLFW_KEY_LEFT]);
-      nk_input_key(ctx, NK_KEY_RIGHT, keys[GLFW_KEY_RIGHT]);
+      nk_input_key(ctx, NK_KEY_LEFT, keys[GLFW_KEY_LEFT].event != rel_event);
+      nk_input_key(ctx, NK_KEY_RIGHT, keys[GLFW_KEY_RIGHT].event != rel_event);
       nk_input_key(ctx, NK_KEY_COPY, 0);
       nk_input_key(ctx, NK_KEY_PASTE, 0);
       nk_input_key(ctx, NK_KEY_CUT, 0);
-      nk_input_key(ctx, NK_KEY_SHIFT, 0);
+//       nk_input_key(ctx, NK_KEY_SHIFT, 0);
 
-      nk_input_key(ctx, NK_KEY_SCROLL_DOWN, keys[GLFW_KEY_PAGE_DOWN]);
-      nk_input_key(ctx, NK_KEY_SCROLL_UP, keys[GLFW_KEY_PAGE_UP]);
-      nk_input_key(ctx, NK_KEY_TEXT_LINE_START, keys[GLFW_KEY_HOME]);
-      nk_input_key(ctx, NK_KEY_TEXT_LINE_END, keys[GLFW_KEY_END]);
+      nk_input_key(ctx, NK_KEY_SCROLL_DOWN, keys[GLFW_KEY_PAGE_DOWN].event != rel_event);
+      nk_input_key(ctx, NK_KEY_SCROLL_UP, keys[GLFW_KEY_PAGE_UP].event != rel_event);
+      nk_input_key(ctx, NK_KEY_TEXT_LINE_START, keys[GLFW_KEY_HOME].event != rel_event);
+      nk_input_key(ctx, NK_KEY_TEXT_LINE_END, keys[GLFW_KEY_END].event != rel_event);
     }
+    
+//     nk_input_key(ctx, NK_KEY_ENTER, keys[GLFW_KEY_ENTER]);
+//     nk_input_key(ctx, NK_KEY_TAB, keys[GLFW_KEY_TAB]);
+//     nk_input_key(ctx, NK_KEY_BACKSPACE, keys[GLFW_KEY_BACKSPACE]);
+//     nk_input_key(ctx, NK_KEY_UP, keys[GLFW_KEY_UP]);
+//     nk_input_key(ctx, NK_KEY_DOWN, keys[GLFW_KEY_DOWN]);
+//     nk_input_key(ctx, NK_KEY_SHIFT, keys[GLFW_KEY_LEFT_SHIFT] ||
+//                                     keys[GLFW_KEY_RIGHT_SHIFT]);
+// 
+//     if (keys[GLFW_KEY_LEFT_CONTROL] ||
+//       keys[GLFW_KEY_RIGHT_CONTROL]) {
+//       nk_input_key(ctx, NK_KEY_COPY, keys[GLFW_KEY_C]);
+//       nk_input_key(ctx, NK_KEY_PASTE, keys[GLFW_KEY_V]);
+//       nk_input_key(ctx, NK_KEY_CUT, keys[GLFW_KEY_X]);
+//       nk_input_key(ctx, NK_KEY_TEXT_UNDO, keys[GLFW_KEY_Z]);
+//       nk_input_key(ctx, NK_KEY_TEXT_REDO, keys[GLFW_KEY_R]);
+//       nk_input_key(ctx, NK_KEY_TEXT_WORD_LEFT, keys[GLFW_KEY_LEFT]);
+//       nk_input_key(ctx, NK_KEY_TEXT_WORD_RIGHT, keys[GLFW_KEY_RIGHT]);
+//       nk_input_key(ctx, NK_KEY_TEXT_SELECT_ALL, keys[GLFW_KEY_A]);
+// 
+//       nk_input_key(ctx, NK_KEY_SCROLL_START, keys[GLFW_KEY_PAGE_DOWN]);
+//       nk_input_key(ctx, NK_KEY_SCROLL_END, keys[GLFW_KEY_PAGE_UP]);
+//       nk_input_key(ctx, NK_KEY_TEXT_START, keys[GLFW_KEY_HOME]);
+//       nk_input_key(ctx, NK_KEY_TEXT_END, keys[GLFW_KEY_END]);
+//     } else {
+//       nk_input_key(ctx, NK_KEY_LEFT, keys[GLFW_KEY_LEFT]);
+//       nk_input_key(ctx, NK_KEY_RIGHT, keys[GLFW_KEY_RIGHT]);
+//       nk_input_key(ctx, NK_KEY_COPY, 0);
+//       nk_input_key(ctx, NK_KEY_PASTE, 0);
+//       nk_input_key(ctx, NK_KEY_CUT, 0);
+// //       nk_input_key(ctx, NK_KEY_SHIFT, 0);
+// 
+//       nk_input_key(ctx, NK_KEY_SCROLL_DOWN, keys[GLFW_KEY_PAGE_DOWN]);
+//       nk_input_key(ctx, NK_KEY_SCROLL_UP, keys[GLFW_KEY_PAGE_UP]);
+//       nk_input_key(ctx, NK_KEY_TEXT_LINE_START, keys[GLFW_KEY_HOME]);
+//       nk_input_key(ctx, NK_KEY_TEXT_LINE_END, keys[GLFW_KEY_END]);
+//     }
 
     glfwGetCursorPos(Global::window()->handle(), &x, &y);
-    if (Global::window()->isFocused()) {
+    if (Global::window()->isFocused() && Global::get<input::data>()->interface_focus) {
       // Mouse position in screen coordinates (set to -1,-1 if no mouse / on another screen, etc.)
       nk_input_motion(ctx, (int)x, (int)y);
     } else {
@@ -627,30 +898,28 @@ void nextnkFrame(Window* window, nk_context* ctx) {
     }
 
     // тоже заменить, также наклир дает возможность обработать даблклик, как это сделать верно?
-    nk_input_button(ctx, NK_BUTTON_LEFT, (int)x, (int)y, keys[GLFW_MOUSE_BUTTON_LEFT]);
-    nk_input_button(ctx, NK_BUTTON_MIDDLE, (int)x, (int)y, keys[GLFW_MOUSE_BUTTON_MIDDLE]);
-    nk_input_button(ctx, NK_BUTTON_RIGHT, (int)x, (int)y, keys[GLFW_MOUSE_BUTTON_RIGHT]);
+    nk_input_button(ctx, NK_BUTTON_LEFT, (int)x, (int)y, keys[GLFW_MOUSE_BUTTON_LEFT].event != rel_event);
+    nk_input_button(ctx, NK_BUTTON_MIDDLE, (int)x, (int)y, keys[GLFW_MOUSE_BUTTON_MIDDLE].event != rel_event);
+    nk_input_button(ctx, NK_BUTTON_RIGHT, (int)x, (int)y, keys[GLFW_MOUSE_BUTTON_RIGHT].event != rel_event);
 
     bool doubleClick = false;
-    if (keys[GLFW_MOUSE_BUTTON_LEFT]) {
+    if (keys[GLFW_MOUSE_BUTTON_LEFT].event != rel_event) {
       auto p = std::chrono::steady_clock::now();
-
-      auto diff = p - Global::data()->doubleClickPoint;
+      auto diff = p - Global::get<input::data>()->double_click_time_point;
       auto mcs = std::chrono::duration_cast<std::chrono::microseconds>(diff).count();
-
-      Global::data()->doubleClickPoint = p;
       doubleClick = mcs < DOUBLE_CLICK_TIME;
+      if (!doubleClick) {
+        Global::get<input::data>()->double_click_time_point = p;
+      }
     }
 
-    // не понимаю че делать с двойным нажатием
-    // точнее мне для этого нужно время
-    nk_input_button(ctx, NK_BUTTON_DOUBLE, int(Global::data()->clickPos.x), int(Global::data()->clickPos.y), doubleClick);
-    nk_input_scroll(ctx, nk_vec2(Global::data()->mouseWheel, 0.0f));
+    nk_input_button(ctx, NK_BUTTON_DOUBLE, int(Global::get<input::data>()->click_pos.x), int(Global::get<input::data>()->click_pos.y), doubleClick);
+    nk_input_scroll(ctx, nk_vec2(Global::get<input::data>()->mouse_wheel, 0.0f));
     nk_input_end(ctx);
     // обнуляем
-    Global::data()->clickPos = glm::uvec2(x, y);
-    Global::data()->currentText = 0;
-    Global::data()->mouseWheel = 0.0f;
+    Global::get<input::data>()->click_pos = glm::uvec2(x, y);
+    Global::get<input::data>()->current_text = 0;
+    Global::get<input::data>()->mouse_wheel = 0.0f;
 
     glfwSetInputMode(window->handle(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
   } else {
@@ -750,36 +1019,36 @@ void setDescriptor(yavf::Buffer* buffer, yavf::DescriptorSet* set) {
   buffer->setDescriptor(set, i);
 }
 
-void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, DataArrays &arrays) {
-  GPUContainer<ExternalData>* externals = arraysContainer.add<GPUContainer<ExternalData>>(device);
+void createDataArrays(yavf::Device* device, DataArrays &arrays) {
+  GPUContainer<ExternalData>* externals = arrays.container.create<GPUContainer<ExternalData>>(device);
   arrays.externals = externals;
   
-  GPUContainer<InputData>* inputs = arraysContainer.add<GPUContainer<InputData>>(device);
+  GPUContainer<InputData>* inputs = arrays.container.create<GPUContainer<InputData>>(device);
   arrays.inputs = inputs;
   
-  GPUContainer<simd::mat4>* matrices = arraysContainer.add<GPUContainer<simd::mat4>>(device);
+  GPUContainer<simd::mat4>* matrices = arrays.container.create<GPUContainer<simd::mat4>>(device);
   arrays.matrices = matrices;
   
-  GPUBuffer<uint32_t>* rotationCountBuffer = arraysContainer.add<GPUBuffer<uint32_t>>(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+  GPUBuffer<uint32_t>* rotationCountBuffer = arrays.container.create<GPUBuffer<uint32_t>>(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
   arrays.rotationCountBuffer = rotationCountBuffer;
   
-  GPUContainer<RotationData>* rotations = arraysContainer.add<GPUContainer<RotationData>>(device);
+  GPUContainer<RotationData>* rotations = arrays.container.create<GPUContainer<RotationData>>(device);
   arrays.rotations = rotations;
   
-  GPUContainer<Transform>* transforms = arraysContainer.add<GPUContainer<Transform>>(device);
+  GPUContainer<Transform>* transforms = arrays.container.create<GPUContainer<Transform>>(device);
   arrays.transforms = transforms;
   
-  GPUContainer<Texture>* textures = arraysContainer.add<GPUContainer<Texture>>(device);
+  GPUContainer<Texture>* textures = arrays.container.create<GPUContainer<Texture>>(device);
   arrays.textures = textures;
   
-  arrays.animStates = arraysContainer.add<CPUContainer<AnimationState>>();
+//   arrays.animStates = arraysContainer.add<CPUContainer<AnimationState>>();
 //   arrays.broadphasePairs = arraysContainer.add<GPUArray<BroadphasePair>>(device);
 
   TransformComponent::setContainer(arrays.transforms);
   InputComponent::setContainer(arrays.inputs);
-  GraphicComponent::setContainer(arrays.matrices);
-  GraphicComponent::setContainer(arrays.rotations);
-  GraphicComponent::setContainer(arrays.textures);
+//   GraphicComponent::setContainer(arrays.matrices);
+//   GraphicComponent::setContainer(arrays.rotations);
+//   GraphicComponent::setContainer(arrays.textures);
   PhysicsComponent::setContainer(arrays.externals);
 //   AnimationComponent::setStateContainer(arrays.animStates);
   
@@ -814,6 +1083,9 @@ void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, Da
     setDescriptor(transforms->vector().handle(), descs[0]);
   }
   
+  core::interaction::matrices = matrices;
+  core::interaction::transforms = transforms;
+  
 //   std::cout << "transforms desc " << transforms->vector().descriptorSet()->handle() << '\n';
 }
 
@@ -827,16 +1099,16 @@ void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, Da
 // }
 
 void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipelineStage*> &dynPipe) {
-  data.render->addStage<BeginTaskStage>(); //data.container->tasks3()
+  Global::render()->addStage<BeginTaskStage>(); //data.container->tasks3()
   
   MonsterGPUOptimizer* monopt = nullptr;
   {
     const MonsterGPUOptimizer::CreateInfo info{
-      data.device,
+      data.systems->graphics_container->device(),
 //       data.container->tasks1(),
-      data.render->getCameraDataBuffer()
+      Global::render()->getCameraDataBuffer()
     };
-    monopt = data.render->addStage<MonsterGPUOptimizer>(info);
+    monopt = Global::render()->addStage<MonsterGPUOptimizer>(info);
     
     monopt->setInputBuffers({data.arrays->transforms, data.arrays->matrices, data.arrays->textures});
   }
@@ -844,20 +1116,22 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
   GeometryGPUOptimizer* geoopt = nullptr;
   {
     const GeometryGPUOptimizer::CreateInfo info{
-      data.device,
+      data.systems->graphics_container->device(),
 //       data.container->tasks1(),
-      data.render->getCameraDataBuffer()
+      Global::render()->getCameraDataBuffer()
     };
-    geoopt = data.render->addStage<GeometryGPUOptimizer>(info);
+    geoopt = Global::render()->addStage<GeometryGPUOptimizer>(info);
     
     geoopt->setInputBuffers({data.arrays->transforms, data.arrays->matrices, data.arrays->rotationCountBuffer, data.arrays->rotations, data.arrays->textures});
   }
   
-  GraphicComponent::setOptimizer(monopt);
-  GraphicComponentIndexes::setOptimizer(geoopt);
+//   GraphicComponent::setOptimizer(monopt);
+//   GraphicComponentIndexes::setOptimizer(geoopt);
 
   Global::render()->addOptimizerToClear(monopt);
   Global::render()->addOptimizerToClear(geoopt);
+  Global::get(monopt);
+  Global::get(geoopt);
 
   // короч для того чтобы перенести оптимизеры на гпу
   // мне нужно добавить много новых стейджев, может быть немного пересмотреть концепцию?
@@ -869,20 +1143,21 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
 
   const size_t gBufferStageContainerSize = sizeof(MonsterGBufferStage) + sizeof(GeometryGBufferStage);
   const GBufferStage::CreateInfo info{
-    data.device,
-    data.render->getCameraDataBuffer(),
+    data.systems->graphics_container->device(),
+    Global::render()->getCameraDataBuffer(),
 //     data.container->tasks2(), //reinterpret_cast<yavf::GraphicTask**>(data.task),// &graphicsTasks,
-    data.window->size().extent.width,
-    data.window->size().extent.height,
+    Global::window()->size().extent.width,
+    Global::window()->size().extent.height
 
 //       textureLoader->imageDescriptor(),
 //       textureLoader->samplerDescriptor()
   };
-  GBufferStage* gBuffer = data.render->addStage<GBufferStage>(gBufferStageContainerSize, info);
+  GBufferStage* gBuffer = Global::render()->addStage<GBufferStage>(gBufferStageContainerSize, info);
   dynPipe.push_back(gBuffer);
 
+  auto buffer = Global::get<game::map_data_container>()->vertices;
   auto monGbuffer = gBuffer->addPart<MonsterGBufferStage>(monopt);
-  auto geoGbuffer = gBuffer->addPart<GeometryGBufferStage>(data.mapLoader->mapVertices(), geoopt); // тут должен быть буфер карты, как его получить?
+  auto geoGbuffer = gBuffer->addPart<GeometryGBufferStage>(buffer, geoopt);
   
   (void)monGbuffer;
   (void)geoGbuffer;
@@ -894,43 +1169,43 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
 
   // нужно получить из деферед дескриптор
   const DefferedLightStage::CreateInfo dInfo{
-    data.device,
-    data.render->getCameraDataBuffer(),
-    data.render->getMatrixesBuffer(),
+    data.systems->graphics_container->device(),
+    Global::render()->getCameraDataBuffer(),
+    Global::render()->getMatrixesBuffer(),
 //     data.container->tasks1(), //reinterpret_cast<yavf::ComputeTask**>(data.task), //&computeTasks,
 
-    data.lights,
+    Global::get<LightOptimizer>(),
 
-    data.window->size().extent.width,
-    data.window->size().extent.height,
+    Global::window()->size().extent.width,
+    Global::window()->size().extent.height,
 
     gBuffer->getDeferredRenderTargetDescriptor(),
     gBuffer->getDeferredRenderTargetLayoutDescriptor()
   };
-  DefferedLightStage* lightStage = data.render->addStage<DefferedLightStage>(dInfo);
+  DefferedLightStage* lightStage = Global::render()->addStage<DefferedLightStage>(dInfo);
 
   const ToneMappingStage::CreateInfo tInfo{
-    data.device,
+    data.systems->graphics_container->device(),
 //     data.container->tasks1(), //reinterpret_cast<yavf::ComputeTask**>(data.task), //&computeTasks,
 
-    data.window->size().extent.width,
-    data.window->size().extent.height,
+    Global::window()->size().extent.width,
+    Global::window()->size().extent.height,
 
     lightStage->getOutputDescriptor()
   };
-  ToneMappingStage* tone = data.render->addStage<ToneMappingStage>(tInfo);
+  ToneMappingStage* tone = Global::render()->addStage<ToneMappingStage>(tInfo);
 
   const CopyStage::CreateInfo cInfo{
-    data.device,
+    data.systems->graphics_container->device(),
 //     data.container->tasks2(), //reinterpret_cast<yavf::GraphicTask**>(data.task), //&graphicsTasks,
 
     tone->getOutputImage(),
     gBuffer->getDepthBuffer(),
 
-    data.window->getFamily(),
-    data.window
+    Global::window()->getFamily(),
+    Global::window()
   };
-  CopyStage* copy = data.render->addStage<CopyStage>(cInfo);
+  CopyStage* copy = Global::render()->addStage<CopyStage>(cInfo);
   (void)copy;
 
   // и отрисовка гуи
@@ -939,11 +1214,11 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
 
   const size_t postRenderStageContainerSize = sizeof(GuiStage) + sizeof(MonsterDebugStage) + sizeof(GeometryDebugStage);
   const PostRenderStage::CreateInfo pInfo{
-    data.device,
+    data.systems->graphics_container->device(),
 //     data.container->tasks2(), //reinterpret_cast<yavf::GraphicTask**>(data.task), //&graphicsTasks,
-    data.window
+    Global::window()
   };
-  PostRenderStage* postRender = data.render->addStage<PostRenderStage>(postRenderStageContainerSize, pInfo);
+  PostRenderStage* postRender = Global::render()->addStage<PostRenderStage>(postRenderStageContainerSize, pInfo);
   dynPipe.push_back(postRender);
 
 //     const GuiStage::CreateInfo gInfo{
@@ -975,212 +1250,210 @@ void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipe
 //   GeometryDebugStage* geoDebug = postRender->addPart<GeometryDebugStage>(gdInfo);
 
   //data.render->create<EndTaskStage>(reinterpret_cast<yavf::TaskInterface**>(data.task));
-  data.render->addStage<EndTaskStage>(); // data.container->tasks3()
+  Global::render()->addStage<EndTaskStage>(); // data.container->tasks3()
 }
 
-void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, const size_t &updateDelta, PhysicsContainer &physicsContainer, PhysicsEngine** engine) {
-  TimeLogDestructor physics("Physics system initialization");
-  
-// const GPUOctreeBroadphase::GPUOctreeBroadphaseCreateInfo octreeInfo{
-  //   {simd::vec4(0.0f, 0.0f, 0.0f, 1.0f), simd::vec4(100.0f, 100.0f, 100.0f, 0.0f), 5},
-  //   device,
-  //   task, // таск
-  //   nullptr
-  // };
-  // GPUOctreeBroadphase broad(octreeInfo);
-
-//   const CPUOctreeBroadphase::OctreeCreateInfo octree{
-//     simd::vec4(0.0f, 0.0f, 0.0f, 1.0f),
-//     simd::vec4(100.0f, 100.0f, 100.0f, 0.0f),
-//     4
+// void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystemContainer &container) {
+//   TimeLogDestructor AIsystem("AI system initialization");
+//   
+//   const systems::pathfinder::create_info info{
+//     threadPool,
+//     graph,
+//     [] (const components::vertex* vert, const components::vertex* neighbor, const graph::edge* edge) -> float {
+//       (void)vert;
+//       (void)neighbor;
+//       return edge->length;
+//     },
+//     [] (const components::vertex* vert, const components::vertex* neighbor) -> float {
+//       return vert->goal_distance_estimate(neighbor);
+//     }
 //   };
-//   CPUOctreeBroadphase broad(octree);
-
-  const CPUOctreeBroadphaseParallel::OctreeCreateInfo octree{
-    simd::vec4(0.0f, 0.0f, 0.0f, 1.0f),
-    simd::vec4(100.0f, 100.0f, 100.0f, 0.0f),
-    5
-  };
-  //CPUOctreeBroadphaseParallel broad(threadPool, octree);
-  CPUOctreeBroadphaseParallel* broad = physicsContainer.createBroadphase<CPUOctreeBroadphaseParallel>(threadPool, octree);
-
-  //GPUNarrowphase narrow(device, task);
-  //CPUNarrowphase narrow(octree.depth);
-  //CPUNarrowphaseParallel narrow(&threadPool, octree.depth);
-  CPUNarrowphaseParallel* narrow = physicsContainer.createNarrowphase<CPUNarrowphaseParallel>(threadPool, octree.depth);
-
-  //GPUSolver solver(device, task);
-  //CPUSolver solver;
-  //CPUSolverParallel solver(&threadPool);
-  CPUSolverParallel* solver = physicsContainer.createSolver<CPUSolverParallel>(threadPool);
-  
-//   if (solver == nullptr) {
-//     throw std::runtime_error("wtf");
-//   }
-
-  // const GPUPhysicsSorterCreateInfo sorterInfo{
-  //   {
-  //     "shaders/sorting.spv"
-  //   },
-  //   {
-  //     "shaders/sortingOverlapping1.spv", "shaders/sortingOverlapping2.spv"
-  //   }
-  // };
-  // GPUPhysicsSorter sorter(device, task, sorterInfo);
-
-  //CPUPhysicsSorter sorter;
-  CPUPhysicsSorter* sorter = physicsContainer.createPhysicsSorter<CPUPhysicsSorter>();
-
-  const uint32_t staticMatrix = arrays.matrices->insert(simd::mat4(1.0f));
-  const uint32_t dynamicMatrix = arrays.matrices->insert(simd::mat4(1.0f));
-  const PhysicsExternalBuffers bufferInfo{
-    staticMatrix,
-    dynamicMatrix,
-    arrays.inputs,
-    arrays.transforms,
-    arrays.matrices,
-    arrays.rotationCountBuffer,
-    arrays.rotations,
-    arrays.externals
-  };
-
-//   const GPUPhysicsCreateInfo physInfo {
-//     &broad,
-//     &narrow,
-//     &solver,
-//     &sorter,
-//     &bufferInfo
+//   
+//   const CPUAISystem::CreateInfo info {
+//     threadPool,
+//     updateDelta,
+//     sizeof(CPUPathFindingPhaseParallel) + sizeof(Graph)
 //   };
-//   GPUPhysics phys(device, task, physInfo);
+//   CPUAISystem* system = container.addSystem<CPUAISystem>(info);
+//   
+//   Graph* graph = system->createGraph<Graph>();
+//   
+//   const CPUPathFindingPhaseParallel::CreateInfo pathInfo {
+//     threadPool,
+//     graph,
+//     [] (const vertex_t* vert, const vertex_t* neighbor, const edge_t* edge) -> float {
+//       (void)vert;
+//       (void)neighbor;
+//       return edge->getDistance();
+//     },
+//     [] (const vertex_t* vert, const vertex_t* neighbor) -> float {
+//       return vert->goalDistanceEstimate(neighbor);
+//     }
+//   };
+//   
+//   CPUPathFindingPhaseParallel* path = system->createPathfindingSystem<CPUPathFindingPhaseParallel>(pathInfo);
+//   path->registerPathType(Type::get("default"), [] (const vertex_t*, const vertex_t* neighbor, const edge_t* edge) -> bool {
+//     if (edge->getAngle() > PASSABLE_ANGLE) return false;
+//     const glm::vec4 norm = neighbor->getVertexData()->normal;
+//     if (getAngle(-Global::physics()->getGravityNorm(), simd::vec4(&norm.x)) > PASSABLE_ANGLE) return false;
+//     if (edge->getWidth() < 1.0f) return false;
+//     if (edge->isFake() && edge->getHeight() > 1.0f) return false;
+//     //if (edge.isFake()) return false;
+//     
+//     return true;
+//   }, 0.3f);
+//   
+//   Global::get<AISystem>(system);
+//   Global g;
+//   g.setAISystem(system);
+// }
 
-  const CPUPhysicsParallel::CreateInfo physInfo{
-    broad,
-    narrow,
-    solver,
-    sorter,
-
-    threadPool,
-    &bufferInfo,
-    
-    updateDelta
-  };
-  //CPUPhysicsParallel phys(physInfo);
-  *engine = physicsContainer.createPhysicsEngine<CPUPhysicsParallel>(physInfo);
-}
-
-void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystemContainer &container) {
-  TimeLogDestructor AIsystem("AI system initialization");
-  
-  const CPUAISystem::CreateInfo info {
-    threadPool,
-    updateDelta,
-    sizeof(CPUPathFindingPhaseParallel) + sizeof(Graph)
-  };
-  CPUAISystem* system = container.addSystem<CPUAISystem>(info);
-  
-  Graph* graph = system->createGraph<Graph>();
-  
-  const CPUPathFindingPhaseParallel::CreateInfo pathInfo {
-    threadPool,
-    graph,
-    [] (const vertex_t* vert, const vertex_t* neighbor, const edge_t* edge) -> float {
-      (void)vert;
-      (void)neighbor;
-      return edge->getDistance();
-    },
-    [] (const vertex_t* vert, const vertex_t* neighbor) -> float {
-      return vert->goalDistanceEstimate(neighbor);
-    }
-  };
-  
-  CPUPathFindingPhaseParallel* path = system->createPathfindingSystem<CPUPathFindingPhaseParallel>(pathInfo);
-  path->registerPathType(Type::get("default"), [] (const vertex_t*, const vertex_t* neighbor, const edge_t* edge) -> bool {
-    if (edge->getAngle() > PASSABLE_ANGLE) return false;
-    const glm::vec4 norm = neighbor->getVertexData()->normal;
-    if (getAngle(-Global::physics()->getGravityNorm(), simd::vec4(&norm.x)) > PASSABLE_ANGLE) return false;
-    if (edge->getWidth() < 1.0f) return false;
-    if (edge->isFake() && edge->getHeight() > 1.0f) return false;
-    //if (edge.isFake()) return false;
-    
-    return true;
-  }, 0.3f);
-  
-  Global::get<AISystem>(system);
-  Global g;
-  g.setAISystem(system);
-}
-
-void createBehaviourTrees() {
+std::unordered_map<utils::id, tb::BehaviorTree*> createBehaviourTrees() {
   // 200% нужно проработать мультитрединг (создать контейнер для необходимых данных)
   // в будущем мы обязательно должны воспользоваться как можно большим количеством предсозданных деревьев
   // эти деревья будут брать на себя какие то во первых типовые участки во вторых сложные в плане вычислений участки
 //   // например chaseAndAttack или смерть
   
+  std::unordered_map<utils::id, tb::BehaviorTree*> trees;
+  
   tb::BehaviorTreeBuilder builder;
-  tb::BehaviorTree* tree;
-  tree = builder.sequence()
-                  .action([] (tb::Node* const& node, void* const& ptr) -> tb::Node::status {
-                    (void)node;
-                    EntityAI* ai = reinterpret_cast<EntityAI*>(ptr);
-                    
-//                     std::cout << "Start tree" << "\n";
-//                     std::cout << "target " << ai->target() << "\n";
-                    
-                    if (ai->hasTarget()) return tb::Node::status::success;
-                          
-                    return tb::Node::status::failure;
-                  })
-                  .action([] (tb::Node* const& node, void* const& ptr) {
-                    (void)node;
-                    EntityAI* ai = reinterpret_cast<EntityAI*>(ptr);
-                    
-                    const path_state s = ai->movement()->findPath(ai->target());
-                    
-                    std::cout << "Finding path" << "\n";
-                    if (s == path_state::finding) return tb::Node::status::running;
-                    if (s == path_state::found) return tb::Node::status::success;
-                    
-                    return tb::Node::status::failure;
-                  })
-                  .action([] (tb::Node* const& node, void* const& ptr) {
-                    (void)node;
-                    EntityAI* ai = reinterpret_cast<EntityAI*>(ptr);
-                    
-                    const path_travel_state s = ai->movement()->travelPath();
-                    
-                    std::cout << "Move path" << "\n";
-                    
-                    if (s == path_travel_state::end_travel) return tb::Node::status::success;
-                    if (s == path_travel_state::path_not_exist) return tb::Node::status::failure;
-                    
-                    return tb::Node::status::running;
-                  })
-                  .action([] (tb::Node* const& node, void* const& ptr) {
-                    (void)node;
-                    EntityAI* ai = reinterpret_cast<EntityAI*>(ptr);
-                    
-                    std::cout << "This is last node" << "\n";
-                    ai->target(nullptr);
-                    return tb::Node::status::success;
-                  })
-                .end()
-              .build();
-              
-  Global::ai()->setBehaviourTreePointer(Type::get("simple_tree"), tree);
+  {
+    tb::BehaviorTree* tree;
+    tree = builder.sequence()
+                    .action([] (tb::Node* const& node, void* const& ptr) -> tb::Node::status {
+                      (void)node;
+                      yacs::entity* ent = reinterpret_cast<yacs::entity*>(ptr);
+                      
+  //                     std::cout << "Start tree" << "\n";
+  //                     std::cout << "target " << ai->target() << "\n";
+                      auto ai = ent->at<components::tree_ai>(game::monster::ai);
+                      auto target = ai->data[0].second;
+                      
+                      if (target != nullptr) return tb::Node::status::success;
+                            
+                      return tb::Node::status::failure;
+                    })
+                    .action([] (tb::Node* const& node, void* const& ptr) {
+                      (void)node;
+                      yacs::entity* ent = reinterpret_cast<yacs::entity*>(ptr);
+                      auto movement = ent->at<components::movement>(game::monster::movement);
+                      auto ai = ent->at<components::tree_ai>(game::monster::ai);
+                      auto target = ai->data[0].second;
+                      auto s = movement->find_path(target);
+                      
+                      std::cout << "Finding path" << "\n";
+                      if (s == components::movement::path_state::finding) return tb::Node::status::running;
+                      if (s == components::movement::path_state::found) return tb::Node::status::success;
+                      
+                      return tb::Node::status::failure;
+                    })
+                    .action([] (tb::Node* const& node, void* const& ptr) {
+                      (void)node;
+                      yacs::entity* ent = reinterpret_cast<yacs::entity*>(ptr);
+                      auto movement = ent->at<components::movement>(game::monster::movement);
+                      auto s = movement->travel_path();
+                      
+                      std::cout << "Move path" << "\n";
+                      
+                      if (s == components::movement::state::end_travel) return tb::Node::status::success;
+                      if (s == components::movement::state::path_not_exist) return tb::Node::status::failure;
+                      
+                      return tb::Node::status::running;
+                    })
+                    .action([] (tb::Node* const& node, void* const& ptr) {
+                      (void)node;
+                      yacs::entity* ent = reinterpret_cast<yacs::entity*>(ptr);
+                      
+                      std::cout << "This is last node" << "\n";
+                      auto ai = ent->at<components::tree_ai>(game::monster::ai);
+                      ai->data[0].second = nullptr;
+                      return tb::Node::status::success;
+                    })
+                  .end()
+                .build();
+                
+    trees[utils::id::get("simple_tree")] = tree;
+  }
+  
+  return trees;
 }
 
-resources_ptr::resources_ptr(yavf::Device* device) : resources_containers(
-    sizeof(game::image_data_container_load) +
-    sizeof(game::image_resources_load) +
-    sizeof(game::sounds_container_load) +
-    sizeof(game::abilities_container_load) + 
-    sizeof(game::effects_container_load) + 
-    sizeof(game::states_container_load) + 
-    sizeof(game::weapons_container_load) + 
-    sizeof(game::float_attribute_types_container_load) + 
-    sizeof(game::int_attribute_types_container_load) +
-    sizeof(game::entity_creators_container_load)
-  ), images(nullptr), image_res(nullptr), sounds(nullptr), abilities(nullptr), effects(nullptr), states(nullptr), weapons(nullptr), float_attribs(nullptr), int_attribs(nullptr), entities(nullptr) {
+std::unordered_map<std::string, core::attribute_t<core::float_type>::type::func_type> create_float_attribs_funcs() {
+  std::unordered_map<std::string, core::attribute_t<core::float_type>::type::func_type> attribs_func;
+  
+  attribs_func["default"] = [] (yacs::entity* ent, const struct core::attribute_t<core::float_type>::type* type, const core::float_type &base, const core::float_type &rawAdd, const float &rawMul, const core::float_type &finalAdd, const float &finalMul) -> core::float_type {
+    (void)ent;
+    (void)type;
+    core::float_type value = base;
+    
+    value *= rawMul;
+    value += rawAdd;
+    
+    value *= finalMul;
+    value += finalAdd;
+    
+    return value;
+  };
+  
+  return attribs_func;
+}
+
+std::unordered_map<std::string, core::attribute_t<core::int_type>::type::func_type> create_int_attribs_funcs() {
+  std::unordered_map<std::string, core::attribute_t<core::int_type>::type::func_type> attribs_func;
+  
+  attribs_func["default"] = [] (yacs::entity* ent, const struct core::attribute_t<core::int_type>::type* type, const core::int_type &base, const core::int_type &rawAdd, const float &rawMul, const core::int_type &finalAdd, const float &finalMul) -> core::int_type {
+    (void)ent;
+    (void)type;
+    core::int_type value = base;
+    
+    value *= rawMul;
+    value += rawAdd;
+    
+    value *= finalMul;
+    value += finalAdd;
+    
+    return value;
+  };
+  
+  attribs_func["compute_health"] = game::health_func;
+  
+  return attribs_func;
+}
+
+std::unordered_map<std::string, core::state_t::action_func> create_states_funcs() {
+  std::unordered_map<std::string, core::state_t::action_func> states_funcs;
+  
+  return states_funcs;
+}
+
+resources_ptr::resources_ptr(yavf::Device* device) : 
+    resources_containers(
+      sizeof(game::image_data_container_load) +
+      sizeof(game::image_resources_load) +
+      sizeof(game::sounds_container_load) +
+      sizeof(game::abilities_container_load) + 
+      sizeof(game::effects_container_load) + 
+      sizeof(game::states_container_load) + 
+      sizeof(game::weapons_container_load) + 
+      sizeof(game::float_attribute_types_container_load) + 
+      sizeof(game::int_attribute_types_container_load) +
+      sizeof(game::entity_creators_container_load) + 
+      sizeof(game::map_data_container_load)
+    ), images(nullptr), image_res(nullptr), sounds(nullptr), abilities(nullptr), effects(nullptr), states(nullptr), weapons(nullptr), float_attribs(nullptr), int_attribs(nullptr), entities(nullptr), map_data(nullptr),
+    float_funcs(create_float_attribs_funcs()), int_funcs(create_int_attribs_funcs()), states_funcs(create_states_funcs()), trees(createBehaviourTrees())
+  {
+//     std::cout << "resources_ptr size " << sizeof(game::image_data_container_load) +
+//       sizeof(game::image_resources_load) +
+//       sizeof(game::sounds_container_load) +
+//       sizeof(game::abilities_container_load) + 
+//       sizeof(game::effects_container_load) + 
+//       sizeof(game::states_container_load) + 
+//       sizeof(game::weapons_container_load) + 
+//       sizeof(game::float_attribute_types_container_load) + 
+//       sizeof(game::int_attribute_types_container_load) +
+//       sizeof(game::entity_creators_container_load) + 
+//       sizeof(game::map_data_container_load) << "\n";
+    
     {
       images = resources_containers.create<game::image_data_container_load>();
       Global::get<game::image_data_container>(images);
@@ -1230,26 +1503,32 @@ resources_ptr::resources_ptr(yavf::Device* device) : resources_containers(
       entities = resources_containers.create<game::entity_creators_container_load>();
       Global::get<game::entity_creators_container>(entities);
     }
+    
+    {
+      map_data = resources_containers.create<game::map_data_container_load>();
+      Global::get<game::map_data_container>(map_data);
+      map_data->vertices = nullptr;
+    }
   }
+  
 resources_ptr::~resources_ptr() {
   if (images != nullptr) resources_containers.destroy(images);
+  if (image_res != nullptr) resources_containers.destroy(image_res);
+  if (sounds != nullptr) resources_containers.destroy(sounds);
   if (abilities != nullptr) resources_containers.destroy(abilities);
   if (effects != nullptr) resources_containers.destroy(effects);
   if (states != nullptr) resources_containers.destroy(states);
   if (weapons != nullptr) resources_containers.destroy(weapons);
   if (float_attribs != nullptr) resources_containers.destroy(float_attribs);
   if (int_attribs != nullptr) resources_containers.destroy(int_attribs);
+  if (entities != nullptr) resources_containers.destroy(entities);
+  if (map_data != nullptr) resources_containers.destroy(map_data);
+  for (auto tree : trees) {
+    delete tree.second;
+  }
 }
 
-void createLoaders(resources::modification_container &mods, GraphicsContainer* graphicsContainer, render::image_container* images, resources_ptr &res, HardcodedMapLoader** mapLoader) {
-//   ImageLoader* textureLoader = nullptr;
-//   SoundLoader* soundLoader = nullptr;
-//   AnimationLoader* animationLoader = nullptr;
-//   EntityLoader* entityLoader = nullptr;
-//   ItemTypeLoader* itemLoader = nullptr;
-//   AbilityTypeLoader* abilityTypeLoader = nullptr;
-//   AttributesLoader* attributesLoader = nullptr;
-//   EffectsLoader* effectsLoader = nullptr;
+void createLoaders(resources::modification_container &mods, GraphicsContainer* graphicsContainer, render::image_container* images, resources_ptr &res, resources::map_loader** mapLoader) {
   resources::image_loader* texture_loader = nullptr;
   resources::state_loader* state_loader = nullptr;
   resources::entity_loader* entity_loader = nullptr;
@@ -1257,42 +1536,8 @@ void createLoaders(resources::modification_container &mods, GraphicsContainer* g
   resources::attributes_loader* attributes_loader = nullptr;
   resources::effects_loader* effects_loader = nullptr;
   resources::sound_loader* sound_loader = nullptr;
-  //resources::image_loader* sound_loader = nullptr;
   
-  std::unordered_map<std::string, core::attribute_t<core::float_type>::type::func_type> floatComputeFuncs;
-  std::unordered_map<std::string, core::attribute_t<core::int_type>::type::func_type> intComputeFuncs;
-  std::unordered_map<std::string, std::function<void(yacs::entity*, const size_t &)>> functions;
-  std::unordered_map<utils::id, tb::BehaviorTree*> behaviors;
-  
-  floatComputeFuncs["default"] = [] (yacs::entity* ent, const struct core::attribute_t<core::float_type>::type* type, const core::float_type &base, const core::float_type &rawAdd, const float &rawMul, const core::float_type &finalAdd, const float &finalMul) -> core::float_type {
-    (void)ent;
-    (void)type;
-    core::float_type value = base;
-    
-    value *= rawMul;
-    value += rawAdd;
-    
-    value *= finalMul;
-    value += finalAdd;
-    
-    return value;
-  };
-  
-  intComputeFuncs["default"] = [] (yacs::entity* ent, const struct core::attribute_t<core::int_type>::type* type, const core::int_type &base, const core::int_type &rawAdd, const float &rawMul, const core::int_type &finalAdd, const float &finalMul) -> core::int_type {
-    (void)ent;
-    (void)type;
-    core::int_type value = base;
-    
-    value *= rawMul;
-    value += rawAdd;
-    
-    value *= finalMul;
-    value += finalAdd;
-    
-    return value;
-  };
-  
-  intComputeFuncs["compute_health"] = game::health_func;
+  ASSERT(graphicsContainer->device());
   
   {
     const resources::image_loader::create_info info{
@@ -1315,8 +1560,8 @@ void createLoaders(resources::modification_container &mods, GraphicsContainer* g
     const resources::attributes_loader::create_info info{
       res.float_attribs,
       res.int_attribs,
-      floatComputeFuncs,
-      intComputeFuncs
+      res.float_funcs,
+      res.int_funcs
     };
     attributes_loader = mods.add_loader<resources::attributes_loader>(info);
   }
@@ -1334,7 +1579,7 @@ void createLoaders(resources::modification_container &mods, GraphicsContainer* g
       res.states,
       nullptr,
       texture_loader,
-      functions
+      res.states_funcs
     };
     state_loader = mods.add_loader<resources::state_loader>(info);
   }
@@ -1354,17 +1599,29 @@ void createLoaders(resources::modification_container &mods, GraphicsContainer* g
       attributes_loader,
       state_loader,
       res.entities,
-      behaviors
+      res.trees
     };
     entity_loader = mods.add_loader<resources::entity_loader>(info);
   }
+  
+  {
+    const resources::map_loader::create_info info{
+      Global::get<yacs::world>(),
+      entity_loader,
+      state_loader,
+      texture_loader,
+      graphicsContainer->device(),
+      res.map_data
+    };
+    *mapLoader = mods.add_loader<resources::map_loader>(info);
+  }
 
-  const HardcodedMapLoader::CreateInfo mInfo{
-    graphicsContainer->device(),
-    entity_loader,
-    texture_loader
-  };
-  *mapLoader = new HardcodedMapLoader(mInfo);
+//   const HardcodedMapLoader::CreateInfo mInfo{
+//     graphicsContainer->device(),
+//     entity_loader,
+//     texture_loader
+//   };
+//   *mapLoader = new HardcodedMapLoader(mInfo);
 
 //   const ModificationContainer::CreateInfo pInfo{
 //     0
@@ -1478,52 +1735,52 @@ void sync(TimeMeter &tm, const size_t &syncTime) {
 }
 
 void createReactions(const ReactionsCreateInfo &info) {
-  auto input = info.input;
-  info.container->create("Step forward", [input] () {
-    input->forward();
-  });
-
-  info.container->create("Step backward", [input] () {
-    input->backward();
-  });
-
-  info.container->create("Step left", [input] () {
-    input->left();
-  });
-
-  info.container->create("Step right", [input] () {
-    input->right();
-  });
-
-  info.container->create("Jump", [input] () {
-    input->jump();
-  });
+//   auto input = info.input;
+//   info.container->create("Step forward", [input] () {
+//     input->forward();
+//   });
+// 
+//   info.container->create("Step backward", [input] () {
+//     input->backward();
+//   });
+// 
+//   info.container->create("Step left", [input] () {
+//     input->left();
+//   });
+// 
+//   info.container->create("Step right", [input] () {
+//     input->right();
+//   });
+// 
+//   info.container->create("Jump", [input] () {
+//     input->jump();
+//   });
   
   auto menu = info.menuContainer;
   info.container->create("Menu", [menu] {
     menu->open();
-    Global::data()->focusOnInterface = true;
+    Global::get<input::data>()->interface_focus = true;
   });
   
-  info.container->create("menu next", [menu] () {
-    menu->next();
-  });
-  
-  info.container->create("menu prev", [menu] () {
-    menu->prev();
-  });
-  
-  info.container->create("menu increase", [menu] () {
-    menu->increase();
-  });
-  
-  info.container->create("menu decrease", [menu] () {
-    menu->decrease();
-  });
-  
-  info.container->create("menu choose", [menu] () {
-    menu->choose();
-  });
+//   info.container->create("menu next", [menu] () {
+//     menu->next();
+//   });
+//   
+//   info.container->create("menu prev", [menu] () {
+//     menu->prev();
+//   });
+//   
+//   info.container->create("menu increase", [menu] () {
+//     menu->increase();
+//   });
+//   
+//   info.container->create("menu decrease", [menu] () {
+//     menu->decrease();
+//   });
+//   
+//   info.container->create("menu choose", [menu] () {
+//     menu->choose();
+//   });
   
   info.container->create("menu escape", [menu] () {
     menu->escape();
@@ -1532,16 +1789,16 @@ void createReactions(const ReactionsCreateInfo &info) {
   auto window = info.window;
   info.container->create("Interface focus", [window] () {
     static bool lastFocus = false;
-    Global::data()->focusOnInterface = !Global::data()->focusOnInterface;
+    Global::get<input::data>()->interface_focus = !Global::get<input::data>()->interface_focus;
 
-    if (lastFocus && Global::data()->focusOnInterface != lastFocus) {
+    if (lastFocus && Global::get<input::data>()->interface_focus != lastFocus) {
       int width, height;
       glfwGetWindowSize(window->handle(), &width, &height);
       double centerX = double(width) / 2.0, centerY = double(height) / 2.0;
       glfwSetCursorPos(window->handle(), centerX, centerY);
     }
 
-    lastFocus = Global::data()->focusOnInterface;
+    lastFocus = Global::get<input::data>()->interface_focus;
   });
   
 //   auto brain = info.brain;
@@ -1576,29 +1833,65 @@ void createReactions(const ReactionsCreateInfo &info) {
   // может ли пользователь добавить свои функции к вызову?
 }
 
+const utils::id move_forward = utils::id::get("move_forward");
+const utils::id move_backward = utils::id::get("move_backward");
+const utils::id move_right = utils::id::get("move_right");
+const utils::id move_left = utils::id::get("move_left");
+const utils::id jump = utils::id::get("jump");
+const utils::id escape = utils::id::get("escape");
+const utils::id interface_focus = utils::id::get("interface_focus");
+
+const utils::id menu_next = utils::id::get("menu_next");
+const utils::id menu_prev = utils::id::get("menu_prev");
+const utils::id menu_increase = utils::id::get("menu_increase");
+const utils::id menu_decrease = utils::id::get("menu_decrease");
+const utils::id menu_choose = utils::id::get("menu_choose");
+
 void setUpKeys(KeyContainer* container) {
-  {
-    container->create({key::state::press, key::state::double_press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_W, container->config.reactions["Step forward"]);
-//     key->setReaction(KEY_STATE_PRESS,        container->config->reactions["Step forward"]);
-//     key->setReaction(KEY_STATE_DOUBLE_PRESS, container->config->reactions["Step forward"]);
-//     key->setReaction(KEY_STATE_LONG_PRESS,   container->config->reactions["Step forward"]);
-  }
-
-  container->create({key::state::press, key::state::double_press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_S, container->config.reactions["Step backward"]);
-  container->create({key::state::press, key::state::double_press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_A, container->config.reactions["Step left"]);
-  container->create({key::state::press, key::state::double_press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_D, container->config.reactions["Step right"]);
-
-  container->create({key::state::press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_SPACE, container->config.reactions["Jump"]);
+//   {
+//     container->create({key::state::press, key::state::double_press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_W, container->config.reactions["Step forward"]);
+// //     key->setReaction(KEY_STATE_PRESS,        container->config->reactions["Step forward"]);
+// //     key->setReaction(KEY_STATE_DOUBLE_PRESS, container->config->reactions["Step forward"]);
+// //     key->setReaction(KEY_STATE_LONG_PRESS,   container->config->reactions["Step forward"]);
+//   }
+// 
+//   container->create({key::state::press, key::state::double_press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_S, container->config.reactions["Step backward"]);
+//   container->create({key::state::press, key::state::double_press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_A, container->config.reactions["Step left"]);
+//   container->create({key::state::press, key::state::double_press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_D, container->config.reactions["Step right"]);
+// 
+//   container->create({key::state::press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_SPACE, container->config.reactions["Jump"]);
+//   
+//   container->create({key::state::click}, true, key::modificator::none, GLFW_KEY_LEFT_ALT, container->config.reactions["Interface focus"]);
+//   
+//   container->create({key::state::click}, false, key::modificator::none, GLFW_KEY_ESCAPE, container->config.reactions["Menu"]);
   
-  container->create({key::state::click}, true, key::modificator::none, GLFW_KEY_LEFT_ALT, container->config.reactions["Interface focus"]);
+  // нужно ли искать эвент который уже был привязан к клавише?
+  // нужно сделать две вещи: посмотреть чтобы эвент был привязан максимум к двум клавишам
+  // и показать сообщение если вдруг мы попробуем перезаписать клавишу
+  // кстати у клавиш действительно может быть несколько эвентов
+  // например в игре эвенты, эвенты в меню, эвенты в транспорте и проч
+  input::set_key(GLFW_KEY_W, move_forward);
+  input::set_key(GLFW_KEY_S, move_backward);
+  input::set_key(GLFW_KEY_A, move_left);
+  input::set_key(GLFW_KEY_D, move_right);
+  input::set_key(GLFW_KEY_SPACE, jump);
+  input::set_key(GLFW_KEY_ESCAPE, escape);
+  input::set_key(GLFW_KEY_LEFT_ALT, interface_focus);
   
-  container->create({key::state::click}, false, key::modificator::none, GLFW_KEY_ESCAPE, container->config.reactions["Menu"]);
+  // здесь появляется потребность сделать несколько эвентов на одну кнопку
+  input::set_key(GLFW_KEY_UP, menu_prev);
+  input::set_key(GLFW_KEY_DOWN, menu_next);
+  input::set_key(GLFW_KEY_RIGHT, menu_increase);
+  input::set_key(GLFW_KEY_LEFT, menu_decrease);
+  input::set_key(GLFW_KEY_ENTER, menu_choose);
   
 //   container->create({key::state::click}, true, key::modificator::none, GLFW_KEY_M, container->config.reactions["Set target"]);
 }
 
-void mouseInput(UserInputComponent* input, const uint64_t &time) {
-  if (Global::data()->focusOnInterface) return;
+void mouse_input(yacs::entity* player, const size_t &time) {
+  if (Global::get<input::data>()->interface_focus) return;
+  
+  auto input = player->at<UserInputComponent>(game::entity::input);
 
   double xpos, ypos;
   int32_t width, height;
@@ -1638,43 +1931,111 @@ void mouseInput(UserInputComponent* input, const uint64_t &time) {
 }
 
 void keysCallbacks(KeyContainer* container, const uint64_t &time) {
-  const bool shift_mod = Global::data()->keys[GLFW_KEY_LEFT_SHIFT] || 
-                         Global::data()->keys[GLFW_KEY_RIGHT_SHIFT];
-  const bool control_mod = Global::data()->keys[GLFW_KEY_LEFT_CONTROL] || 
-                           Global::data()->keys[GLFW_KEY_RIGHT_CONTROL];
-  const bool super_mod = Global::data()->keys[GLFW_KEY_LEFT_SUPER] || 
-                         Global::data()->keys[GLFW_KEY_RIGHT_SUPER];
-  const bool alt_mod = Global::data()->keys[GLFW_KEY_LEFT_ALT] || 
-                       Global::data()->keys[GLFW_KEY_RIGHT_ALT];
-  const bool backspace_mod = Global::data()->keys[GLFW_KEY_BACKSPACE];
-                       
-//   const bool modificators = shift_mod || control_mod || super_mod || alt_mod || backspace_mod;
+//   const bool shift_mod = Global::data()->keys[GLFW_KEY_LEFT_SHIFT] || 
+//                          Global::data()->keys[GLFW_KEY_RIGHT_SHIFT];
+//   const bool control_mod = Global::data()->keys[GLFW_KEY_LEFT_CONTROL] || 
+//                            Global::data()->keys[GLFW_KEY_RIGHT_CONTROL];
+//   const bool super_mod = Global::data()->keys[GLFW_KEY_LEFT_SUPER] || 
+//                          Global::data()->keys[GLFW_KEY_RIGHT_SUPER];
+//   const bool alt_mod = Global::data()->keys[GLFW_KEY_LEFT_ALT] || 
+//                        Global::data()->keys[GLFW_KEY_RIGHT_ALT];
+//   const bool backspace_mod = Global::data()->keys[GLFW_KEY_BACKSPACE];
+//                        
+// //   const bool modificators = shift_mod || control_mod || super_mod || alt_mod || backspace_mod;
+//   
+//   std::vector<key::modificator> mods;
+//   if (control_mod) mods.push_back(key::modificator::ctrl);
+//   if (alt_mod) mods.push_back(key::modificator::alt);
+//   if (shift_mod) mods.push_back(key::modificator::shift);
+//   if (super_mod) mods.push_back(key::modificator::super);
+//   if (backspace_mod) mods.push_back(key::modificator::backspace);
+//   
+//   for (size_t i = 0; i < container->config.keys.size(); ++i) {
+// //     const uint32_t keyCount = config->keys[i]->getKeysCount();
+// // 
+// // //     std::cout << "keyCount " << keyCount << "\n";
+// // 
+// //     bool state = true;
+// //     for (uint32_t j = 0; j < keyCount; ++j) {
+// //       const uint32_t key = config->keys[i]->getKey(j);
+// // 
+// // //       std::cout << "key " << key << "\n";
+// // 
+// //       state = state && Global::data()->keys[key];
+// //     }
+//     
+//     const bool state = Global::data()->keys[container->config.keys[i]->key()];
+//     container->config.keys[i]->execute(mods, state ? GLFW_PRESS : GLFW_RELEASE, time);
+//   }
   
-  std::vector<key::modificator> mods;
-  if (control_mod) mods.push_back(key::modificator::ctrl);
-  if (alt_mod) mods.push_back(key::modificator::alt);
-  if (shift_mod) mods.push_back(key::modificator::shift);
-  if (super_mod) mods.push_back(key::modificator::super);
-  if (backspace_mod) mods.push_back(key::modificator::backspace);
+  // нам возможно потребуется дабл клик для интерфейса
   
-  for (size_t i = 0; i < container->config.keys.size(); ++i) {
-//     const uint32_t keyCount = config->keys[i]->getKeysCount();
-// 
-// //     std::cout << "keyCount " << keyCount << "\n";
-// 
-//     bool state = true;
-//     for (uint32_t j = 0; j < keyCount; ++j) {
-//       const uint32_t key = config->keys[i]->getKey(j);
-// 
-// //       std::cout << "key " << key << "\n";
-// 
-//       state = state && Global::data()->keys[key];
-//     }
+  
+}
+
+void keys_callback(yacs::entity* player, interface::container* menu) {
+  auto input = player->at<UserInputComponent>(game::entity::input);
+  static bool lastFocus = false;
+  
+  {
+    size_t mem = 0;
+    auto change = input::next_input_event(mem, 1);
+    while (change.id.valid()) {
+      //if (jump == change.id && change.event == input::press) input->jump();
+      
+      if (!menu->is_opened() && escape == change.id && change.event == input::press) {
+        menu->open();
+        Global::get<input::data>()->interface_focus = menu->is_opened();
+        Global::get<systems::sound>()->pause_sounds();
+      }
+      
+      if (menu->is_opened() && escape == change.id && change.event == input::press) {
+        menu->escape();
+        Global::get<input::data>()->interface_focus = menu->is_opened();
+        Global::get<systems::sound>()->resume_sounds();
+      }
+      
+      if (interface_focus == change.id && change.event == input::press) {
+        Global::get<input::data>()->interface_focus = !Global::get<input::data>()->interface_focus;
+      }
+      
+      change = input::next_input_event(mem, 1);
+    }
     
-    const bool state = Global::data()->keys[container->config.keys[i]->key()];
-    container->config.keys[i]->execute(mods, state ? GLFW_PRESS : GLFW_RELEASE, time);
+    if (lastFocus && Global::get<input::data>()->interface_focus != lastFocus) {
+      int width, height;
+      glfwGetWindowSize(Global::window()->handle(), &width, &height);
+      double centerX = double(width) / 2.0, centerY = double(height) / 2.0;
+      glfwSetCursorPos(Global::window()->handle(), centerX, centerY);
+    }
+
+    lastFocus = Global::get<input::data>()->interface_focus;
+  }
+  
+  {
+    size_t mem = 0;
+    auto pair = input::pressed_event(mem);
+    while (pair.first.valid()) {
+      // только движение?
+      if (!menu->is_opened()) {
+        if (move_forward == pair.first) input->forward();
+        else if (move_backward == pair.first) input->backward();
+        else if (move_right == pair.first) input->right();
+        else if (move_left == pair.first) input->left();
+        else if (jump == pair.first) input->jump();
+      } else {
+//         if (menu_next == id) menu->next(); // туда можно отправлять эвенты сразу
+//         else if (menu_prev == id) menu->prev();
+//         else if (menu_increase == id) menu->increase();
+//         else if (menu_decrease == id) menu->decrease();
+        menu->send_event(pair.first, pair.second);
+      }
+      
+      pair = input::pressed_event(mem);
+    }
   }
 }
+
 
 void menuKeysCallback(interface::container* menu) {
 //   for (size_t i = 0; i < KEYS_COUNT; ++i) {
@@ -1691,18 +2052,18 @@ void callback(int error, const char* description) {
 
 void scrollCallback(GLFWwindow*, double xoffset, double yoffset) {
   if (!Global::window()->isFocused()) return;
-  if (!Global::data()->focusOnInterface) return;
+  if (!Global::get<input::data>()->interface_focus) return;
 
   (void)xoffset;
-  Global::data()->mouseWheel += float(yoffset);
+  Global::get<input::data>()->mouse_wheel += float(yoffset);
 }
 
 void charCallback(GLFWwindow*, unsigned int c) {
   if (!Global::window()->isFocused()) return;
-  if (!Global::data()->focusOnInterface) return;
+  if (!Global::get<input::data>()->interface_focus) return;
 
-  Global::data()->text[Global::data()->currentText] = c;
-  ++Global::data()->currentText;
+  Global::get<input::data>()->text[Global::get<input::data>()->current_text] = c;
+  ++Global::get<input::data>()->current_text;
 //   ImGuiIO& io = ImGui::GetIO();
 //   if (c > 0 && c < 0x10000) io.AddInputCharacter((unsigned short)c);
 }
@@ -1714,7 +2075,10 @@ void mouseButtonCallback(GLFWwindow*, int button, int action, int mods) {
 //   if (action == GLFW_PRESS) mousePressed[button] = true;
 //   if (action == GLFW_RELEASE) mousePressed[button] = false;
 
-  Global::data()->keys[button] = !(action == GLFW_RELEASE);
+  //Global::data()->keys[button] = !(action == GLFW_RELEASE);
+  Global::get<input::data>()->key_events.container[button].event = static_cast<input::type>(action);
+  auto data = Global::get<input::data>()->key_events.container[button].data;
+  if (data != nullptr) data->time = 0;
 }
 
 void keyCallback(GLFWwindow*, int key, int scancode, int action, int mods) {
@@ -1725,7 +2089,10 @@ void keyCallback(GLFWwindow*, int key, int scancode, int action, int mods) {
 
 //   ImGuiIO& io = ImGui::GetIO();
 
-  Global::data()->keys[key] = !(action == GLFW_RELEASE);
+  //Global::data()->keys[key] = !(action == GLFW_RELEASE);
+  Global::get<input::data>()->key_events.container[key].event = static_cast<input::type>(action);
+  auto data = Global::get<input::data>()->key_events.container[key].data;
+  if (data != nullptr) data->time = 0;
 
 //   if (!Global::data()->focusOnInterface) return;
 //

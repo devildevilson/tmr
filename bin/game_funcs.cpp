@@ -14,7 +14,7 @@
 #include "TransformComponent.h"
 #include "PhysicsComponent.h"
 #include "shared_collision_constants.h"
-#include "UserDataComponent.h"
+// #include "UserDataComponent.h"
 #include "entity_loader.h"
 #include "entity_creator_resources.h"
 #include "ai_component.h"
@@ -62,6 +62,8 @@ namespace devils_engine {
         return;
       }
       
+      // нужно получать эвенты, я так думаю нужно регистрировать эвенты в игре
+      // присваивать им кнопки, даже регистрировать эвенты для персонажей
       const action a = action::attack;
       switch (a) {
         case action::attack: {
@@ -124,6 +126,19 @@ namespace devils_engine {
       
     }
     
+    void item_pickup2(yacs::entity* ent, yacs::entity* item, const utils::id &prop, const size_t &quantity) {
+      // примерно тоже что и у предыдущего
+      // может все же спрятать prop и quantity?
+      // в принципе однозначно то какой из энтити является айтемом, можно у него брать информацию
+      // с другой стороны зачем?
+      
+      std::cout << "item pickup property " << prop.name() << "\n";
+    }
+    
+    void collision_func(yacs::entity* prop_ent, yacs::entity* ent, const utils::id &prop) {
+      std::cout << "collision func property " << prop.name() << "\n";
+    }
+    
     void damage_ent(yacs::entity* source, yacs::entity* ent, const effect_t* effect) {
       auto info = source->at<components::type_info>(game::entity::type_info);
       if (info->created_ability == nullptr) {
@@ -150,7 +165,7 @@ namespace devils_engine {
       
       // сначало кажется что это выглядит убого, но если сделать адекватную функцию поиска
       // изменений, то сойдет для одной функции, как сделать изменения?
-      // флажок? в принципе тоже выглядит плохо из-за метода next1
+      // флажок? в принципе тоже выглядит плохо из-за метода next_change
       // по идее этот метод покрывает большую часть потребностей, 
       // у нас очень маловероятно может возникнуть ситуация когда два игрока одновременно бьют
       // может возникнуть ситуация когда игрок хилит и в тот же момент умирает челик 
@@ -170,7 +185,7 @@ namespace devils_engine {
           }
           tmp = effects->next_change(attrib_type->id, mem);
         }
-        if (player != nullptr) core::inc_int(player, 0, 1);
+        if (player != nullptr) core::inc_int(player, 0, 1); // игрока мы кстати должны мочь найти и в глобале
         //core::remove(ent);
         // change_state
         core::set_dead(ent);

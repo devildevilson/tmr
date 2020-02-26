@@ -2,6 +2,8 @@
 #define INTERFACE_H
 
 #include <vector>
+#include <chrono>
+#include "id.h"
 #include "typeless_container.h"
 
 namespace devils_engine {
@@ -71,7 +73,8 @@ namespace devils_engine {
       virtual ~page() {}
       
       // еще может потребоваться время
-      virtual page* proccess(const data::extent &screen_size, const data::command &command, size_t &focus) = 0; // возвращает либо себя, если еще не закончил, либо следующую страницу
+      //virtual page* proccess(const data::extent &screen_size, const data::command &command, size_t &focus) = 0; // возвращает либо себя, если еще не закончил, либо следующую страницу
+      virtual page* proccess(const data::extent &screen_size, const utils::id &event, size_t &focus) = 0; // возвращает либо себя, если еще не закончил, либо следующую страницу
       virtual page* escape(size_t &focus) const = 0;   // виртуал? (это не важно)
     };
 
@@ -98,18 +101,21 @@ namespace devils_engine {
       }
       
       // команды клавиатуры, это все?
-      void next();
-      void prev();
-      void increase();
-      void decrease();
-      void choose();
+//       void next();
+//       void prev();
+//       void increase();
+//       void decrease();
+//       void choose();
       void escape();
+      void send_event(const utils::id &event, const size_t &time);
     private:
       // должен определять стиль интерфейса, шрифты, создавать окно, рисовать интерфейс
       page* default_page;
       page* current_page;
       
-      data::command last_command;
+//       data::command last_command;
+      utils::id last_event;
+      size_t command_time;
       size_t focus;
       
       utils::typeless_container page_container;

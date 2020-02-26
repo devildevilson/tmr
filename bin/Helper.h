@@ -3,13 +3,17 @@
 
 #include "Utility.h"
 #include "Globals.h"
-#include "Variable.h"
+//#include "Variable.h"
+#include "console_variable.h"
 #include "Containers.h"
 #include "GraphicsContainer.h"
 #include "TimeMeter.h"
-#include "Settings.h"
+#include "settings.h"
 #include "typeless_container.h"
 #include "system.h"
+#include "input.h"
+#include "camera.h"
+#include "random.h"
 
 #include "CPUArray.h"
 #include "CPUBuffer.h"
@@ -33,7 +37,8 @@
 #include "CPUPhysicsSorter.h"
 #include "collision_interaction_system.h"
 
-#include "PostPhysics.h"
+// #include "PostPhysics.h"
+#include "post_physics.h"
 
 #include "ThreadPool.h"
 
@@ -43,7 +48,7 @@
 //#include "InfoComponent.h"
 #include "type_info_component.h"
 //#include "AIInputComponent.h"
-#include "CameraComponent.h"
+// #include "CameraComponent.h"
 //#include "GraphicComponets.h"
 #include "graphics_component.h"
 //#include "SoundComponent.h"
@@ -82,6 +87,7 @@
 #include "abilities_loader.h"
 #include "entity_loader.h"
 #include "sound_loader.h"
+#include "map_loader.h"
 // #include "ModificationContainer.h"
 // #include "Modification.h"
 // #include "ImageLoader.h"
@@ -92,7 +98,7 @@
 // #include "AbilityTypeLoader.h"
 // #include "ItemLoader.h"
 // #include "EntityLoader.h"
-#include "HardcodedLoaders.h"
+// #include "HardcodedLoaders.h"
 
 #define ABILITIES_CONTAINER
 #define EFFECTS_CONTAINER
@@ -181,6 +187,31 @@ using namespace devils_engine;
 
 // extern GPUArray<MonsterGPUOptimizer::InstanceData> instanceData;
 
+struct system_container {
+  utils::typeless_container container;
+  GraphicsContainer* graphics_container;
+//   PostPhysics* post_physics;
+  systems::sound* sound_system;
+  
+  MonsterOptimizer* monster_optimiser;
+  GeometryOptimizer* geometry_optimiser;
+  LightOptimizer* lights_optimiser;
+  MonsterDebugOptimizer* monster_debug_optimiser;
+  GeometryDebugOptimizer* geometry_debug_optimiser;
+  
+  CPUOctreeBroadphaseParallel* broad;
+  CPUNarrowphaseParallel* narrow;
+  CPUSolverParallel* solver;
+  CPUPhysicsSorter* sorter;
+  CPUPhysicsParallel* physics;
+  
+  graph::container* edge_container;
+  systems::pathfinder* pathfinder_system;
+  
+  system_container();
+  ~system_container();
+};
+
 struct WindowData {
   bool fullscreen;
   uint32_t width;
@@ -192,6 +223,7 @@ struct WindowData {
 };
 
 struct DataArrays {
+  utils::typeless_container container;
   Container<Transform>* transforms;
   Container<InputData>* inputs;
   Container<simd::mat4>* matrices;
@@ -201,19 +233,13 @@ struct DataArrays {
   Container<Texture>* textures;
   //Container<AnimationState>* animStates;
 //   ArrayInterface<BroadphasePair>* broadphasePairs;
+  DataArrays();
+  ~DataArrays();
 };
 
 struct RenderConstructData {
-  yavf::Device* device;
-  GraphicsContainer* container;
-  VulkanRender* render;
-  Window* window;
-  HardcodedMapLoader* mapLoader;
+  system_container* systems;
   DataArrays* arrays;
-
-  MonsterOptimizer* mon;
-  GeometryOptimizer* geo;
-  LightOptimizer* lights;
   nuklear_data* data;
   MonsterDebugOptimizer* monDebugOpt;
   GeometryDebugOptimizer* geoDebugOpt;
@@ -393,19 +419,29 @@ struct KeyContainer {
 // почти в каждой функции еще должны использоваться настройки
 void initGLFW();
 void deinitGLFW();
-void createInstance(yavf::Instance* inst);
-void createGLFWwindow(yavf::Instance* inst, WindowData &data);
-void createKHRdisplay(yavf::Instance* inst, WindowData &data);
-void createDevice(yavf::Instance* inst, const WindowData &data, yavf::Device** device);
-void createWindow(yavf::Instance* inst, yavf::Device* device, const WindowData &data, Window &window);
-// void destroyWindow(Window* window);
-void createRender(yavf::Instance* inst, yavf::Device* device, const uint32_t &frameCount, const size_t &stageContainerSize, GameSystemContainer &container, VulkanRender** render, yavf::CombinedTask** task);
-void createDataArrays(yavf::Device* device, ArrayContainers &arraysContainer, DataArrays &arrays);
+
+void create_graphics(system_container &container);
+void create_optimizers(system_container &container, DataArrays &arrays);
+void create_physics(system_container &container, dt::thread_pool* pool, DataArrays &arrays, const size_t &updateDelta);
+void create_ai(system_container &container, dt::thread_pool* pool);
+void create_sound_system(system_container &container);
+
+// void createInstance(yavf::Instance* inst);
+// void createGLFWwindow(yavf::Instance* inst, WindowData &data);
+// void createKHRdisplay(yavf::Instance* inst, WindowData &data);
+// void createDevice(yavf::Instance* inst, const WindowData &data, yavf::Device** device);
+// void createWindow(yavf::Instance* inst, yavf::Device* device, const WindowData &data, Window &window);
+// // void destroyWindow(Window* window);
+// void createRender(yavf::Instance* inst, yavf::Device* device, const uint32_t &frameCount, const size_t &stageContainerSize, GameSystemContainer &container, VulkanRender** render, yavf::CombinedTask** task);
+void createDataArrays(yavf::Device* device, DataArrays &arrays);
 // void destroyDataArrays(TypelessContainer &arraysContainer, DataArrays &arrays);
 void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipelineStage*> &dynPipe);
-void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, const size_t &updateDelta, PhysicsContainer &physicsContainer, PhysicsEngine** engine); // еще device поди пригодится
-void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystemContainer &container);
-void createBehaviourTrees();
+// void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, const size_t &updateDelta, PhysicsContainer &physicsContainer, PhysicsEngine** engine); // еще device поди пригодится
+// void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystemContainer &container);
+std::unordered_map<utils::id, tb::BehaviorTree*> createBehaviourTrees();
+std::unordered_map<std::string, core::attribute_t<core::float_type>::type::func_type> create_float_attribs_funcs();
+std::unordered_map<std::string, core::attribute_t<core::int_type>::type::func_type> create_int_attribs_funcs();
+std::unordered_map<std::string, core::state_t::action_func> create_states_funcs();
 
 // мне нужно это аккуратно удалить в конце
 struct resources_ptr {
@@ -423,8 +459,13 @@ struct resources_ptr {
   game::float_attribute_types_container_load* float_attribs;
   game::int_attribute_types_container_load* int_attribs;
   game::entity_creators_container_load* entities;
+  game::map_data_container_load* map_data;
+  std::unordered_map<std::string, core::attribute_t<core::float_type>::type::func_type> float_funcs;
+  std::unordered_map<std::string, core::attribute_t<core::int_type>::type::func_type> int_funcs;
+  std::unordered_map<std::string, core::state_t::action_func> states_funcs;
+  std::unordered_map<utils::id, tb::BehaviorTree*> trees;
 };
-void createLoaders(resources::modification_container &mods, GraphicsContainer* graphicsContainer, render::image_container* images, resources_ptr &res, HardcodedMapLoader** mapLoader);
+void createLoaders(resources::modification_container &mods, GraphicsContainer* graphicsContainer, render::image_container* images, resources_ptr &res, resources::map_loader** mapLoader);
 void createSoundSystem(dt::thread_pool* threadPool, GameSystemContainer &container);
 
 void initnk(yavf::Device* device, Window* window, nuklear_data &data);
@@ -451,7 +492,7 @@ void sync(TimeMeter &tm, const size_t &syncTime); // сюда мы должны 
 
 struct ReactionsCreateInfo {
   KeyContainer* container;
-  UserInputComponent* input;
+//   UserInputComponent* input;
   Window* window;
   interface::container* menuContainer;
   yacs::entity* brain;
@@ -464,10 +505,11 @@ struct MouseData {
   float yMouseSpeed;
   // что то еще?
 };
-void mouseInput(UserInputComponent* input, const uint64_t &time);
-void keysCallbacks(KeyContainer* container, const uint64_t &time);
+void mouse_input(yacs::entity* player, const size_t &time);
+void keys_callback(yacs::entity* player, interface::container* menu);
 
-void menuKeysCallback(interface::container* menu);
+// void keysCallbacks(KeyContainer* container, const uint64_t &time);
+// void menuKeysCallback(interface::container* menu);
 
 void callback(int error, const char* description);
 void scrollCallback(GLFWwindow*, double xoffset, double yoffset);

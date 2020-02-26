@@ -6,9 +6,9 @@
 #include "nuklear_header.h"
 #include "TimeMeter.h"
 
-#include "InventoryComponent.h"
-#include "AttributesComponent.h"
-#include "EffectComponent.h"
+// #include "InventoryComponent.h"
+// #include "AttributesComponent.h"
+// #include "EffectComponent.h"
 #include "TransformComponent.h"
 
 #include "Physics.h"
@@ -17,9 +17,9 @@
 namespace devils_engine {
   namespace interface {
     overlay::overlay(const create_info &info) : nuklear(info.nuklear), player(info.player), tm(info.tm) {
-      inventory = player->get<InventoryComponent>().get();
-      attribs = player->get<AttributeComponent>().get();
-      effects = player->get<EffectComponent>().get();
+//       inventory = player->get<InventoryComponent>().get();
+//       attribs = player->get<AttributeComponent>().get();
+//       effects = player->get<EffectComponent>().get();
       transform = player->get<TransformComponent>().get();
     }
     

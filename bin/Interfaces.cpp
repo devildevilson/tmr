@@ -4,8 +4,14 @@
 #include "nuklear_header.h"
 
 namespace devils_engine {
+  const utils::id menu_next = utils::id::get("menu_next");
+  const utils::id menu_prev = utils::id::get("menu_prev");
+  const utils::id menu_increase = utils::id::get("menu_increase");
+  const utils::id menu_decrease = utils::id::get("menu_decrease");
+  const utils::id menu_choose = utils::id::get("menu_choose");
+  
   namespace interface {
-    container::container(const size_t &containerSize) : default_page(nullptr), current_page(nullptr), last_command(data::command::none), focus(0), page_container(containerSize) {}
+    container::container(const size_t &containerSize) : default_page(nullptr), current_page(nullptr), focus(0), page_container(containerSize) {} // last_command(data::command::none),
     container::~container() {
       for (auto page : pages) {
         page_container.destroy(page);
@@ -14,8 +20,11 @@ namespace devils_engine {
     
     void container::proccess(const data::extent &screen_size) {
       if (!is_opened()) return;
+      //if (!last_event.valid()) return;
       
-      current_page = current_page->proccess(screen_size, last_command, focus);
+      current_page = current_page->proccess(screen_size, last_event, focus);
+      last_event = utils::id();
+      command_time = SIZE_MAX;
     }
     
 //     void container::draw(const data::MousePos &pos) {
@@ -50,28 +59,35 @@ namespace devils_engine {
       return current_page != nullptr;
     }
     
-    void container::next() {
-      last_command = data::command::next;
-    }
-    
-    void container::prev() {
-      last_command = data::command::prev;
-    }
-    
-    void container::increase() {
-      last_command = data::command::increase;
-    }
-    
-    void container::decrease() {
-      last_command = data::command::decrease;
-    }
-    
-    void container::choose() {
-      last_command = data::command::choose;
-    }
+//     void container::next() {
+//       last_command = data::command::next;
+//     }
+//     
+//     void container::prev() {
+//       last_command = data::command::prev;
+//     }
+//     
+//     void container::increase() {
+//       last_command = data::command::increase;
+//     }
+//     
+//     void container::decrease() {
+//       last_command = data::command::decrease;
+//     }
+//     
+//     void container::choose() {
+//       last_command = data::command::choose;
+//     }
     
     void container::escape() {
       current_page = current_page->escape(focus);
+    }
+    
+    void container::send_event(const utils::id &event, const size_t &time) {
+      if (time < command_time) {
+        command_time = time;
+        last_event = event;
+      }
     }
     
 //     Button::Button(const CreateInfo &info) : Item(info.rect), name(info.name), nuklear(info.nuklear), next(info.next) {}
@@ -114,28 +130,29 @@ namespace devils_engine {
     };
     
     main_menu::main_menu(const create_info &info) : name(info.name), nuklear(info.nuklear), quit(info.quit), settings(info.settings), new_game(info.new_game), page_size(info.page_size) {}
-    page* main_menu::proccess(const data::extent &screen_size, const data::command &command, size_t &focus) {
-      switch (command) {
-        case data::command::next: {
-          focus = (focus+1)%MENU_COUNT;
-          break;
-        }
-        
-        case data::command::prev: {
-          focus = (focus-1)%MENU_COUNT;
-          break;
-        }
-        
-        case data::command::choose: {
-          switch (focus) {
-            case MENU_NEW_GAME: return new_game;
-            case MENU_SETTINGS: return settings;
-            case MENU_QUIT: return quit;
-          }
-        }
-        
-        default: break;
-      }
+    page* main_menu::proccess(const data::extent &screen_size, const utils::id &command, size_t &focus) {
+//       switch (command) {
+//         case data::command::next: {
+//           focus = (focus+1)%MENU_COUNT;
+//           break;
+//         }
+//         
+//         case data::command::prev: {
+//           focus = (focus-1)%MENU_COUNT;
+//           break;
+//         }
+//         
+//         case data::command::choose: {
+//           switch (focus) {
+//             case MENU_NEW_GAME: return new_game;
+//             case MENU_SETTINGS: return settings;
+//             case MENU_QUIT: return quit;
+//           }
+//           break;
+//         }
+//         
+//         default: break;
+//       }
       
       // тут мы видимо от начала до конца делаем интерфейс
       float w = screen_size.width / 2.0f - page_size.width / 2.0f;
@@ -158,6 +175,16 @@ namespace devils_engine {
       }
       nk_end(&nuklear->ctx);
       
+      if (command == menu_next) focus = (focus+1)%MENU_COUNT;
+      else if (command == menu_prev) focus = (focus-1)%MENU_COUNT;
+      else if (command == menu_choose) {
+        switch (focus) {
+          case MENU_NEW_GAME: next = new_game; break;
+          case MENU_SETTINGS: next = settings; break;
+          case MENU_QUIT: next = quit; break;
+        }
+      }
+      
       return next;
     }
     
@@ -179,29 +206,29 @@ namespace devils_engine {
     };
     
     quit_game::quit_game(const create_info &info) : name(info.name), nuklear(info.nuklear), main_menu(info.main_menu), quit(info.quit), page_size(info.page_size) {}
-    page* quit_game::proccess(const data::extent &screen_size, const data::command &command, size_t &focus) {
-      switch (command) {
-        case data::command::next: {
-          focus = (focus+1)%QUIT_COUNT;
-          break;
-        }
-        
-        case data::command::prev: {
-          focus = (focus-1)%QUIT_COUNT;
-          break;
-        }
-        
-        case data::command::choose: {
-          if (focus == QUIT_GAME_NO) return escape(focus);
-          else {
-            *quit = true;
-            return nullptr;
-          }
-          break;
-        }
-        
-        default: break;
-      }
+    page* quit_game::proccess(const data::extent &screen_size, const utils::id &command, size_t &focus) {
+//       switch (command) {
+//         case data::command::next: {
+//           focus = (focus+1)%QUIT_COUNT;
+//           break;
+//         }
+//         
+//         case data::command::prev: {
+//           focus = (focus-1)%QUIT_COUNT;
+//           break;
+//         }
+//         
+//         case data::command::choose: {
+//           if (focus == QUIT_GAME_NO) return escape(focus);
+//           else {
+//             *quit = true;
+//             return nullptr;
+//           }
+//           break;
+//         }
+//         
+//         default: break;
+//       }
       
       float w = screen_size.width / 2.0f - page_size.width / 2.0f;
       float h = screen_size.height / 2.0f - page_size.height / 2.0f;
@@ -237,6 +264,16 @@ namespace devils_engine {
         }
       }
       nk_end(&nuklear->ctx);
+      
+      if (command == menu_next) focus = (focus+1)%QUIT_COUNT;
+      else if (command == menu_prev) focus = (focus-1)%QUIT_COUNT;
+      else if (command == menu_choose) {
+        if (focus == QUIT_GAME_NO) next = escape(focus);
+        else {
+          *quit = true;
+          next = nullptr;
+        }
+      }
       
       return next;
     }

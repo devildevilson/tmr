@@ -1,7 +1,33 @@
 #include "Helper.h"
 
-// по хорошему нам бы конечно держать все компоненты в одном месте чтобы избежать этих костылей
-#include "GetSpeedTemFunc.h"
+#include <random>
+#include "whereami.h"
+#include <cxxopts.hpp>
+
+// из крупняка осталось сделать загрузку/сохранение, загрузку карт, двери, ???
+
+// как делается загрузка/сохранение?
+// нам необходимо полностью востановить стейт мира: все энтити загружаются правильного типа, все позиции сохранены и проч
+// это значит: нужно сохранить все загруженные моды, состояние рандома (?), и каждого энтити на карте
+// состояние энтити у меня определяется состоянием всех его компонентов
+// состояние компонента определяется: указатель на энтити, внутренний стейт, время
+// указатель на энтити - можно сохранить индекс, внутренний стейт у многих компонентов опредялется типом энтити, время - число
+// я должен отталкиваться от компонентов, конкретные индексы должны быть неважны, у каждого энтити должно быть определено две функции
+// сериалайз + десериалайз (не обязательно делать их виртуальными), сохранение это обход каждого компонента энтити, не у всех компонентов меняется стейт
+// (например у физики по идее не меняется (у физики меняется скорость), у графики, их нужно пересобирать заново: всю информацию можно получить из данных модов)
+// нужен еще скриншот
+
+// загрузка карты: точки окружения + набор энтити ид + позиции/направления/тэги для энтити
+// + возможность обработать вход из блендера
+// + настройка физики под карту
+
+// двери: двигающиеся сложные объекты, должны каким-либо образом перекрывать доступ между вершинами
+// два режима меня интересует: статика поднимается опускается и двигающиеся под действием гравитации объекты
+// еще это могут быть как и двери так и платформы 
+// (как завершинить платформы? в этом плане сложно, нужно при изменении состояния платформы изменять видимо состояние ребра)
+// видимо у таких объектов будет только один стейт
+
+const size_t updateDelta = DELTA_TIME_CONSTANT;
 
 class LogCounter {
 public:
@@ -28,52 +54,64 @@ enum class game_state {
 int main(int argc, char** argv) {
   TimeLogDestructor appTime("Shutdown");
   
+  // парсить входные жанные будем так
+  //cxxopts::Options options("the madness returns", "game");
+//   options.add_options()
+//     ("d,debug", "Enable debugging") // a bool parameter
+//     ("i,integer", "Int param", cxxopts::value<int>())
+//     ("f,file", "File name", cxxopts::value<std::string>())
+//     ("v,verbose", "Verbose output", cxxopts::value<bool>()->default_value("false"))
+//   ;
+  //auto result = options.parse(argc, argv);
+  //result["opt"].as<type>()
+  
+  uint32_t seed = 0;
+  {
+    std::random_device rd;
+    seed = rd();
+  }
+  
   //std::locale::global(std::locale("ru_RU.UTF-8"));
   std::locale::global(std::locale("en_US.UTF-8"));
 
   // тут мы создаем дополнительные вещи, такие как консоль, команды, переменные
   Global::init();
-  Global::commands()->addCommand("set", cvar::set_f);
-  Global::commands()->addCommand("get", cvar::get_f);
+  Global::commands()->addCommand("set", utils::cvar::set_f);
+  Global::commands()->addCommand("get", utils::cvar::get_f);
 
-  cvar debugDraw("debugDraw", float(0), VAR_ARCHIVE);
+  //cvar debugDraw("debugDraw", float(0), VAR_ARCHIVE);
+  utils::cvar::create(utils::id::get("debug_draw"), 0.0);
 
   // нам нужно еще создать settings
-  {
+  { 
+    int dirname;
+    uint32_t length = wai_getExecutablePath(NULL, 0, NULL);
+    std::vector<char> str(length+1);
+    wai_getExecutablePath(str.data(), length, &dirname);
+    str[length] = '\0';
+    const std::string dir(str.data(), dirname+1);
     Global g;
-    g.setGameDir(FileTools::getAppDir());
+    g.setGameDir(dir);
 
     //std::cout << Global::getGameDir() << "\n";
+    std::cout << dir << "\n";
   }
 
-  Settings settings;
-  utils::settings settings1;
+  utils::settings settings;
   {
-    Global g;
-    g.setSettings(&settings);
-    Global::get<const Settings>(&settings);
-    Global::get<utils::const_settings>(&settings1);
-    ASSERT(Global::get<utils::const_settings>());
-    ASSERT(Global::get<utils::settings>() == nullptr);
+    Global::get<utils::settings>(&settings);
+    ASSERT(Global::get<utils::const_settings>() == nullptr);
+    ASSERT(Global::get<utils::settings>());
     
     cppfs::FileHandle fh = cppfs::fs::open(Global::getGameDir() + "settings.json");
 
     if (fh.exists()) {
       // грузим настройки
-      settings.load("game", fh.path());
+      settings.load(fh.path());
     } else {
       throw std::runtime_error("Settings not found");
     }
   }
-  
-//   GetSpeedFunc speed_func_temp_container{
-//     [] (yacs::entity* ent) -> float {
-//       auto phys = ent->at<PhysicsComponent>(PHYSICS_COMPONENT_INDEX);
-//       if (phys.valid()) return phys->getSpeed();
-//       return 0.0f;
-//     }
-//   };
-//   Global::get(&speed_func_temp_container);
 
   // у нас тут еще есть создание треад пула
   // причем неплохо было бы создавать его только тогда когда системы его используют
@@ -83,142 +121,67 @@ int main(int argc, char** argv) {
   // чаще всего пул необходим, не могу честно говоря представить когда он не нужен в современных условиях
   //std::cout << "std::thread::hardware_concurrency() " << std::thread::hardware_concurrency() << "\n";
   dt::thread_pool threadPool(std::max(std::thread::hardware_concurrency()-1, uint32_t(1)));
-  systems::collision_interaction inter(systems::collision_interaction::create_info{&threadPool});
-
+  systems::collision_interaction inter(systems::collision_interaction::create_info{&threadPool, game::collision_func, game::item_pickup2});
+  utils::delayed_work_system works(utils::delayed_work_system::create_info{&threadPool});
+  utils::random rand(seed);
+  input::data input_data;
+  Global::get(&works);
+  Global::get(&rand);
+  Global::get(&input_data);
+  
   initGLFW();
-
-  // тут мы грузим с диска настройки систем (это скорее всего json)
-  // обходим его и решаем какую систему лучше создать + собираем сайз
-  // тип: settings.json, hidden_settings.json и прочее
 
   // еще где то здесь мы обрабатываем входные данные с консоли (забыл как это называется верно лол)
 
   // теперь создаем контейнер sizeof(ParticleSystem) + sizeof(DecalSystem) +
-  const size_t &systemsSize = sizeof(GraphicsContainer) + sizeof(PostPhysics) + sizeof(systems::sound);
-  GameSystemContainer systemContainer(systemsSize);
-  GraphicsContainer* graphicsContainer;
-  {
-    const size_t stageContainerSize = sizeof(BeginTaskStage) + sizeof(EndTaskStage) + sizeof(MonsterGPUOptimizer) + sizeof(GeometryGPUOptimizer) + 
-                                      sizeof(GBufferStage) + sizeof(DefferedLightStage) + sizeof(ToneMappingStage) + sizeof(CopyStage) + sizeof(PostRenderStage);
-
-    GraphicsContainer::CreateInfo info{
-      stageContainerSize
-      //&systemContainer
-    };
-    graphicsContainer = systemContainer.addSystem<GraphicsContainer>();
-    graphicsContainer->construct(info);
-    Global::get(graphicsContainer);
-  }
+  system_container systems;
+  create_graphics(systems);
 
   // как создать буфферы с данными (трансформа, ротация, матрица и прочее)?
   // создать их здесь - будет куча лишних указателей (или не лишних??)
   // удаление я могу упрятать в отдельный контейнер, когда окончательно пойму сколько массивов мне нужно будет
   DataArrays arrays;
-  ArrayContainers arraysContainer(sizeof(GPUContainer<ExternalData>) + //CPUContainer
-                                  sizeof(GPUContainer<InputData>) +
-                                  sizeof(GPUContainer<simd::mat4>) +
-                                  sizeof(GPUBuffer<uint32_t>) +
-                                  sizeof(GPUContainer<RotationData>) +
-                                  sizeof(GPUContainer<Transform>) +
-                                  sizeof(GPUContainer<Texture>));
-                                  //sizeof(GPUArray<BroadphasePair>));
-  createDataArrays(graphicsContainer->device(), arraysContainer, arrays);
+  createDataArrays(systems.graphics_container->device(), arrays);
 
   // тут по идее мы должны создать оптимизеры
-  OptimiserContainer optContainer(sizeof(MonsterOptimizer) + sizeof(GeometryOptimizer) + sizeof(LightOptimizer) + sizeof(MonsterDebugOptimizer) + sizeof(GeometryDebugOptimizer));
-  MonsterOptimizer* mon = nullptr;
-  GeometryOptimizer* geo = nullptr;
-  LightOptimizer* lights = nullptr;
-  MonsterDebugOptimizer* monDebug = nullptr;
-  GeometryDebugOptimizer* geoDebug = nullptr;
-  {
-    // тут мы задаем инпут буфферы
-    // аутпут буферы по идее лежат в стейджах
-//     mon = optContainer.add<MonsterOptimizer>();
-//     geo = optContainer.add<GeometryOptimizer>();
-    lights = optContainer.add<LightOptimizer>();
-    monDebug = optContainer.add<MonsterDebugOptimizer>();
-    geoDebug = optContainer.add<GeometryDebugOptimizer>();
-
-//     mon->setInputBuffers({arrays.transforms, arrays.matrices, arrays.rotationCountBuffer, arrays.rotations, arrays.textures});
-//     geo->setInputBuffers({arrays.transforms, arrays.matrices, arrays.rotationCountBuffer, arrays.rotations, arrays.textures});
-    lights->setInputBuffers({arrays.transforms});
-    monDebug->setInputBuffers({arrays.transforms});
-
-//     GraphicComponent::setOptimizer(mon);
-//     GraphicComponentIndexes::setOptimizer(geo);
-//     Light::setOptimizer(lights);
-//     GraphicComponent::setDebugOptimizer(monDebug);
-//     GraphicComponentIndexes::setDebugOptimizer(geoDebug);
-
-    Global::render()->addOptimizerToClear(lights);
-    Global::render()->addOptimizerToClear(monDebug);
-    Global::render()->addOptimizerToClear(geoDebug);
-    
-    Global::get(lights);
-    Global::get(monDebug);
-    Global::get(geoDebug);
-  }
-  
-  const size_t updateDelta = DELTA_TIME_CONSTANT;
+  create_optimizers(systems, arrays);
 
   // создадим физику (почти везде нужно собрать сайз для контейнера)
-//   const size_t physSize = sizeof(CPUOctreeBroadphaseParallel) + sizeof(CPUNarrowphaseParallel) + sizeof(CPUSolverParallel) + sizeof(CPUPhysicsSorter) + sizeof(CPUPhysicsParallel);
-//   std::cout << "physSize " << physSize << "\n";
-  PhysicsContainer physicsContainer(sizeof(CPUOctreeBroadphaseParallel) + sizeof(CPUNarrowphaseParallel) + sizeof(CPUSolverParallel) + sizeof(CPUPhysicsSorter) + sizeof(CPUPhysicsParallel));
-  {
-    PhysicsEngine* phys;
-    createPhysics(&threadPool, arrays, updateDelta, physicsContainer, &phys);
-    //Global::phys2 = phys;
-    Global::get(phys);
-    Global g;
-    g.setPhysics(phys);
-  }
+  create_physics(systems, &threadPool, arrays, updateDelta);
 
   // создадим систему ии
-  createAI(&threadPool, updateDelta, systemContainer);
-  createBehaviourTrees();
-
+  create_ai(systems, &threadPool);
+  
+  // звук
+  create_sound_system(systems);
+  
   // частицы?
   
-  resources_ptr resources(graphicsContainer->device());
+  resources_ptr resources(systems.graphics_container->device());
 
   // создадим лоадер (лоадер бы лучше в контейнере создавать) 
   // лоадеры неплохо было бы создавать перед непосредственной загрузкой, пока так создадим
-  const size_t loaderContainerSize = sizeof(resources::image_loader) + sizeof(resources::sound_loader) + sizeof(resources::entity_loader) + sizeof(HardcodedMapLoader) + sizeof(resources::attributes_loader) + sizeof(resources::effects_loader) + sizeof(resources::abilities_loader) + sizeof(resources::state_loader); //  + sizeof(ModificationContainer)
-  HardcodedMapLoader* mapLoader = nullptr;
+  const size_t loaderContainerSize = sizeof(resources::image_loader) + sizeof(resources::sound_loader) + sizeof(resources::entity_loader) + sizeof(resources::map_loader) + sizeof(resources::attributes_loader) + sizeof(resources::effects_loader) + sizeof(resources::abilities_loader) + sizeof(resources::state_loader);
+  resources::map_loader* map_loader = nullptr;
   resources::modification_container mods(loaderContainerSize);
-  render::image_container images(render::image_container::create_info{graphicsContainer->device()});
+  render::image_container images(render::image_container::create_info{systems.graphics_container->device()});
   {
-    createLoaders(mods, graphicsContainer, &images, resources, &mapLoader);
+    createLoaders(mods, systems.graphics_container, &images, resources, &map_loader);
     
     // теперь мне нужно загружать сразу все ресурсы, кроме всех карт
   }
 
-  //DelayedWorkSystem delaySoundWork(DelayedWorkSystem::CreateInfo{&threadPool});
-  utils::delayed_work_system works(utils::delayed_work_system::create_info{&threadPool});
-  Global::get(&works);
-
-  createSoundSystem(&threadPool, systemContainer);
-
   nuklear_data data;
-  initnk(graphicsContainer->device(), Global::window(), data);
+  initnk(systems.graphics_container->device(), Global::window(), data);
 
   std::vector<DynamicPipelineStage*> dynPipe;
   {
     const RenderConstructData renderData{
-      graphicsContainer->device(),
-      graphicsContainer,
-      Global::render(),
-      Global::window(),
-      mapLoader,
+      &systems,
       &arrays,
-      mon,
-      geo,
-      lights,
       &data,
-      monDebug,
-      geoDebug
+      Global::get<MonsterDebugOptimizer>(),
+      Global::get<GeometryDebugOptimizer>()
     };
     createRenderStages(renderData, dynPipe);
     // переделать рендер, частицы вызовут проблемы у меня сейчас
@@ -226,9 +189,9 @@ int main(int argc, char** argv) {
 
   // загрузим стейт по умолчанию
   yacs::entity* player = nullptr;
-  CameraComponent* camera = nullptr;
-  UserInputComponent* input = nullptr;
-  TransformComponent* playerTransform = nullptr;
+//   CameraComponent* camera = nullptr;
+//   UserInputComponent* input = nullptr;
+//   TransformComponent* playerTransform = nullptr;
   yacs::entity* entityWithBrain = nullptr;
   {
     // теперь мы сначало грузим какие нибудь данные мода
@@ -260,15 +223,13 @@ int main(int argc, char** argv) {
     
     mods.validate();
     mods.load_data();
-    mapLoader->end();
+    map_loader->load_obj(Global::getGameDir() + "models/box4.obj");
+    map_loader->end();
 
 //     std::cout << "clearing" << "\n";
 
-    player = mapLoader->getPlayer();
-    camera = mapLoader->getCamera();
-    input = mapLoader->getInput();
-    playerTransform = mapLoader->getPlayerTransform();
-    entityWithBrain = mapLoader->getEntityBrain();
+    player = map_loader->player();
+    //entityWithBrain = mapLoader->getEntityBrain();
 
     // понадобится ли нам указатели на текстур лоадер и прочее, кроме уровней?
     // понадобится для того чтобы обновлять, например, пайплайны
@@ -277,11 +238,10 @@ int main(int argc, char** argv) {
     //throw std::runtime_error("no more");
   }
 
-  PostPhysics* postPhysics = nullptr;
-  {
-    postPhysics = systemContainer.addSystem<PostPhysics>(&threadPool, player, playerTransform);
-    Global::get(postPhysics);
-  }
+//   {
+//     systems.post_physics = systems.container.create<PostPhysics>(&threadPool, player, playerTransform);
+//     Global::get(systems.post_physics);
+//   }
 
 //   bool drawMenu = false;
   bool quit = false;
@@ -296,8 +256,10 @@ int main(int argc, char** argv) {
 
   KeyContainer keyContainer;
 
-  createReactions({&keyContainer, input, Global::window(), &menu_container, entityWithBrain});
+  createReactions({&keyContainer, Global::window(), &menu_container, entityWithBrain});
   setUpKeys(&keyContainer);
+  
+  settings.dump(Global::getGameDir() + "settings.json");
   
   // мы може создать дополнительный KeyContainer специально для меню
   
@@ -307,7 +269,7 @@ int main(int argc, char** argv) {
     dynPipe[i]->recreatePipelines(resources.image_res);
   }
 
-  Global::physics()->setGravity(simd::vec4(0.0f, -9.8f, 0.0f, 0.0f));
+  Global::get<PhysicsEngine>()->setGravity(simd::vec4(0.0f, -9.8f, 0.0f, 0.0f));
   
   size_t current_time = 0;
   TimeMeter tm(ONE_SECOND);
@@ -316,7 +278,16 @@ int main(int argc, char** argv) {
   interface::overlay overlay(interface::overlay::create_info{&data, player, &tm});
   while (!Global::window()->shouldClose() && !quit) {
     tm.start();
-    glfwPollEvents();
+    
+    const size_t time = tm.time();
+    ASSERT(time != 0);
+    input::update_time(time);
+    {
+      Global g;
+      g.increase_level_time(time);
+    }
+    
+    glfwPollEvents(); // здесь вызываются коллбеки, верно?
     
     switch (currentState) {
       case game_state::loading: {
@@ -348,10 +319,6 @@ int main(int argc, char** argv) {
       }
     }
 
-    // чекаем время
-    const size_t time = tm.time();
-    ASSERT(time != 0);
-
     // где то здесь нам нужно сделать проверки на конец уровня, начало другого (или в синке это делать)
     // еще же статистику выводить (в конце уровня я имею ввиду)
     // нужно определить функцию некст левел, которая просто будет выставлять флажок следующего уровня
@@ -359,26 +326,21 @@ int main(int argc, char** argv) {
     
     // инпут игрока нужно чуть чуть переделать 
     // (необходимо сделать какой то буфер нажатия клавиш и возможность использовать его в разных местах)
-    mouseInput(input, time);
-    if (menu_container.is_opened()) menuKeysCallback(&menu_container);
-    else keysCallbacks(&keyContainer, time);
+    mouse_input(player, time);
+    keys_callback(player, &menu_container);
     nextnkFrame(Global::window(), &data.ctx);
-    
-//     if (Global::data()->keys[GLFW_KEY_M]) std::cout << "M pressed" << "\n";
 
-    camera->update();
+    camera::first_person(player);
 
     // ии тоже нужно ограничить при открытии менюхи
     if (!menu_container.is_opened()) {
       Global::get<PhysicsEngine>()->update(time);
-      {
-        Global g;
-        g.setPlayerPos(playerTransform->pos());
-      }
     }
 
     // обход видимых объектов 
-    Global::get<PostPhysics>()->update(time);
+    //Global::get<PostPhysics>()->update(time);
+    post_physics::update(&threadPool, player);
+    Global::get<systems::sound>()->update_listener(player);
 
     // гуи
     const interface::data::extent screenSize{
@@ -394,9 +356,13 @@ int main(int argc, char** argv) {
     // это и звук вполне могут быть сделаны паралельно
     // и вместе с этом я запущу работу в ворксистеме
     // где то рядом нужно обойти всю коллизию 
-    Global::get<GraphicsContainer>()->update(time);
-    Global::get<systems::sound>()->update_listener(player);
-    Global::get<systems::sound>()->update(time);
+    threadPool.submitbase([time] () {
+      Global::get<GraphicsContainer>()->update(time);
+    });
+    
+    threadPool.submitbase([time] () {
+      Global::get<systems::sound>()->update(time); // звуки то поди должны быть разделены на звуки меню и обычные?
+    });
     
     current_time += time;
     if (current_time < updateDelta || time >= 20000) {
@@ -407,11 +373,13 @@ int main(int argc, char** argv) {
       works.detach_works(count);
     }
     
+    threadPool.wait();
+    
     if (current_time >= updateDelta) {
       current_time -= updateDelta;
       if (!menu_container.is_opened()) {
         utils::update<components::states>(&threadPool, updateDelta);
-        utils::update<components::attributes>(&threadPool, updateDelta); // здесь скорее всего будем умирать чаще всего
+        utils::update<components::attributes>(&threadPool, updateDelta); // тут будет вызываться core::remove
         utils::update<components::effects>(&threadPool, updateDelta);
         utils::update<components::tree_ai>(&threadPool, updateDelta); 
         utils::update<components::func_ai>(&threadPool, updateDelta);
@@ -436,7 +404,9 @@ int main(int argc, char** argv) {
   deinitnk(data);
   deinitGLFW();
 
-  cvar::destroy();
+//   cvar::destroy();
+  
+  //delete mapLoader;
 
   return 0;
 }
