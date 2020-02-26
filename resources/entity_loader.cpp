@@ -134,10 +134,12 @@ namespace devils_engine {
         ptr->physics.dynamic,
         ptr->physics.collisionGroup,
         ptr->physics.collisionFilter,
+        ptr->physics.collisionTrigger,
         ptr->physics.stairHeight,
         ptr->physics.height,
         ptr->physics.width,
-        ptr->physics.gravCoef
+        ptr->physics.gravCoef,
+        ptr->collision_property
       };
       
       const struct core::entity_creator::create_info info{
@@ -257,6 +259,12 @@ namespace devils_engine {
           continue;
         }
         
+        // нам так или иначе нужно указать функцию коллизии, с другой стороны у нас может быть глобальная функция колизии, а тут указать просто какой нибудь тип
+        // 
+        if (itr.value().is_string() && itr.key() == "collision_property") {
+          
+        }
+        
         if (itr.value().is_object() && itr.key() == "physics") {
           has_physics = true;
           bool hasHeight = false, hasWidth = false, hasStairHeight = false;;
@@ -295,22 +303,47 @@ namespace devils_engine {
               if (str == "monster") {
                 info.physics.collisionGroup = MONSTER_COLLISION_TYPE;
                 info.physics.collisionFilter = monster_collision_filter;
+                info.physics.collisionTrigger = monster_trigger_filter;
               } else if (str == "small_decoration") {
                 info.physics.collisionGroup = SMALL_DECORATION_COLLISION_TYPE;
                 info.physics.collisionFilter = small_decoration_collision_filter;
+                info.physics.collisionTrigger = small_decoration_trigger_filter;
               } else if (str == "big_decoration") {
                 info.physics.collisionGroup = BIG_DECORATION_COLLISION_TYPE;
                 info.physics.collisionFilter = big_decoration_collision_filter;
+                info.physics.collisionTrigger = big_decoration_trigger_filter;
               } else if (str == "ghost") {
                 info.physics.collisionGroup = GHOST_COLLISION_TYPE;
                 info.physics.collisionFilter = ghost_collision_filter;
+                info.physics.collisionTrigger = ghost_trigger_filter;
+              } else if (str == "item") {
+                info.physics.collisionGroup = ITEM_COLLISION_TYPE;
+                info.physics.collisionFilter = item_collision_filter;
+                info.physics.collisionTrigger = item_trigger_filter;
+              } else if (str == "interaction") {
+                info.physics.collisionGroup = INTERACTION_COLLISION_TYPE;
+                info.physics.collisionFilter = interaction_collision_filter;
+                info.physics.collisionTrigger = interaction_trigger_filter;
               } else {
                 warnings.add(mark, entity_loader::WARNING_BAD_COLLISION_GROUP, "Bad collision group. Using default (monster)");
                 
                 info.physics.collisionGroup = MONSTER_COLLISION_TYPE;
                 info.physics.collisionFilter = monster_collision_filter;
+                info.physics.collisionTrigger = monster_trigger_filter;
               }
               
+              continue;
+            }
+            
+            // триггер груп по идее будет сильно ограничен, но нужен он чтобы например айтем пересекался только со стенами, но при этом триггерился от игрока
+            // этот функционал можно добавить в коллизию
+//             if (physData.value().is_string() && physData.key() == "trigger_group") {
+//               const std::string &str = physData.value().get<std::string>();
+//               
+//             }
+            
+            if (physData.value().is_string() && physData.key() == "collision_property") {
+              info.collision_property = utils::id::get(physData.value().get<std::string>());
               continue;
             }
           }
@@ -324,6 +357,15 @@ namespace devils_engine {
           }
           continue;
         }
+      }
+      
+      if (!has_id) {
+        errors.add(mark, entity_loader::ERROR_ENTITY_MUST_HAVE_AN_ID, "Could not find entity id");
+        return utils::id();
+      }
+      
+      if (!has_physics) {
+        errors.add(mark, entity_loader::ERROR_ENTITY_MUST_HAVE_A_PHYSICS_DATA, "Physics data must be specified. Entity: "+info.id.name());
       }
       
       (void)file;

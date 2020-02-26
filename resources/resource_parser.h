@@ -89,7 +89,7 @@ namespace devils_engine {
       
       const T* at(const size_t &index) const {
         if (index >= resources.size()) return nullptr;
-        return &resources[index];
+        return resources[index];
       }
       
       size_t size() const { 
@@ -117,7 +117,7 @@ namespace devils_engine {
     template <typename T, size_t N>
     class parser : public parser_interface {
     public:
-      parser(const std::string &parsing_key);
+      parser(const std::string &parsing_key) : parsing_key(parsing_key) {}
       virtual ~parser() = default;
       
       size_t mark() const { return reinterpret_cast<size_t>(this); }
@@ -129,17 +129,17 @@ namespace devils_engine {
           const std::string &path = data.get<std::string>();
           std::ifstream file(file_prefix + path);
           if (!file) {
-            errors.add(this, errors::parser::ERROR_FILE_NOT_FOUND, "Could not load file "+file_prefix+path);
+            errors.add(mark(), errors::parser::ERROR_FILE_NOT_FOUND, "Could not load file "+file_prefix+path);
             return false;
           }
           
           nlohmann::json json;
           file >> json;
-          return parse(file_prefix, path, json, errors, warnings);
+          return parse(file_prefix, path, mod, json, errors, warnings);
         } else if (data.is_array()) {
           bool ret = true;
           for (size_t i = 0; i < data.size(); ++i) {
-            ret = ret && parse(file_prefix, file, data[i], errors, warnings);
+            ret = ret && parse(file_prefix, file, mod, data[i], errors, warnings);
           }
           return ret;
         } else if (data.is_object()) {
@@ -147,7 +147,7 @@ namespace devils_engine {
           utils::id id = check_json(file_prefix, file, data, mark(), info, errors, warnings);
           if (!id.valid()) return false;
           
-          auto ptr = loading_data->create(id);
+          auto ptr = loading_data.create(id);
           (*ptr) = info;
           mod->add_resource(ptr);
           std::cout << "Parsed: " << ptr->id.name() << "\n";

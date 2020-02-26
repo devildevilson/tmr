@@ -46,6 +46,7 @@ namespace devils_engine {
           bool dynamic;
           uint32_t collisionGroup;
           uint32_t collisionFilter;
+          uint32_t collisionTrigger;
           float stairHeight;
           float height;
           float width;
@@ -53,7 +54,8 @@ namespace devils_engine {
         };
         
         pickup_data pickup;
-        utils::id drop_item; // нужно ли это вообще? можно обойтись и без этого
+        utils::id drop_item; // нужно ли это вообще? можно обойтись и без этого (спавним обычным способом энтити)
+        utils::id collision_property;
         intelligence intel;
         utils::id default_state;
         phys_data physics;
@@ -72,7 +74,9 @@ namespace devils_engine {
         ERROR_BAD_HEIGHT_WIDTH_PHYSICS_DATA,
         ERROR_COULD_NOT_FIND_ATTRIBUTE_RESOURCE,
         ERROR_COULD_NOT_FIND_ABILITY_RESOURCE,
-        ERROR_COULD_NOT_FIND_STATE_RESOURCE
+        ERROR_COULD_NOT_FIND_STATE_RESOURCE,
+        ERROR_ENTITY_MUST_HAVE_AN_ID,
+        ERROR_ENTITY_MUST_HAVE_A_PHYSICS_DATA
       };
       
       enum warnings {
@@ -110,3 +114,4 @@ namespace devils_engine {
 }
 
 #endif
+

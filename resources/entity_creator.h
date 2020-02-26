@@ -62,10 +62,12 @@ namespace devils_engine {
         bool dynamic;
         uint32_t collisionGroup;
         uint32_t collisionFilter;
+        uint32_t collisionTrigger;
         float stairHeight;
         float height;
         float width;
         float gravCoef;
+        utils::id collision_property;
       };
       
       struct create_info {
@@ -106,14 +108,14 @@ namespace devils_engine {
       std::function<void(yacs::entity*, yacs::entity*)> collision_func;
       
       components::type_info* create_info(const creation_data &data) const;
-      UserDataComponent* create_usrdata(const creation_data &data) const;
+//       UserDataComponent* create_usrdata(const creation_data &data) const;
       TransformComponent* create_transform(const creation_data &data) const;
       InputComponent* create_input(const creation_data &data) const;
       PhysicsComponent* create_physics(const creation_data &data) const;
       components::sprite_graphics* create_graphics(const creation_data &data) const;
       components::point_light* create_point_light(const creation_data &data) const;
       components::states* create_states(const creation_data &data) const;
-      SoundComponent* create_sound(const creation_data &data) const;
+//       SoundComponent* create_sound(const creation_data &data) const;
       components::attributes* create_attributes(const creation_data &data) const;
       components::effects* create_effects(const creation_data &data) const;
       properties::collision* create_collision(const creation_data &data) const;

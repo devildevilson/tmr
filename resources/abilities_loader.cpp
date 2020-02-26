@@ -18,9 +18,11 @@ namespace devils_engine {
     }
 
     bool abilities_loader::validate(utils::problem_container<info::error> &errors, utils::problem_container<info::warning> &warnings) const {
+      (void)warnings;
+      const size_t errors_count = errors.size();
       for (size_t i = 0; i < loading_data.size(); ++i) {
-        {
-          auto res = states->resource();
+        if (loading_data.at(i)->cast_state.valid()) {
+          auto res = states->resource(loading_data.at(i)->cast_state);
           if (res == nullptr) errors.add(mark(), ERROR_COULD_NOT_FIND_STATE, "Could not find state "+loading_data.at(i)->cast_state.name());
         }
         
@@ -29,6 +31,8 @@ namespace devils_engine {
           if (res == nullptr) errors.add(mark(), ERROR_COULD_NOT_FIND_EFFECT, "Could not find effect "+loading_data.at(i)->cost_effect.name());
         }
       }
+      
+      return errors_count == errors.size();
     }
     
     bool abilities_loader::load(const utils::id &id) {

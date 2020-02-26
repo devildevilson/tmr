@@ -13,18 +13,27 @@ namespace devils_engine {
     attributes_loader::~attributes_loader() {
       clear();
     }
-    
-    bool attributes_loader::forget(const utils::id &id) {
-      return loading_data.destroy(id);
-    }
 
-//     Resource* attributes_loader::getParsedResource(const utils::id &id) {
-//       return loading_data.get(id);
-//     }
-//     
-//     const Resource* attributes_loader::getParsedResource(const utils::id &id) const {
-//       return loading_data.get(id);
-//     }
+    bool attributes_loader::validate(utils::problem_container<info::error> &errors, utils::problem_container<info::warning> &warnings) const {
+      const size_t errors_count = errors.size();
+      
+      for (size_t i = 0; i < loading_data.size(); ++i) {
+        if (loading_data.at(i)->func_name.empty()) continue;
+        
+        {
+          auto itr = float_compute_funcs.find(loading_data.at(i)->func_name);
+          if (itr == float_compute_funcs.end()) errors.add(mark(), ERROR_COULD_NOT_FIND_ATTRIBUTE_TYPE_FUNCTION, "Could not find attribute type "+loading_data.at(i)->id.name()+" function");
+        }
+        
+        {
+          auto itr = int_compute_funcs.find(loading_data.at(i)->func_name);
+          if (itr == int_compute_funcs.end()) errors.add(mark(), ERROR_COULD_NOT_FIND_ATTRIBUTE_TYPE_FUNCTION, "Could not find attribute type "+loading_data.at(i)->id.name()+" function");
+        }
+      }
+      
+      (void)warnings;
+      return errors_count == errors.size();
+    }
 
     bool attributes_loader::load(const utils::id &id) {
       {
@@ -53,7 +62,7 @@ namespace devils_engine {
         auto itr = int_compute_funcs.find(ptr->func_name);
         if (itr == int_compute_funcs.end()) throw std::runtime_error("Could not find function for attribute "+ptr->id.name());
         
-        auto type = int_container.create(ptr->id);
+        auto type = int_container->create(ptr->id);
         type->id = ptr->id;
         type->name = ptr->name;
         type->description = ptr->description;
@@ -134,6 +143,10 @@ namespace devils_engine {
         errors.add(mark, attributes_loader::ERROR_ATTRIBUTE_TYPE_IS_NOT_SPECIFIED, "Attribute description must have a type");
         return utils::id();
       }
+      
+      (void)path_prefix;
+      (void)file;
+      (void)warnings;
       
       return errorsCount == errors.size() ? info.id : utils::id();
     }

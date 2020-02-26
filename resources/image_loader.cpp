@@ -157,33 +157,33 @@ namespace devils_engine {
     }
     
     image_loader::image_loader(const create_info &info) : parser("textures"), device(info.device), container(info.container), data_container(info.data_container), additional_data(info.additional_data) {
-      additional_data->samplers = 2;
-      additional_data->samplers_mem = new char[sizeof(yavf::Sampler)*additional_data->samplers];
-      auto samplers = reinterpret_cast<yavf::Sampler*>(additional_data->samplers_mem);
-      
-      {
-        yavf::SamplerMaker sm(device);
-        
-        samplers[0] = sm.addressMode(VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT)
-                        .anisotropy(VK_TRUE, 16.0f)
-                        .borderColor(VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK)
-                        .compareOp(VK_FALSE, VK_COMPARE_OP_MAX_ENUM)
-                        .filter(VK_FILTER_NEAREST, VK_FILTER_NEAREST)
-                        .lod(0, 1000.0f)
-                        .mipmapMode(VK_SAMPLER_MIPMAP_MODE_NEAREST)
-                        .unnormalizedCoordinates(VK_FALSE)
-                        .create("default_sampler");
-
-        samplers[1] = sm.addressMode(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
-                        .anisotropy(VK_TRUE, 16.0f)
-                        .borderColor(VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK)
-                        .compareOp(VK_FALSE, VK_COMPARE_OP_MAX_ENUM)
-                        .filter(VK_FILTER_NEAREST, VK_FILTER_NEAREST)
-                        .lod(0, 1000.0f)
-                        .mipmapMode(VK_SAMPLER_MIPMAP_MODE_NEAREST)
-                        .unnormalizedCoordinates(VK_FALSE)
-                        .create("clamp_to_border_sampler");
-      }
+//       additional_data->samplers = 2;
+//       additional_data->samplers_mem = new char[sizeof(yavf::Sampler)*additional_data->samplers];
+//       auto samplers = reinterpret_cast<yavf::Sampler*>(additional_data->samplers_mem);
+//       
+//       {
+//         yavf::SamplerMaker sm(device);
+//         
+//         samplers[0] = sm.addressMode(VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT)
+//                         .anisotropy(VK_TRUE, 16.0f)
+//                         .borderColor(VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK)
+//                         .compareOp(VK_FALSE, VK_COMPARE_OP_MAX_ENUM)
+//                         .filter(VK_FILTER_NEAREST, VK_FILTER_NEAREST)
+//                         .lod(0, 1000.0f)
+//                         .mipmapMode(VK_SAMPLER_MIPMAP_MODE_NEAREST)
+//                         .unnormalizedCoordinates(VK_FALSE)
+//                         .create("default_sampler");
+// 
+//         samplers[1] = sm.addressMode(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
+//                         .anisotropy(VK_TRUE, 16.0f)
+//                         .borderColor(VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK)
+//                         .compareOp(VK_FALSE, VK_COMPARE_OP_MAX_ENUM)
+//                         .filter(VK_FILTER_NEAREST, VK_FILTER_NEAREST)
+//                         .lod(0, 1000.0f)
+//                         .mipmapMode(VK_SAMPLER_MIPMAP_MODE_NEAREST)
+//                         .unnormalizedCoordinates(VK_FALSE)
+//                         .create("clamp_to_border_sampler");
+//       }
     }
     
     image_loader::~image_loader() {}
@@ -505,6 +505,8 @@ namespace devils_engine {
         return utils::id();
       }
       
+      (void)warnings;
+      
       return info.id;
     }
     
@@ -544,7 +546,7 @@ namespace devils_engine {
         
         auto samplers = reinterpret_cast<yavf::Sampler*>(additional_data->samplers_mem);
         for (size_t i = 0; i < additional_data->samplersCount(); ++i) {
-          additional_data->set->at(i + additional_data->imagesCount()) = {samplers[i], nullptr, VK_IMAGE_LAYOUT_MAX_ENUM, i, 1, VK_DESCRIPTOR_TYPE_SAMPLER};
+          additional_data->set->at(i + additional_data->imagesCount()) = {samplers[i], nullptr, VK_IMAGE_LAYOUT_MAX_ENUM, static_cast<uint32_t>(i), 1, VK_DESCRIPTOR_TYPE_SAMPLER};
         }
 
         additional_data->set->update();

@@ -33,7 +33,7 @@ namespace devils_engine {
       std::vector<resources::validator*> validators;
       std::vector<resources::loader*> loaders;
       resources::image_loader* images;
-      MemoryPool<modification<core::resource>, 20> mods_pool;
+      MemoryPool<modification<core::resource>, sizeof(modification<core::resource>)*20> mods_pool;
       std::vector<modification<core::resource>*> mods_array;
     };
   }

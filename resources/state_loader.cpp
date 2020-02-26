@@ -171,6 +171,10 @@ namespace devils_engine {
         return utils::id();
       }
       
+      (void)path_prefix;
+      (void)file;
+      (void)warnings;
+      
       return errors_size == errors.size() ? info.id : utils::id();
     }
   }

@@ -6,12 +6,12 @@
 #include "TransformComponent.h"
 #include "PhysicsComponent.h"
 #include "InputComponent.h"
-#include "SoundComponent.h"
-#include "graphics_componet.h"
+// #include "SoundComponent.h"
+#include "graphics_component.h"
 #include "states_component.h"
 #include "abilities_component.h"
 #include "type_info_component.h"
-#include "UserDataComponent.h"
+// #include "UserDataComponent.h"
 #include "ai_component.h"
 #include "attributes_component.h"
 #include "effects_component.h"
@@ -54,26 +54,26 @@ namespace devils_engine {
       };
       
       auto info = create_info(data);
-      auto user = create_usrdata(data);
+//       auto user = create_usrdata(data);
       auto trans = create_transform(data);
       auto input = create_input(data);
       auto phys = create_physics(data);
       auto graphics = create_graphics(data);
       auto states = create_states(data);
-      auto sounds = create_sound(data);
+//       auto sounds = create_sound(data);
       auto light = create_point_light(data);
       auto attribs = create_attributes(data);
       auto effects = create_effects(data);
       auto collision = create_collision(data);
       
       (void)info;
-      (void)user;
+//       (void)user;
       (void)trans;
       (void)input;
       (void)phys;
       (void)graphics;
       (void)states;
-      (void)sounds;
+//       (void)sounds;
       (void)light;
       (void)attribs;
       (void)effects;
@@ -90,14 +90,17 @@ namespace devils_engine {
       info->id = id;
       info->states_count = states.size();
       info->states = states.data();
+      info->collision_property = physics.collision_property;
+      info->item_property = pickup.id;
+      info->item_quantity = pickup.quantity;
       return info.get();
     }
     
-    UserDataComponent* entity_creator::create_usrdata(const creation_data &data) const {
-      auto comp = data.ent->add<UserDataComponent>().get();
-      ASSERT(data.ent->at<UserDataComponent>(game::entity::user_data).valid());
-      return comp;
-    }
+//     UserDataComponent* entity_creator::create_usrdata(const creation_data &data) const {
+//       auto comp = data.ent->add<UserDataComponent>().get();
+//       ASSERT(data.ent->at<UserDataComponent>(game::entity::user_data).valid());
+//       return comp;
+//     }
     
     TransformComponent* entity_creator::create_transform(const creation_data &data) const {
       auto comp = data.ent->add<TransformComponent>(data.pos, data.rot, simd::vec4(physics.width, physics.height, physics.width, 0.0f)).get();
@@ -107,7 +110,7 @@ namespace devils_engine {
     
     InputComponent* entity_creator::create_input(const creation_data &data) const {
       auto comp = data.ent->add<InputComponent>().get();
-      ASSERT(data.ent->at<UserDataComponent>(game::entity::user_data).valid());
+      ASSERT(data.ent->at<InputComponent>(game::entity::input).valid());
       return comp;
     }
     
@@ -116,7 +119,7 @@ namespace devils_engine {
     PhysicsComponent* entity_creator::create_physics(const creation_data &data) const {
       auto input = data.ent->at<InputComponent>(game::entity::input);
       auto trans = data.ent->at<TransformComponent>(game::entity::transform);
-      auto user = data.ent->at<UserDataComponent>(game::entity::user_data);
+//       auto user = data.ent->at<UserDataComponent>(game::entity::user_data);
       
       const PhysicsType type(physics.dynamic, BBOX_TYPE, true, pickup.id.valid(), true, true);
       const PhysicsComponent::CreateInfo info{
@@ -128,6 +131,7 @@ namespace devils_engine {
           type,
           physics.collisionGroup,
           physics.collisionFilter,
+          physics.collisionTrigger,
           physics.stairHeight,
           1.0f,
           4.0f,
@@ -142,7 +146,7 @@ namespace devils_engine {
           
           box_shape
         },
-        user.get()
+        data.ent
       };
       
       auto comp = data.ent->add<PhysicsComponent>(info).get();
@@ -175,12 +179,12 @@ namespace devils_engine {
       return comp;
     }
     
-    SoundComponent* entity_creator::create_sound(const creation_data &data) const {
-      // звук тоже нужно переделать, возможно даже отдельный компонент не нужен
-      data.ent->set(yacs::component_handle<SoundComponent>(nullptr));
-      ASSERT(!data.ent->at<SoundComponent>(game::entity::sounds).valid());
-      return nullptr;
-    }
+//     SoundComponent* entity_creator::create_sound(const creation_data &data) const {
+//       // звук тоже нужно переделать, возможно даже отдельный компонент не нужен
+//       data.ent->set(yacs::component_handle<SoundComponent>(nullptr));
+//       ASSERT(!data.ent->at<SoundComponent>(game::entity::sounds).valid());
+//       return nullptr;
+//     }
     
     components::attributes* entity_creator::create_attributes(const creation_data &data) const {
       auto comp = data.ent->add<components::attributes>(components::attributes::create_info{data.ent, float_init, int_init}).get();

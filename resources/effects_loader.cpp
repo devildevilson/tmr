@@ -19,6 +19,9 @@ namespace devils_engine {
           }
         }
       }
+      
+      (void)warnings;
+      
       return true;
     }
     
@@ -189,6 +192,7 @@ namespace devils_engine {
       
       (void)path_prefix;
       (void)file;
+      (void)warnings;
       
       return errors_count == errors.size() ? info.id : utils::id();
     }

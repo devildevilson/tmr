@@ -49,7 +49,7 @@ namespace devils_engine {
       struct create_info {
         game::states_container_load* container;
         ArrayInterface<Texture>* textures;
-        image_loader* image_loader;
+        class image_loader* image_loader;
         std::unordered_map<std::string, std::function<void(yacs::entity*, const size_t &)>> functions;
       };
       state_loader(const create_info &info);
@@ -66,7 +66,7 @@ namespace devils_engine {
     private:
       game::states_container_load* container;
       ArrayInterface<Texture>* textures;
-      image_loader* image_loader;
+      class image_loader* image_loader;
       std::unordered_map<std::string, std::function<void(yacs::entity*, const size_t &)>> functions;
       
       utils::id check_json(const std::string &path_prefix, const std::string &file, const nlohmann::json &data, const size_t &mark, state::load_data& info, utils::problem_container<info::error> &errors, utils::problem_container<info::warning> &warnings) const override;

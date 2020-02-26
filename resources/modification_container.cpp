@@ -79,7 +79,6 @@ namespace devils_engine {
       }
 
       nlohmann::json json;
-
       file >> json;
 
       if (mod == nullptr) throw std::runtime_error("Mod not found");

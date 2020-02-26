@@ -25,7 +25,8 @@ namespace devils_engine {
         ERROR_FILE_NOT_FOUND = 0,
         ERROR_BAD_TYPE_VALUE,
         ERROR_ATTRIBUTE_ID_NOT_FOUND,
-        ERROR_ATTRIBUTE_TYPE_IS_NOT_SPECIFIED
+        ERROR_ATTRIBUTE_TYPE_IS_NOT_SPECIFIED,
+        ERROR_COULD_NOT_FIND_ATTRIBUTE_TYPE_FUNCTION
       };
       
       struct create_info {

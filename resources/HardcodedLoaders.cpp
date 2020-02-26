@@ -12,9 +12,9 @@
 #include "PhysicsComponent.h"
 #include "InputComponent.h"
 #include "type_info_component.h"
-#include "CameraComponent.h"
+// #include "CameraComponent.h"
 #include "graphics_component.h"
-#include "SoundComponent.h"
+// #include "SoundComponent.h"
 #include "states_component.h"
 #include "effects_component.h"
 #include "attributes_component.h"
@@ -959,7 +959,7 @@ void HardcodedMapLoader::end() {
     physInfo.physInfo.transformIndex = playerTransform->index();
     auto phys = ent1->add<PhysicsComponent>(physInfo);
 
-    camera = ent1->add<CameraComponent>(CameraComponent::CreateInfo{playerTransform, input, phys.get()}).get();
+//     camera = ent1->add<CameraComponent>(CameraComponent::CreateInfo{playerTransform, input, phys.get()}).get();
 
     const UserDataComponent entData{
       ent1,
@@ -1232,7 +1232,7 @@ void HardcodedMapLoader::end() {
       states->ent = wall_ent;
       // звук скорее всего будет просто компонентом, при всех взаимодействиях будем вызывать функцию из компонента, 
       // так как мы явно определяем все функции взаимодействий, то материал нам может и не пригодиться
-      wall_ent->set(yacs::component_handle<SoundComponent>(nullptr));
+//       wall_ent->set(yacs::component_handle<SoundComponent>(nullptr));
       auto vertex = wall_ent->add<devils_engine::components::vertex>(devils_engine::components::vertex::create_info{wall_ent, center, normal});
       
       for (size_t i = 0; i < Global::get<yacs::world>()->count_components<devils_engine::components::vertex>(); ++i) {
@@ -1478,24 +1478,24 @@ void HardcodedMapLoader::end() {
         vert1->add_edge(new_edge);
         another->add_edge(new_edge);
          
-         const EdgeData data{
-           true,
-           true, // кажется используется только в fake edge, или не используется вообще
-           secondEdge->getAngle(),
-           glm::distance(vert1->getVertexData()->center, edge->getSegment().closestPoint(vert1->getVertexData()->center)) +
-             glm::distance(another->getVertexData()->center, secondEdge->getSegment().closestPoint(another->getVertexData()->center)),
-           std::min(width1, width2),
-           d1 > d2 ? d2 : d1,
-           d1 > d2 ? glm::normalize(left1 - right1) : glm::normalize(right1 - left1),
-           d1 > d2 ? LineSegment(right1, left1) : LineSegment(left1, right1)
-         };
-
-         graph->addEdge(vert1, another, data);
+//          const EdgeData data{
+//            true,
+//            true, // кажется используется только в fake edge, или не используется вообще
+//            secondEdge->getAngle(),
+//            glm::distance(vert1->getVertexData()->center, edge->getSegment().closestPoint(vert1->getVertexData()->center)) +
+//              glm::distance(another->getVertexData()->center, secondEdge->getSegment().closestPoint(another->getVertexData()->center)),
+//            std::min(width1, width2),
+//            d1 > d2 ? d2 : d1,
+//            d1 > d2 ? glm::normalize(left1 - right1) : glm::normalize(right1 - left1),
+//            d1 > d2 ? LineSegment(right1, left1) : LineSegment(left1, right1)
+//          };
+// 
+//          graph->addEdge(vert1, another, data);
        }
      }
    }
   
-  std::cout << "Created " << (graph->size() - edges) << " fake edges" << "\n";
+  std::cout << "Created " << (Global::get<devils_engine::graph::container>()->edges.size() - edges) << " fake edges" << "\n";
   
   // тут нужно перекопировать verts и globalIndicies в буферы
   yavf::Buffer stagingVert(device, yavf::BufferCreateInfo::buffer(verts.size()*sizeof(Vertex), 
