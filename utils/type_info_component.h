@@ -144,6 +144,9 @@ namespace devils_engine {
       };
       
       utils::id id;
+      utils::id collision_property;
+      size_t item_quantity;
+      utils::id item_property;
       size_t states_count;
       const core::state_t* const* states;
       const game::ability_t* created_ability;

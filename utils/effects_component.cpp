@@ -418,39 +418,39 @@ namespace devils_engine {
       }
     }
     
-    void effects::compute_add(const computed_effect &effect, const bool is_needed) {
-      if (!is_needed) return;
-      
-      for (size_t i = 0; i < game::effect_t::max_bonuses; ++i) {
-        const auto &b = effect.data.bonuses[i];
-        if (!b.attrib.valid()) continue;
-        changes.push_back({
-          effect.effect,
-          effect.source,
-          {
-            b.attrib,
-            {b.bonus.add, b.bonus.mul}
-          }
-        });
-      }
-    }
-    
-    void effects::compute_remove(const computed_effect &effect, const bool is_needed) {
-      if (!is_needed) return;
-      
-      for (size_t i = 0; i < game::effect_t::max_bonuses; ++i) {
-        const auto &b = effect.data.bonuses[i];
-        if (!b.attrib.valid()) continue;
-        changes.push_back({
-          effect.effect,
-          effect.source,
-          {
-            b.attrib,
-            {-b.bonus.add, -b.bonus.mul}
-          }
-        });
-      }
-    }
+//     void effects::compute_add(const computed_effect &effect, const bool is_needed) {
+//       if (!is_needed) return;
+//       
+//       for (size_t i = 0; i < game::effect_t::max_bonuses; ++i) {
+//         const auto &b = effect.data.bonuses[i];
+//         if (!b.attrib.valid()) continue;
+//         changes.push_back({
+//           effect.effect,
+//           effect.source,
+//           {
+//             b.attrib,
+//             {b.bonus.add, b.bonus.mul}
+//           }
+//         });
+//       }
+//     }
+//     
+//     void effects::compute_remove(const computed_effect &effect, const bool is_needed) {
+//       if (!is_needed) return;
+//       
+//       for (size_t i = 0; i < game::effect_t::max_bonuses; ++i) {
+//         const auto &b = effect.data.bonuses[i];
+//         if (!b.attrib.valid()) continue;
+//         changes.push_back({
+//           effect.effect,
+//           effect.source,
+//           {
+//             b.attrib,
+//             {-b.bonus.add, -b.bonus.mul}
+//           }
+//         });
+//       }
+//     }
     
   }
 }

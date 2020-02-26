@@ -7,7 +7,7 @@ namespace devils_engine {
     delayed_work_system::delayed_work_system(const create_info &info) : pool(info.pool) {}
     void delayed_work_system::add_work(const std::function<void()> &func) {
       std::unique_lock<std::mutex> lock(mutex);
-      funcs.push_back(func);
+      funcs.push(func);
     }
     
     void delayed_work_system::do_works() {
@@ -16,8 +16,8 @@ namespace devils_engine {
         {
           std::unique_lock<std::mutex> lock(mutex);
           if (funcs.empty()) return;
-          func = std::move(funcs.back());
-          funcs.pop_back();
+          func = std::move(funcs.front());
+          funcs.pop();
         }
         
         func();
@@ -30,8 +30,8 @@ namespace devils_engine {
         {
           std::unique_lock<std::mutex> lock(mutex);
           if (funcs.empty()) return;
-          func = std::move(funcs.back());
-          funcs.pop_back();
+          func = std::move(funcs.front());
+          funcs.pop();
         }
         
         func();
@@ -54,8 +54,8 @@ namespace devils_engine {
       {
         std::unique_lock<std::mutex> lock(mutex);
         while (!funcs.empty()) {
-          pool->submitbase(funcs.back());
-          funcs.pop_back();
+          pool->submitbase(funcs.front());
+          funcs.pop();
         }
       }
     }

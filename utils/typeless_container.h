@@ -10,6 +10,8 @@
 
 #include "stack_allocator.h"
 
+//#include <iostream>
+
 namespace devils_engine {
   namespace utils {
     class typeless_container {
@@ -20,6 +22,7 @@ namespace devils_engine {
       template <typename T, typename... Args>
       T* create(Args&&... args) {
         void* mem = allocator.alloc(sizeof(T));
+        //std::cout << "alloc " << sizeof(T) << " current size " << allocator.allocated_size() << '\n';
         ASSERT(mem != nullptr && "Not enough allocator size");
         T* ptr = new (mem) T(std::forward<Args>(args)...);
         return ptr;

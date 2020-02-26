@@ -211,6 +211,7 @@ namespace yacs {
 
     template <typename T>
     component_handle<T> get_component(const size_t &index);
+    entity* get_entity(const size_t &index);
   private:
     // так по идее мы можем удалять компоненты 
     // и при этом у нас расходуется 32 байта для каждого типа компонента
@@ -655,6 +656,11 @@ namespace yacs {
 
   size_t world::size() const {
     return entities.size();
+  }
+  
+  entity* world::get_entity(const size_t &index) {
+    if (index >= entities.size()) return nullptr;
+    return entities[index];
   }
   
   world::components_data::components_data(const size_t &typeId, const size_t &size, const std::function<void(void*, typeless_pool&)> &destructor) : pool(typeId, size), destructor(destructor) {}

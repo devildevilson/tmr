@@ -26,13 +26,14 @@ namespace devils_engine {
         }
         
         // не нужно чистить эту переменную так как она пойдет в action, с другой стороны чаще всего она будет 0
-        if (current != state) current_time = 0;
+        current_time = 0;
+        if (current != state) accumulated_time = 0;
         current = state;
         
         // далее тут используются m1 и m2 переменные
         
         if (current->action) {
-          current->action(ent, current_time);
+          current->action(ent, accumulated_time);
           if (current == nullptr) break;
         }
         
@@ -52,11 +53,13 @@ namespace devils_engine {
       if (current == nullptr) return;
       if (current_time == SIZE_MAX) {
         current_time = 0;
+        accumulated_time = 0;
         set(current);
         return;
       }
       
       current_time += time;
+      accumulated_time += time;
       counter = 0;
       if (current_time >= current->time) set(current->next);
     }

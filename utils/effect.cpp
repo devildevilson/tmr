@@ -11,6 +11,13 @@ namespace devils_engine {
       memcpy(bonuses, c.bonuses, sizeof(attrib_bonus)*max_bonuses);
     }
     
+    struct effect_t::container & effect_t::container::operator=(const container &c) {
+      time = c.time;
+      period = c.period;
+      memcpy(bonuses, c.bonuses, sizeof(attrib_bonus)*max_bonuses);
+      return *this;
+    }
+    
     enum EffectTypeEnum : uint32_t {
       EFFECT_TYPE_RAW = (1 << 0),
       EFFECT_TYPE_ADD = (1 << 1),
@@ -92,6 +99,11 @@ namespace devils_engine {
     
     bool effect_t::type::timed_remove() const {
       return (container & EFFECT_TYPE_TIMED_REMOVE) == EFFECT_TYPE_TIMED_REMOVE;
+    }
+    
+    struct effect_t::type & effect_t::type::operator=(const type &t) {
+      container = t.container;
+      return *this;
     }
   }
 }

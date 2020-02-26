@@ -11,6 +11,13 @@
 #include <cstddef>
 #include <utility>
 
+#ifdef _DEBUG
+  #include <cassert>
+  #define ASSERT(expr) assert(expr)
+#else
+  #define ASSERT(expr)
+#endif
+
 //#include <unordered_set>
 
 template<typename T, size_t blockSize = 4096>
@@ -99,6 +106,8 @@ public:
     }
 
     template <class... Args> T* newElement(Args&&... args)  {
+      ASSERT(sizeof(T)*3 < blockSize);
+      
       T* result = allocate();
       construct<T>(result, std::forward<Args>(args)...);
 //       T* result = new T(std::forward<Args>(args)...);

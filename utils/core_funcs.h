@@ -49,6 +49,8 @@ namespace devils_engine {
     int64_t or_int (yacs::entity* ent, const uint32_t &index, const int64_t &value);
     int64_t xor_int(yacs::entity* ent, const uint32_t &index, const int64_t &value);
     
+    simd::vec4 player_pos();
+    
     // эта функция тоже очень "опасная" но она легко попадает в систему работ
     void teleport_entity(yacs::entity* ent, const simd::vec4 &new_pos);
     
@@ -121,6 +123,25 @@ namespace devils_engine {
     
     bool start_sound(const sound::info &info);
     bool stop_sound(const yacs::entity* ent);
+    
+    // это не случайные функции, с другой стороны они врядли понадобятся без рандома
+    int32_t range(const uint32_t &num, int32_t min, int32_t max);
+    
+    utils::id current_map();
+    utils::id current_episod();
+    
+    void next_map();
+    void next_map_secret();
+    void change_map(const utils::id &episod, const utils::id &map);
+  }
+  
+  // продублировать некоторые функции из random.h?
+  namespace random {
+    uint32_t get();
+    float norm();
+    bool chance(const float &percent);
+    int32_t range(const int32_t &min, const int32_t &max);
+    uint32_t dice(const uint32_t &rolls, const uint32_t &faces);
   }
 }
 

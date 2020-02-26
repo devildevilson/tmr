@@ -52,13 +52,13 @@ namespace devils_engine {
     namespace entity {
       enum component_indices {
         type_info,
-        user_data,
+//         user_data,
         transform,
         input,
         physics,
         graphics,
         states,
-        sounds,
+//         sounds,
         count
       };
     }

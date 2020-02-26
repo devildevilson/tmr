@@ -117,8 +117,8 @@ namespace devils_engine {
       size_t find(const size_t &start_index, const utils::id &type, const yacs::entity* source) const;
       void compute_add(attributes* attribs, const computed_effect &effect, const bool is_needed) const;
       void compute_remove(attributes* attribs, const computed_effect &effect, const bool is_needed) const;
-      void compute_add(const computed_effect &effect, const bool is_needed);
-      void compute_remove(const computed_effect &effect, const bool is_needed);
+//       void compute_add(const computed_effect &effect, const bool is_needed);
+//       void compute_remove(const computed_effect &effect, const bool is_needed);
     };
   }
   

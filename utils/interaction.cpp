@@ -7,25 +7,29 @@
 #include "TransformComponent.h"
 #include "PhysicsComponent.h"
 #include "BroadphaseInterface.h"
-#include "UserDataComponent.h"
+// #include "UserDataComponent.h"
 #include "HelperFunctions.h"
 
 #include "delayed_work_system.h"
 #include "game_funcs.h"
+#include "core_funcs.h"
 
 const float thickness = 0.2f;
 const float stab_angle = glm::radians(30.0f);
 
 namespace devils_engine {
   namespace core {
+    Container<Transform>* interaction::transforms = nullptr;
+    Container<simd::mat4>* interaction::matrices = nullptr;
+    
     void slashing_interaction::update(const size_t &time) {
       current_time += time * speed;
 
 //     if (currentTime >= delay + attackTime) finished = true;
 
-      const uint32_t triggerSize = Global::physics()->getTriggerPairsIndicesSize();
-      const ArrayInterface<uint32_t>* triggerPairs = Global::physics()->getTriggerPairsIndices();
-      const ArrayInterface<OverlappingData>* datas = Global::physics()->getOverlappingPairsData();
+      const uint32_t triggerSize = Global::get<PhysicsEngine>()->getTriggerPairsIndicesSize();
+      const ArrayInterface<uint32_t>* triggerPairs = Global::get<PhysicsEngine>()->getTriggerPairsIndices();
+      const ArrayInterface<OverlappingData>* datas = Global::get<PhysicsEngine>()->getOverlappingPairsData();
 
       const size_t finalCurrentTime = current_time;
       const size_t finalLastTime = last_time;
@@ -35,7 +39,7 @@ namespace devils_engine {
       // плоскость поворота normal
       
       const float angle = end_angle - start_angle;
-      const float fractional_angle = angle / float(time);
+//       const float fractional_angle = angle / float(time);
       
       //const float halfAngle = angle / 2.0f; 
       const float currentAngle = start_angle + angle * (float(finalCurrentTime) / float(time)); //finalCurrentTime * fractional_angle;
@@ -46,7 +50,7 @@ namespace devils_engine {
       
       const simd::vec4 simd_pos = simd::vec4(pos);
       const simd::vec4 simd_dir = simd::vec4(dir);
-      //const simd::mat4 attackRot = simd::orientation(simd_dir, simd::normalize(projectVectorOnPlane(Global::physics()->getGravityNorm(), simd_pos, simd_dir)));
+      //const simd::mat4 attackRot = simd::orientation(simd_dir, simd::normalize(projectVectorOnPlane(Global::get<PhysicsEngine>()->getGravityNorm(), simd_pos, simd_dir)));
       const simd::mat4 attackRot = simd::orientation(simd_dir, simd::vec4(0.0f, 0.0f, 1.0f, 0.0f));
       const simd::vec4 attackPlane = attackRot * PhysicsEngine::getOrientation() * simd::vec4(plane);
       const simd::vec4 vector1 = simd::normalize(simd::rotate(simd::mat4(1.0f), currentAngle, attackPlane) * simd_dir);
@@ -69,14 +73,14 @@ namespace devils_engine {
 
         const uint32_t objIndex = data.firstIndex == container.objectDataIndex ? data.secondIndex : data.firstIndex;
 
-        const PhysicsIndexContainer* another = Global::physics()->getIndexContainer(objIndex);
-        const BroadphaseProxy* proxy = Global::physics()->getObjectBroadphaseProxy(another);
+        const PhysicsIndexContainer* another = Global::get<PhysicsEngine>()->getIndexContainer(objIndex);
+//         const BroadphaseProxy* proxy = Global::get<PhysicsEngine>()->getObjectBroadphaseProxy(another);
         
-        auto usr_data = reinterpret_cast<UserDataComponent*>(another->userData);
+        auto another_ent = reinterpret_cast<yacs::entity*>(another->userData);
 
         //const bool ticklessObj = (proxy->collisionGroup() & ticklessObjectsType) != 0;
 
-        const size_t obj_index = find(usr_data->entity);
+        const size_t obj_index = find(another_ent);
         if (obj_index != SIZE_MAX) {
           //if (itr->second.count >= tickCount && !ticklessObj) continue;
           
@@ -93,10 +97,10 @@ namespace devils_engine {
         }
 
         bool founded = false;
-        const Object &anotherObj = Global::physics()->getObjectData(another);
+        const Object &anotherObj = Global::get<PhysicsEngine>()->getObjectData(another);
         if (anotherObj.objType.getObjType() == BBOX_TYPE) {
           const simd::vec4 pos = transforms->at(anotherObj.transformIndex).pos;
-          const simd::vec4 extent = Global::physics()->getObjectShapePoints(another)[0];
+          const simd::vec4 extent = Global::get<PhysicsEngine>()->getObjectShapePoints(another)[0];
           const simd::vec4 scale = transforms->at(anotherObj.transformIndex).scale;
 
           const simd::mat4 matrix = anotherObj.coordinateSystemIndex == UINT32_MAX ? simd::mat4(1.0f) * simd::scale(simd::mat4(1.0f), scale) : matrices->at(anotherObj.coordinateSystemIndex) * simd::scale(simd::mat4(1.0f), scale);
@@ -128,7 +132,7 @@ namespace devils_engine {
             // вообще у нас уже есть юзер дата компонент, может как-то его использовать? там пока что хранится не очень много полезных штук
 //             auto usrData = reinterpret_cast<UserDataComponent*>(another->userData);
             yacs::entity* first = ent;
-            yacs::entity* second = usr_data->entity;
+            yacs::entity* second = another_ent;
             auto interaction_effect = e;
 
             //interaction(event_type(), obj, usrData->entity, this);
@@ -138,8 +142,8 @@ namespace devils_engine {
             founded = true;
           }
         } else if (anotherObj.objType.getObjType() == POLYGON_TYPE) {
-          const uint32_t pointsSize = Global::physics()->getObjectShapePointsSize(another);
-          const simd::vec4* points = Global::physics()->getObjectShapePoints(another);
+          const uint32_t pointsSize = Global::get<PhysicsEngine>()->getObjectShapePointsSize(another);
+          const simd::vec4* points = Global::get<PhysicsEngine>()->getObjectShapePoints(another);
 
           const simd::vec4 pos = anotherObj.transformIndex == UINT32_MAX ? simd::vec4(0.0f, 0.0f, 0.0f, 1.0f) : transforms->at(anotherObj.transformIndex).pos;
           const simd::vec4 scale = anotherObj.transformIndex == UINT32_MAX ? simd::vec4(1.0f, 1.0f, 1.0f, 1.0f) : transforms->at(anotherObj.transformIndex).scale;
@@ -171,7 +175,7 @@ namespace devils_engine {
 
             //interaction(event_type(), obj, usrData->entity, this);
             yacs::entity* first = ent;
-            yacs::entity* second = usr_data->entity;
+            yacs::entity* second = another_ent;
             auto interaction_effect = e;
 
             //interaction(event_type(), obj, usrData->entity, this);
@@ -198,7 +202,7 @@ namespace devils_engine {
           objs[obj_index].inter_time = current_time;
         } else if (obj_index == SIZE_MAX && founded) {
           objs.push_back({
-            usr_data->entity,
+            another_ent,
             current_time,
             0
           });
@@ -231,7 +235,7 @@ namespace devils_engine {
       //const size_t updateTime = currentTime - delayTime;
       const float diff = max_dist - min_dist;
       const float inc = std::min((float(current_time) / float(time)) * diff, diff);
-      const float currentRadius = glm::uintBitsToFloat(Global::physics()->getObjectData(&container).faceCount);
+      const float currentRadius = glm::uintBitsToFloat(Global::get<PhysicsEngine>()->getObjectData(&container).faceCount);
 
       const simd::vec4 simd_pos = trans->pos();
       const simd::vec4 simd_dir = trans->rot();
@@ -248,9 +252,9 @@ namespace devils_engine {
       const simd::vec4 B = A + vector1 * currentRadius;
       const simd::vec4 C = A + vector2 * currentRadius;
 
-      const uint32_t triggerSize = Global::physics()->getTriggerPairsIndicesSize();
-      const ArrayInterface<uint32_t>* triggerPairs = Global::physics()->getTriggerPairsIndices();
-      const ArrayInterface<OverlappingData>* datas = Global::physics()->getOverlappingPairsData();
+      const uint32_t triggerSize = Global::get<PhysicsEngine>()->getTriggerPairsIndicesSize();
+      const ArrayInterface<uint32_t>* triggerPairs = Global::get<PhysicsEngine>()->getTriggerPairsIndices();
+      const ArrayInterface<OverlappingData>* datas = Global::get<PhysicsEngine>()->getOverlappingPairsData();
       for (uint32_t i = 0; i < triggerSize; ++i) {
         const uint32_t index = triggerPairs->at(i+1);
         const OverlappingData &data = datas->at(index);
@@ -259,14 +263,14 @@ namespace devils_engine {
 
         const uint32_t objIndex = data.firstIndex == container.objectDataIndex ? data.secondIndex : data.firstIndex;
 
-        const PhysicsIndexContainer* another = Global::physics()->getIndexContainer(objIndex);
-        const BroadphaseProxy* proxy = Global::physics()->getObjectBroadphaseProxy(another);
+        const PhysicsIndexContainer* another = Global::get<PhysicsEngine>()->getIndexContainer(objIndex);
+//         const BroadphaseProxy* proxy = Global::get<PhysicsEngine>()->getObjectBroadphaseProxy(another);
 
         //const bool ticklessObj = (proxy->collisionGroup() & ticklessObjectsType) != 0;
         
-        auto usr_data = reinterpret_cast<UserDataComponent*>(another->userData);
+        auto another_ent = reinterpret_cast<yacs::entity*>(another->userData);
 
-        const auto obj_index = find(usr_data->entity);
+        const auto obj_index = find(another_ent);
         if (obj_index != SIZE_MAX) {
           //if (itr->second.count >= tickCount && !ticklessObj) continue;
 
@@ -283,10 +287,10 @@ namespace devils_engine {
         }
 
         bool founded = false;
-        const Object &anotherObj = Global::physics()->getObjectData(another);
+        const Object &anotherObj = Global::get<PhysicsEngine>()->getObjectData(another);
         if (anotherObj.objType.getObjType() == BBOX_TYPE) {
           const simd::vec4 pos = transforms->at(anotherObj.transformIndex).pos;
-          const simd::vec4 extent = Global::physics()->getObjectShapePoints(another)[0];
+          const simd::vec4 extent = Global::get<PhysicsEngine>()->getObjectShapePoints(another)[0];
           const simd::vec4 scale = transforms->at(anotherObj.transformIndex).scale;
 
           const simd::mat4 matrix = anotherObj.coordinateSystemIndex == UINT32_MAX ? simd::mat4(1.0f) * simd::scale(simd::mat4(1.0f), scale) : matrices->at(anotherObj.coordinateSystemIndex) * simd::scale(simd::mat4(1.0f), scale);
@@ -319,18 +323,18 @@ namespace devils_engine {
             //auto usrData = reinterpret_cast<UserDataComponent*>(another->userData);
             
             yacs::entity* first = ent;
-            yacs::entity* second = usr_data->entity;
+            yacs::entity* second = another_ent;
             auto interaction_effect = e;
 
             //interaction(event_type(), obj, usrData->entity, this);
-            Global::get<delayed_work_system>()->add_work([first, second, interaction_effect] () {
+            Global::get<utils::delayed_work_system>()->add_work([first, second, interaction_effect] () {
               game::damage_ent(first, second, interaction_effect);
             });
             founded = true;
           }
         } else if (anotherObj.objType.getObjType() == POLYGON_TYPE) {
-          const uint32_t pointsSize = Global::physics()->getObjectShapePointsSize(another);
-          const simd::vec4* points = Global::physics()->getObjectShapePoints(another);
+          const uint32_t pointsSize = Global::get<PhysicsEngine>()->getObjectShapePointsSize(another);
+          const simd::vec4* points = Global::get<PhysicsEngine>()->getObjectShapePoints(another);
 
           const simd::vec4 pos = anotherObj.transformIndex == UINT32_MAX ? simd::vec4(0.0f, 0.0f, 0.0f, 1.0f) : transforms->at(anotherObj.transformIndex).pos;
           const simd::vec4 scale = anotherObj.transformIndex == UINT32_MAX ? simd::vec4(1.0f, 1.0f, 1.0f, 1.0f) : transforms->at(anotherObj.transformIndex).scale;
@@ -359,11 +363,11 @@ namespace devils_engine {
 
           if (pointsLeft < pointsSize && pointsRight < pointsSize && pointsAbove < pointsSize && pointsBeneath < pointsSize) {
             yacs::entity* first = ent;
-            yacs::entity* second = usr_data->entity;
+            yacs::entity* second = another_ent;
             auto interaction_effect = e;
 
             //interaction(event_type(), obj, usrData->entity, this);
-            Global::get<delayed_work_system>()->add_work([first, second, interaction_effect] () {
+            Global::get<utils::delayed_work_system>()->add_work([first, second, interaction_effect] () {
               game::damage_ent(first, second, interaction_effect);
             });
             founded = true;
@@ -379,7 +383,7 @@ namespace devils_engine {
           objs[obj_index].inter_time = current_time;
         } else if (obj_index == SIZE_MAX && founded) {
           objs.push_back({
-            usr_data->entity,
+            another_ent,
             current_time,
             0
           });
@@ -387,7 +391,7 @@ namespace devils_engine {
       }
 
       const float nextRadius = min_dist + inc;
-      Global::physics()->getObjectData(&container).faceCount = glm::floatBitsToUint(nextRadius);
+      Global::get<PhysicsEngine>()->getObjectData(&container).faceCount = glm::floatBitsToUint(nextRadius);
       last_time = current_time;
       
       if (current_time >= time) {

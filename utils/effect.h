@@ -14,13 +14,14 @@ namespace devils_engine {
       static const size_t max_bonuses = 16;
       
       struct container {
-        container();
-        container(const container &c);
-        
         size_t time;
         size_t period;
         //size_t size;
         attrib_bonus bonuses[max_bonuses];
+        
+        container();
+        container(const container &c);
+        struct container & operator=(const container &c);
       };
       
       struct type {
@@ -44,6 +45,7 @@ namespace devils_engine {
         bool periodic_add() const;
         bool periodic_increase_stack() const;
         bool timed_remove() const;
+        type & operator=(const type &t);
       };
       
       utils::id id;

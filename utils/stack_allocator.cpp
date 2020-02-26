@@ -10,11 +10,12 @@ namespace devils_engine {
     }
     
     stack_allocator::~stack_allocator() { delete [] m_memory; }
+    
     void* stack_allocator::alloc(const size_t &size) {
       if (m_memory == nullptr) return nullptr;
       if (size == 0) return nullptr;
       const size_t index = m_allocated.fetch_add(size);
-      if (index + size >= m_size) return nullptr;
+      if (index + size > m_size) return nullptr;
       return &m_memory[index];
     }
     

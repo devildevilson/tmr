@@ -7,77 +7,47 @@
 
 #include "Console.h"
 #include "CmdMgr.h"
-// #include "Variable.h"
-#include "Event.h"
 
 #define PRINT_VEC3(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << "\n";
 #define PRINT_VEC4(name, vec) std::cout << name << " x: " << vec.x << " y: " << vec.y << " z: " << vec.z << " w: " << vec.w << "\n";
 #define PRINT_VAR(name, var) std::cout << name << ": " << var << "\n";
 
-#define GEN_GLOBAL_SYSTEM_POINTER_ACCESS(class_name, access_name, index) \
-inline static class class_name* access_name##() {                        \
-  return reinterpret_cast<class class_name*>(pointerContainer[index]);   \
-}                                                                        \
-inline void set_##access_name##(class class_name* ptr) {                 \
-  pointerContainer[index] = ptr;                                         \
-}
-
 // как сделать то же самое в рантайме?
 // из типа получить поинтер нужно, синглтон?
 
-class Game;
-class Application;
 class VulkanRender;
-// class Physics;
-class Actor;
-class GameObject;
-class AISystem;
-class JobSystem;
-class Random;
-class Settings;
-class PhysicsEngine;
-class AnimationSystem;
 class Window;
-class SoundSystem;
-class ParticleSystem;
 
 namespace yacs {
   class world;
+  class entity;
 }
 
 namespace yavf {
   class Buffer;
 }
 
-struct Keys {
-  //   bool keys[350];
-  uint32_t boolData[33];
-
-  bool get(const uint32_t &index) const;
-  void set(const uint32_t &index, bool data);
-};
-
 #define KEYS_COUNT 350
 #define TEXT_MEMORY_MAX 256
 
-struct GlobalData {
-  bool focusOnInterface;
-  
-  //Keys keys;
-  bool keys[KEYS_COUNT];
-  
-  float mouseWheel;
-  //bool mousePressed[8]; // ???
-  
-  uint32_t currentText;
-  uint32_t text[TEXT_MEMORY_MAX];
-  // мы сразу принимаем на вход юникод
-  
-  std::chrono::steady_clock::time_point doubleClickPoint;
-  glm::uvec2 clickPos;
-  float fbScaleX;
-  float fbScaleY;
-};
+// struct GlobalData {
+//   bool focusOnInterface;
+//   
+//   //Keys keys;
+//   bool keys[KEYS_COUNT];
+//   
+//   float mouseWheel;
+//   //bool mousePressed[8]; // ???
+//   
+//   uint32_t currentText;
+//   uint32_t text[TEXT_MEMORY_MAX];
+//   // мы сразу принимаем на вход юникод
+//   
+//   std::chrono::steady_clock::time_point doubleClickPoint;
+//   glm::uvec2 clickPos;
+//   float fbScaleX;
+//   float fbScaleY;
+// };
 
 class Global {
   //friend Game;
@@ -87,33 +57,20 @@ public:
   
   static Console* console();
   static CmdMgr* commands();
-//   static VariableC* variables();
-  static EventsContainer* events();
   
   static VulkanRender* render();
-  static Game* game();
-//   inline static class Game* game() {
-//     return reinterpret_cast<class Game*>(particlesPtr);
-//   }
-//   static Physics* physic();
-  static PhysicsEngine* physics();
-  static AISystem* ai();
-  static JobSystem* job();
-  static Random* random();
-  static Settings* settings();
-  static AnimationSystem* animations();
   static Window* window();
-  static SoundSystem* sound();
-  static ParticleSystem* particles();
-  static yacs::world* world();
   static size_t frameIndex();
   static size_t mcsSinceEpoch();
   
-  static GlobalData* data();
+//   static GlobalData* data();
   
   static std::string getGameDir();
-  static simd::vec4 getPlayerPos();
+  static simd::vec4 getPlayerPos(); // если у нас здесь есть указатель на игрока, то отдельно хранить позицию игрока не нужно
   static glm::vec4 getPlayerRot();
+  
+  static yacs::entity* player();
+  static size_t level_time();
   
   // вот собственно и решение
   template <typename T>
@@ -122,22 +79,13 @@ public:
     if (ptr != nullptr) container = ptr;
     return container;
   }
-
-//   static yavf::Buffer getMapVertex();
-//   static yavf::Buffer getMapIndex();
-//   static yavf::Buffer getIndirectBuffer();
   
   void setRender(VulkanRender* render);
-  void setPhysics(PhysicsEngine* phys);
-  void setAISystem(AISystem* ai);
-  void setRandom(Random* random);
-  void setSettings(Settings* settings);
-  void setAnimations(AnimationSystem* anims);
   void setWindow(Window* window);
-  void setSound(SoundSystem* sound);
-  void setParticles(ParticleSystem* particles);
-  void setWorld(yacs::world* world);
   void incrementFrameIndex();
+  void set_player(yacs::entity* player);
+  void increase_level_time(const size_t &time);
+  void reset_level_time();
   
   void setGameDir(const std::string &dir);
   
@@ -146,35 +94,18 @@ public:
 private:
   static Console globalConsole;
   static CmdMgr globalCommandMgr;
-//   static VariableC globalVarMgr;
   static VulkanRender* renderPtr;
-  static Game* gamePtr;
-//   static Physics* phys;
-  static PhysicsEngine* phys2;
-  static EventsContainer eventsMgr;
-  static AISystem* aiS;
-  static JobSystem* jobSystem;
-  static Random* randomPtr;
-  static Settings* settingsPtr;
-  static AnimationSystem* anim;
   static Window* windowPtr;
-  static SoundSystem* soundPtr;
-  static ParticleSystem* particlesPtr;
-  static yacs::world* worldPtr;
   
+  static yacs::entity* player_ptr;
   static size_t currentFrameIndex;
+  static size_t current_level_time;
   
-  static GlobalData globalData;
+//   static GlobalData globalData;
   
   static std::string appDir;
   static simd::vec4 playerCoords;
   static glm::vec4 playerView;
-  
-  static void** pointerContainer;
-
-//   static yavf::Buffer mapVertex;
-//   static yavf::Buffer mapIndex;
-//   static yavf::Buffer indirect;
 };
 
 extern float angle;

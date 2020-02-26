@@ -4,6 +4,7 @@
 #include <mutex>
 #include <functional>
 #include <vector>
+#include <queue>
 
 namespace dt {
   class thread_pool;
@@ -30,7 +31,7 @@ namespace devils_engine {
     private:
       dt::thread_pool* pool;
       mutable std::mutex mutex;
-      std::vector<std::function<void()>> funcs;
+      std::queue<std::function<void()>> funcs;
     };
   }
 }

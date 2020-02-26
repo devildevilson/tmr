@@ -13,6 +13,7 @@ namespace yacs {
 namespace devils_engine {
   namespace core {
     struct state_t {
+      using action_func = std::function<void(yacs::entity*, const size_t&)>;
       struct frame_t {
         uint32_t texture_offset;
         uint32_t images_count;
@@ -21,7 +22,7 @@ namespace devils_engine {
       utils::id id;
       frame_t frame;
       size_t time;
-      std::function<void(yacs::entity*, const size_t&)> action;
+      action_func action;
       const state_t* next;
     };
   }

@@ -12,9 +12,11 @@
 #include "PhysicsComponent.h"
 #include "shared_collision_constants.h"
 #include "entity_creator_resources.h"
-#include "UserDataComponent.h"
+// #include "UserDataComponent.h"
 #include "collision_property.h"
 #include "sound_system.h"
+#include "random.h"
+#include "map_data.h"
 
 namespace devils_engine {
   namespace core {
@@ -130,6 +132,11 @@ namespace devils_engine {
       return info->int_container.ex_dis(index, value);
     }
     
+    simd::vec4 player_pos() {
+      auto trans = Global::player()->at<TransformComponent>(game::entity::transform);
+      return trans->pos();
+    }
+    
     void teleport_entity(yacs::entity* ent, const simd::vec4 &new_pos) {
       if (ent == nullptr) return;
       
@@ -203,6 +210,7 @@ namespace devils_engine {
             PhysicsType(false, SPHERE_TYPE, false, true, false, false),
             INTERACTION_COLLISION_TYPE,
             interaction_collision_filter,
+            interaction_trigger_filter,
             0.0f,
             0.0f, 
             0.0f,
@@ -215,7 +223,7 @@ namespace devils_engine {
             UINT32_MAX,
             Type()
           },
-          nullptr
+          inter_ent
         };
         auto phys = inter_ent->add<PhysicsComponent>(info);
         auto inter = inter_ent->add<core::slashing_interaction>();
@@ -304,6 +312,7 @@ namespace devils_engine {
             PhysicsType(false, SPHERE_TYPE, false, true, false, false),
             INTERACTION_COLLISION_TYPE,
             interaction_collision_filter,
+            interaction_trigger_filter,
             0.0f,
             0.0f, 
             0.0f,
@@ -316,7 +325,7 @@ namespace devils_engine {
             UINT32_MAX,
             Type()
           },
-          nullptr
+          inter_ent
         };
         auto phys = inter_ent->add<PhysicsComponent>(info);
         auto inter = inter_ent->add<core::stabbing_interaction>();
@@ -390,7 +399,7 @@ namespace devils_engine {
 //           game::damage_ent(ent, target, effect); 
 //         }
         const auto ret = Global::get<PhysicsEngine>()->get_ray_boxes(ray_index);
-        yacs::entity* target = reinterpret_cast<UserDataComponent*>(ret->userData)->entity;
+        yacs::entity* target = reinterpret_cast<yacs::entity*>(ret->userData);
         callback(ent, target, effect);
       });
       
@@ -416,6 +425,36 @@ namespace devils_engine {
     
     bool stop_sound(const yacs::entity* ent) {
       return Global::get<systems::sound>()->stop(ent);
+    }
+    
+    utils::id current_map() {
+      return Global::get<game::map_data_container>()->current;
+    }
+    
+    utils::id current_episod() {
+      return Global::get<game::map_data_container>()->episod;
+    }
+  }
+  
+  namespace random {
+    uint32_t get() {
+      return Global::get<utils::random>()->get();
+    }
+    
+    float norm() {
+      return Global::get<utils::random>()->norm();
+    }
+    
+    bool chance(const float &percent) {
+      return Global::get<utils::random>()->chanse(percent);
+    }
+    
+    int32_t range(const int32_t &min, const int32_t &max) {
+      return Global::get<utils::random>()->rangei(min, max);
+    }
+    
+    uint32_t dice(const uint32_t &rolls, const uint32_t &faces) {
+      return Global::get<utils::random>()->dice(rolls, faces);
     }
   }
 }

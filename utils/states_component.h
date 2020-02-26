@@ -18,6 +18,7 @@ namespace devils_engine {
     struct states {
       const core::state_t* current;
       size_t current_time;
+      size_t accumulated_time;
       yacs::entity* ent;
       
       uint32_t counter;
