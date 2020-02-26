@@ -45,6 +45,10 @@ include_directories(
   include/glm/
   include/cppfs/source/cppfs/include
   include/filesystem/
+  include/dr_libs/
+  include/whereami/src/
+  include/cxxopts/include/
+  include/lz4/lib/
   ${STB_INCLUDE_PATH}
   ${TINYOBJ_INCLUDE_PATH}
   #                     /home/mikuhatsune/gwc/testingApp/include/libleaktracer/include
@@ -254,83 +258,92 @@ SET(BUILD_SHARED_LIBS ON) # все библиотеки по дефолту ко
 # UTILS
 set(SRC_LIST
   utils/CmdMgr.cpp
-  utils/Variable.cpp
+  utils/console_variable.cpp
   utils/Console.cpp
   utils/TimeMeter.cpp
-  utils/AbilityType.cpp
-  utils/ItemType.cpp
   utils/Globals.cpp
   utils/Utility.cpp
-  utils/Event.cpp
-  utils/EventComponent.cpp
-  utils/Effect.cpp
-  utils/UniqueID.cpp
   utils/Type.cpp
   utils/Frustum.cpp
-  utils/ResourceID.cpp
   utils/EntityComponentSystem.cpp
-  #              utils/JobSystem.cpp
-  utils/Random.cpp
-  #              utils/State.cpp
+  utils/random.cpp
   utils/ThreadPool.cpp
   utils/TransformComponent.cpp
-  resources/Settings.cpp
+  utils/settings.cpp
   include/fmt/src/format.cc
   include/fmt/src/posix.cc
-  #              utils/ResourceManager.cpp
   utils/FileTools.cpp
   utils/InputComponent.cpp
-  utils/Attributes.cpp
-  bin/StateController.cpp
-  utils/Interaction.cpp
-  utils/StateControllerType.cpp
   utils/basic_tri.cpp
-  utils/DelayedWorkSystem.cpp
-  utils/InventoryComponent.cpp
   utils/stack_allocator.cpp
+  utils/attributes_component.cpp
+  utils/inventory_component.cpp
+  utils/abilities_component.cpp
+  utils/interaction.cpp
+  utils/astar_search.cpp
+  utils/id.cpp
+  utils/delayed_work_system.cpp
+  utils/states_component.cpp
+  utils/effect.cpp
+  utils/effects_component.cpp
+  utils/core_funcs.cpp
+  utils/input.cpp
+  include/whereami/src/whereami.c
 )
 set(HDR_LIST
   utils/CmdMgr.h
-  utils/Variable.h
+  utils/console_variable.h
   utils/Console.h
   utils/TimeMeter.h
-  utils/AbilityType.h
-  utils/ItemType.h
   utils/Globals.h
   utils/Utility.h
-  utils/Event.h
-  utils/EventComponent.h
-  utils/Effect.h
-  utils/UniqueID.h
   utils/Type.h
   utils/Frustum.h
-  utils/ResourceID.h
   utils/EntityComponentSystem.h
-  #              utils/JobSystem.h
-  utils/Random.h
-  #              utils/State.h
+  utils/random.h
   utils/ThreadPool.h
   utils/TransformComponent.h
-  resources/Settings.h
+  utils/settings.h
   include/fmt/include/fmt/format.h
   include/fmt/include/fmt/posix.h
-  #              utils/ResourceManager.h
   utils/FileTools.h
   utils/yacs.h
   utils/yacs_pool.h
   utils/yacs_component.h
   utils/InputComponent.h
   utils/TypelessContainer.h
-  utils/Transition.h
-  utils/Attributes.h
-  utils/EventFunctor.h
-  utils/InventoryComponent.h
-  utils/Interaction.h
-  utils/StateControllerType.h
   utils/basic_tri.h
   utils/shared_loaders_header.h
-  utils/DelayedWorkSystem.h
   utils/stack_allocator.h
+  utils/typeless_container.h
+  utils/shared_application_constant.h
+  utils/shared_collision_constants.h
+  utils/shared_mathematical_constant.h
+  utils/shared_memory_constants.h
+  utils/shared_time_constant.h
+  utils/global_components_indicies.h
+  utils/attributes_component.h
+  utils/inventory_component.h
+  utils/abilities_component.h
+  utils/interaction.h
+  utils/astar_search.h
+  utils/id.h
+  utils/delayed_work_system.h
+  utils/states_component.h
+  utils/effect.h
+  utils/effects_component.h
+  utils/core_funcs.h
+  utils/input.h
+  utils/attribute.h
+  utils/weapon.h
+  utils/state.h
+  utils/resource_container.h
+  utils/double_ended_stack.h
+  utils/double_stack_allocator.h
+  utils/ring_buffer.h
+  utils/Logging.h
+  include/whereami/src/whereami.h
+  utils/map_data.h
 )
 add_library(utils ${SRC_LIST} ${HDR_LIST}) # именно add_library объявляет цель в cmake (затем это имя мы используем как переменную в других функциях)
 target_link_libraries(utils) # например здесь fmt
@@ -392,26 +405,17 @@ set(SRC_LIST
   render/Optimizers.cpp
   render/GPUOptimizers.cpp
   render/RenderStages.cpp
-#   render/RenderStructures.cpp
-  render/GraphicComponets.cpp
-  # render/GraphicComponets.cpp
   render/Window.cpp
   render/Deferred.cpp
   render/GraphicsContainer.cpp
-  #              render/Occlusion.cpp
   render/Core.cpp
   render/Tasks.cpp
   render/Internal.cpp
   render/Makers.cpp
   render/Types.cpp
   render/RAII.cpp
-#  render/DecalSystem.cpp
-#  render/DecalOptimizer.cpp
-#  render/DecalComponent.cpp
-#  render/ParticleSystem.cpp
-#  render/ParticleEmitterComponent.cpp
-#              render/TextureManager.cpp
-#              render/stbi_image_impl.cpp
+  render/graphics_component.cpp
+  render/image_container.cpp
 )
 set(HDR_LIST
   render/Render.h
@@ -422,13 +426,10 @@ set(HDR_LIST
   render/RenderStages.h
   render/RenderStage.h
   render/RenderStructures.h
-  render/GraphicComponets.h
-  # render/GraphicComponets.h
   render/Window.h
   render/Deferred.h
   render/GraphicsContainer.h
   render/nuklear_header.h
-  #              render/Occlusion.h
   render/yavf.h
   render/Core.h
   render/Tasks.h
@@ -436,17 +437,11 @@ set(HDR_LIST
   render/Makers.h
   render/Types.h
   render/RAII.h
-#  render/DecalSystem.h
-#  render/DecalOptimizer.h
-#  render/DecalComponent.h
-#  render/ParticleSystem.h
-#  render/ParticleEmitterComponent.h
-#  render/Emitter.h
-  #              render/vk_mem_alloc.h
+  render/graphics_component.h
+  render/image_container.h
   include/VulkanMemoryAllocator/src/vk_mem_alloc.h
-#              render/TextureManager.h
-#              render/stbi_image_header.h
-  render/vulkan_lite.h)
+  render/vulkan_lite.h
+)
 add_library(render ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(render utils ${VULKAN_LIB_NAME} ${GLFW3_LIBRARIES})
 
@@ -455,89 +450,71 @@ set(SRC_LIST
   sound/alHelpers.cpp
   sound/Buffer.cpp
   sound/Source.cpp
-  sound/SoundData.cpp
-  sound/SoundSystem.cpp
-  sound/SoundComponent.cpp
   sound/SoundDecoder.cpp
-  sound/SoundLoader.cpp
+  sound/sound_data.cpp
+  sound/sound_loader.cpp
+  sound/sound_system.cpp
 )
 set(HDR_LIST 
   sound/alHelpers.h
   sound/Buffer.h
   sound/Source.h
-  sound/SoundData.h
-  sound/SoundSystem.h
-  sound/SoundComponent.h
   sound/SoundDecoder.h
-  sound/SoundLoader.h
+  sound/sound_data.h
+  sound/sound_loader.h
+  sound/sound_system.h
+  sound/sound_info.h
 )
 add_library(sound ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(sound utils openal)
 
 # AI
 set(SRC_LIST 
-  ai/EntityAI.cpp
-  ai/AIComponent.cpp
-  ai/Graph.cpp
-  ai/CPUPathFindingPhaseParallel.cpp
-  ai/AISystem.cpp
-  ai/AStarSearch.cpp
-  ai/AIInputComponent.cpp
-  ai/MovementComponent.cpp
+  ai/ai_component.cpp
+  ai/graph.cpp
+  ai/vertex_component.cpp
+  ai/pathfinder_system.cpp
+  ai/movement_component.cpp
 )
 set(HDR_LIST 
-  ai/EntityAI.h
-  ai/AIComponent.h
-  ai/Graph.h
-  ai/CPUPathFindingPhaseParallel.h
-  ai/AISystem.h
-  ai/AStarSearch.h
-  ai/MoveEventData.h
-  ai/PathFindingPhase.h
-  ai/AIInputComponent.h
-  ai/MovementComponent.h
+  ai/ai_component.h
+  ai/graph.h
+  ai/vertex_component.h
+  ai/pathfinder_system.h
+  ai/movement_component.h
+  ai/gheap.hpp
 )
 add_library(ai ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(ai utils physics)
 
 # RESOURCES
 set(SRC_LIST
-  resources/Conflict.cpp
-  resources/Resource.cpp
-  resources/Modification.cpp
-  resources/HardcodedLoaders.cpp
-#  resources/ResourceManager.cpp
-  resources/ModificationContainer.cpp
-#   resources/ComponentCreators.cpp
-#   resources/ComponentCreator.cpp
-  resources/ImageLoader.cpp
-  resources/AnimationLoader.cpp
-  resources/AttributesLoader.cpp
-  resources/EffectsLoader.cpp
-  resources/AbilityTypeLoader.cpp
-  resources/ItemLoader.cpp
-  resources/EntityCreators.cpp
-  resources/EntityLoader.cpp
+  resources/abilities_loader.cpp
+  resources/attributes_loader.cpp
+  resources/image_loader.cpp
+  resources/state_loader.cpp
+  resources/entity_loader.cpp
+  resources/entity_creator.cpp
+  resources/modification_container.cpp
+  resources/effects_loader.cpp
+#   resources/HardcodedLoaders.cpp
+  resources/map_loader.cpp
 )
 set(HDR_LIST
-  resources/ResourceParser.h
-  resources/Resource.h
-  resources/Conflict.h
-  resources/Modification.h
-  resources/ModificationParser.h
-  resources/HardcodedLoaders.h
-#  resources/ResourceManager.h
-  resources/ModificationContainer.h
-#   resources/ComponentCreators.h
-#   resources/ComponentCreator.h
-  resources/ImageLoader.h
-  resources/AnimationLoader.h
-  resources/AttributesLoader.h
-  resources/EffectsLoader.h
-  resources/AbilityTypeLoader.h
-  resources/ItemLoader.h
-  resources/EntityCreators.h
-  resources/EntityLoader.h
+  resources/resource.h
+  resources/resource_parser.h
+  resources/game_resources.h
+  resources/abilities_loader.h
+  resources/attributes_loader.h
+  resources/image_loader.h
+  resources/state_loader.h
+  resources/entity_loader.h
+  resources/entity_creator.h
+  resources/entity_creator_resources.h
+  resources/modification_container.h
+  resources/effects_loader.h
+#   resources/HardcodedLoaders.h
+  resources/map_loader.h
 )
 add_library(resources ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(resources ai sound render physics utils cppfs)
@@ -545,46 +522,24 @@ target_link_libraries(resources ai sound render physics utils cppfs)
 
 # BINARY
 set(SRC_LIST
-  bin/AnimationComponent.cpp
-  bin/AttributesComponent.cpp
-  bin/EffectComponent.cpp
-#   bin/InteractionComponent.cpp
-  bin/CPUAnimationSystemParallel.cpp
-  bin/AnimationSystem.cpp
-  bin/PostPhysics.cpp
-#   bin/MenuItems.cpp
-#   bin/Menu.cpp
   bin/Interfaces.cpp
   bin/overlay.cpp
   bin/Helper.cpp
   bin/main.cpp
-  bin/CameraComponent.cpp
-  bin/InfoComponent.cpp
-  bin/Interactions.cpp 
-#   bin/SkillComponent.cpp
-#   utils/InventoryComponent.cpp
+  bin/camera.cpp
+  bin/game_funcs.cpp
+  bin/collision_interaction_system.cpp
+  bin/post_physics.cpp
 )
 set(HDR_LIST
-  bin/AttributesComponent.h
-  bin/EffectComponent.h
-#   bin/InteractionComponent.h
-  bin/AnimationComponent.h
-  bin/CPUAnimationSystemParallel.h
-  bin/AnimationSystem.h
-  bin/PostPhysics.h
-#   bin/MenuItems.h
-#   bin/Menu.h
   bin/Interface.h
   bin/Interfaces.h
   bin/overlay.h
   bin/Helper.h
-  bin/CameraComponent.h
-  bin/InfoComponent.h
-  bin/UserDataComponent.h
-  bin/StateController.h
-#   bin/SkillComponent.h 
-  bin/Interactions.h
-#   utils/InventoryComponent.h
+  bin/camera.h
+  bin/game_funcs.h
+  bin/collision_interaction_system.h
+  bin/post_physics.h
 )
 add_executable(${TARGET_NAME} ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(${TARGET_NAME} ai sound render physics resources utils)

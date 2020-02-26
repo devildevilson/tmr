@@ -28,3 +28,18 @@
 [submodule "include/filesystem"]
 	path = include/filesystem
 	url = https://github.com/wjakob/filesystem.git
+[submodule "include/whereami"]
+	path = include/whereami
+	url = https://github.com/gpakosz/whereami.git
+[submodule "include/dr_libs"]
+	path = include/dr_libs
+	url = https://github.com/mackron/dr_libs.git
+[submodule "include/cxxopts"]
+	path = include/cxxopts
+	url = https://github.com/jarro2783/cxxopts.git
+[submodule "include/protobuf"]
+	path = include/protobuf
+	url = https://github.com/protocolbuffers/protobuf.git
+[submodule "include/lz4"]
+	path = include/lz4
+	url = https://github.com/lz4/lz4.git
