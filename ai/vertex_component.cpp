@@ -49,14 +49,20 @@ namespace devils_engine {
     }
     
     const yacs::entity* vertex::next_entity(size_t &mem) const {
-      if (mem >= entities.size()) return nullptr;
       const size_t index = mem++;
+      if (index >= entities.size()) return nullptr;
       return entities[index];
     }
     
     const graph::edge* vertex::next_edge(size_t &mem) const {
-      if (mem >= edges.size()) return nullptr;
       const size_t index = mem++;
+      if (index >= edges.size()) return nullptr;
+      return edges[index];
+    }
+    
+    graph::edge* vertex::next_edge(size_t &mem) {
+      const size_t index = mem++;
+      if (index >= edges.size()) return nullptr;
       return edges[index];
     }
     

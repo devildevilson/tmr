@@ -84,7 +84,7 @@ namespace devils_engine {
       }
     }
     
-    edge* container::create(const components::vertex* first, const components::vertex* second, const simd::vec4 &point_a, const simd::vec4 &point_b) {
+    edge* container::create(components::vertex* first, components::vertex* second, const simd::vec4 &point_a, const simd::vec4 &point_b) {
       edge* e = edges_pool.newElement();
       edges.push_back(e);
       e->set_active(true);

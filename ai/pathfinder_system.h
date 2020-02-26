@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <vector>
+#include <array>
 #include <mutex>
 #include "id.h"
 #include "Utility.h"
@@ -65,6 +66,8 @@ namespace devils_engine {
   namespace systems {
     class pathfinder {
     public:
+      static const size_t expected_type_count = 5;
+      
       struct type {
         struct queue_data {
           const components::vertex* start;
@@ -105,7 +108,8 @@ namespace devils_engine {
       std::vector<utils::astar_search*> stack;
       std::mutex stack_mutex;
       
-      std::vector<type> types;
+      size_t register_next;
+      std::array<type, expected_type_count> types;
       
       std::mutex pool_mutex;
       MemoryPool<path::container, sizeof(path::container)*50> paths_pool;

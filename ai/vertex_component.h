@@ -39,6 +39,7 @@ namespace devils_engine {
       
       const yacs::entity* next_entity(size_t &mem) const;
       const graph::edge* next_edge(size_t &mem) const;
+      graph::edge* next_edge(size_t &mem);
       
       size_t has_edge(const vertex* vert) const;
       

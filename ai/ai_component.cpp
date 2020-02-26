@@ -8,7 +8,8 @@
 #include "shared_collision_constants.h"
 #include "vertex_component.h"
 #include "graph.h"
-#include "UserDataComponent.h"
+// #include "UserDataComponent.h"
+#include "core_funcs.h"
 
 namespace devils_engine {
   namespace components {
@@ -34,8 +35,8 @@ namespace devils_engine {
         } else {
           // получаем объект с которым пересеклись
           auto cont = Global::get<PhysicsEngine>()->get_ray_polygons(ray_index);
-          auto usr_data = reinterpret_cast<UserDataComponent*>(cont->userData);
-          ground = usr_data->entity;
+          auto ent = reinterpret_cast<yacs::entity*>(cont->userData);
+          ground = ent;
           ray_index = UINT32_MAX;
         }
       } else {

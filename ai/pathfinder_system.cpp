@@ -7,7 +7,7 @@
 
 namespace devils_engine {
   namespace systems {
-    pathfinder::pathfinder(const create_info &info) : pool(info.pool), graph(info.graph), search(new utils::astar_search[pool->size()+1]) {
+    pathfinder::pathfinder(const create_info &info) : pool(info.pool), graph(info.graph), search(new utils::astar_search[pool->size()+1]), register_next(0) {
       for (size_t i = 0; i < pool->size()+1; ++i) {
         stack.push_back(&search[i]);
       }
@@ -23,10 +23,12 @@ namespace devils_engine {
     }
     
     void pathfinder::register_type(const utils::id &type, const std::function<bool(const components::vertex*, const components::vertex*, const graph::edge*)> &predicate, const float &offset) {
-      types.push_back({});
-      types.back().offset = offset;
-      types.back().predicate = predicate;
-      types.back().id = type;
+      const size_t index = register_next++;
+      if (index >= expected_type_count) throw std::runtime_error("too many types");
+      //types.emplace_back();
+      types[index].offset = offset;
+      types[index].predicate = predicate;
+      types[index].id = type;
     }
     
     void pathfinder::queue_request(const path::request &request) {
@@ -113,7 +115,7 @@ namespace devils_engine {
         path::container* path = nullptr;
         {
           std::unique_lock<std::mutex> lock(pool_mutex);
-          path = pathsPool.newElement();
+          path = paths_pool.newElement();
           std::cout << "path " << path << " created" << "\n";
         }
         
@@ -133,7 +135,7 @@ namespace devils_engine {
         }
         searchPtr = nullptr;
         
-        computeFunnel(path, funnelOffset);
+        compute_funnel(raw_path, path, funnelOffset);
         
         for (size_t i = 0; i < path->array.size(); ++i) {
           PRINT_VAR("index", i)
@@ -273,7 +275,7 @@ namespace devils_engine {
           }
           
           const simd::vec4 tmpEdgeDir = edge->seg.direction();
-          correctCornerPoints(tmpEdgeDir, edge->seg.distance(), offset, left, right);
+          correct_corner_points(tmpEdgeDir, edge->seg.distance(), offset, left, right);
         } else {
           left = center;
           right = center;
@@ -293,7 +295,7 @@ namespace devils_engine {
             } else {
               const simd::vec4 &aS = edge->seg.point_a();
               const simd::vec4 &bS = edge->seg.point_b();
-              const bool isLeft = simd::all(simd::equal(leftP, aS, EPSILON));
+//               const bool isLeft = simd::all(simd::equal(leftP, aS, EPSILON));
               const simd::vec4 dir = simd::normalize(bS - aS);
 //               float arr[4];
 //               dir.storeu(arr);
@@ -326,7 +328,7 @@ namespace devils_engine {
             } else {
               const simd::vec4 &aS = edge->seg.point_a();
               const simd::vec4 &bS = edge->seg.point_b();
-              const bool isRight = simd::all(simd::equal(rightP, aS, EPSILON));
+//               const bool isRight = simd::all(simd::equal(rightP, aS, EPSILON));
               const simd::vec4 dir = simd::normalize(bS - aS);
 //               float arr[4];
 //               dir.storeu(arr);

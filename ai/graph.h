@@ -36,7 +36,7 @@ namespace devils_engine {
         active = (1 << 1)
       };
       
-      std::pair<const components::vertex*, const components::vertex*> vertices;
+      std::pair<components::vertex*, components::vertex*> vertices;
       utils::line_segment seg;
       float length;
       float angle;
@@ -60,7 +60,7 @@ namespace devils_engine {
       MemoryPool<edge, sizeof(edge)*100> edges_pool;
       
       ~container();
-      edge* create(const components::vertex* first, const components::vertex* second, const simd::vec4 &point_a, const simd::vec4 &point_b);
+      edge* create(components::vertex* first, components::vertex* second, const simd::vec4 &point_a, const simd::vec4 &point_b);
       void destroy(edge* e);
     };
   }
