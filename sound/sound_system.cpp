@@ -15,6 +15,8 @@
 #include "Globals.h"
 #include "sound_data.h"
 #include "core_funcs.h"
+#include "settings.h"
+#include "Globals.h"
 
 #define NULL_SOURCE 0
 #define NULL_BUFFFER 0
@@ -149,10 +151,10 @@ namespace devils_engine {
     sound::sound() {
       ALCenum error;
       
-      master_v = 0.1f;
-      music_v = 1.0f;
-      menu_v = 1.0f;
-      sounds_v = 1.0f;
+      master_v = Global::get<utils::settings>()->sound.master;
+      music_v = Global::get<utils::settings>()->sound.music;
+      menu_v = Global::get<utils::settings>()->sound.menu;
+      sounds_v = Global::get<utils::settings>()->sound.sounds;
       
       device = alcOpenDevice(nullptr);
 //       device = alcOpenDevice("OpenAL Soft");
@@ -195,7 +197,7 @@ namespace devils_engine {
         
         free_sources.emplace_back(id);
         free_sources.back().setMinGain(0.0f);
-        music.source.setGain(master_v * sounds_v);
+        free_sources.back().setGain(master_v * sounds_v);
       }
       
       //std::cout << "freeSources.size() " << freeSources.size() << "\n";
@@ -245,7 +247,7 @@ namespace devils_engine {
     sound::~sound() {
       for (size_t i = 0; i < sounds.size(); ++i) {
         if (sounds[i].source.isValid()) {
-          free_sources.push_back(sounds[i]->source);
+          free_sources.push_back(sounds[i].source);
           sounds[i].source.stop();
           sounds[i].source.buffer(0);
           sounds[i].source = Source(UINT32_MAX);
@@ -273,7 +275,7 @@ namespace devils_engine {
       
       openalError("Could not delete sources buffers");
       
-      alDeleteSources(freeSources.size(), reinterpret_cast<uint32_t*>(freeSources.data()));
+      alDeleteSources(free_sources.size(), reinterpret_cast<uint32_t*>(free_sources.data()));
       
       openalError("Could not delete sources");
       openalcError(device, "Error");
@@ -287,8 +289,8 @@ namespace devils_engine {
     
     // короче нужно сразу выдавать источники
     
-    bool sound::play(const info &info) {
-      auto new_sound_data = Global::get<devils_engine::sound::sound_container>()->get(info.id);
+    bool sound::play(const devils_engine::sound::info &info) {
+      auto new_sound_data = Global::get<game::sounds_container>()->get(info.id);
       if (new_sound_data == nullptr) return false;
       
       std::unique_lock<std::mutex> lock(mutex);
@@ -582,7 +584,7 @@ namespace devils_engine {
 
       const size_t currentSoundSample = loaded - diff;
 
-      return float(currentSoundSample) / float(sound_data->pcmSize());
+      return float(currentSoundSample) / float(sound_data->pcm_size);
     }
     
     bool sound::music_data::play(const utils::id &id) {
@@ -591,7 +593,7 @@ namespace devils_engine {
         return true;
       }
       
-      auto new_sound_data = Global::get<devils_engine::sound::sound_container>()->get(id);
+      auto new_sound_data = Global::get<game::sounds_container>()->get(id);
       if (new_sound_data == nullptr) return false;
       
       loaded_size = 0;
@@ -610,6 +612,7 @@ namespace devils_engine {
       Buffer b[2] = {buffers.first, buffers.second};
       source.queueBuffers(2, b);
       if (playing) source.play();
+      return true;
     }
     
     void sound::music_data::pause() {

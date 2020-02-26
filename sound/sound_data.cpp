@@ -42,13 +42,13 @@ namespace devils_engine {
       
       SoundDecoderInterface* loader = nullptr;
       if (type == type::mp3) {
-        loader = new MP3Decoder(memory, size, channels.forced_mono() ? 1 : 0, pcmSize);
+        loader = new MP3Decoder(memory, size, channels.forced_mono() ? 1 : 0, pcm_size);
       } else if (type == type::wav) {
-        loader = new WAVDecoder(memory, size, channels.forced_mono() ? 1 : 0, pcmSize);
+        loader = new WAVDecoder(memory, size, channels.forced_mono() ? 1 : 0, pcm_size);
       } else if (type == type::flac) {
-        loader = new FLACDecoder(memory, size, channels.forced_mono() ? 1 : 0, pcmSize);
+        loader = new FLACDecoder(memory, size, channels.forced_mono() ? 1 : 0, pcm_size);
       } else if (type == type::ogg) {
-        loader = new OGGDecoder(memory, size, channels.forced_mono() ? 1 : 0, pcmSize);
+        loader = new OGGDecoder(memory, size, channels.forced_mono() ? 1 : 0, pcm_size);
       } else {
         throw std::runtime_error("sound type is not supported");
       }
@@ -68,7 +68,7 @@ namespace devils_engine {
         const size_t finalSize = std::min(size, pcm_size - loadedSize);
         const size_t bytes = finalSize * channels.count() * (bits_per_sample/8);
         const size_t loadedBytes = loadedSize * channels.count() * (bits_per_sample/8);
-        const int32_t format = to_al_format(channels.count(), bits_per_sample);
+//         const int32_t format = to_al_format(channels.count(), bits_per_sample);
 
         memcpy(buffer, &memory[loadedBytes], bytes);
         return finalSize;
@@ -76,13 +76,13 @@ namespace devils_engine {
       
       SoundDecoderInterface* loader = nullptr;
       if (type == type::mp3) {
-        loader = new MP3Decoder(memory, size, channels.forced_mono() ? 1 : 0, pcmSize);
+        loader = new MP3Decoder(memory, size, channels.forced_mono() ? 1 : 0, pcm_size);
       } else if (type == type::wav) {
-        loader = new WAVDecoder(memory, size, channels.forced_mono() ? 1 : 0, pcmSize);
+        loader = new WAVDecoder(memory, size, channels.forced_mono() ? 1 : 0, pcm_size);
       } else if (type == type::flac) {
-        loader = new FLACDecoder(memory, size, channels.forced_mono() ? 1 : 0, pcmSize);
+        loader = new FLACDecoder(memory, size, channels.forced_mono() ? 1 : 0, pcm_size);
       } else if (type == type::ogg) {
-        loader = new OGGDecoder(memory, size, channels.forced_mono() ? 1 : 0, pcmSize);
+        loader = new OGGDecoder(memory, size, channels.forced_mono() ? 1 : 0, pcm_size);
       } else {
         throw std::runtime_error("sound type is not supported");
       }

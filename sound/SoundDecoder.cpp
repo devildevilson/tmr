@@ -66,6 +66,27 @@ drflac_bool32 drSeek(void* pUserData, int offset, drwav_seek_origin origin) {
   return !stream->fail();
 }
 
+void* my_malloc(size_t sz, void* pUserData) {
+  (void)pUserData;
+//   return new char[sz];
+  return malloc(sz);
+}
+
+void* my_realloc(void* p, size_t sz, void* pUserData) {
+  (void)pUserData;
+//   auto new_mem = new char[sz];
+//   memcpy(new_mem, p, sz);
+//   delete [] reinterpret_cast<char*>(p);
+//   return new_mem;
+  return realloc(p, sz);
+}
+
+void my_free(void* p, void* pUserData) {
+  (void)pUserData;
+//   delete [] reinterpret_cast<char*>(p);
+  free(p);
+}
+
 SoundDecoderInterface::SoundDecoderInterface(const uint16_t &channels) :
 //     m_path(path),
     m_channels(channels),
@@ -87,8 +108,15 @@ MP3Decoder::MP3Decoder(const std::string &path, const uint16_t &channels) : Soun
       m_channels,
       0
     };
-
-    if (!drmp3_init_file(&mp3, path.c_str(), &config)) {
+    
+    const drmp3_allocation_callbacks allocation_callbacks {
+      nullptr,
+      my_malloc,
+      my_realloc,
+      my_free
+    };
+    
+    if (!drmp3_init_file(&mp3, path.c_str(), &config, &allocation_callbacks)) {
       throw std::runtime_error("Failed to open file " + path);
     }
 
@@ -104,8 +132,15 @@ MP3Decoder::MP3Decoder(const std::string &path, const uint16_t &channels, const 
       m_channels,
       0
     };
+    
+    const drmp3_allocation_callbacks allocation_callbacks {
+      nullptr,
+      my_malloc,
+      my_realloc,
+      my_free
+    };
 
-    if (!drmp3_init_file(&mp3, path.c_str(), &config)) {
+    if (!drmp3_init_file(&mp3, path.c_str(), &config, &allocation_callbacks)) {
       throw std::runtime_error("Failed to open file " + path);
     }
 
@@ -122,7 +157,14 @@ MP3Decoder::MP3Decoder(std::ifstream* stream, const uint16_t &channels, const si
       0
     };
 
-    if (!drmp3_init(&mp3, drRead, drSeek, stream, &config)) {
+    const drmp3_allocation_callbacks allocation_callbacks {
+      nullptr,
+      my_malloc,
+      my_realloc,
+      my_free
+    };
+    
+    if (!drmp3_init(&mp3, drRead, drSeek, stream, &config, &allocation_callbacks)) {
       throw std::runtime_error("Failed to init mp3 file");
     }
 
@@ -138,8 +180,15 @@ MP3Decoder::MP3Decoder(const char* memory, const size_t &memorySize, const uint1
     m_channels,
     0
   };
+  
+  const drmp3_allocation_callbacks allocation_callbacks {
+      nullptr,
+      my_malloc,
+      my_realloc,
+      my_free
+    };
 
-  if (!drmp3_init_memory(&mp3, memory, memorySize, &config)) {
+  if (!drmp3_init_memory(&mp3, memory, memorySize, &config, &allocation_callbacks)) {
     throw std::runtime_error("Failed to init mp3 file");
   }
 
@@ -235,7 +284,13 @@ size_t MP3Decoder::getSamples(Buffer &buffer, const size_t &sampleCount) {
 }
 
 WAVDecoder::WAVDecoder(const std::string &path, const uint16_t &channels) : SoundDecoderInterface(channels) {
-  if (!drwav_init_file(&wav, path.c_str())) {
+  const drwav_allocation_callbacks allocation_callbacks {
+    nullptr,
+    my_malloc,
+    my_realloc,
+    my_free
+  };
+  if (!drwav_init_file(&wav, path.c_str(), &allocation_callbacks)) {
     throw std::runtime_error("Failed to open file " + path);
   }
 
@@ -249,7 +304,14 @@ WAVDecoder::WAVDecoder(const std::string &path, const uint16_t &channels) : Soun
 }
 
 WAVDecoder::WAVDecoder(const std::string &path, const uint16_t &channels, const size_t &size) : SoundDecoderInterface(channels) {
-  if (!drwav_init_file(&wav, path.c_str())) {
+  const drwav_allocation_callbacks allocation_callbacks {
+    nullptr,
+    my_malloc,
+    my_realloc,
+    my_free
+  };
+  
+  if (!drwav_init_file(&wav, path.c_str(), &allocation_callbacks)) {
     throw std::runtime_error("Failed to open file " + path);
   }
 
@@ -261,7 +323,13 @@ WAVDecoder::WAVDecoder(const std::string &path, const uint16_t &channels, const 
 }
 
 WAVDecoder::WAVDecoder(std::ifstream* stream, const uint16_t &channels, const size_t &size) : SoundDecoderInterface(channels) {
-  if (!drwav_init(&wav, drRead, drSeek, stream)) {
+  const drwav_allocation_callbacks allocation_callbacks {
+    nullptr,
+    my_malloc,
+    my_realloc,
+    my_free
+  };
+  if (!drwav_init(&wav, drRead, drSeek, stream, &allocation_callbacks)) {
     throw std::runtime_error("Failed to init wav file");
   }
 
@@ -273,7 +341,13 @@ WAVDecoder::WAVDecoder(std::ifstream* stream, const uint16_t &channels, const si
 }
 
 WAVDecoder::WAVDecoder(const char* memory, const size_t &memorySize, const uint16_t &channels, const size_t &size) : SoundDecoderInterface(channels) {
-  if (!drwav_init_memory(&wav, memory, memorySize)) {
+  const drwav_allocation_callbacks allocation_callbacks {
+    nullptr,
+    my_malloc,
+    my_realloc,
+    my_free
+  };
+  if (!drwav_init_memory(&wav, memory, memorySize, &allocation_callbacks)) {
     throw std::runtime_error("Failed to init wav file");
   }
 
@@ -416,7 +490,13 @@ size_t WAVDecoder::getSamples(Buffer &buffer, const size_t &sampleCount) {
 }
 
 FLACDecoder::FLACDecoder(const std::string &path, const uint16_t &channels) : SoundDecoderInterface(channels), flac(nullptr) {
-  flac = drflac_open_file(path.c_str());
+  const drflac_allocation_callbacks allocation_callbacks{
+    nullptr,
+    my_malloc,
+    my_realloc,
+    my_free
+  };
+  flac = drflac_open_file(path.c_str(), &allocation_callbacks);
   if (flac == nullptr) throw std::runtime_error("Failed to open file " + path);
 
   m_sampleRate = flac->sampleRate;
@@ -427,7 +507,13 @@ FLACDecoder::FLACDecoder(const std::string &path, const uint16_t &channels) : So
 }
 
 FLACDecoder::FLACDecoder(const std::string &path, const uint16_t &channels, const size_t &size) : SoundDecoderInterface(channels), flac(nullptr) {
-  flac = drflac_open_file(path.c_str());
+  const drflac_allocation_callbacks allocation_callbacks{
+    nullptr,
+    my_malloc,
+    my_realloc,
+    my_free
+  };
+  flac = drflac_open_file(path.c_str(), &allocation_callbacks);
   if (flac == nullptr) throw std::runtime_error("Failed to open file " + path);
 
   m_sampleRate = flac->sampleRate;
@@ -438,7 +524,13 @@ FLACDecoder::FLACDecoder(const std::string &path, const uint16_t &channels, cons
 }
 
 FLACDecoder::FLACDecoder(std::ifstream* stream, const uint16_t &channels, const size_t &size) : SoundDecoderInterface(channels) {
-  flac = drflac_open(drRead, drSeek, stream);
+  const drflac_allocation_callbacks allocation_callbacks{
+    nullptr,
+    my_malloc,
+    my_realloc,
+    my_free
+  };
+  flac = drflac_open(drRead, drSeek, stream, &allocation_callbacks);
   if (flac == nullptr) throw std::runtime_error("Failed to init flac file");
 
   m_sampleRate = flac->sampleRate;
@@ -449,7 +541,13 @@ FLACDecoder::FLACDecoder(std::ifstream* stream, const uint16_t &channels, const 
 }
 
 FLACDecoder::FLACDecoder(const char* memory, const size_t &memorySize, const uint16_t &channels, const size_t &size) : SoundDecoderInterface(channels) {
-  flac = drflac_open_memory(memory, memorySize);
+  const drflac_allocation_callbacks allocation_callbacks{
+    nullptr,
+    my_malloc,
+    my_realloc,
+    my_free
+  };
+  flac = drflac_open_memory(memory, memorySize, &allocation_callbacks);
   if (flac == nullptr) throw std::runtime_error("Failed to init flac file");
 
   m_sampleRate = flac->sampleRate;
@@ -461,6 +559,7 @@ FLACDecoder::FLACDecoder(const char* memory, const size_t &memorySize, const uin
 
 FLACDecoder::~FLACDecoder() {
   drflac_close(flac);
+  flac = nullptr;
 }
 
 bool FLACDecoder::seek(const size_t &seekSize) {

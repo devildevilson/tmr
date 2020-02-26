@@ -29,6 +29,20 @@ namespace devils_engine {
   namespace systems {
     class sound : public Engine {
     public:
+      struct queued_sound {
+        devils_engine::sound::info user_info;
+        const devils_engine::sound::data* sound_data;
+        size_t loaded_size;
+        float priority;
+        Source source;
+        std::pair<Buffer, Buffer> buffers;
+        
+        void update_source(const float &master_v, const float &sounds_v);
+        void update_buffers();
+        void queue_buffers();
+        float playing_position() const;
+      };
+      
       sound();
       ~sound();
       
@@ -53,20 +67,6 @@ namespace devils_engine {
       float sounds_volume();
       void  sounds_volume(const float &value);
     private:
-      struct queued_sound {
-        devils_engine::sound::info user_info;
-        const devils_engine::sound::data* sound_data;
-        size_t loaded_size;
-        float priority;
-        Source source;
-        std::pair<Buffer, Buffer> buffers;
-        
-        void update_source(const float &master_v, const float &sounds_v);
-        void update_buffers();
-        void queue_buffers();
-        float playing_position() const;
-      };
-      
       struct music_data {
         const devils_engine::sound::data* sound_data;
         size_t loaded_size;

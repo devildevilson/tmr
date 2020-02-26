@@ -32,7 +32,7 @@ namespace devils_engine {
       
       enum warnings {
         FLAC_TYPE_MAY_LOSE_PRECISION
-      }
+      };
       
       struct create_info {
         game::sounds_container_load* container;
