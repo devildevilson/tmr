@@ -367,7 +367,8 @@ namespace yacs {
     if (component_storage<T>::type == SIZE_MAX && !comp.valid()) {
       add_to_array(comp);
       return true;
-    } else if (component_storage<T>::type != SIZE_MAX && !comp.valid()) return false;
+    }
+    //else if (component_storage<T>::type != SIZE_MAX && !comp.valid()) return false;
     
     const size_t index = find<T>();
     if (index != SIZE_MAX) return false;

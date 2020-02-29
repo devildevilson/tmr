@@ -63,18 +63,13 @@ namespace devils_engine {
     }
     
     void remove(yacs::entity* ent) {
+      //ASSERT(false);
+      
       if (ent == nullptr) return;
       //if (deleted_state(ent)) return;
       
-      // как сделать так чтобы потоки не передрались? нужно придумать синхронизацию
-      // причем для единственной вещи, атомик?
-      
       auto info = ent->at<components::type_info>(game::entity::type_info);
       const bool was_deleted = info->bit_container.set_delete(true);
-      // указатель на work system
-      // нам нужно по крайней мере две ворк системы (хотя зачем?)
-      // либо мы можем все подобные работы делать в определенном месте
-      // (например параллельно графике и звукам)
       if (!was_deleted) {
         Global::get<utils::delayed_work_system>()->add_work([ent] () {
           Global::get<yacs::world>()->destroy_entity(ent);

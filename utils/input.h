@@ -54,6 +54,8 @@ namespace devils_engine {
       std::chrono::steady_clock::time_point double_click_time_point;
       glm::uvec2 click_pos;
       glm::vec2 fb_scale;
+      
+      data();
     };
       
     struct input_event {

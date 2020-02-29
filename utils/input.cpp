@@ -359,6 +359,9 @@ namespace devils_engine {
     
     event_data::event_data(const utils::id &id) : id(id), time(0) {}
     key_data::key_data() : data(nullptr), event(release) {}
+    data::data() : interface_focus(false), mouse_wheel(0.0f), current_text(0) {
+      memset(text, 0, sizeof(uint32_t)*text_memory_size);
+    }
     
     input_event next_input_event(size_t &mem) {
       const auto &container = Global::get<data>()->key_events;

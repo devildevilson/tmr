@@ -31,6 +31,7 @@ uint32_t rand32() {
 }
 
 uint32_t urand() {
+  //const uint32_t mask = 0xffff0000; // 01 << 1 = 10
   uint32_t a = rand();
   uint16_t b = rand();
   return (a << 16) | uint32_t(b);

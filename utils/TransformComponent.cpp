@@ -22,6 +22,7 @@ TransformComponent::TransformComponent(const simd::vec4 &pos, const simd::vec4 &
 }
 
 TransformComponent::~TransformComponent() {
+  //std::cout << "container " << container << "\n";
   container->erase(transformIndex);
 }
 

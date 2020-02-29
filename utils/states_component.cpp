@@ -15,9 +15,7 @@ namespace devils_engine {
       //auto old = current;
       do {
         ++counter;
-        if (counter > MAX_STATE_CHANGES) {
-          throw std::runtime_error("Long state sequence");
-        }
+        if (counter > MAX_STATE_CHANGES) throw std::runtime_error("Long state sequence");
         
         // такой объект подлежит удалению
         if (state == nullptr) {

@@ -79,7 +79,7 @@ namespace devils_engine {
         light = entity::count,
         attributes,
         effects,
-        collision_property,
+//         collision_property,
         movement,
         ai,
         count
