@@ -133,8 +133,8 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
     pool->wait();
 
     narrow->postCalculation();
-    solver->calculateData();
     solver->solve();
+    solver->calculateData();
     
     // обойти все лучи
     ray_casting();
@@ -159,9 +159,9 @@ void CPUPhysicsParallel::update(const uint64_t &time) {
     sorter->sort(&frustumTestsResult);
   });
 
-  pool->submitbase([&] () {
-    sorter->sort(&overlappingData, &dataIndices, 0);
-  });
+//   pool->submitbase([&] () {
+//     sorter->sort(&overlappingData, &dataIndices, 0);
+//   });
 
   pool->submitbase([&] () {
     sorter->sort(&raysData, &raysIndices, 1);

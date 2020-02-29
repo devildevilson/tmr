@@ -67,112 +67,231 @@ void CPUSolverParallel::updateBuffers(const uint32_t &pairsCount, const uint32_t
   //if (tmpBuffer.size() < pairsCount+1) tmpBuffer.resize(pairsCount+1);
 }
 
+template<typename T, typename... Args>
+void submit_works(dt::thread_pool* pool, const size_t &count, T&& func, Args&& ...args) {
+  if (count == 0) return;
+  
+  const size_t work_count = std::ceil(float(count) / float(pool->size()+1));
+  size_t start = 0;
+  for (size_t i = 0; i < pool->size()+1; ++i) {
+    const uint32_t jobCount = std::min(work_count, count-start);
+    if (jobCount == 0) break;
+
+//     pool->submitbase([=] () {
+//       func(start, jobCount, std::forward<Args>(args)...);
+//     });
+    pool->submitnr(func, start, jobCount, std::forward<Args>(args)...);
+
+    start += jobCount;
+  }
+  
+  pool->compute();
+  pool->wait();
+}
+
 void CPUSolverParallel::calculateData() {
   //static const auto searchAndAddDynamic = [&] (const BroadphasePair &pair, std::atomic<uint32_t> &counter) {
-  static const auto searchAndAddDynamic = [&] (const size_t &start, const size_t &count, const BroadphasePair* pairs, std::atomic<uint32_t> &counter) {
-    for (size_t i = start; i < start+count; ++i) {
-      const BroadphasePair &pair = pairs[i+1];
-
-      const uint32_t overlappingDataCount = dataIndices->data()->count;
-
-      bool found = false;
-      const uint32_t foundedIndex = binarySearch(overlappingData->data(), overlappingData->data()+overlappingDataCount, pair.firstIndex);
-
-      if (foundedIndex != UINT32_MAX) {
-  //       std::cout << "first index " << pair.firstIndex << "\n";
-  //       std::cout << "first index found " << foundedIndex << "\n";
-
-        // мы вполне можем позволить себе сделать здесь цикл, так как объектов 250% будет около 3-ех (это скорее всего даже максимум)
-        uint32_t startIndex = getToStart(overlappingData->data(), pair.firstIndex, foundedIndex);
-        uint32_t pairFirstIndex = overlappingData->at(startIndex).firstIndex;
-  //       std::cout << "start index " << startIndex << "\n";
-
-        while (pairFirstIndex == pair.firstIndex) {
-          // может ли интересующий меня индекс быть вторым? может (тип нельзя гарантировать порядок в динамических парах)
-          if (pair.firstIndex == overlappingData->at(startIndex).firstIndex && pair.secondIndex == overlappingData->at(startIndex).secondIndex) {
-            //throw std::runtime_error("founded " + std::to_string(pair.firstIndex) + " " + std::to_string(pair.secondIndex));
-            // здесь по идее нужно выйти
-            found = true;
-            break;
-          }
-
-          ++startIndex;
-          if (startIndex >= overlappingDataCount) break;
-          pairFirstIndex = overlappingData->at(startIndex).firstIndex;
-        }
-
-        if (found) {
-          //overlappingDatas[startIndex].pairData.w = 0;
-          return;
-        }
-      }
-
-      uint32_t foundedIndex2 = UINT32_MAX;
-      if (!found) foundedIndex2 = binarySearch(overlappingData->data(), overlappingData->data()+overlappingDataCount, pair.secondIndex);
-
-      if (foundedIndex2 != UINT32_MAX) {
-  //       std::cout << "second index " << pair.secondIndex << "\n";
-  //       std::cout << "second index found " << foundedIndex2 << "\n";
-        // мы вполне можем позволить себе сделать здесь цикл, так как объектов 250% будет около 3-ех (это скорее всего даже максимум)
-        uint32_t startIndex = getToStart(overlappingData->data(), pair.secondIndex, foundedIndex2);
-        uint32_t pairFirstIndex = overlappingData->at(startIndex).firstIndex;
-  //       std::cout << "start index " << startIndex << "\n";
-
-        while (pairFirstIndex == pair.secondIndex) {
-          // может ли интересующий меня индекс быть вторым? может (тип нельзя гарантировать порядок в динамических парах)
-          if (pair.secondIndex == overlappingData->at(startIndex).firstIndex && pair.firstIndex == overlappingData->at(startIndex).secondIndex) {
-            // здесь по идее нужно выйти
-            //throw std::runtime_error("founded " + std::to_string(pair.secondIndex) + " " + std::to_string(pair.firstIndex));
-            found = true;
-            break;
-          }
-
-          ++startIndex;
-          if (startIndex >= overlappingDataCount) break;
-          pairFirstIndex = overlappingData->at(startIndex).secondIndex;
-        }
-
-        if (found) {
-          //overlappingDatas[startIndex].pairData.w = 0;
-          //pair.islandIndex
-          return;
-        }
-      }
-
-      // добавляем пару
-      const uint32_t id = counter.fetch_add(1);
-
-      //if (foundedIndex != UINT32_MAX || foundedIndex2 != UINT32_MAX) throw std::runtime_error("something goes wrong");
-
-  //     std::cout << "Could not find " << pair.firstIndex << " " << pair.secondIndex << "\n";
-
-      overlappingData->at(id).firstIndex  = foundedIndex2 == UINT32_MAX ? pair.firstIndex  : pair.secondIndex;
-      overlappingData->at(id).secondIndex = foundedIndex2 == UINT32_MAX ? pair.secondIndex : pair.firstIndex;
-      overlappingData->at(id).hasCollision = 0;
-      overlappingData->at(id).dummy = pair.islandIndex == ONLY_TRIGGER_ID ? 1 : 0;
+//   static const auto searchAndAddDynamic = [&] (const size_t &start, const size_t &count, const BroadphasePair* pairs, std::atomic<uint32_t> &counter) {
+//     for (size_t i = start; i < start+count; ++i) {
+//       const BroadphasePair &pair = pairs[i+1];
+// 
+//       const uint32_t overlappingDataCount = dataIndices->data()->count;
+// 
+//       bool found = false;
+//       const uint32_t foundedIndex = binarySearch(overlappingData->data(), overlappingData->data()+overlappingDataCount, pair.firstIndex);
+// 
+//       if (foundedIndex != UINT32_MAX) {
+//   //       std::cout << "first index " << pair.firstIndex << "\n";
+//   //       std::cout << "first index found " << foundedIndex << "\n";
+// 
+//         // мы вполне можем позволить себе сделать здесь цикл, так как объектов 250% будет около 3-ех (это скорее всего даже максимум)
+//         uint32_t startIndex = getToStart(overlappingData->data(), pair.firstIndex, foundedIndex);
+//         uint32_t pairFirstIndex = overlappingData->at(startIndex).firstIndex;
+//   //       std::cout << "start index " << startIndex << "\n";
+// 
+//         while (pairFirstIndex == pair.firstIndex) {
+//           // может ли интересующий меня индекс быть вторым? может (тип нельзя гарантировать порядок в динамических парах)
+//           if (pair.firstIndex == overlappingData->at(startIndex).firstIndex && pair.secondIndex == overlappingData->at(startIndex).secondIndex) {
+//             //throw std::runtime_error("founded " + std::to_string(pair.firstIndex) + " " + std::to_string(pair.secondIndex));
+//             // здесь по идее нужно выйти
+//             found = true;
+//             break;
+//           }
+// 
+//           ++startIndex;
+//           if (startIndex >= overlappingDataCount) break;
+//           pairFirstIndex = overlappingData->at(startIndex).firstIndex;
+//         }
+// 
+//         if (found) {
+//           //overlappingDatas[startIndex].pairData.w = 0;
+//           return;
+//         }
+//       }
+// 
+//       uint32_t foundedIndex2 = UINT32_MAX;
+//       if (!found) foundedIndex2 = binarySearch(overlappingData->data(), overlappingData->data()+overlappingDataCount, pair.secondIndex);
+// 
+//       if (foundedIndex2 != UINT32_MAX) {
+//   //       std::cout << "second index " << pair.secondIndex << "\n";
+//   //       std::cout << "second index found " << foundedIndex2 << "\n";
+//         // мы вполне можем позволить себе сделать здесь цикл, так как объектов 250% будет около 3-ех (это скорее всего даже максимум)
+//         uint32_t startIndex = getToStart(overlappingData->data(), pair.secondIndex, foundedIndex2);
+//         uint32_t pairFirstIndex = overlappingData->at(startIndex).firstIndex;
+//   //       std::cout << "start index " << startIndex << "\n";
+// 
+//         while (pairFirstIndex == pair.secondIndex) {
+//           // может ли интересующий меня индекс быть вторым? может (тип нельзя гарантировать порядок в динамических парах)
+//           if (pair.secondIndex == overlappingData->at(startIndex).firstIndex && pair.firstIndex == overlappingData->at(startIndex).secondIndex) {
+//             // здесь по идее нужно выйти
+//             //throw std::runtime_error("founded " + std::to_string(pair.secondIndex) + " " + std::to_string(pair.firstIndex));
+//             found = true;
+//             break;
+//           }
+// 
+//           ++startIndex;
+//           if (startIndex >= overlappingDataCount) break;
+//           pairFirstIndex = overlappingData->at(startIndex).secondIndex;
+//         }
+// 
+//         if (found) {
+//           //overlappingDatas[startIndex].pairData.w = 0;
+//           //pair.islandIndex
+//           return;
+//         }
+//       }
+// 
+//       // добавляем пару
+//       const uint32_t id = counter.fetch_add(1);
+// 
+//       //if (foundedIndex != UINT32_MAX || foundedIndex2 != UINT32_MAX) throw std::runtime_error("something goes wrong");
+// 
+//   //     std::cout << "Could not find " << pair.firstIndex << " " << pair.secondIndex << "\n";
+// 
+//       overlappingData->at(id).firstIndex  = foundedIndex2 == UINT32_MAX ? pair.firstIndex  : pair.secondIndex;
+//       overlappingData->at(id).secondIndex = foundedIndex2 == UINT32_MAX ? pair.secondIndex : pair.firstIndex;
+//       overlappingData->at(id).hasCollision = 0;
+//       overlappingData->at(id).dummy = pair.islandIndex == ONLY_TRIGGER_ID ? 1 : 0;
+//     }
+//   };
+// 
+//   //static const auto computeOverlappingData = [&] (const uint32_t &index, std::atomic<uint32_t> &counter) {
+//   static const auto computeOverlappingData = [&] (const size_t &start, const size_t &count, std::atomic<uint32_t> &counter, std::atomic<uint32_t> &triggerCounter) {
+//     for (size_t index = start; index < start+count; ++index) {
+//       // тут нужны дополнительные данные + заполнить triggerIndices
+// 
+//       const OverlappingData &data = overlappingData->at(index);
+// 
+//       const uint32_t objIndex1 = data.firstIndex;
+//       const uint32_t objIndex2 = data.secondIndex;
+//       
+//       if (objIndex1 == UINT32_MAX || objIndex2 == UINT32_MAX) {
+//         std::cout << "index 1 " << objIndex1 << "\n";
+//         std::cout << "index 2 " << objIndex2 << "\n";
+//         
+//         std::cout << "start " << start << " count " << count << "\n";
+//         std::cout << "counter " << counter << "\n";
+//         
+//         throw std::runtime_error("adsafafwfaw");
+//       }
+// 
+//       const uint32_t transformIndex1 = objects->at(objIndex1).transformIndex;
+//       const uint32_t transformIndex2 = objects->at(objIndex2).transformIndex;
+// 
+//       bool col = false;
+//       float dist = 100000.0f;
+//       simd::vec4 mtv = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+//       // при вычислении на гпу мы используем распараллеленный SAT
+//       // здесь он обычный, его можно как нибудь ускорить?
+//       col = SAT(0.0f, objIndex1, transformIndex1, objIndex2, transformIndex2, mtv, dist);
+// 
+//       if (!col) {
+//         counter.fetch_add(-1);
+// 
+//         overlappingData->at(index).firstIndex  = UINT32_MAX;
+//         overlappingData->at(index).secondIndex = UINT32_MAX;
+//         overlappingData->at(index).hasCollision = 0;
+//         overlappingData->at(index).dummy = UINT32_MAX;
+//       } else {
+//         float arr[4];
+//         mtv.store(arr);
+//         
+//         overlappingData->at(index).vec = glm::vec3(arr[0], arr[1], arr[2]);
+//         overlappingData->at(index).dist = dist;
+// 
+//         // нужно добавить пары, которые либо являются триггерами, либо могут быть триггерами
+//         const bool triggerAdd = bool(overlappingData->at(index).dummy);
+//         if (triggerAdd) {
+//           const uint32_t id = triggerCounter.fetch_add(1);
+//           triggerIndices->at(id) = index;
+//         }
+//       }
+//     }
+//   };
+  
+  static const auto prepare = [this] (const size_t &start, const size_t &count) {
+    for (size_t index = start; index < start+count; ++index) {
+//       const auto &pair = overlappingData->at(index);
+//       
+//       const uint32_t objIndex1 = pair.firstIndex;
+//       const uint32_t objIndex2 = pair.secondIndex;
+//       const uint32_t transformIndex1 = objects->at(objIndex1).transformIndex;
+//       const uint32_t transformIndex2 = objects->at(objIndex2).transformIndex;
+//       
+//       float dist = 100000.0f;
+//       simd::vec4 mtv = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+//       const bool col = SAT(0.0f, objIndex1, transformIndex1, objIndex2, transformIndex2, mtv, dist);
+//       overlappingData->at(index).hasCollision = col;
+      overlappingData->at(index).hasCollision = 0;
     }
   };
-
-  //static const auto computeOverlappingData = [&] (const uint32_t &index, std::atomic<uint32_t> &counter) {
-  static const auto computeOverlappingData = [&] (const size_t &start, const size_t &count, std::atomic<uint32_t> &counter, std::atomic<uint32_t> &triggerCounter) {
+  
+  static const auto check_collision = [this] (const size_t &start, const size_t &count) {
     for (size_t index = start; index < start+count; ++index) {
-      // тут нужны дополнительные данные + заполнить triggerIndices
-
-      const OverlappingData &data = overlappingData->at(index);
-
-      const uint32_t objIndex1 = data.firstIndex;
-      const uint32_t objIndex2 = data.secondIndex;
-      
-      if (objIndex1 == UINT32_MAX || objIndex2 == UINT32_MAX) {
-        std::cout << "index 1 " << objIndex1 << "\n";
-        std::cout << "index 2 " << objIndex2 << "\n";
-        
-        std::cout << "start " << start << " count " << count << "\n";
-        std::cout << "counter " << counter << "\n";
-        
-        throw std::runtime_error("adsafafwfaw");
+      const auto &data = temp_vector[index].second;
+      bool found = false;
+      for (size_t i = 0; i < dataIndices->data()->count; ++i) {
+        if ((overlappingData->at(i).firstIndex == data.firstIndex && overlappingData->at(i).secondIndex == data.secondIndex) ||
+            (overlappingData->at(i).firstIndex == data.secondIndex && overlappingData->at(i).secondIndex == data.firstIndex)) {
+          overlappingData->at(i).hasCollision = 1;
+          found = true;
+        }
       }
-
+      
+      if (!found) {
+        const size_t temp_index = free_slots_count.fetch_add(1);
+        temp_vector[index].first = temp_index;
+      }
+    }
+  };
+  
+  static const auto add_new = [this] (const size_t &start, const size_t &count, std::atomic<size_t> &new_count) {
+    for (size_t index = start; index < start+count; ++index) {
+      if (temp_vector[index].first == SIZE_MAX) continue;
+      
+      size_t count = 0;
+      for (size_t i = 0; i < dataIndices->data()->count; ++i) {
+        if (overlappingData->at(i).hasCollision == 0) {
+          const size_t current_index = count++;
+          if (current_index == temp_vector[index].first) {
+            overlappingData->at(i) = temp_vector[index].second;
+            return;
+          }
+        }
+      }
+      
+      const size_t new_elem = new_count.fetch_add(1);
+      ASSERT(new_elem >= dataIndices->data()->count);
+      overlappingData->at(new_elem) = temp_vector[index].second;
+    }
+  };
+  
+  static const auto add_trigger = [this] (const size_t &start, const size_t &count) {
+    for (size_t index = start; index < start+count; ++index) {
+      const auto &pair = pairs->at(pairs->at(0).secondIndex + index+1);
+      
+      const uint32_t objIndex1 = pair.firstIndex;
+      const uint32_t objIndex2 = pair.secondIndex;
       const uint32_t transformIndex1 = objects->at(objIndex1).transformIndex;
       const uint32_t transformIndex2 = objects->at(objIndex2).transformIndex;
 
@@ -182,30 +301,48 @@ void CPUSolverParallel::calculateData() {
       // при вычислении на гпу мы используем распараллеленный SAT
       // здесь он обычный, его можно как нибудь ускорить?
       col = SAT(0.0f, objIndex1, transformIndex1, objIndex2, transformIndex2, mtv, dist);
+      if (!col) continue;
 
-      if (!col) {
-        counter.fetch_add(-1);
-
-        overlappingData->at(index).firstIndex  = UINT32_MAX;
-        overlappingData->at(index).secondIndex = UINT32_MAX;
-        overlappingData->at(index).hasCollision = 0;
-        overlappingData->at(index).dummy = UINT32_MAX;
-      } else {
-        float arr[4];
-        mtv.store(arr);
-        
-        overlappingData->at(index).vec = glm::vec3(arr[0], arr[1], arr[2]);
-        overlappingData->at(index).dist = dist;
-
-        // нужно добавить пары, которые либо являются триггерами, либо могут быть триггерами
-        const bool triggerAdd = bool(overlappingData->at(index).dummy);
-        if (triggerAdd) {
-          const uint32_t id = triggerCounter.fetch_add(1);
-          triggerIndices->at(id) = index;
-        }
-      }
+      float arr[4];
+      mtv.storeu(arr);
+      const OverlappingData collision_data{
+        pair.firstIndex,
+        pair.secondIndex,
+        true,
+        0,
+        glm::vec3(arr[0], arr[1], arr[2]),
+        dist
+      };
+      const size_t trigger_index = counter.fetch_add(1);
+      temp_vector[trigger_index].first = SIZE_MAX;
+      temp_vector[trigger_index].second = collision_data;
     }
   };
+  
+  static const auto last_check = [this] (const size_t &start, const size_t &count) {
+    for (size_t index = start; index < start+count; ++index) {
+      const auto &pair = overlappingData->at(index);
+      if (pair.hasCollision != 0) continue;
+      
+      const uint32_t objIndex1 = pair.firstIndex;
+      const uint32_t objIndex2 = pair.secondIndex;
+      const uint32_t transformIndex1 = objects->at(objIndex1).transformIndex;
+      const uint32_t transformIndex2 = objects->at(objIndex2).transformIndex;
+      
+      float dist = 100000.0f;
+      simd::vec4 mtv = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+      const bool col = SAT(0.0f, objIndex1, transformIndex1, objIndex2, transformIndex2, mtv, dist);
+      overlappingData->at(index).hasCollision = col;
+    }
+  };
+  
+  std::atomic<size_t> new_count(dataIndices->data()->count);
+  submit_works(pool, glm::floatBitsToUint(pairs->at(0).dist), add_trigger);
+  submit_works(pool, dataIndices->data()->count, prepare);
+  submit_works(pool, counter, check_collision);
+  submit_works(pool, counter, add_new, std::ref(new_count));
+  submit_works(pool, dataIndices->data()->count, last_check);
+  dataIndices->data()->count = new_count;
 
   //throw std::runtime_error("Not implemented yet");
 
@@ -215,111 +352,111 @@ void CPUSolverParallel::calculateData() {
 
   // RegionLog rl("CPUSolverParallel::calculateData()");
 
-  dataIndices->data()->indirectX = 1;
-  dataIndices->data()->indirectY = 1;
-  dataIndices->data()->indirectZ = 1;
-
-//   for (uint32_t i = 0; i < dataIndices->data()->count; ++i) {
-//     std::cout << "Pair " << i << " ids: " << overlappingData->at(i).firstIndex << " " << overlappingData->at(i).secondIndex << "\n";
+//   dataIndices->data()->indirectX = 1;
+//   dataIndices->data()->indirectY = 1;
+//   dataIndices->data()->indirectZ = 1;
+// 
+// //   for (uint32_t i = 0; i < dataIndices->data()->count; ++i) {
+// //     std::cout << "Pair " << i << " ids: " << overlappingData->at(i).firstIndex << " " << overlappingData->at(i).secondIndex << "\n";
+// //   }
+// 
+//   dataIndices->data()->count = dataIndices->data()->temporaryCount;
+// 
+//   std::atomic<uint32_t> counter(dataIndices->data()->count);
+//   
+// //   std::cout << "before searchAndAddDynamic counter " << counter << "\n";
+// 
+//   // приходящие пары мне нужно найти и если их нет, то нужно добавить
+//   // причем у меня теперь есть как статики так и динамики
+// 
+//   const uint32_t dynamicPairsCount = pairs->at(0).secondIndex + glm::floatBitsToUint(pairs->at(0).dist);
+//   const uint32_t staticPairsCount  = staticPairs->at(0).firstIndex;
+// 
+// //   for (uint32_t i = 0; i < dynamicPairsCount; ++i) {
+// //     const BroadphasePair &pair = pairs->at(i+1);
+// //     if (pair.islandIndex == UINT32_MAX) continue;
+// //
+// //     pool->submitnr(searchAndAddDynamic, pair, std::ref(counter));
+// //   }
+// 
+//   {
+//     const size_t count = std::ceil(float(dynamicPairsCount) / float(pool->size()+1));
+//     size_t start = 0;
+//     for (size_t i = 0; i < pool->size()+1; ++i) {
+//       const uint32_t jobCount = std::min(count, dynamicPairsCount-start);
+//       if (jobCount == 0) break;
+// 
+//       pool->submitnr(searchAndAddDynamic, start, jobCount, pairs->data(), std::ref(counter));
+// 
+//       start += jobCount;
+//     }
 //   }
-
-  dataIndices->data()->count = dataIndices->data()->temporaryCount;
-
-  std::atomic<uint32_t> counter(dataIndices->data()->count);
-  
-//   std::cout << "before searchAndAddDynamic counter " << counter << "\n";
-
-  // приходящие пары мне нужно найти и если их нет, то нужно добавить
-  // причем у меня теперь есть как статики так и динамики
-
-  const uint32_t dynamicPairsCount = pairs->at(0).secondIndex + glm::floatBitsToUint(pairs->at(0).dist);
-  const uint32_t staticPairsCount  = staticPairs->at(0).firstIndex;
-
-//   for (uint32_t i = 0; i < dynamicPairsCount; ++i) {
-//     const BroadphasePair &pair = pairs->at(i+1);
-//     if (pair.islandIndex == UINT32_MAX) continue;
-//
-//     pool->submitnr(searchAndAddDynamic, pair, std::ref(counter));
+// 
+// //   for (uint32_t i = 0; i < staticPairsCount; ++i) {
+// //     const BroadphasePair &pair = staticPairs->at(i+1);
+// //     if (pair.islandIndex == UINT32_MAX) continue;
+// //
+// //     pool->submitnr(searchAndAddDynamic, pair, std::ref(counter));
+// //   }
+// 
+//   {
+//     const size_t count = std::ceil(float(staticPairsCount) / float(pool->size()+1));
+//     size_t start = 0;
+//     for (size_t i = 0; i < pool->size()+1; ++i) {
+//       const uint32_t jobCount = std::min(count, staticPairsCount-start);
+//       if (jobCount == 0) break;
+// 
+//       pool->submitnr(searchAndAddDynamic, start, jobCount, staticPairs->data(), std::ref(counter));
+// 
+//       start += jobCount;
+//     }
 //   }
-
-  {
-    const size_t count = std::ceil(float(dynamicPairsCount) / float(pool->size()+1));
-    size_t start = 0;
-    for (size_t i = 0; i < pool->size()+1; ++i) {
-      const uint32_t jobCount = std::min(count, dynamicPairsCount-start);
-      if (jobCount == 0) break;
-
-      pool->submitnr(searchAndAddDynamic, start, jobCount, pairs->data(), std::ref(counter));
-
-      start += jobCount;
-    }
-  }
-
-//   for (uint32_t i = 0; i < staticPairsCount; ++i) {
-//     const BroadphasePair &pair = staticPairs->at(i+1);
-//     if (pair.islandIndex == UINT32_MAX) continue;
-//
-//     pool->submitnr(searchAndAddDynamic, pair, std::ref(counter));
+// 
+//   pool->compute();
+//   pool->wait();
+//   
+// //   std::cout << "after searchAndAddDynamic counter " << counter << "\n";
+// 
+//   dataIndices->data()->count = counter;
+//   dataIndices->data()->indirectX = counter;
+//   const uint32_t newSize = counter;
+// 
+// //   //std::atomic<uint32_t> triggerCounter(0);
+// //   std::cout << "new size " << newSize << "\n";
+// //   std::cout << "dynamicPairsCount " << dynamicPairsCount << "\n";
+// //   std::cout << "staticPairsCount " << staticPairsCount << "\n";
+// //
+// //   for (uint32_t i = 0; i < dataIndices->data()->count; ++i) {
+// //     std::cout << "Pair " << i << " ids: " << overlappingData->at(i).firstIndex << " " << overlappingData->at(i).secondIndex << "\n";
+// //   }
+// //
+// //   throw std::runtime_error("computeOverlappingData");
+// 
+// //   for (uint32_t i = 0; i < newSize; ++i) {
+// //     pool->submitnr(computeOverlappingData, i, std::ref(counter));
+// //   }
+// 
+//   std::atomic<uint32_t> triggerCounter(0);
+//   {
+//     const size_t count = std::ceil(float(newSize) / float(pool->size()+1));
+//     size_t start = 0;
+//     for (size_t i = 0; i < pool->size()+1; ++i) {
+//       const uint32_t jobCount = std::min(count, newSize-start);
+//       if (jobCount == 0) break;
+// 
+//       pool->submitnr(computeOverlappingData, start, jobCount, std::ref(counter), std::ref(triggerCounter));
+// 
+//       start += jobCount;
+//     }
 //   }
-
-  {
-    const size_t count = std::ceil(float(staticPairsCount) / float(pool->size()+1));
-    size_t start = 0;
-    for (size_t i = 0; i < pool->size()+1; ++i) {
-      const uint32_t jobCount = std::min(count, staticPairsCount-start);
-      if (jobCount == 0) break;
-
-      pool->submitnr(searchAndAddDynamic, start, jobCount, staticPairs->data(), std::ref(counter));
-
-      start += jobCount;
-    }
-  }
-
-  pool->compute();
-  pool->wait();
-  
-//   std::cout << "after searchAndAddDynamic counter " << counter << "\n";
-
-  dataIndices->data()->count = counter;
-  dataIndices->data()->indirectX = counter;
-  const uint32_t newSize = counter;
-
-//   //std::atomic<uint32_t> triggerCounter(0);
-//   std::cout << "new size " << newSize << "\n";
-//   std::cout << "dynamicPairsCount " << dynamicPairsCount << "\n";
-//   std::cout << "staticPairsCount " << staticPairsCount << "\n";
-//
-//   for (uint32_t i = 0; i < dataIndices->data()->count; ++i) {
-//     std::cout << "Pair " << i << " ids: " << overlappingData->at(i).firstIndex << " " << overlappingData->at(i).secondIndex << "\n";
-//   }
-//
-//   throw std::runtime_error("computeOverlappingData");
-
-//   for (uint32_t i = 0; i < newSize; ++i) {
-//     pool->submitnr(computeOverlappingData, i, std::ref(counter));
-//   }
-
-  std::atomic<uint32_t> triggerCounter(0);
-  {
-    const size_t count = std::ceil(float(newSize) / float(pool->size()+1));
-    size_t start = 0;
-    for (size_t i = 0; i < pool->size()+1; ++i) {
-      const uint32_t jobCount = std::min(count, newSize-start);
-      if (jobCount == 0) break;
-
-      pool->submitnr(computeOverlappingData, start, jobCount, std::ref(counter), std::ref(triggerCounter));
-
-      start += jobCount;
-    }
-  }
-
-  pool->compute();
-  pool->wait();
-  
-//   std::cout << "after computeOverlappingData counter " << counter << "\n";
-
-  dataIndices->data()->temporaryCount = counter;
-  dataIndices->data()->triggerIndicesCount = triggerCounter;
+// 
+//   pool->compute();
+//   pool->wait();
+//   
+// //   std::cout << "after computeOverlappingData counter " << counter << "\n";
+// 
+//   dataIndices->data()->temporaryCount = counter;
+//   dataIndices->data()->triggerIndicesCount = triggerCounter;
 //   triggerIndices->at(0) = triggerCounter;
 
 //   for (uint32_t i = 0; i < dataIndices->data()->count; ++i) {
@@ -487,19 +624,19 @@ void CPUSolverParallel::solve() {
   };
 
   //static const auto solveDynamic = [&] (const IslandData &island) {
-  static const auto solveDynamic = [&] (const size_t &start, const size_t &count, const IslandData* islandsPtr) {
-    for (size_t i = start; i < start+count; ++i) {
-      const IslandData &island = islandsPtr[i];
-
-      // и здесь последовательно вычисляем каждую пару внутри острова
-      for (uint32_t j = 0; j < island.size; ++j) {
-        const uint32_t pairIndex = island.offset + j + 1;
-        const BroadphasePair &pair = pairs->at(pairIndex);
-
-        computePair(pair);
-      }
-    }
-  };
+//   static const auto solveDynamic = [&] (const size_t &start, const size_t &count, const IslandData* islandsPtr) {
+//     for (size_t i = start; i < start+count; ++i) {
+//       const IslandData &island = islandsPtr[i];
+// 
+//       // и здесь последовательно вычисляем каждую пару внутри острова
+//       for (uint32_t j = 0; j < island.size; ++j) {
+//         const uint32_t pairIndex = island.offset + j + 1;
+//         const BroadphasePair &pair = pairs->at(pairIndex);
+// 
+//         computePair(pair);
+//       }
+//     }
+//   };
   
   static const auto solveDynamic2 = [&] (const size_t &start, const size_t &count) {
     for (size_t i = start; i < start+count; ++i) {
@@ -524,6 +661,10 @@ void CPUSolverParallel::solve() {
 
 //     pool->compute();
 //     pool->wait();
+  
+  counter = 0;
+  const size_t all_count = staticPairs->at(0).firstIndex + pairs->at(0).secondIndex + glm::floatBitsToUint(pairs->at(0).dist);
+  if (all_count > temp_vector.size()) temp_vector.resize(all_count);
 
   {
     const uint32_t objCount = indicies->at(0);
@@ -637,6 +778,9 @@ void CPUSolverParallel::solve() {
 //         }
 //       }
     }
+    
+//     dataIndices->data()->count = counter;
+//     dataIndices->data()->temporaryCount = counter;
 }
 
 void CPUSolverParallel::printStats() {
@@ -1374,6 +1518,22 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
                                
   const bool isOnGround[2]  = {physDataIndex[0] == UINT32_MAX ? false : bool(datas->at(physDataIndex[0]).onGroundBits & 0x1),
                                physDataIndex[1] == UINT32_MAX ? false : bool(datas->at(physDataIndex[1]).onGroundBits & 0x1)};
+    
+                               
+  float arr[4];
+  data.mtvDist.storeu(arr);
+  // эту дату бы сохранить
+  const OverlappingData collision_data{
+    objIndex[0],
+    objIndex[1],
+    true,
+    0,
+    glm::vec3(arr[0], arr[1], arr[2]),
+    arr[3]
+  };
+  const size_t index = counter.fetch_add(1);
+  temp_vector[index].first = SIZE_MAX;
+  temp_vector[index].second = collision_data;
 
   // тут мы должны в одном потоке сделать следующие действия
 //   const uint32_t objType1 = objects->at(objIndex[0]).objType.getObjType();
@@ -1384,9 +1544,9 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
   if ((glm::uintBitsToFloat(data.pairData.w) < PI_Q) && physDataIndex[0] != UINT32_MAX && !isOnGround[0]) {
     // если мы попали сюда то значит А стоит на B
     
-    if (objIndex[0] == 3) {
-      std::cout << "ground " << objIndex[1] << "\n";
-    }
+//     if (objIndex[0] == 3) {
+//       std::cout << "ground " << objIndex[1] << "\n";
+//     }
 
     objects->at(objIndex[0]).groundObjIndex = objIndex[1];
     datas->at(physDataIndex[0]).groundIndex = staticPhysDataIndex[1];
@@ -1394,9 +1554,9 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
   } else if ((glm::abs(glm::uintBitsToFloat(data.pairData.w) - PI) < PI_Q) && physDataIndex[1] != UINT32_MAX && !isOnGround[1]) {
     // здесь учтем вариант когда B стоит на A
     
-    if (objIndex[1] == 3) {
-      std::cout << "ground " << objIndex[0] << "\n";
-    }
+//     if (objIndex[1] == 3) {
+//       std::cout << "ground " << objIndex[0] << "\n";
+//     }
 
     objects->at(objIndex[1]).groundObjIndex = objIndex[0];
     datas->at(physDataIndex[1]).groundIndex = staticPhysDataIndex[0]; //physDataIndex1;

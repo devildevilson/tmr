@@ -88,6 +88,8 @@ float PhysicsComponent::getMaxSpeed() const {
 }
 
 void PhysicsComponent::setVelocity(const simd::vec4 &vel) {
+  if (container.physicDataIndex == UINT32_MAX) return;
+  
   float arr[4];
   vel.storeu(arr);
   

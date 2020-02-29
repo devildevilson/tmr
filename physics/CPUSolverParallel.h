@@ -66,6 +66,9 @@ protected:
   ArrayInterface<uint32_t>* triggerIndices = nullptr;
   
   float threshold = 0.04f;
+  std::atomic<size_t> counter;
+  std::atomic<size_t> free_slots_count;
+  std::vector<std::pair<size_t, OverlappingData>> temp_vector;
 //   uint32_t iterationCount = 10;
 
   simd::vec4 getNormalCloseToGravity(const simd::mat4 &orn, const simd::vec4 &gravityNorm) const;
