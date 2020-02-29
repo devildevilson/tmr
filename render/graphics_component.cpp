@@ -95,6 +95,8 @@ namespace devils_engine {
       
       if (states->current == nullptr) return;
       
+      //std::cout << "sprite graphics state " << states->current->id.name() << "\n";
+      
       // может ли тут быть ситуация
       // для стен врядли, хотя можно сделать интересные эффекты
       ASSERT(states->current->frame.images_count < 2);

@@ -5,7 +5,17 @@
 namespace devils_engine {
   namespace render {
     image_container::image_pool::image_pool(yavf::Device* device, const image::extent_2d &img_size, const uint32_t &mips) {
-      image = device->create(yavf::ImageCreateInfo::texture2D({img_size.width, img_size.height}, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_FORMAT_R8G8B8A8_UNORM, size, mips), VMA_MEMORY_USAGE_GPU_ONLY);
+      image = device->create(
+        yavf::ImageCreateInfo::texture2D(
+          {img_size.width, img_size.height}, 
+          VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, 
+          VK_FORMAT_R8G8B8A8_UNORM, 
+          size, 
+          mips
+        ), 
+        VMA_MEMORY_USAGE_GPU_ONLY
+      );
+      
       image->createView(VK_IMAGE_VIEW_TYPE_2D_ARRAY, VK_IMAGE_ASPECT_COLOR_BIT);
       memset(container, 0, container_size*sizeof(size_t));
     }
@@ -102,7 +112,7 @@ namespace devils_engine {
     void image_container::update_descriptor_data(yavf::DescriptorSet* set) {
       if (slots.size() >= set->size()) throw std::runtime_error("slots.size() >= set->size()");
       for (size_t i = 0; i < slots.size(); ++i) {
-        set->at(i) = {VK_NULL_HANDLE, slots[i].image->view(), VK_IMAGE_LAYOUT_MAX_ENUM, i, 1, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE};
+        set->at(i) = {VK_NULL_HANDLE, slots[i].image->view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, static_cast<uint32_t>(i), 0, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE};
       }
     }
   }

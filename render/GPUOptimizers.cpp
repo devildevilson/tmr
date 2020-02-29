@@ -285,7 +285,9 @@ void GeometryGPUOptimizer::add(const GraphicsIndices &idx) {
   
   objs.push_back(idx);
   faceCount = glm::max(idx.faceIndex+1, faceCount);
-  indicesCount += idx.vertexCount + 1;
+  indicesCount += idx.vertexCount + 1; 
+  
+  //const auto tex = textures->at(idx.texture);
 
   ASSERT(idx.vertexCount >= 3);
 
