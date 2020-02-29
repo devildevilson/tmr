@@ -48,6 +48,8 @@ namespace devils_engine {
     
     class entity_creator {
     public:
+      using collision_func_t = std::function<void(yacs::entity*, yacs::entity*, const utils::id &)>;
+      
       struct pickup_data {
         utils::id id;
         size_t quantity;
@@ -80,11 +82,16 @@ namespace devils_engine {
         pickup_data pickup;
         intelligence intel;
         phys_data physics;
-        std::function<void(yacs::entity*, yacs::entity*)> collision_func;
+        collision_func_t collision_func;
       };
       entity_creator(const struct create_info &info);
       // дополнительно потребуются флаги и тэги
       yacs::entity* create(const yacs::entity* parent, const game::ability_t* ability, const simd::vec4 &pos, const simd::vec4 &rot, const simd::vec4 &vel) const;
+      
+      //void pickup_func(yacs::entity* ent, yacs::entity* item, const utils::id &id, const size_t &quantity) const;
+      // по идее этой функции достаточно для того чтобы сделать и взаимодействие с итемом и просто коллизию
+      // количество мы добавим в аттрибуты
+      void collision_func(yacs::entity* ent, yacs::entity* visitor, const utils::id &data) const; 
     private:
       struct creation_data {
         yacs::entity* ent;
@@ -105,7 +112,7 @@ namespace devils_engine {
       pickup_data pickup;
       intelligence intel;
       phys_data physics;
-      std::function<void(yacs::entity*, yacs::entity*)> collision_func;
+      collision_func_t cfunc;
       
       components::type_info* create_info(const creation_data &data) const;
 //       UserDataComponent* create_usrdata(const creation_data &data) const;

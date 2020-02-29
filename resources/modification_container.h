@@ -27,6 +27,7 @@ namespace devils_engine {
       bool parse_mod(modification<core::resource>* mod);
       bool validate() const;
       bool load_data() const;
+      void end() const;
     private:
       utils::typeless_container container;
       std::vector<resources::parser_interface*> parsers;

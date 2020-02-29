@@ -8,6 +8,7 @@
 #include "RenderStructures.h"
 #include "map_data.h"
 #include "state.h"
+#include "Type.h"
 
 // карта это такой ресурс, который создает другие ресурсы
 // и ничего особо после себя не оставляет (разве что номер эпизода и айди карты)
@@ -198,6 +199,16 @@ namespace devils_engine {
       utils::id current_map() const;
       yacs::entity* player() const;
     private:
+      struct load_obj_wall_create_info {
+        Type shape_type;
+        const core::state_t* state;
+        uint32_t offset;
+        uint32_t count;
+        uint32_t index;
+        float center[4];
+        float normal[4];
+      };
+      
       yacs::world* world;
       yacs::entity* player_ptr;
       entity_loader* entities;
@@ -213,6 +224,7 @@ namespace devils_engine {
       utils::id check_json(const std::string &path_prefix, const std::string &file, const nlohmann::json &data, const size_t &mark, map::load_data& info, utils::problem_container<info::error> &errors, utils::problem_container<info::warning> &warnings) const override;
       
       yacs::entity* create_wall(const size_t &index, const map::load_data::faces &face, const std::vector<glm::vec3> &vertices, const std::vector<glm::vec2> &tex_coords, std::vector<Vertex> &verts);
+      yacs::entity* create_wall(const load_obj_wall_create_info &create_info);
       yacs::entity* create_complex_obj(const map::load_data::complex_object &obj, const map::load_data::model &model, const std::vector<glm::vec3> &vertices, const std::vector<glm::vec2> &tex_coords, std::vector<Vertex> &verts);
       yacs::entity* create_player(); // добавится потом id (маг, воин, лучник)
       

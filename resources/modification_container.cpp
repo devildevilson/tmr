@@ -160,5 +160,11 @@ namespace devils_engine {
       
       return true;
     }
+    
+    void modification_container::end() const {
+      for (auto loader : loaders) {
+        loader->end();
+      }
+    }
   }
 }

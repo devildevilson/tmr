@@ -142,6 +142,8 @@ namespace devils_engine {
         ptr->collision_property
       };
       
+      auto coll_itr = collision_funcs.find(ptr->collision_func);
+      
       const struct core::entity_creator::create_info info{
         float_init,
         int_init,
@@ -152,7 +154,7 @@ namespace devils_engine {
         pickup,
         intel,
         physics,
-        nullptr
+        coll_itr == collision_funcs.end() ? nullptr : coll_itr->second
       };
       auto creator_ptr = container->create(ptr->id, info);
       (void)creator_ptr;
@@ -261,8 +263,19 @@ namespace devils_engine {
         
         // нам так или иначе нужно указать функцию коллизии, с другой стороны у нас может быть глобальная функция колизии, а тут указать просто какой нибудь тип
         // 
-        if (itr.value().is_string() && itr.key() == "collision_property") {
-          
+        if (itr.value().is_object() && itr.key() == "collision_interaction") {
+          for (auto coll = itr.value().begin(); coll != itr.value().end(); ++coll) {
+            if (coll.value().is_string() && coll.key() == "data") {
+              info.collision_property = utils::id::get(coll.value().get<std::string>());
+              continue;
+            }
+            
+            if (coll.value().is_string() && coll.key() == "func") {
+              info.collision_func = coll.value().get<std::string>();
+              continue;
+            }
+          }
+          continue;
         }
         
         if (itr.value().is_object() && itr.key() == "physics") {
@@ -342,10 +355,10 @@ namespace devils_engine {
 //               
 //             }
             
-            if (physData.value().is_string() && physData.key() == "collision_property") {
-              info.collision_property = utils::id::get(physData.value().get<std::string>());
-              continue;
-            }
+//             if (physData.value().is_string() && physData.key() == "collision_property") {
+//               info.collision_property = utils::id::get(physData.value().get<std::string>());
+//               continue;
+//             }
           }
           
           if (!(hasHeight && hasWidth)) {

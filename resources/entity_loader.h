@@ -59,6 +59,7 @@ namespace devils_engine {
         intelligence intel;
         utils::id default_state;
         phys_data physics;
+        std::string collision_func;
         
         std::vector<std::pair<utils::id, double>> attributes;
         std::vector<utils::id> abilities;
@@ -90,6 +91,7 @@ namespace devils_engine {
         state_loader* states;
         game::entity_creators_container_load* container;
         std::unordered_map<utils::id, tb::BehaviorTree*> behaviors;
+        std::unordered_map<std::string, core::entity_creator::collision_func_t> collision_funcs;
       };
       entity_loader(const create_info &info);
       ~entity_loader();
@@ -107,6 +109,7 @@ namespace devils_engine {
       state_loader* states;
       game::entity_creators_container_load* container;
       std::unordered_map<utils::id, tb::BehaviorTree*> behaviors;
+      std::unordered_map<std::string, core::entity_creator::collision_func_t> collision_funcs;
       
       utils::id check_json(const std::string &path_prefix, const std::string &file, const nlohmann::json &data, const size_t &mark, enitity::load_data& info, utils::problem_container<info::error> &errors, utils::problem_container<info::warning> &warnings) const override;
     };

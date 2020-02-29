@@ -1025,7 +1025,7 @@ namespace devils_engine {
       physInfo.physInfo.collisionFilter = wall_collision_filter;
       physInfo.physInfo.collisionTrigger = wall_trigger_filter;
       physInfo.physInfo.collisionGroup = WALL_COLLISION_TYPE;
-      physInfo.physInfo.type = PhysicsType(true, POLYGON_TYPE, true, false, true, true);
+      physInfo.physInfo.type = PhysicsType(false, POLYGON_TYPE, true, false, true, true);
       
       std::vector<Vertex> verts;
       std::vector<uint32_t> globalIndicies;
@@ -1148,39 +1148,24 @@ namespace devils_engine {
           const Type shapeType = Type::get(shapeName);
           Global::get<PhysicsEngine>()->registerShape(shapeType, POLYGON_TYPE, shapeInfo);
           
-          // будем видимо создавать энтити прямо здесь
-          auto wall_ent = Global::get<yacs::world>()->create_entity();
-          auto info = wall_ent->add<components::type_info>();
-          info->created_ability = nullptr;
-          info->ent = wall_ent;
-          info->id = utils::id::get("wall");
-          info->parent = nullptr;
-          // состояния для стен я не могу явно указать, точнее могу но для каждой стены по отдельности в информации о карте
-          // но тут тип такой что я вряд ли смогу правильно удалить
-          // в будущем нужно будет сделать тип для стен?
-          info->states = nullptr;
-          info->states_count = 0;
-          physInfo.physInfo.shapeType = shapeType;
-//           auto usr_data = wall_ent->add<UserDataComponent>();
-//           usr_data->entity = wall_ent;
-          wall_ent->set(yacs::component_handle<TransformComponent>(nullptr));
-          wall_ent->set(yacs::component_handle<InputComponent>(nullptr));
-          auto wall_phys = wall_ent->add<PhysicsComponent>(physInfo);
-          wall_phys->setUserData(wall_ent);
-          auto graphics = wall_ent->add<components::indexed_graphics>();
-          graphics->ent = wall_ent;
-          graphics->offset = index_offset;
-          graphics->count = fv;
-          graphics->index = f;
-          auto states = wall_ent->add<components::states>(); // состояние по умолчанию?
-          states->counter = 0;
-          states->current = nullptr; // тут нужно что нибудь указать
-          states->current_time = SIZE_MAX;
-          states->ent = wall_ent;
-          // звук скорее всего будет просто компонентом, при всех взаимодействиях будем вызывать функцию из компонента, 
-          // так как мы явно определяем все функции взаимодействий, то материал нам может и не пригодиться
-    //       wall_ent->set(yacs::component_handle<SoundComponent>(nullptr));
-          auto vertex = wall_ent->add<components::vertex>(components::vertex::create_info{wall_ent, center, normal});
+          auto state = Global::get<game::states_container>()->get(utils::id::get("tmr_decor1_state"));
+          ASSERT(state != nullptr);
+          
+          float center_arr[4];
+          center.storeu(center_arr);
+          
+          const load_obj_wall_create_info info{
+            shapeType,
+            state,
+            static_cast<uint32_t>(index_offset),
+            static_cast<uint32_t>(fv),
+            static_cast<uint32_t>(f),
+            {center_arr[0], center_arr[1], center_arr[2], center_arr[3]},
+            {normalArr[0], normalArr[1], normalArr[2], normalArr[3]}
+          };
+          
+          auto wall_ent = create_wall(info);
+          auto vertex = wall_ent->at<components::vertex>(game::wall::vertex);
           
           for (size_t i = 0; i < Global::get<yacs::world>()->count_components<components::vertex>(); ++i) {
             auto vert = Global::get<yacs::world>()->get_component<components::vertex>(i);
@@ -1317,7 +1302,8 @@ namespace devils_engine {
       task->wait();
       
       device->deallocate(task);
-      // это все и по идее
+      // это все по идее
+      return true;
     }
     
     // между уровнями у нас будет выводиться стата - это особый уровень, затем он будет вызывать эту функцию
@@ -1604,6 +1590,86 @@ namespace devils_engine {
       (void)vertex;
       
       return ent;
+    }
+    
+    yacs::entity* map_loader::create_wall(const load_obj_wall_create_info &create_info) {
+      const PhysicsComponent::CreateInfo physInfo{
+        {
+          {0.0f, 0.0f, 0.0f, 0.0f},
+          7.0f, 80.0f, 0.0f, 0.0f
+        },
+        {
+          PhysicsType(false, POLYGON_TYPE, true, false, true, true),
+          WALL_COLLISION_TYPE,     // collisionGroup
+          wall_collision_filter,     // collisionFilter
+          wall_trigger_filter,     // collisionTrigger
+
+          0.0f,  // stairHeight
+          //40.0f, // acceleration
+          1.0f,  // overbounce
+          4.0f,  // groundFriction
+
+          0.0f,  // radius
+          1.0f,
+
+          UINT32_MAX,
+          UINT32_MAX,
+          UINT32_MAX,
+          UINT32_MAX,
+          UINT32_MAX,
+
+          //"boxShape"
+          create_info.shape_type
+        },
+        nullptr
+      };
+      
+      // будем видимо создавать энтити прямо здесь
+      auto wall_ent = Global::get<yacs::world>()->create_entity();
+      auto info = wall_ent->add<components::type_info>();
+      info->created_ability = nullptr;
+      info->ent = wall_ent;
+      info->id = utils::id::get("wall");
+      info->parent = nullptr;
+      // состояния для стен я не могу явно указать, точнее могу но для каждой стены по отдельности в информации о карте
+      // но тут тип такой что я вряд ли смогу правильно удалить
+      // в будущем нужно будет сделать тип для стен?
+      info->states = nullptr;
+      info->states_count = 0;
+      
+      ASSERT(wall_ent->at<components::type_info>(game::entity::type_info).valid());
+      
+      wall_ent->set(yacs::component_handle<TransformComponent>(nullptr));
+      wall_ent->set(yacs::component_handle<InputComponent>(nullptr));
+      
+//           auto usr_data = wall_ent->add<UserDataComponent>();
+//           usr_data->entity = wall_ent;
+      auto wall_phys = wall_ent->add<PhysicsComponent>(physInfo);
+      wall_phys->setUserData(wall_ent);
+      
+      ASSERT(wall_ent->at<PhysicsComponent>(game::entity::physics).valid());
+      
+      auto graphics = wall_ent->add<components::indexed_graphics>();
+      graphics->ent = wall_ent;
+      graphics->offset = create_info.offset;
+      graphics->count = create_info.count;
+      graphics->index = create_info.index;
+      
+      ASSERT(wall_ent->at<components::indexed_graphics>(game::entity::graphics).valid());
+      
+      auto states = wall_ent->add<components::states>(); // состояние по умолчанию?
+      states->current = create_info.state; // тут нужно что нибудь указать
+      states->current_time = SIZE_MAX;
+      states->ent = wall_ent;
+      // звук скорее всего будет просто компонентом, при всех взаимодействиях будем вызывать функцию из компонента, 
+      // так как мы явно определяем все функции взаимодействий, то материал нам может и не пригодиться
+//       wall_ent->set(yacs::component_handle<SoundComponent>(nullptr));
+      auto vertex = wall_ent->add<components::vertex>(components::vertex::create_info{wall_ent, simd::vec4(create_info.center), simd::vec4(create_info.normal)});
+      ASSERT(wall_ent->at<components::vertex>(game::wall::vertex).valid());
+      
+      (void)vertex;
+      
+      return wall_ent;
     }
     
     yacs::entity* map_loader::create_complex_obj(const map::load_data::complex_object &obj, const map::load_data::model &model, const std::vector<glm::vec3> &vertices, const std::vector<glm::vec2> &tex_coords, std::vector<Vertex> &verts) {

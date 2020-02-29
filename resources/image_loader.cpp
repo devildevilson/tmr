@@ -356,7 +356,7 @@ namespace devils_engine {
         
         std::vector<VkImageCopy> c;
         vk_copy_data(copies[i].load_data, copies[i].start, copies[i].indices, c);
-        std::vector<VkImageBlit> blits;
+        std::vector<VkImageBlit> blits(mips-1);
         if (mips > 1) blit(mips, render::image_container::image_pool::size, to_vk3(copies[i].load_data->size), blits);
         finals.push_back({staging_img, dst, c, blits});
       }
@@ -415,13 +415,17 @@ namespace devils_engine {
     
     utils::id image_loader::check_json(const std::string &path_prefix, const std::string &file, const nlohmann::json &data, const size_t &mark, image::load_data& info, utils::problem_container<info::error> &errors, utils::problem_container<info::warning> &warnings) const {
       bool has_id = false, valid = false, hasCount = false, hasWidth = false, hasHeight = false;
-      uint32_t count = 0, rows = 0, columns = 0, width = 0, height = 0;
+      uint32_t count = 1, rows = 1, columns = 1, width = 0, height = 0;
       std::string texturePath;
       const std::string path = path_prefix+file;
       
       int32_t loadedWidth, loadedHeight;
       info.mem_size = 0;
       info.parser_mark = mark;
+      info.mip_levels = 1;
+      info.size.depth = 1;
+      info.size.height = 1;
+      info.size.width = 1;
       
       for (auto concreteTIt = data.begin(); concreteTIt != data.end(); ++concreteTIt) {
         if (concreteTIt.value().is_string() && concreteTIt.key() == "id") {
@@ -441,6 +445,7 @@ namespace devils_engine {
             errors.add(mark, ERROR_COULD_NOT_FIND_TEXTURE_FILE, "Could not find texture file "+path_prefix + texturePath);
             return utils::id();
           }
+          
     //       if (!bool(ret)) throw std::runtime_error("dqsdqwfgqfwfqffqfqfwfavsavaw " + pathPrefix + texturePath);
           
           continue;
@@ -504,6 +509,14 @@ namespace devils_engine {
         errors.add(mark, MISSED_TEXTURE_SIZE, "Missing image "+info.id.name()+" size");
         return utils::id();
       }
+      
+      info.columns = columns;
+      info.rows = rows;
+      info.count = count;
+      info.size.width = hasCount && hasSize ? width : loadedWidth;
+      info.size.height = hasCount && hasSize ? height : loadedHeight;
+      info.mip_levels = std::floor(std::log2(std::max(info.size.width, info.size.height)))+1;
+      //info.mip_levels = 1;
       
       (void)warnings;
       
