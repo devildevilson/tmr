@@ -1,0 +1,8 @@
+{
+  "id": "tmr_decor1_state",
+  "frames": [
+    "texture.0"
+  ],
+  "time": -1,
+  "next_state": null
+}

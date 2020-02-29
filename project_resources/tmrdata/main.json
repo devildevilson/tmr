@@ -23,14 +23,12 @@
     "sounds": [
       "sound1.json"
     ],
-    "animations": [
-      "animation.json",
-      "idle_anim.json"
+    "states": [
+      "idle1.json",
+      "idle2.json",
+      "tmr_decor1_state.json"
     ],
     "abilities": [
-      "fireball_ability.json"
-    ],
-    "items": [
 
     ],
     "attributes": [
@@ -47,9 +45,7 @@
     ],
     "entities": [
       "default_entity.json",
-      "zombie.json",
-      "fireball.json",
-      "attack_entity.json"
+      "zombie.json"
     ],
     "maps": [
 

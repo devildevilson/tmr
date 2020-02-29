@@ -1,0 +1,34 @@
+{
+  "id": "monster_entity",
+  "attributes": {
+    "health": 100,
+    "damage": 30.5,
+    "max_speed": 7
+  },
+  "pickup_item": {
+    "id": "fsdasdgaa??",
+    "quantity": 102040
+  },
+  "drop_item": "item1",
+  "abilities": [
+    "ability1",
+    "ability2",
+    "ability3",
+    "ability4"
+  ],
+  "intelligence": {
+    "behaviour": "behaviour_tree1",
+    "path_find_function": "dmwpkmv???"
+  },
+  "states": [
+    "idle1",
+    "idle2"
+  ],
+  "default_state": "idle1",
+  "physics": {
+    "height": 1.02,
+    "width": 0.5,
+    "collision": "monster",
+    "stair_height": 0.3
+  }
+}

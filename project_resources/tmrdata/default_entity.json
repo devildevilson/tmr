@@ -1,11 +1,12 @@
 {
   "id": "test_entity1",
+  "states": [
+    "tmr_decor1_state"
+  ],
   "physics": {
     "dynamic": false,
     "height": 1.02,
     "width": 1.0,
-    "stair_height": 0.3,
-    "collision_group": "decoration"
-  },
-  "texture": "a14626771132270"
+    "collision_group": "small_decoration"
+  }
 }

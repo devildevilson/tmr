@@ -1,0 +1,14 @@
+{
+  "id": "attack_ability",
+  "name": "Attack",
+  "description": "This is attack",
+  "animation": "attack",
+  "cooldown": 10,
+  "entity_create_data": {
+    "type": "attack_interaction",
+    "delay_time": 0,
+    "inherit_transform": true,
+    "inherit_attributes": true,
+    "inherit_effects": true
+  }
+}

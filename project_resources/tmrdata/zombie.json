@@ -9,50 +9,27 @@
     "behaviour": "simple_tree",
     "path_find_function": "default"
   },
-  "drop_item": "sfasgsagsg",
-  "abilities": [
-    "zombie_attack",
-    "zombie_fireball"
-  ],
-  "states": {
-    "idle": {
-      "time": 400000,
-      "loop": true,
-      "blocked": false,
-      "blocked_movement": false,
-      "animation": {
-        "id": "idle",
-        "delay": 0
-      }
-    },
-    "walking": {
-      "time": 400000,
-      "loop": true,
-      "blocked": false,
-      "blocked_movement": false,
-      "animation": {
-        "id": "walking",
-        "delay": 0
-      }
-    },
-    "attack" : {
-      "time": 400000,
-      "loop": false,
-      "blocked": true,
-      "blocked_movement": true,
-      "animation": {
-        "id": "walking",
-        "delay": 0
-      }
-    }
+  "collision_interaction": {
+    "func": "func123",
+    "data": "zombie_collision"
   },
-  "default_state": "idle",
+  "states": [
+    "idle1",
+    "idle2"
+  ],
+  "default_state": "idle1",
   "physics": {
     "dynamic": true,
     "height": 1.02,
     "width": 0.5,
     "stair_height": 0.3,
     "gravitational_coefficient": 1.0,
-    "collision": "monster"
+    "collision_group": "monster"
+  },
+  "old": {
+    "abilities": [
+      "zombie_attack",
+      "zombie_fireball"
+    ]
   }
 }

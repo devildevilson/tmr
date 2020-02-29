@@ -1,5 +1,13 @@
 {
   "id": "walking",
+  "time": 1000000,
+  "sound": {
+    "id": "step",
+    "delay": 200000,
+    "static": true,
+    "relative": false,
+    "scalar": 0.0f
+  },
   "frames": [
     [
       "n.0",

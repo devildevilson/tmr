@@ -1,0 +1,16 @@
+ {
+   "id": "state1",
+   "frames": [
+     "image.1",
+     "image.1",
+     "image.1",
+     "image.1",
+     "image.1",
+     "image.1",
+     "image.1",
+     "image.1"
+   ],
+   "time": -1,
+   "function": "func1",
+   "next_state": null
+ }
