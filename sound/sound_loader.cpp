@@ -144,9 +144,10 @@ namespace devils_engine {
             return utils::id();
           }
 
-          std::ifstream file(path_prefix+tmp);
+          const std::string full_path = path_prefix+tmp;
+          std::ifstream file(full_path);
           if (!file) {
-            errors.add(mark, COULD_NOT_LOAD_FILE, "Could not load file. File: " + path_prefix+tmp);
+            errors.add(mark, COULD_NOT_LOAD_FILE, "Could not load file. File: " + full_path);
             return utils::id();
           }
 
@@ -169,12 +170,13 @@ namespace devils_engine {
               decoderInterface = new FLACDecoder(fileContainer, fileSize, 0, 0);
             }
           } catch (const std::runtime_error &e) {
+            //delete decoderInterface;
             delete [] fileContainer;
-            errors.add(mark, COULD_NOT_DECODE_FILE, std::string(e.what()) + ". File: "+path_prefix+tmp);
+            errors.add(mark, COULD_NOT_DECODE_FILE, std::string(e.what()) + ". File: "+full_path);
             return utils::id();
           }
 
-          info.path = tmp;
+          info.path = full_path;
 
           continue;
         }
@@ -202,6 +204,7 @@ namespace devils_engine {
       info.mem_size = info.cached ? decoderInterface->size() : fileSize;
       info.parser_mark = mark;
       info.pcm_size = decoderInterface->size();
+      info.type = soundType;
 
       delete decoderInterface;
       delete [] fileContainer;
