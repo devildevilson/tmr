@@ -1426,6 +1426,12 @@ std::unordered_map<std::string, core::state_t::action_func> create_states_funcs(
   return states_funcs;
 }
 
+std::unordered_map<std::string, core::entity_creator::collision_func_t> create_collision_funcs() {
+  std::unordered_map<std::string, core::entity_creator::collision_func_t> collision_funcs;
+  
+  return collision_funcs;
+}
+
 resources_ptr::resources_ptr(yavf::Device* device) : 
     resources_containers(
       sizeof(game::image_data_container_load) +
@@ -1440,7 +1446,7 @@ resources_ptr::resources_ptr(yavf::Device* device) :
       sizeof(game::entity_creators_container_load) + 
       sizeof(game::map_data_container_load)
     ), images(nullptr), image_res(nullptr), sounds(nullptr), abilities(nullptr), effects(nullptr), states(nullptr), weapons(nullptr), float_attribs(nullptr), int_attribs(nullptr), entities(nullptr), map_data(nullptr),
-    float_funcs(create_float_attribs_funcs()), int_funcs(create_int_attribs_funcs()), states_funcs(create_states_funcs()), trees(createBehaviourTrees())
+    float_funcs(create_float_attribs_funcs()), int_funcs(create_int_attribs_funcs()), states_funcs(create_states_funcs()), collision_funcs(create_collision_funcs()), trees(createBehaviourTrees())
   {
 //     std::cout << "resources_ptr size " << sizeof(game::image_data_container_load) +
 //       sizeof(game::image_resources_load) +
@@ -1528,7 +1534,7 @@ resources_ptr::~resources_ptr() {
   }
 }
 
-void createLoaders(resources::modification_container &mods, GraphicsContainer* graphicsContainer, render::image_container* images, resources_ptr &res, resources::map_loader** mapLoader) {
+void createLoaders(resources::modification_container &mods, GraphicsContainer* graphicsContainer, const DataArrays &data_arrays, render::image_container* images, resources_ptr &res, resources::map_loader** mapLoader) {
   resources::image_loader* texture_loader = nullptr;
   resources::state_loader* state_loader = nullptr;
   resources::entity_loader* entity_loader = nullptr;
@@ -1577,7 +1583,7 @@ void createLoaders(resources::modification_container &mods, GraphicsContainer* g
   {
     const resources::state_loader::create_info info{
       res.states,
-      nullptr,
+      data_arrays.textures,
       texture_loader,
       res.states_funcs
     };
@@ -1599,7 +1605,8 @@ void createLoaders(resources::modification_container &mods, GraphicsContainer* g
       attributes_loader,
       state_loader,
       res.entities,
-      res.trees
+      res.trees,
+      res.collision_funcs
     };
     entity_loader = mods.add_loader<resources::entity_loader>(info);
   }
@@ -2076,9 +2083,10 @@ void mouseButtonCallback(GLFWwindow*, int button, int action, int mods) {
 //   if (action == GLFW_RELEASE) mousePressed[button] = false;
 
   //Global::data()->keys[button] = !(action == GLFW_RELEASE);
+  const auto old = Global::get<input::data>()->key_events.container[button].event;
   Global::get<input::data>()->key_events.container[button].event = static_cast<input::type>(action);
   auto data = Global::get<input::data>()->key_events.container[button].data;
-  if (data != nullptr) data->time = 0;
+  if (data != nullptr && old != static_cast<input::type>(action)) data->time = 0;
 }
 
 void keyCallback(GLFWwindow*, int key, int scancode, int action, int mods) {
@@ -2090,9 +2098,10 @@ void keyCallback(GLFWwindow*, int key, int scancode, int action, int mods) {
 //   ImGuiIO& io = ImGui::GetIO();
 
   //Global::data()->keys[key] = !(action == GLFW_RELEASE);
+  const auto old = Global::get<input::data>()->key_events.container[key].event;
   Global::get<input::data>()->key_events.container[key].event = static_cast<input::type>(action);
   auto data = Global::get<input::data>()->key_events.container[key].data;
-  if (data != nullptr) data->time = 0;
+  if (data != nullptr && old != static_cast<input::type>(action)) data->time = 0;
 
 //   if (!Global::data()->focusOnInterface) return;
 //

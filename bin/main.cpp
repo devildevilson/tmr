@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
     g.setGameDir(dir);
 
     //std::cout << Global::getGameDir() << "\n";
-    std::cout << dir << "\n";
+//     std::cout << dir << "\n";
   }
 
   utils::settings settings;
@@ -161,12 +161,14 @@ int main(int argc, char** argv) {
 
   // создадим лоадер (лоадер бы лучше в контейнере создавать) 
   // лоадеры неплохо было бы создавать перед непосредственной загрузкой, пока так создадим
+  yacs::world world;
+  Global::get(&world);
   const size_t loaderContainerSize = sizeof(resources::image_loader) + sizeof(resources::sound_loader) + sizeof(resources::entity_loader) + sizeof(resources::map_loader) + sizeof(resources::attributes_loader) + sizeof(resources::effects_loader) + sizeof(resources::abilities_loader) + sizeof(resources::state_loader);
   resources::map_loader* map_loader = nullptr;
   resources::modification_container mods(loaderContainerSize);
   render::image_container images(render::image_container::create_info{systems.graphics_container->device()});
   {
-    createLoaders(mods, systems.graphics_container, &images, resources, &map_loader);
+    createLoaders(mods, systems.graphics_container, arrays, &images, resources, &map_loader);
     
     // теперь мне нужно загружать сразу все ресурсы, кроме всех карт
   }
@@ -223,6 +225,7 @@ int main(int argc, char** argv) {
     
     mods.validate();
     mods.load_data();
+    mods.end();
     map_loader->load_obj(Global::getGameDir() + "models/box4.obj");
     map_loader->end();
 
@@ -238,12 +241,6 @@ int main(int argc, char** argv) {
     //throw std::runtime_error("no more");
   }
 
-//   {
-//     systems.post_physics = systems.container.create<PostPhysics>(&threadPool, player, playerTransform);
-//     Global::get(systems.post_physics);
-//   }
-
-//   bool drawMenu = false;
   bool quit = false;
   interface::container menu_container(sizeof(interface::main_menu) + sizeof(interface::quit_game) + sizeof(interface::settings));
   {
@@ -297,6 +294,13 @@ int main(int argc, char** argv) {
         // + нужно скорректировать матрицу. возможно нужно просто сделать еще один рендер стейдж
         // перед загрузкой неплохо было бы еще вычищать полностью textureLoader и загружать туда только картинку загрузки
         // вычищать нужно для того чтобы там не остались какие то проблемные участки с предыдущего уровня или из меню
+        
+        // создаем лоадеры
+        // парсим моды (нам при смене уровня по идее нужно парсить только инфу об уровне)
+        // грузим уровень в отдельном потоке
+        // во время этого рисуем интерфейс 
+        // нужно ли делать думовское сползание экрана?
+        // требуется запомнить картинку перед началом загрузки
         
         break;
       }

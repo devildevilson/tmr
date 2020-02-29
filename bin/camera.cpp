@@ -29,8 +29,8 @@ namespace devils_engine {
       glm::vec4 pos1;
       pos.storeu(&pos1.x);
 
-      //const simd::mat4 view = toVulkanSpace * simd::lookAt(pos, pos + dir, simd::vec4(0.0f, 1.0f, 0.0f, 0.0f));
-      const simd::mat4 view = toVulkanSpace * simd::lookAt(pos, pos + dir, input->up());
+      const simd::mat4 view = toVulkanSpace * simd::lookAt(pos, pos + dir, simd::vec4(0.0f, 1.0f, 0.0f, 0.0f));
+      //const simd::mat4 view = toVulkanSpace * simd::lookAt(pos, pos + dir, input->up());
 
       Global::render()->setView(view);
       Global::render()->setCameraPos(pos);

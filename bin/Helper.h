@@ -438,10 +438,14 @@ void createDataArrays(yavf::Device* device, DataArrays &arrays);
 void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipelineStage*> &dynPipe);
 // void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, const size_t &updateDelta, PhysicsContainer &physicsContainer, PhysicsEngine** engine); // еще device поди пригодится
 // void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystemContainer &container);
+// это должно происходить рядом с createLoaders, должен быть лоадер разных луа вещей
+// который по идее должен заполнить эти контейнеры, все функции и деревья здесь используются только при непосредственной загрузке 
+// а значит мы по идее на стадии парсинга можем заполнить эти данные, но пока у нас нет луа это не нужно
 std::unordered_map<utils::id, tb::BehaviorTree*> createBehaviourTrees();
 std::unordered_map<std::string, core::attribute_t<core::float_type>::type::func_type> create_float_attribs_funcs();
 std::unordered_map<std::string, core::attribute_t<core::int_type>::type::func_type> create_int_attribs_funcs();
 std::unordered_map<std::string, core::state_t::action_func> create_states_funcs();
+std::unordered_map<std::string, core::entity_creator::collision_func_t> create_collision_funcs();
 
 // мне нужно это аккуратно удалить в конце
 struct resources_ptr {
@@ -463,9 +467,10 @@ struct resources_ptr {
   std::unordered_map<std::string, core::attribute_t<core::float_type>::type::func_type> float_funcs;
   std::unordered_map<std::string, core::attribute_t<core::int_type>::type::func_type> int_funcs;
   std::unordered_map<std::string, core::state_t::action_func> states_funcs;
+  std::unordered_map<std::string, core::entity_creator::collision_func_t> collision_funcs;
   std::unordered_map<utils::id, tb::BehaviorTree*> trees;
 };
-void createLoaders(resources::modification_container &mods, GraphicsContainer* graphicsContainer, render::image_container* images, resources_ptr &res, resources::map_loader** mapLoader);
+void createLoaders(resources::modification_container &mods, GraphicsContainer* graphicsContainer, const DataArrays &data_arrays, render::image_container* images, resources_ptr &res, resources::map_loader** mapLoader);
 void createSoundSystem(dt::thread_pool* threadPool, GameSystemContainer &container);
 
 void initnk(yavf::Device* device, Window* window, nuklear_data &data);
