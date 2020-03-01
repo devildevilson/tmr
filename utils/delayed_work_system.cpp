@@ -1,6 +1,7 @@
 #include "delayed_work_system.h"
 
 #include "ThreadPool.h"
+#include "Utility.h"
 
 namespace devils_engine {
   namespace utils {
@@ -45,7 +46,10 @@ namespace devils_engine {
     }
     
     void delayed_work_system::detach_works(const size_t &count) {
+      if (count == 0) return;
+      
       pool->submitbase([this, count] () {
+//         TimeLogDestructor appTime("works");
         this->do_works(count);
       });
     }

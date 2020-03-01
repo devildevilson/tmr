@@ -169,6 +169,7 @@ void CPUOctreeBroadphaseParallel::destroyProxy(BroadphaseProxy* proxy) {
 
   p->dummy2 = freeProxy;
   freeProxy = p->proxyIndex;
+  p->objIndex = UINT32_MAX;
 //   p->setContainerIndex(UINT32_MAX);
 //   p->containerIndex = UINT32_MAX;
 }
@@ -182,7 +183,7 @@ void CPUOctreeBroadphaseParallel::destroyProxy(const uint32_t &index) {
   proxies[index].dummy2 = freeProxy;
   freeProxy = index;
 //   proxies[index].setContainerIndex(UINT32_MAX);
-//   proxies[index].objIndex = UINT32_MAX;
+  proxies[index].objIndex = UINT32_MAX;
 }
 
 void CPUOctreeBroadphaseParallel::updateBuffers(const uint32_t &objCount, const uint32_t &dynObjCount, const uint32_t &raysCount, const uint32_t &frustumsCount) {
@@ -218,8 +219,12 @@ void CPUOctreeBroadphaseParallel::update() {
 
       if (obj.objType.getObjType() == BBOX_TYPE) {
         const simd::vec4 &pos = transforms->at(obj.transformIndex).pos;
-        const simd::vec4 &ext = verticies->at(obj.vertexOffset);
+        const simd::vec4 &ext = verticies->at(obj.vertexOffset) * transforms->at(obj.transformIndex).scale;
         const simd::mat4 &orn = systems->at(obj.coordinateSystemIndex);
+        
+        if (objIndex == 5002) {
+          PRINT_VEC4("ext",ext);
+        }
 
         const FastAABB aabb = recalcAABB(pos, ext, orn);
         proxies[proxyIndex].setAABB(aabb);
@@ -393,6 +398,10 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
                          
     const bool trigger = (first->collisionGroup() & second->collisionTrigger()) != 0 &&
                          (second->collisionGroup() & first->collisionTrigger()) != 0;
+                         
+//     if (first->objIndex == 5002 || second->objIndex == 5002) {
+//       PRINT("fklwjdkasv;l");
+//     }
 
     if (!collide && !trigger) return;
 

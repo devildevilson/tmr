@@ -468,6 +468,7 @@ void CPUPhysicsParallel::remove(PhysicsIndexContainer* comp) {
 //   components.back()->internalIndex = comp->internalIndex;
 //   std::swap(components[comp->internalIndex], components.back());
 //   components.pop_back();
+  //std::cout << "remove obj index " << comp->objectDataIndex << "\n";
 
   components[comp->internalIndex] = reinterpret_cast<PhysicsIndexContainer*&>(freeContainer);
   freeContainer = comp->internalIndex;
@@ -480,6 +481,8 @@ void CPUPhysicsParallel::remove(PhysicsIndexContainer* comp) {
   objects[comp->objectDataIndex].objectId = freeObj;
   freeObj = comp->objectDataIndex;
   objects[comp->objectDataIndex].staticPhysicDataIndex = UINT32_MAX;
+  objects[comp->objectDataIndex].transformIndex = UINT32_MAX;
+  objects[comp->objectDataIndex].vertexOffset = UINT32_MAX;
 
   if (comp->physicDataIndex != UINT32_MAX) {
     physicsDatas[comp->physicDataIndex].velocity.x = glm::uintBitsToFloat(freePhys);
@@ -633,6 +636,8 @@ void* CPUPhysicsParallel::getUserData(const uint32_t &objIndex) const {
 
 PhysicsIndexContainer* CPUPhysicsParallel::getIndexContainer(const uint32_t &objIndex) const {
   const Object &obj = objects[objIndex];
+//   std::cout << "components size " << components.size() << " mem " << components.data() << " objectId " << obj.objectId << "\n";
+  if (obj.objectId == UINT32_MAX) return nullptr;
   return components[obj.objectId];
 }
 
@@ -1098,8 +1103,13 @@ void CPUPhysicsParallel::updatePos(const uint32_t &start, const uint32_t &count,
     currState.at(transIndex).pos += velocity*MCS_TO_SEC(gravityBuffer.data()->time);
 
     globalVel[index] = velocity;
+    
+//     if (physicsDatas[index].objectIndex == 5002) {
+//       PRINT("update velocity for item");
+//       PRINT_VEC4("pos", currState.at(transIndex).pos);
+//     }
 
-    if (globalScalar > EPSILON) {
+    if (globalScalar > EPSILON || physicsDatas[index].gravCoef == 0.0f) {
       // const uint id = atomicAdd(count, 1);
       // indexies[id] = datas[index].objectIndex;
       const uint32_t id = counter.fetch_add(1);

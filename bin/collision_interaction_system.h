@@ -19,15 +19,11 @@ namespace devils_engine {
     public:
       struct create_info {
         dt::thread_pool* pool;
-        std::function<void(yacs::entity*, yacs::entity*, const utils::id&)> collision_func;
-        std::function<void(yacs::entity*, yacs::entity*, const utils::id&, const size_t&)> pickup_item_func;
       };
       collision_interaction(const create_info &info);
       void update(const size_t &time);
     private:
       dt::thread_pool* pool;
-      std::function<void(yacs::entity*, yacs::entity*, const utils::id&)> collision_func;
-      std::function<void(yacs::entity*, yacs::entity*, const utils::id&, const size_t&)> pickup_item_func;
     };
   }
 }

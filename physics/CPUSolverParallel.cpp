@@ -7,7 +7,7 @@
 
 #include <HelperFunctions.h>
 
-#define ONLY_TRIGGER_ID 0xFFFFFFFF-1
+#define ONLY_TRIGGER_ID (0xFFFFFFFF-1)
 
 template <typename T>
 uint32_t binarySearch(T* begin, T* end, const uint32_t &firstObjIndex);
@@ -249,6 +249,8 @@ void CPUSolverParallel::calculateData() {
   static const auto check_collision = [this] (const size_t &start, const size_t &count) {
     for (size_t index = start; index < start+count; ++index) {
       const auto &data = temp_vector[index].second;
+      if (objects->at(data.firstIndex).vertexOffset == UINT32_MAX || objects->at(data.secondIndex).vertexOffset == UINT32_MAX) continue;
+      
       bool found = false;
       for (size_t i = 0; i < dataIndices->data()->count; ++i) {
         if ((overlappingData->at(i).firstIndex == data.firstIndex && overlappingData->at(i).secondIndex == data.secondIndex) ||
@@ -328,6 +330,7 @@ void CPUSolverParallel::calculateData() {
       const uint32_t objIndex2 = pair.secondIndex;
       const uint32_t transformIndex1 = objects->at(objIndex1).transformIndex;
       const uint32_t transformIndex2 = objects->at(objIndex2).transformIndex;
+      if (objects->at(objIndex1).vertexOffset == UINT32_MAX || objects->at(objIndex2).vertexOffset == UINT32_MAX) continue;
       
       float dist = 100000.0f;
       simd::vec4 mtv = simd::vec4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -758,8 +761,10 @@ void CPUSolverParallel::solve() {
       const IslandAdditionalData* data = islands->structure_from_begin<IslandAdditionalData>();
       const IslandData* islandsPtr = islands->data_from<IslandAdditionalData>();
       
+      size_t dynamic_pairs_count = 0;
       for (size_t i = 0; i < data->islandCount.x; ++i) {
         const size_t count = std::ceil(float(islandsPtr[i].size) / float(pool->size()+1));
+        dynamic_pairs_count += count;
         size_t start = 0;
         
         //for (uint32_t i = 0; i < octreeLevel.z; ++i) {
@@ -775,6 +780,8 @@ void CPUSolverParallel::solve() {
         pool->compute();
         pool->wait();
       }
+      
+      ASSERT(dynamic_pairs_count <= pairs->at(0).secondIndex);
 //         }
 //       }
     }
@@ -903,8 +910,8 @@ bool CPUSolverParallel::BoxBoxSAT(const float &treshold, const Object &first,  c
   const simd::vec4 &firstPos  = transforms->at(transFirst).pos;
   const simd::vec4 &secondPos = transforms->at(transSecond).pos;
 
-  const simd::vec4 &firstExt  = verts->at(first.vertexOffset);
-  const simd::vec4 &secondExt = verts->at(second.vertexOffset);
+  const simd::vec4 &firstExt  = verts->at(first.vertexOffset) * transforms->at(transFirst).scale;
+  const simd::vec4 &secondExt = verts->at(second.vertexOffset) * transforms->at(transSecond).scale;
 
   const simd::vec4 &delta = firstPos - secondPos;
 
@@ -938,7 +945,7 @@ bool CPUSolverParallel::BoxSphereSAT(const float &treshold, const Object &first,
   //const simd::vec4 &secondPos = simd::vec4(transforms->at(transSecond).pos.x, transforms->at(transSecond).pos.y, transforms->at(transSecond).pos.z, 1.0f);
   const simd::vec4 &secondPos = transforms->at(transSecond).pos;
 
-  const simd::vec4 &firstExt  = verts->at(first.vertexOffset);
+  const simd::vec4 &firstExt  = verts->at(first.vertexOffset) * transforms->at(transFirst).scale;
   //const float radius = transforms->at(transSecond).pos.w;
   const float radius = glm::floatBitsToUint(second.faceCount);
 
@@ -978,7 +985,7 @@ bool CPUSolverParallel::BoxPolySAT(const float &treshold, const Object &first,  
   const simd::vec4 &firstPos  = transforms->at(transFirst).pos;
   const simd::vec4 &secondPos = transSecond != UINT32_MAX ? transforms->at(transSecond).pos : simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
 
-  const simd::vec4 &firstExt  = verts->at(first.vertexOffset);
+  const simd::vec4 &firstExt  = verts->at(first.vertexOffset) * transforms->at(transFirst).scale;
 
   const uint32_t vert     = second.vertexOffset;
   const uint32_t vertSize = second.vertexCount;
@@ -1324,6 +1331,22 @@ void CPUSolverParallel::computePair(const BroadphasePair& pair) {
   //const float newThreshold = (1.0f / float(iterationCount)) * threshold;
   const float newThreshold = threshold;
   col = SAT(newThreshold, objIndex[0], transformIndex[0], objIndex[1], transformIndex[1], mtv, dist);
+  float arr[4];
+  mtv.storeu(arr);
+  if (pair.islandIndex == ONLY_TRIGGER_ID) {
+    const OverlappingData collision_data{
+      pair.firstIndex,
+      pair.secondIndex,
+      true,
+      0,
+      glm::vec3(arr[0], arr[1], arr[2]),
+      arr[3]
+    };
+    const size_t index = counter.fetch_add(1);
+    temp_vector[index].first = SIZE_MAX;
+    temp_vector[index].second = collision_data;
+    return;
+  }
 
   const float mtvAngle = getAngle(-mtv, gravity->data()->gravityNormal);
 
@@ -1433,6 +1456,22 @@ void CPUSolverParallel::computePairWithGround(const BroadphasePair &pair, const 
   const float newThreshold = threshold;
 
   col = SAT(newThreshold, objIndex[0], transformIndex[0], objIndex[1], transformIndex[1], mtv, dist);
+  float arr[4];
+  mtv.storeu(arr);
+  if (pair.islandIndex == ONLY_TRIGGER_ID) {
+    const OverlappingData collision_data{
+      pair.firstIndex,
+      pair.secondIndex,
+      true,
+      0,
+      glm::vec3(arr[0], arr[1], arr[2]),
+      arr[3]
+    };
+    const size_t index = counter.fetch_add(1);
+    temp_vector[index].first = SIZE_MAX;
+    temp_vector[index].second = collision_data;
+    return;
+  }
 
   const float mtvAngle = getAngle(-mtv, gravity->data()->gravityNormal);
 

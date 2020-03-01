@@ -93,10 +93,15 @@ namespace devils_engine {
     }
     
     void entity_creator::collision_func(yacs::entity* ent, yacs::entity* visitor, const utils::id &data) const {
+//       auto second_info = ent->at<components::type_info>(game::entity::type_info);
+//       std::cout << "ent " << second_info->id.name() << " deleted_state " << core::deleted_state(ent) << " coll trigger " << core::has_collision_trigger(ent) << "\n";
+//       std::cout << "container " << second_info->bit_container.container << "\n";
+      
+      ASSERT(is_entity_type_eq(ent, id));
+      
       if (!cfunc) return;
       if (core::deleted_state(ent)) return;
       if (core::deleted_state(visitor)) return;
-      ASSERT(is_entity_type_eq(ent, id));
       if (!core::has_collision_trigger(ent)) return;
       
       const utils::id final_data = data.valid() ? data : physics.collision_property;
@@ -120,6 +125,7 @@ namespace devils_engine {
 //       info->collision_property = physics.collision_property;
 //       info->item_property = pickup.id;
 //       info->item_quantity = pickup.quantity;
+      //if (!cfunc) info->bit_container.set_collision_trigger(true);
       return info.get();
     }
     

@@ -106,34 +106,34 @@ namespace devils_engine {
       // 
     }
     
-    const utils::id medkit = utils::id::get("medkit");
-    const utils::id bullshit = utils::id::get("bullshit");
-    
-    // по идее здесь всегда должен приходить игрок, а вторым объектом предмет с properties::pickup
-    void item_pickup(yacs::entity* ent, yacs::entity* item) {
-      auto pickup = item->get<properties::pickup>();
-      auto inv = ent->get<components::inventory>();
-      if (pickup->type == medkit) {
-        // должен быть глобальный доступ к эффектам? видимо
-      }
-      
-      if (pickup->type == bullshit) {
-        inv->add(pickup->type, pickup->count);
-      }
-      
-      core::remove(item);
-      // статистика
-      
-    }
-    
-    void item_pickup2(yacs::entity* ent, yacs::entity* item, const utils::id &prop, const size_t &quantity) {
-      // примерно тоже что и у предыдущего
-      // может все же спрятать prop и quantity?
-      // в принципе однозначно то какой из энтити является айтемом, можно у него брать информацию
-      // с другой стороны зачем?
-      
-      std::cout << "item pickup property " << prop.name() << "\n";
-    }
+//     const utils::id medkit = utils::id::get("medkit");
+//     const utils::id bullshit = utils::id::get("bullshit");
+//     
+//     // по идее здесь всегда должен приходить игрок, а вторым объектом предмет с properties::pickup
+//     void item_pickup(yacs::entity* ent, yacs::entity* item) {
+//       auto pickup = item->get<properties::pickup>();
+//       auto inv = ent->get<components::inventory>();
+//       if (pickup->type == medkit) {
+//         // должен быть глобальный доступ к эффектам? видимо
+//       }
+//       
+//       if (pickup->type == bullshit) {
+//         inv->add(pickup->type, pickup->count);
+//       }
+//       
+//       core::remove(item);
+//       // статистика
+//       
+//     }
+//     
+//     void item_pickup2(yacs::entity* ent, yacs::entity* item, const utils::id &prop, const size_t &quantity) {
+//       // примерно тоже что и у предыдущего
+//       // может все же спрятать prop и quantity?
+//       // в принципе однозначно то какой из энтити является айтемом, можно у него брать информацию
+//       // с другой стороны зачем?
+//       
+//       std::cout << "item pickup property " << prop.name() << "\n";
+//     }
     
     void collision_func(yacs::entity* prop_ent, yacs::entity* ent, const utils::id &prop) {
       std::cout << "collision func property " << prop.name() << "\n";
@@ -192,6 +192,17 @@ namespace devils_engine {
       }
       
       return current;
+    }
+    
+    const utils::id tmr_item_pickup1 = utils::id::get("tmr_item_pickup1");
+    void pickup_test_item(yacs::entity* prop_ent, yacs::entity* ent, const utils::id &prop) {
+      if (!core::is_player(ent)) return;
+      
+      auto type = prop_ent->at<components::type_info>(game::entity::type_info);
+      std::cout << "picked up item " << type->id.name() << " property " << prop.name() << "\n"; 
+      // пишем сообщение о взятии предмета в интерфейс
+      core::start_sound(sound::info(ent, tmr_item_pickup1, 1.0f)); // саунд инфо можно сократить?
+      core::remove(prop_ent);
     }
     
     // уже гораздо лучше, с другой стороны такая фигня с inc_int требуется только в хп

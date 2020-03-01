@@ -8,7 +8,7 @@
 
 namespace devils_engine {
   namespace resources {
-    entity_loader::entity_loader(const create_info &info) : parser("entities"), abilities(info.abilities), attributes(info.attributes), states(info.states), container(info.container) {}
+    entity_loader::entity_loader(const create_info &info) : parser("entities"), abilities(info.abilities), attributes(info.attributes), states(info.states), container(info.container), collision_funcs(info.collision_funcs) {}
     entity_loader::~entity_loader() {
       clear();
     }
@@ -142,7 +142,9 @@ namespace devils_engine {
         ptr->collision_property
       };
       
+      ASSERT(!collision_funcs.empty());
       auto coll_itr = collision_funcs.find(ptr->collision_func);
+      std::cout << "id " << id.name() << " finded coll func " << (coll_itr != collision_funcs.end()) << " func " << ptr->collision_func << "\n";
       
       const struct core::entity_creator::create_info info{
         float_init,
@@ -178,6 +180,7 @@ namespace devils_engine {
       bool has_id = false, has_physics = false;
       
       const size_t errors_size = errors.size();
+      info.physics.gravCoef = 1.0f;
       
       for (auto itr = data.begin(); itr != data.end(); ++itr) {
         if (itr.value().is_string() && itr.key() == "id") {

@@ -148,11 +148,13 @@ namespace devils_engine {
           yacs::entity* second = nullptr;
           {
             auto cont = Global::get<PhysicsEngine>()->getIndexContainer(pairs->at(i).firstIndex);
+            if (cont == nullptr) continue;
             first = reinterpret_cast<yacs::entity*>(cont->userData);
           }
           
           {
             auto cont = Global::get<PhysicsEngine>()->getIndexContainer(pairs->at(i).secondIndex);
+            if (cont == nullptr) continue;
             second = reinterpret_cast<yacs::entity*>(cont->userData);
           }
           

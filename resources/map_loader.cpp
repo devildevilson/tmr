@@ -969,10 +969,13 @@ namespace devils_engine {
       
       const utils::id test_entity = utils::id::get("test_entity1");
       const utils::id zombie = utils::id::get("zombie");
+      const utils::id test_item = utils::id::get("tmr_test_item_entity");
       const bool ret1 = entities->load(test_entity);
       if (!ret1) throw std::runtime_error("Could not load entity type test_entity1");
       const bool ret2 = entities->load(zombie);
       if (!ret2) throw std::runtime_error("Could not load entity type zombie");
+      const bool ret3 = entities->load(test_item);
+      if (!ret3) throw std::runtime_error("Could not load entity type zombie");
       
       PRINT("started entity creation")
       
@@ -999,6 +1002,12 @@ namespace devils_engine {
           //ASSERT(zombie->get<StateController>().valid());
           // логично что здесь будут UINT32_MAX значения, у меня не задана текстурка явно
     //       PRINT(std::to_string(g->getTexture().image.index)+" "+std::to_string(g->getTexture().image.layer))
+        }
+        
+        {
+          const simd::vec4 pos = simd::vec4(2.0f, 1.0f, 0.0f, 1.0f);
+          const simd::vec4 rot = simd::vec4(0.0f, 0.0f, 1.0f, 0.0f);
+          auto test_item_ent = Global::get<game::entity_creators_container>()->get(test_item)->create(nullptr, nullptr, pos, rot, simd::vec4(0.0f));
         }
       }
       

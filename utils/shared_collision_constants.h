@@ -24,7 +24,7 @@ enum CollisionType : uint32_t {
 };
 
 const uint32_t player_collision_filter           = PLAYER_COLLISION_TYPE | WALL_COLLISION_TYPE | MONSTER_COLLISION_TYPE | BIG_DECORATION_COLLISION_TYPE | DOOR_COLLISION_TYPE;
-const uint32_t wall_collision_filter             = PLAYER_COLLISION_TYPE |                       MONSTER_COLLISION_TYPE |                                 DOOR_COLLISION_TYPE | GHOST_COLLISION_TYPE;
+const uint32_t wall_collision_filter             = PLAYER_COLLISION_TYPE |                       MONSTER_COLLISION_TYPE |                                 DOOR_COLLISION_TYPE | ITEM_COLLISION_TYPE | GHOST_COLLISION_TYPE;
 const uint32_t monster_collision_filter          = PLAYER_COLLISION_TYPE | WALL_COLLISION_TYPE | MONSTER_COLLISION_TYPE | BIG_DECORATION_COLLISION_TYPE | DOOR_COLLISION_TYPE;
 const uint32_t item_collision_filter             =                         WALL_COLLISION_TYPE |                          BIG_DECORATION_COLLISION_TYPE; // дверь?
 const uint32_t small_decoration_collision_filter =                         WALL_COLLISION_TYPE |                          BIG_DECORATION_COLLISION_TYPE | DOOR_COLLISION_TYPE;

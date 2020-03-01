@@ -293,6 +293,8 @@ namespace devils_engine {
       auto new_sound_data = Global::get<game::sounds_container>()->get(info.id);
       if (new_sound_data == nullptr) return false;
       
+      std::cout << "new_sound_data " << new_sound_data->id.name() << "\n";
+      
       std::unique_lock<std::mutex> lock(mutex);
 //       const size_t index = find(info.ent, info.id);
 //       if (index != SIZE_MAX) return false;
@@ -432,6 +434,9 @@ namespace devils_engine {
         
         sounds[i].update_buffers();
         sounds[i].update_source(master_v, sounds_v);
+//         if (sounds[i].source.state() != Source::State::playing) {
+//           sounds[i].source.play();
+//         }
         
         if (sounds[i].user_info.ent != nullptr) {
           auto trans = sounds[i].user_info.ent->at<TransformComponent>(game::entity::transform);
@@ -549,6 +554,7 @@ namespace devils_engine {
         loaded_size += sound_data->load(loaded_size, size, buffers.second);
         Buffer b[2] = {buffers.first, buffers.second};
         source.queueBuffers(2, b);
+        source.play();
         return;
       }
       
@@ -704,6 +710,7 @@ namespace devils_engine {
     }
     
     void sound::remove(const size_t &index) {
+      std::cout << "remove sound " << sounds[index].user_info.id.name() << "\n";
       if (sounds[index].source.isValid()) {
         sounds[index].source.stop();
         sounds[index].source.buffer(0);

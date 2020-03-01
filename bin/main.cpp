@@ -46,7 +46,7 @@ size_t LogCounter::counter = 0;
 // при этом не обновляя некоторые системы (почти все)
 // возможно стоит сделать больше стейтов чтобы учесть почти все
 enum class game_state {
-  main_menu, // причем неплохо было бы сделать проигрывание демки в главном меню
+  demo_playing, // причем неплохо было бы сделать проигрывание демки в главном меню
   loading,
   game
 };
@@ -121,7 +121,7 @@ int main(int argc, char** argv) {
   // чаще всего пул необходим, не могу честно говоря представить когда он не нужен в современных условиях
   //std::cout << "std::thread::hardware_concurrency() " << std::thread::hardware_concurrency() << "\n";
   dt::thread_pool threadPool(std::max(std::thread::hardware_concurrency()-1, uint32_t(1)));
-  systems::collision_interaction inter(systems::collision_interaction::create_info{&threadPool, game::collision_func, game::item_pickup2});
+  systems::collision_interaction inter(systems::collision_interaction::create_info{&threadPool});
   utils::delayed_work_system works(utils::delayed_work_system::create_info{&threadPool});
   utils::random rand(seed);
   input::data input_data;
@@ -194,7 +194,7 @@ int main(int argc, char** argv) {
 //   CameraComponent* camera = nullptr;
 //   UserInputComponent* input = nullptr;
 //   TransformComponent* playerTransform = nullptr;
-  yacs::entity* entityWithBrain = nullptr;
+//   yacs::entity* entityWithBrain = nullptr;
   {
     // теперь мы сначало грузим какие нибудь данные мода
     auto mod = mods.load_mod(Global::getGameDir() + "tmrdata/main.json");
@@ -251,10 +251,10 @@ int main(int argc, char** argv) {
     menu_container.set_default_page(menu);
   }
 
-  KeyContainer keyContainer;
-
-  createReactions({&keyContainer, Global::window(), &menu_container, entityWithBrain});
-  setUpKeys(&keyContainer);
+//   KeyContainer keyContainer;
+//   createReactions({&keyContainer, Global::window(), &menu_container, entityWithBrain});
+//   setUpKeys(&keyContainer);
+  setUpKeys(nullptr);
   
   settings.dump(Global::getGameDir() + "settings.json");
   
@@ -305,13 +305,8 @@ int main(int argc, char** argv) {
         break;
       }
       
-      case game_state::main_menu: {
-        // тут по идее мы должны загрузить все, но никакого уровня загружено быть не должно
-        // наверное даже вот как: должен быть загружен уровень меню, состоящий из плоской картинки,
-        // камеры и меню, через какое то время загрузка демо
-        // вполне возможно что этого стейта просто не будет
-        // в думе не этот конкретно стейт использовался, а стейт демо плеинг
-        // и просто по умолчанию включалось меню
+      case game_state::demo_playing: {
+        // по идее меню на фоне демки
         
         break;
       }
@@ -327,6 +322,7 @@ int main(int argc, char** argv) {
     // еще же статистику выводить (в конце уровня я имею ввиду)
     // нужно определить функцию некст левел, которая просто будет выставлять флажок следующего уровня
     // а здесь мы будем проверять и соответственно начинать загружаться
+    // при загрузке уровня меняем стейт
     
     // инпут игрока нужно чуть чуть переделать 
     // (необходимо сделать какой то буфер нажатия клавиш и возможность использовать его в разных местах)
@@ -361,7 +357,7 @@ int main(int argc, char** argv) {
     // и вместе с этом я запущу работу в ворксистеме
     // где то рядом нужно обойти всю коллизию 
     threadPool.submitbase([time] () {
-      Global::get<GraphicsContainer>()->update(time);
+      Global::get<GraphicsContainer>()->update(time); // обновление графики пересекается с телепортацией
     });
     
     threadPool.submitbase([time] () {

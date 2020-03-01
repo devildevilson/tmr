@@ -1428,7 +1428,7 @@ std::unordered_map<std::string, core::state_t::action_func> create_states_funcs(
 
 std::unordered_map<std::string, core::entity_creator::collision_func_t> create_collision_funcs() {
   std::unordered_map<std::string, core::entity_creator::collision_func_t> collision_funcs;
-  
+  collision_funcs["pickup_test_item"] = game::pickup_test_item;
   return collision_funcs;
 }
 
@@ -1741,104 +1741,104 @@ void sync(TimeMeter &tm, const size_t &syncTime) {
   }
 }
 
-void createReactions(const ReactionsCreateInfo &info) {
-//   auto input = info.input;
-//   info.container->create("Step forward", [input] () {
-//     input->forward();
-//   });
-// 
-//   info.container->create("Step backward", [input] () {
-//     input->backward();
-//   });
-// 
-//   info.container->create("Step left", [input] () {
-//     input->left();
-//   });
-// 
-//   info.container->create("Step right", [input] () {
-//     input->right();
-//   });
-// 
-//   info.container->create("Jump", [input] () {
-//     input->jump();
-//   });
-  
-  auto menu = info.menuContainer;
-  info.container->create("Menu", [menu] {
-    menu->open();
-    Global::get<input::data>()->interface_focus = true;
-  });
-  
-//   info.container->create("menu next", [menu] () {
-//     menu->next();
-//   });
+// void createReactions(const ReactionsCreateInfo &info) {
+// //   auto input = info.input;
+// //   info.container->create("Step forward", [input] () {
+// //     input->forward();
+// //   });
+// // 
+// //   info.container->create("Step backward", [input] () {
+// //     input->backward();
+// //   });
+// // 
+// //   info.container->create("Step left", [input] () {
+// //     input->left();
+// //   });
+// // 
+// //   info.container->create("Step right", [input] () {
+// //     input->right();
+// //   });
+// // 
+// //   info.container->create("Jump", [input] () {
+// //     input->jump();
+// //   });
 //   
-//   info.container->create("menu prev", [menu] () {
-//     menu->prev();
-//   });
+// //   auto menu = info.menuContainer;
+// //   info.container->create("Menu", [menu] {
+// //     menu->open();
+// //     Global::get<input::data>()->interface_focus = true;
+// //   });
 //   
-//   info.container->create("menu increase", [menu] () {
-//     menu->increase();
-//   });
+// //   info.container->create("menu next", [menu] () {
+// //     menu->next();
+// //   });
+// //   
+// //   info.container->create("menu prev", [menu] () {
+// //     menu->prev();
+// //   });
+// //   
+// //   info.container->create("menu increase", [menu] () {
+// //     menu->increase();
+// //   });
+// //   
+// //   info.container->create("menu decrease", [menu] () {
+// //     menu->decrease();
+// //   });
+// //   
+// //   info.container->create("menu choose", [menu] () {
+// //     menu->choose();
+// //   });
 //   
-//   info.container->create("menu decrease", [menu] () {
-//     menu->decrease();
-//   });
+// //   info.container->create("menu escape", [menu] () {
+// //     menu->escape();
+// //   });
+// // 
+// //   auto window = info.window;
+// //   info.container->create("Interface focus", [window] () {
+// //     static bool lastFocus = false;
+// //     Global::get<input::data>()->interface_focus = !Global::get<input::data>()->interface_focus;
+// // 
+// //     if (lastFocus && Global::get<input::data>()->interface_focus != lastFocus) {
+// //       int width, height;
+// //       glfwGetWindowSize(window->handle(), &width, &height);
+// //       double centerX = double(width) / 2.0, centerY = double(height) / 2.0;
+// //       glfwSetCursorPos(window->handle(), centerX, centerY);
+// //     }
+// // 
+// //     lastFocus = Global::get<input::data>()->interface_focus;
+// //   });
 //   
-//   info.container->create("menu choose", [menu] () {
-//     menu->choose();
-//   });
-  
-  info.container->create("menu escape", [menu] () {
-    menu->escape();
-  });
-
-  auto window = info.window;
-  info.container->create("Interface focus", [window] () {
-    static bool lastFocus = false;
-    Global::get<input::data>()->interface_focus = !Global::get<input::data>()->interface_focus;
-
-    if (lastFocus && Global::get<input::data>()->interface_focus != lastFocus) {
-      int width, height;
-      glfwGetWindowSize(window->handle(), &width, &height);
-      double centerX = double(width) / 2.0, centerY = double(height) / 2.0;
-      glfwSetCursorPos(window->handle(), centerX, centerY);
-    }
-
-    lastFocus = Global::get<input::data>()->interface_focus;
-  });
-  
-//   auto brain = info.brain;
-//   info.container->create("Set target", [brain, input] () {
-//     const AIComponent* comp = static_cast<const AIComponent*>(brain);
+// //   auto brain = info.brain;
+// //   info.container->create("Set target", [brain, input] () {
+// //     const AIComponent* comp = static_cast<const AIComponent*>(brain);
+// // 
+// //     //auto* phys = input->getEntity()->get<PhysicsComponent2>().get();
+// //     auto phys = comp->components()->entity->at<PhysicsComponent>(PHYSICS_COMPONENT_INDEX);
+// //     if (phys->getGround() == nullptr) {
+// //       const Object obj = Global::physics()->getObjectData(&phys->getIndexContainer());
+// //       std::cout << "obj index " << obj.objectId << "\n";
+// //       std::cout << "obj ground index " << obj.groundObjIndex << "\n";
+// //       throw std::runtime_error("phys->getGround() return nullptr");
+// //     }
+// //     auto data = reinterpret_cast<UserDataComponent*>(phys->getGround()->userData);
+// //     
+// //     if (data->aiComponent == nullptr) {
+// //       const Object obj = Global::physics()->getObjectData(&phys->getIndexContainer());
+// //       std::cout << "obj index " << obj.objectId << "\n";
+// //       std::cout << "obj ground index " << obj.groundObjIndex << "\n";
+// //       throw std::runtime_error("data->aiComponent return nullptr");
+// //     }
+// //     
+// //     std::cout << "setting target " << data->aiComponent << "\n";
+// //     
+// //     brain->target(data->aiComponent);
+// //   });
 // 
-//     //auto* phys = input->getEntity()->get<PhysicsComponent2>().get();
-//     auto phys = comp->components()->entity->at<PhysicsComponent>(PHYSICS_COMPONENT_INDEX);
-//     if (phys->getGround() == nullptr) {
-//       const Object obj = Global::physics()->getObjectData(&phys->getIndexContainer());
-//       std::cout << "obj index " << obj.objectId << "\n";
-//       std::cout << "obj ground index " << obj.groundObjIndex << "\n";
-//       throw std::runtime_error("phys->getGround() return nullptr");
-//     }
-//     auto data = reinterpret_cast<UserDataComponent*>(phys->getGround()->userData);
-//     
-//     if (data->aiComponent == nullptr) {
-//       const Object obj = Global::physics()->getObjectData(&phys->getIndexContainer());
-//       std::cout << "obj index " << obj.objectId << "\n";
-//       std::cout << "obj ground index " << obj.groundObjIndex << "\n";
-//       throw std::runtime_error("data->aiComponent return nullptr");
-//     }
-//     
-//     std::cout << "setting target " << data->aiComponent << "\n";
-//     
-//     brain->target(data->aiComponent);
-//   });
-
-  // а также use, attack, spells (1-9?), item use, hide weapon
-  // и прочее
-  // где располагать доступ ко всему этому?
-  // может ли пользователь добавить свои функции к вызову?
-}
+//   // а также use, attack, spells (1-9?), item use, hide weapon
+//   // и прочее
+//   // где располагать доступ ко всему этому?
+//   // может ли пользователь добавить свои функции к вызову?
+// }
 
 const utils::id move_forward = utils::id::get("move_forward");
 const utils::id move_backward = utils::id::get("move_backward");
@@ -1855,6 +1855,7 @@ const utils::id menu_decrease = utils::id::get("menu_decrease");
 const utils::id menu_choose = utils::id::get("menu_choose");
 
 void setUpKeys(KeyContainer* container) {
+  (void)container;
 //   {
 //     container->create({key::state::press, key::state::double_press, key::state::long_press}, false, key::modificator::none, GLFW_KEY_W, container->config.reactions["Step forward"]);
 // //     key->setReaction(KEY_STATE_PRESS,        container->config->reactions["Step forward"]);
@@ -1937,48 +1938,48 @@ void mouse_input(yacs::entity* player, const size_t &time) {
   input->mouseMove(horisontalAngle, verticalAngle, PhysicsEngine::getOrientation());
 }
 
-void keysCallbacks(KeyContainer* container, const uint64_t &time) {
-//   const bool shift_mod = Global::data()->keys[GLFW_KEY_LEFT_SHIFT] || 
-//                          Global::data()->keys[GLFW_KEY_RIGHT_SHIFT];
-//   const bool control_mod = Global::data()->keys[GLFW_KEY_LEFT_CONTROL] || 
-//                            Global::data()->keys[GLFW_KEY_RIGHT_CONTROL];
-//   const bool super_mod = Global::data()->keys[GLFW_KEY_LEFT_SUPER] || 
-//                          Global::data()->keys[GLFW_KEY_RIGHT_SUPER];
-//   const bool alt_mod = Global::data()->keys[GLFW_KEY_LEFT_ALT] || 
-//                        Global::data()->keys[GLFW_KEY_RIGHT_ALT];
-//   const bool backspace_mod = Global::data()->keys[GLFW_KEY_BACKSPACE];
-//                        
-// //   const bool modificators = shift_mod || control_mod || super_mod || alt_mod || backspace_mod;
+// void keysCallbacks(KeyContainer* container, const uint64_t &time) {
+// //   const bool shift_mod = Global::data()->keys[GLFW_KEY_LEFT_SHIFT] || 
+// //                          Global::data()->keys[GLFW_KEY_RIGHT_SHIFT];
+// //   const bool control_mod = Global::data()->keys[GLFW_KEY_LEFT_CONTROL] || 
+// //                            Global::data()->keys[GLFW_KEY_RIGHT_CONTROL];
+// //   const bool super_mod = Global::data()->keys[GLFW_KEY_LEFT_SUPER] || 
+// //                          Global::data()->keys[GLFW_KEY_RIGHT_SUPER];
+// //   const bool alt_mod = Global::data()->keys[GLFW_KEY_LEFT_ALT] || 
+// //                        Global::data()->keys[GLFW_KEY_RIGHT_ALT];
+// //   const bool backspace_mod = Global::data()->keys[GLFW_KEY_BACKSPACE];
+// //                        
+// // //   const bool modificators = shift_mod || control_mod || super_mod || alt_mod || backspace_mod;
+// //   
+// //   std::vector<key::modificator> mods;
+// //   if (control_mod) mods.push_back(key::modificator::ctrl);
+// //   if (alt_mod) mods.push_back(key::modificator::alt);
+// //   if (shift_mod) mods.push_back(key::modificator::shift);
+// //   if (super_mod) mods.push_back(key::modificator::super);
+// //   if (backspace_mod) mods.push_back(key::modificator::backspace);
+// //   
+// //   for (size_t i = 0; i < container->config.keys.size(); ++i) {
+// // //     const uint32_t keyCount = config->keys[i]->getKeysCount();
+// // // 
+// // // //     std::cout << "keyCount " << keyCount << "\n";
+// // // 
+// // //     bool state = true;
+// // //     for (uint32_t j = 0; j < keyCount; ++j) {
+// // //       const uint32_t key = config->keys[i]->getKey(j);
+// // // 
+// // // //       std::cout << "key " << key << "\n";
+// // // 
+// // //       state = state && Global::data()->keys[key];
+// // //     }
+// //     
+// //     const bool state = Global::data()->keys[container->config.keys[i]->key()];
+// //     container->config.keys[i]->execute(mods, state ? GLFW_PRESS : GLFW_RELEASE, time);
+// //   }
 //   
-//   std::vector<key::modificator> mods;
-//   if (control_mod) mods.push_back(key::modificator::ctrl);
-//   if (alt_mod) mods.push_back(key::modificator::alt);
-//   if (shift_mod) mods.push_back(key::modificator::shift);
-//   if (super_mod) mods.push_back(key::modificator::super);
-//   if (backspace_mod) mods.push_back(key::modificator::backspace);
+//   // нам возможно потребуется дабл клик для интерфейса
 //   
-//   for (size_t i = 0; i < container->config.keys.size(); ++i) {
-// //     const uint32_t keyCount = config->keys[i]->getKeysCount();
-// // 
-// // //     std::cout << "keyCount " << keyCount << "\n";
-// // 
-// //     bool state = true;
-// //     for (uint32_t j = 0; j < keyCount; ++j) {
-// //       const uint32_t key = config->keys[i]->getKey(j);
-// // 
-// // //       std::cout << "key " << key << "\n";
-// // 
-// //       state = state && Global::data()->keys[key];
-// //     }
-//     
-//     const bool state = Global::data()->keys[container->config.keys[i]->key()];
-//     container->config.keys[i]->execute(mods, state ? GLFW_PRESS : GLFW_RELEASE, time);
-//   }
-  
-  // нам возможно потребуется дабл клик для интерфейса
-  
-  
-}
+//   
+// }
 
 void keys_callback(yacs::entity* player, interface::container* menu) {
   auto input = player->at<UserInputComponent>(game::entity::input);
@@ -2044,13 +2045,13 @@ void keys_callback(yacs::entity* player, interface::container* menu) {
 }
 
 
-void menuKeysCallback(interface::container* menu) {
-//   for (size_t i = 0; i < KEYS_COUNT; ++i) {
-//     if (Global::data()->keys[i]) {
-//       menu->feedback(PressingData{static_cast<uint32_t>(i), 0});
-//     }
-//   }
-}
+// void menuKeysCallback(interface::container* menu) {
+// //   for (size_t i = 0; i < KEYS_COUNT; ++i) {
+// //     if (Global::data()->keys[i]) {
+// //       menu->feedback(PressingData{static_cast<uint32_t>(i), 0});
+// //     }
+// //   }
+// }
 
 void callback(int error, const char* description) {
   std::cout << "Error code: " << error << std::endl;

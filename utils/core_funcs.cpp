@@ -48,16 +48,12 @@ namespace devils_engine {
     
     bool has_collision_trigger(const yacs::entity* ent) {
       if (ent == nullptr) return false;
-      auto prop = ent->get<properties::collision>();
-      if (prop == nullptr) return false;
       auto info = ent->at<components::type_info>(game::entity::type_info);
       return info->bit_container.has_collision_trigger();
     }
     
     bool set_collision_trigger(yacs::entity* ent, const bool value) {
       if (ent == nullptr) return false;
-      auto prop = ent->get<properties::collision>();
-      if (prop == nullptr) return false;
       auto info = ent->at<components::type_info>(game::entity::type_info);
       return info->bit_container.set_collision_trigger(value);
     }

@@ -495,14 +495,14 @@ void nkOverlay(const SimpleOverlayData &data, nk_context* ctx);
 
 void sync(TimeMeter &tm, const size_t &syncTime); // сюда мы должны передать желаемое время кадра
 
-struct ReactionsCreateInfo {
-  KeyContainer* container;
-//   UserInputComponent* input;
-  Window* window;
-  interface::container* menuContainer;
-  yacs::entity* brain;
-};
-void createReactions(const ReactionsCreateInfo &info);
+// struct ReactionsCreateInfo {
+//   KeyContainer* container;
+// //   UserInputComponent* input;
+//   Window* window;
+//   interface::container* menuContainer;
+//   yacs::entity* brain;
+// };
+// void createReactions(const ReactionsCreateInfo &info);
 void setUpKeys(KeyContainer* container);
 
 struct MouseData {

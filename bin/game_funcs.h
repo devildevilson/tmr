@@ -50,12 +50,15 @@ namespace devils_engine {
     // что item_pickup, что damage_ent вряд ли будут вызываться часто в одном кадре 
     // (сомневаюсь что будет хоть один кадр в котором эти функции будут вызваны 2 раза одновременно)
     // поэтому их можно вызвать последовательно вместе с какой нибудь другой работой (например звуки и графика)
-    void item_pickup(yacs::entity* ent, yacs::entity* item);
-    void item_pickup2(yacs::entity* ent, yacs::entity* item, const utils::id &prop, const size_t &quantity);
+//     void item_pickup(yacs::entity* ent, yacs::entity* item);
+//     void item_pickup2(yacs::entity* ent, yacs::entity* item, const utils::id &prop, const size_t &quantity);
     void collision_func(yacs::entity* prop_ent, yacs::entity* ent, const utils::id &prop);
     void damage_ent(yacs::entity* source, yacs::entity* ent, const effect_t* effect); // тут поди нужно добавить интеракцию
+    
     core::int_type health_func(yacs::entity* ent, const struct core::attribute_t<core::int_type>::type* attrib_type, const core::int_type &base, const core::int_type &raw_add, const float &raw_mul, const core::int_type &final_add, const float &final_mul);
 //     core::int_type health_func2(yacs::entity* ent, const struct core::attribute_t<core::int_type>::type* attrib_type, const core::int_type &prev, const components::effects* effects);
+    
+    void pickup_test_item(yacs::entity* prop_ent, yacs::entity* ent, const utils::id &prop);
   }
 }
 
