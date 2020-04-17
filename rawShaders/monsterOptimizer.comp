@@ -2,7 +2,7 @@
 
 #extension GL_GOOGLE_include_directive : enable
 
-#include "../render/RenderStructures.h"
+#include "../render/shared_structures.h"
 #include "../utils/shared_mathematical_constant.h"
 
 layout(set = 0, binding = 0) uniform Camera {
@@ -29,17 +29,17 @@ layout(std140, set = 2, binding = 0) readonly buffer Transforms {
 };
 
 layout(std140, set = 3, binding = 0) readonly buffer MatricesData {
-  mat4 matrices[];
+  mat4 matrices_array[];
 };
 
-layout(std430, set = 4, binding = 0) readonly buffer Textures {
-  Texture textures[];
+layout(std430, set = 4, binding = 0) readonly buffer textures_buffer {
+  image_data textures[];
 };
 
 struct InstanceData {
   mat4 matrix;
-  Texture texture;
-  uint dummy[3];
+  image_data t;
+  uint dummy[1];
 };
 
 layout(std430, set = 5, binding = 0) buffer InstanceDatas {
@@ -93,7 +93,7 @@ void main() {
 
   // тут же можно умножить эту матрицу на вид, чтобы не делать это в вершинном шейдере
 
-  instanceDatas[index].texture = textures[textureIndex];
+  instanceDatas[index].t = textures[textureIndex];
 }
 
 mat4 translate(const mat4 mat, const vec4 vec) {

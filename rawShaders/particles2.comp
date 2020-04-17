@@ -1,0 +1,269 @@
+#version 450
+
+#define MCS_TO_SEC(dt) (float(dt) / 1000000.0f)
+#define EPSILON 0.00001f
+#define FAR_CLIP_PLANE 256.0f
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "../render/shared_structures.h"
+
+layout(set = 0, binding = 0) uniform Camera {
+  mat4 viewproj;
+  mat4 view;
+  vec4 pos; // возможно причина кроется в vec3
+  vec4 dir;
+  uvec2 dim;
+} camera;
+
+layout(set = 1, binding = 0) uniform AdditionalData {
+  mat4 projection;
+  mat4 view;
+  mat4 invProjection;
+  mat4 invView;
+  mat4 invViewProj;
+} matrixes;
+
+layout(set = 2, binding = 0) uniform sampler2D colors;
+layout(set = 2, binding = 1) uniform sampler2D normals;
+layout(set = 2, binding = 2) uniform sampler2D depths;
+
+layout(std140, set = 3, binding = 0) buffer old_particles_buffer {
+  gpu_particle old_particles[];
+};
+
+layout(std140, set = 3, binding = 1) buffer new_particles_buffer {
+  gpu_particle new_particles[];
+};
+
+struct gpu_particles_data {
+  uvec4 int_data;
+  uvec4 out_data;
+  vec4 gravity;
+  vec4 frustum[6];
+};
+
+layout(std140, set = 3, binding = 2) buffer particles_data_buffer {
+  gpu_particles_data particles_data;
+};
+
+layout(std430, set = 3, binding = 3) buffer particles_indices_buffer {
+  uvec4 indirect_data;
+  uint particles_indices[];
+};
+
+shared uint new_particle_index;
+shared uint indices_index;
+
+#define WORKGROUP_SIZE 256
+layout (local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+#define OUTSIDE 0
+#define INSIDE 1
+#define INTERSECT 2
+uint frustum_test(const vec4 point, const vec4 scale);
+vec4 clip(const vec4 clip_normal, const float bounce, const vec4 vel);
+vec3 unpackNormal(const vec2 enc);
+vec4 getPositionFromView(vec4 viewSpacePosition);
+vec4 getPosition(const vec2 coord, const float depth);
+bool SATOneAxis(const vec4 point, const float radius, const vec4 normalPoint, const vec4 normal, inout vec4 mtv, inout float dist);
+
+void main() {
+  new_particle_index = 0;
+  indices_index = 0;
+  indirect_data.x = 0;
+  indirect_data.y = 1;
+  indirect_data.z = 0;
+  indirect_data.w = 0;
+
+  barrier();
+
+  const uint index = gl_GlobalInvocationID.x;
+  if (index >= particles_data.int_data.z) return;
+
+  uint life_time = get_particle_life_time(old_particles[index]);
+  if (life_time == 0) {
+    const uint new_index = atomicAdd(new_particle_index, 1);
+    if (new_index >= particles_data.int_data.y) return;
+    if (get_particle_life_time(new_particles[new_index]) == 0) return;
+    old_particles[index] = new_particles[new_index];
+    life_time = get_particle_life_time(old_particles[index]);
+  }
+
+  const gpu_particle p = old_particles[index];
+  const uint ct = get_particle_current_time(p);
+  const float time_ratio = life_time == 0 ? 1.0f : float(ct) / float(life_time);
+
+  const float max_speed = get_particle_max_speed(p);
+  const float min_speed = get_particle_min_speed(p);
+  const float max_scale = get_particle_max_scale(p);
+  const float min_scale = get_particle_min_scale(p);
+
+  const float gravity_factor = get_particle_gravity(p);
+  const float bounce_factor = get_particle_bounce(p);
+  const float friction = get_particle_friction(p);
+
+  const bool speed_dec_over_time = particle_speed_dec_over_time(p);
+  const bool speed_inc_over_time = particle_speed_inc_over_time(p);
+  const bool scale_dec_over_time = particle_scale_dec_over_time(p);
+  const bool scale_inc_over_time = particle_scale_inc_over_time(p);
+
+  const bool limit_max_speed = particle_limit_max_speed(p);
+  const bool limit_min_speed = particle_limit_min_speed(p);
+  const bool max_speed_stop = particle_max_speed_stop(p);
+  const bool min_speed_stop = particle_min_speed_stop(p);
+  const bool max_speed_remove = particle_max_speed_remove(p);
+  const bool min_speed_remove = particle_min_speed_remove(p);
+
+  const bool scaling_along_vel = particle_scaling_along_vel(p);
+  const bool is_on_ground = particle_is_on_ground(p);
+
+  const float scale = scale_dec_over_time ? abs(mix(max_scale, min_scale, time_ratio)) : (scale_inc_over_time ? abs(mix(min_scale, max_scale, time_ratio)) : max_scale);
+
+  const float delta_time = MCS_TO_SEC(particles_data.int_data.w);
+  const vec4 new_vel = p.vel + uint(!is_on_ground) * particles_data.gravity * gravity_factor * delta_time;
+  const float new_speed = length(new_vel);
+  float speed = new_speed;
+  speed = limit_max_speed ? min(max_speed, speed) : speed;
+  speed = limit_min_speed ? max(min_speed, speed) : speed;
+  speed = speed_dec_over_time ? abs(mix(max_speed, min_speed, time_ratio)) : (speed_inc_over_time ? abs(mix(min_speed, max_speed, time_ratio)) : speed);
+  speed = mix(speed, 0.0f, float(max_speed_stop && max_speed-speed < EPSILON));
+  speed = mix(speed, 0.0f, float(min_speed_stop && speed-min_speed < EPSILON));
+  const vec4 vel_norm = new_speed > EPSILON ? new_vel / new_speed : vec4(0.0f, 0.0f, 0.0f, 0.0f);
+  const vec4 final_new_vel = speed * vel_norm + uint(is_on_ground) * (-vel_norm) * friction * delta_time;
+  const vec4 new_pos = p.pos + final_new_vel * delta_time;
+  // const float speed = 1.0f;
+  // const vec4 final_new_vel = p.vel;
+  // const vec4 new_pos = p.pos;
+
+  vec4 final_pos = new_pos;
+  vec4 final_vel = final_new_vel;
+
+  const float camera_dist = distance(camera.pos, p.pos);
+  const float ratio = 1.0f - (camera_dist / FAR_CLIP_PLANE);
+  const vec4 particle_extent = vec4(scale, scaling_along_vel ? scale * max(speed, 1.0f) : scale, scale, 0.0f);
+  const uint frustum_test_ret = frustum_test(p.pos, particle_extent);
+
+  const uint new_time = ct + particles_data.int_data.w;
+  set_particle_current_time(old_particles[index], new_time);
+  old_particles[index].int_data.z = new_time > life_time ? 0 : old_particles[index].int_data.z;
+  set_particle_pos(old_particles[index], final_pos);
+  set_particle_vel(old_particles[index], final_vel);
+
+  if ((max_speed_remove && speed >= max_speed) || (min_speed_remove && speed <= min_speed)) {
+    old_particles[index].int_data.z = 0;
+  }
+
+  atomicMax(particles_data.out_data.x, index+1);
+  if (ratio < 0.0f || frustum_test_ret == OUTSIDE || old_particles[index].int_data.z == 0) return;
+
+  const float final_scale = scale/2 - 0.01f; // наверное этот оффсет нужно немного увеличить
+  const vec4 screen_pos = camera.viewproj * (final_pos + vec4(0.0f,-1.0f, 0.0f, 0.0f) * final_scale);
+  const vec2 screen_uv = (screen_pos.xy/screen_pos.w)*vec2(0.5) + vec2(0.5);
+  const ivec2 pixel = ivec2(screen_uv * camera.dim);
+
+  if (speed > EPSILON) {
+    const vec2 encNorm = texelFetch(normals, pixel, 0).xy;
+    const float depth = texelFetch(depths, pixel, 0).x;
+    const vec4 unpacked_normal = vec4(unpackNormal(encNorm), 0.0f);
+    const vec4 normal = getPositionFromView(unpacked_normal);
+    const vec4 normalPoint = getPosition(screen_uv, depth);
+    const bool bad_normal = isnan(normal.x) || isnan(normal.y) || isnan(normal.z);
+    if (!bad_normal) {
+      const float screen_space_dist = distance(normalPoint, final_pos);
+      if (screen_space_dist < final_scale && screen_space_dist > EPSILON) {
+        const float dist = final_scale - screen_space_dist;
+        const vec4 final_normal = (final_pos - normalPoint) / screen_space_dist;
+        final_pos = final_pos + final_normal * dist;
+        final_vel = clip(normal, bounce_factor, final_vel);
+        set_particle_is_on_ground(old_particles[index], true);
+      }
+    }
+
+    set_particle_pos(old_particles[index], final_pos);
+    set_particle_vel(old_particles[index], final_vel);
+  }
+
+  const uint tmp = atomicAdd(indirect_data.x, 1);
+  particles_indices[tmp] = index;
+}
+
+uint frustum_test(const vec4 point, const vec4 scale) {
+  uint result = INSIDE;
+  const vec4 extents = scale;
+
+  for (uint i = 0; i < 6; ++i) {
+    const vec4 frustumPlane = vec4(particles_data.frustum[i].xyz, 0.0f);
+    const float dist = particles_data.frustum[i].w;
+
+    const float d = dot(point,       frustumPlane);
+    const float r = dot(extents, abs(frustumPlane));
+
+    const float d_p_r = d + r;
+    const float d_m_r = d - r;
+
+    if (d_p_r < -dist) {
+      result = OUTSIDE;
+      break;
+    } else if (d_m_r < -dist) result = INTERSECT;
+  }
+
+  return result;
+}
+
+vec4 clip(const vec4 clip_normal, const float bounce, const vec4 vel) {
+  const float backoff = dot(vel, clip_normal) * bounce;
+  return vel - clip_normal * backoff;
+}
+
+vec3 unpackNormal(const vec2 enc) {
+  vec2 fenc = enc * 4.0 - vec2(2.0);
+  float f = dot(fenc, fenc);
+  float g = sqrt(1-f/4);
+
+  vec3 n;
+  n.xy = fenc*g;
+  n.z = 1-f/2;
+  return n;
+}
+
+vec4 getPositionFromView(vec4 viewSpacePosition) {
+  const vec4 worldSpacePosition = matrixes.invView * viewSpacePosition;
+  return worldSpacePosition;
+}
+
+vec4 getPosition(const vec2 coord, const float depth) {
+  //*2.0f-vec2(1.0f)
+  const vec4 clipSpacePosition = vec4(coord*2.0-vec2(1.0), depth, 1.0f);
+  vec4 viewSpacePosition = matrixes.invViewProj * clipSpacePosition;
+
+  viewSpacePosition /= viewSpacePosition.w;
+
+  return viewSpacePosition;
+}
+
+bool overlap(const float min1, const float max1, const float min2, const float max2, const vec4 axis, inout vec4 mtv, inout float dist) {
+  const float test1 = min1 - max2;
+  const float test2 = min2 - max1;
+
+  if (test1 > 0.0f || test2 > 0.0f) return false;
+
+  const float d = max(min(abs(test1), abs(test2)), 0.0f);
+
+  mtv = axis;
+  dist = d;
+
+  return true;
+}
+
+bool SATOneAxis(const vec4 point, const float radius, const vec4 normalPoint, const vec4 normal, inout vec4 mtv, inout float dist) {
+  const float normalCoef = dot(normalPoint, normal);
+  const float pointCoef = dot(point, normal);
+
+  const float minPoint = pointCoef - radius/2;
+  const float maxPoint = pointCoef + radius/2;
+  const float min2 = min(minPoint, maxPoint);
+  const float max2 = max(minPoint, maxPoint);
+
+  return overlap(normalCoef, normalCoef, min2, max2, normal, mtv, dist);
+}

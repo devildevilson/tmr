@@ -2,7 +2,7 @@
 
 #extension GL_GOOGLE_include_directive : enable
 
-#include "../render/RenderStructures.h"
+#include "../render/shared_structures.h"
 #include "../utils/shared_mathematical_constant.h"
 
 layout(set = 0, binding = 0) uniform Camera {
@@ -37,20 +37,20 @@ layout(std140, set = 2, binding = 0) readonly buffer Transforms {
 };
 
 layout(std140, set = 3, binding = 0) readonly buffer MatricesData {
-  mat4 matrices[];
+  mat4 matrices_array[];
 };
 
 layout(std140, set = 4, binding = 0) readonly buffer RotationDatas {
   uint rotationDatas[];
 };
 
-layout(std430, set = 5, binding = 0) readonly buffer Textures {
-  Texture textures[];
+layout(std430, set = 5, binding = 0) readonly buffer textures_buffer {
+  image_data textures[];
 };
 
 struct InstanceData {
   //mat4 matrix;
-  Texture texture;
+  image_data t;
 };
 
 layout(std430, set = 6, binding = 0) buffer InstanceDatas {
@@ -81,7 +81,7 @@ void main() {
   const uint textureIndex = graphicsIndices[index].indices.w;
   const uint faceIndex = graphicsIndices[index].vertexData.z;
 
-  instanceDatas[faceIndex].texture = textures[textureIndex];
+  instanceDatas[faceIndex].t = textures[textureIndex];
 
   // тут еще добавится вычисление матрицы
 }
