@@ -49,6 +49,7 @@ include_directories(
   include/whereami/src/
   include/cxxopts/include/
   include/lz4/lib/
+  include/libccd/src/
   ${STB_INCLUDE_PATH}
   ${TINYOBJ_INCLUDE_PATH}
   #                     /home/mikuhatsune/gwc/testingApp/include/libleaktracer/include
@@ -172,6 +173,10 @@ file(GLOB_RECURSE GLSL_SOURCE_FILES
     rawShaders/particles.vert
     rawShaders/particles.geom
     rawShaders/particles.frag
+    rawShaders/particles2.comp
+    rawShaders/patricles2.vert
+    rawShaders/particles2.geom
+    rawShaders/particles2.frag
     rawShaders/monsterOptimizer.comp
     rawShaders/geometryOptimizer.comp
     )
@@ -238,8 +243,8 @@ add_custom_target(
   DEPENDS ${COPYING_RESOURCES}
 )
 
-IF( NOT CMAKE_BUILD_TYPE )
-   SET( CMAKE_BUILD_TYPE Debug ... FORCE )
+IF(NOT CMAKE_BUILD_TYPE)
+   SET(CMAKE_BUILD_TYPE Debug ... FORCE)
 ENDIF()
 
 if (CMAKE_BUILD_TYPE MATCHES "Debug")
@@ -288,6 +293,7 @@ set(SRC_LIST
   utils/effects_component.cpp
   utils/core_funcs.cpp
   utils/input.cpp
+#   utils/transform_component.cpp
   include/whereami/src/whereami.c
 )
 set(HDR_LIST
@@ -344,6 +350,7 @@ set(HDR_LIST
   utils/Logging.h
   include/whereami/src/whereami.h
   utils/map_data.h
+#   utils/transform_component.h
 )
 add_library(utils ${SRC_LIST} ${HDR_LIST}) # именно add_library объявляет цель в cmake (затем это имя мы используем как переменную в других функциях)
 target_link_libraries(utils) # например здесь fmt
@@ -369,6 +376,25 @@ set(SRC_LIST
   physics/HelperFunctions.cpp
 #              physics/Graph.cpp
   physics/PhysicsComponent.cpp
+  
+#   physics/physics_component.cpp
+#   physics/physics_context.cpp
+# #   physics/physics.cpp
+#   physics/core_parts.cpp
+#   physics/broadphase_context.cpp
+#   physics/broadphase_parts.cpp
+#   physics/narrowphase_context.cpp
+#   physics/narrowphase_parts.cpp
+#   physics/solver_context.cpp
+#   physics/solver_parts.cpp
+#   physics/solver_helper.cpp
+#   physics/rigid_body.cpp
+#   physics/transform.cpp
+#   physics/joint_interface.cpp
+#   physics/hinge_joint.cpp
+#   physics/manifold.cpp
+#   physics/collision_shape.cpp
+#   physics/collision_utils.cpp
 )
 set(HDR_LIST
   physics/PhysicsUtils.h
@@ -395,19 +421,48 @@ set(HDR_LIST
   physics/HelperFunctions.h
   physics/PhysicsComponent.h
 #              physics/Graph.h
+
+#   physics/physics_component.h
+#   physics/physics_core.h
+#   physics/core_context.h
+#   physics/physics_context.h
+#   physics/physics.h
+#   physics/phase.h
+#   physics/core_parts.h
+#   physics/broadphase_context.h
+#   physics/broadphase_parts.h
+#   physics/narrowphase_context.h
+#   physics/narrowphase_parts.h
+#   physics/solver_context.h
+#   physics/solver_parts.h
+#   physics/solver_helper.h
+#   physics/rigid_body.h
+#   physics/transform.h
+#   physics/solver_constraint.h
+#   physics/joint_interface.h
+#   physics/hinge_joint.h
+#   physics/manifold.h
+#   physics/collision_shape.h
+#   physics/collision_utils.h
 )
 add_library(physics ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(physics render utils)
 
 # RENDER
 set(SRC_LIST
-  render/VulkanRender.cpp
-  render/Optimizers.cpp
-  render/GPUOptimizers.cpp
-  render/RenderStages.cpp
-  render/Window.cpp
-  render/Deferred.cpp
-  render/GraphicsContainer.cpp
+#   render/VulkanRender.cpp
+#   render/Optimizers.cpp
+#   render/GPUOptimizers.cpp
+#   render/RenderStages.cpp
+#   render/Window.cpp
+#   render/Deferred.cpp
+#   render/GraphicsContainer.cpp
+  render/render.cpp
+  render/window.cpp
+  render/stages.cpp
+  render/targets.cpp
+  render/container.cpp
+  render/particles.cpp
   render/Core.cpp
   render/Tasks.cpp
   render/Internal.cpp
@@ -416,19 +471,30 @@ set(SRC_LIST
   render/RAII.cpp
   render/graphics_component.cpp
   render/image_container.cpp
+  bin/interface_context.cpp
 )
 set(HDR_LIST
-  render/Render.h
-  render/VulkanRender.h
-  render/Optimizer.h
-  render/GPUOptimizers.h
-  render/Optimizers.h
-  render/RenderStages.h
-  render/RenderStage.h
-  render/RenderStructures.h
-  render/Window.h
-  render/Deferred.h
-  render/GraphicsContainer.h
+#   render/Render.h
+#   render/VulkanRender.h
+#   render/Optimizer.h
+#   render/GPUOptimizers.h
+#   render/Optimizers.h
+#   render/RenderStages.h
+#   render/RenderStage.h
+#   render/RenderStructures.h
+#   render/Window.h
+#   render/Deferred.h
+#   render/GraphicsContainer.h
+  render/render.h
+  render/window.h
+  render/stage.h
+  render/stages.h
+  render/shared_structures.h
+  render/target.h
+  render/targets.h
+  render/context.h
+  render/container.h
+  render/particles.h
   render/nuklear_header.h
   render/yavf.h
   render/Core.h
@@ -441,6 +507,7 @@ set(HDR_LIST
   render/image_container.h
   include/VulkanMemoryAllocator/src/vk_mem_alloc.h
   render/vulkan_lite.h
+  bin/interface_context.h
 )
 add_library(render ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(render utils ${VULKAN_LIB_NAME} ${GLFW3_LIBRARIES})
@@ -485,7 +552,7 @@ set(HDR_LIST
   ai/gheap.hpp
 )
 add_library(ai ${SRC_LIST} ${HDR_LIST})
-target_link_libraries(ai utils physics)
+target_link_libraries(ai utils physics ccd)
 
 # RESOURCES
 set(SRC_LIST
@@ -522,7 +589,7 @@ target_link_libraries(resources ai sound render physics utils cppfs)
 
 # BINARY
 set(SRC_LIST
-  bin/Interfaces.cpp
+  bin/interfaces.cpp
   bin/overlay.cpp
   bin/Helper.cpp
   bin/main.cpp
@@ -532,8 +599,8 @@ set(SRC_LIST
   bin/post_physics.cpp
 )
 set(HDR_LIST
-  bin/Interface.h
-  bin/Interfaces.h
+  bin/interface.h
+  bin/interfaces.h
   bin/overlay.h
   bin/Helper.h
   bin/camera.h
@@ -544,3 +611,4 @@ set(HDR_LIST
 add_executable(${TARGET_NAME} ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(${TARGET_NAME} ai sound render physics resources utils)
 add_dependencies(${TARGET_NAME} shaders project_resources)
+
