@@ -40,3 +40,9 @@
 [submodule "include/lz4"]
 	path = include/lz4
 	url = https://github.com/lz4/lz4.git
+[submodule "include/Nuklear"]
+	path = include/Nuklear
+	url = https://github.com/Immediate-Mode-UI/Nuklear.git
+[submodule "include/libccd"]
+	path = include/libccd
+	url = https://github.com/danfis/libccd.git

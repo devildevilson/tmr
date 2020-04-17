@@ -53,8 +53,10 @@ namespace simd {
     tmp *= sin;
 
     const float cos = std::cos(angleRad);
+    float arr[4];
+    tmp.storeu(arr);
 
-    return q * quat(cos, tmp.x, tmp.y, tmp.z);
+    return q * quat(cos, arr[0], arr[1], arr[2]);
   }
 
   const quat rollConst = quat(1.0f, 1.0f, -1.0f, -1.0f);
@@ -248,7 +250,7 @@ namespace simd {
       z = biggestVal;
       break;
 
-    default:					// Silence a -Wswitch-default warning in GCC. Should never actually get here. Assert is just for sanity.
+    default:  // Silence a -Wswitch-default warning in GCC. Should never actually get here. Assert is just for sanity.
       assert(false);
       break;
     }

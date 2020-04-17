@@ -70,6 +70,7 @@ namespace devils_engine {
         effects,
         inventory,
         weapons,
+        interface,
         count
       };
     }

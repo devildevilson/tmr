@@ -190,6 +190,8 @@ namespace simd {
   inline vec4 aproximate_inverse_sqrt(const vec4 &vec);
   inline vec4 movehl(const vec4 &a, const vec4 &b);
   inline vec4 movelh(const vec4 &a, const vec4 &b);
+  
+  inline void skew_symmetric_matrix(const vec4 &vec, vec4 &a, vec4 &b, vec4 &c);
 
 //   inline constexpr vec4 shuffle(const vec4 &a, const vec4 &b, const uint32_t &x, const uint32_t &y, const uint32_t &z, const uint32_t &w) {
 //     return vec4(_mm_shuffle_ps(a, b, _MM_SHUFFLE(x, y, z, w)));
@@ -283,6 +285,7 @@ namespace simd {
   inline quat inverse(const quat &q);
   inline float dot(const quat &a, const quat &b);
   inline float length(const quat &q);
+  inline float length2(const quat &q);
   inline quat normalize(const quat &q);
 
   quat mix(const quat &x, const quat &y, const float &a);
@@ -462,7 +465,7 @@ namespace simd {
 
     inline mat4(const mat4 &mat);
     inline mat4(const quat &q);
-    inline ~mat4();
+//     inline ~mat4();
 
     inline constexpr uint32_t length() const { return 4; }
     inline vec4 & operator[](const uint32_t &index);
@@ -479,6 +482,7 @@ namespace simd {
     inline mat4 & operator/=(const float &a);
     inline mat4 & operator*=(const mat4 &mat);
     inline mat4 & operator*=(const float &a);
+    inline vec4 column(const uint32_t &index) const;
   private:
     vec4 value[4];
   };
@@ -537,6 +541,7 @@ namespace simd {
   inline vec4 unProject(const vec4 &win, const mat4 &model, const mat4 &proj, const vec4 &viewport);
 
   inline mat4 pickMatrix(const float &centerX, const float &centerY, const float &deltaX, const float &deltaY, const vec4 &viewport);
+  inline vec4 solve33(const mat4 &m, const vec4 &b);
 
   // взятие из симда одной составляющей преобразуется обычно в какой-то кошмар
   // думаю что здесь от инлайна надо отказаться (82 инструкции)
@@ -562,6 +567,37 @@ namespace simd {
   // есть еще FMA инструкции, которые добавляют несколько хороших арифметических инструкций
   // avx512 добавляет соответственно 512 бит число, котрое может быть матрицей 4х4
   // это полезно
+  
+// #ifdef __AVX__
+//   struct alignas(32) dvec4 {
+//     union {
+//       struct {
+//         double x, y, z, w;
+//       };
+//       
+//       struct {
+//         double r, g, b, a;
+//       };
+//       
+//       double arr[4];
+//       __m256d native;
+//     };
+//     
+//     inline dvec4();
+//     inline dvec4(const double &x, const double &y, const double &z, const double &w);
+//     inline dvec4(const double &x);
+//     inline dvec4(const dvec4 &vec);
+//     inline dvec4(const vec4 &vec);
+//   };
+// #endif
+  
+// #if !defined(__FMA__) && defined(__AVX2__)
+//   #define __FMA__ 1
+// #endif
+//   
+// #ifdef __FMA__
+//   inline vec4 fmadd(const vec4 &a, const vec4 &b, const vec4 &c);
+// #endif
 }
 
 #include "simd.inl"

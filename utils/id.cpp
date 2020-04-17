@@ -1,9 +1,24 @@
 #include "id.h"
 
+#include <iostream>
+#include <cassert>
+
 namespace devils_engine {
   namespace utils {
     id id::get(const std::string &name) {
+//       std::cout << "id::get" << "\n";
+//       std::cout << "find " << name << "\n";
+//       static bool first = true;
+//       if (first) {
+//         first = false;
+//       } else {
+//         assert(names.size() != 0);
+//       }
+      
+      
+      
       for (size_t i = 0; i < names.size(); ++i) {
+//         std::cout << names[i] << "\n";
         if (names[i] == name) return id(i);
       }
       

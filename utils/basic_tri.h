@@ -44,6 +44,7 @@ struct basic_vec4 {
   basic_vec4 & operator=(const glm::vec4 &vec);
   basic_vec4 & operator=(const simd::vec4 &vec);
 //  basic_vec4 & operator=(const basic_vec4 &vec);
+  float operator[] (const uint32_t &index) const;
 };
 
 #endif //BASIC_TRI_H

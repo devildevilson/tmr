@@ -144,6 +144,10 @@ basic_vec4 & basic_vec4::operator=(const simd::vec4 &vec) {
   return *this;
 }
 
+float basic_vec4::operator[] (const uint32_t &index) const {
+  return arr[index];
+}
+
 //basic_vec4 & basic_vec4::operator=(const basic_vec4 &vec) {
 //  memcpy(arr, vec.arr, 4*sizeof(float));
 //  return *this;

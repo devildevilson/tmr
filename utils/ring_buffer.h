@@ -170,6 +170,8 @@ namespace devils_engine {
       char m_memory[N*sizeof(T)];
       T* m_begin;
       T* m_end;
+      bool m_full;
+      // нам нужен флаг что фулл
       
       T* startPtr();
       const T* startPtr() const;
@@ -178,7 +180,7 @@ namespace devils_engine {
     };
 
     template <typename T, size_t N>
-    ring_buffer<T, N>::ring_buffer() : m_begin(reinterpret_cast<T*>(m_memory)), m_end(m_begin+1) {
+    ring_buffer<T, N>::ring_buffer() : m_begin(reinterpret_cast<T*>(m_memory)), m_end(m_begin), m_full(false) {
       memset(m_memory, 0, N*sizeof(T));
     }
     // ring_buffer(const size_type &capacity);
@@ -233,13 +235,13 @@ namespace devils_engine {
     template <typename T, size_t N>
     typename ring_buffer<T, N>::const_reference ring_buffer<T, N>::back() const { return m_end == m_memory ? *(lastPtr()-1) : *(m_end-1); }
     template <typename T, size_t N>
-    typename ring_buffer<T, N>::size_type ring_buffer<T, N>::size() const { return full() ? capacity() : (lastPtr() - m_begin) + (m_end - startPtr()); }
+    typename ring_buffer<T, N>::size_type ring_buffer<T, N>::size() const { return full() ? capacity() : m_begin <= m_end ? (m_end - m_begin) : (lastPtr() - m_begin) + (m_end - startPtr()); } //   return full() ? capacity() : m_begin < m_end ? (m_end - m_begin) : (m_begin - m_end - 1) + lastPtr(); (lastPtr() - m_begin) + (m_end - startPtr())
     template <typename T, size_t N>
     typename ring_buffer<T, N>::size_type ring_buffer<T, N>::capacity() const { return N; }
     template <typename T, size_t N>
-    bool ring_buffer<T, N>::empty() const { return begin()+1 == end(); }
+    bool ring_buffer<T, N>::empty() const { return !m_full && m_begin == m_end; }
     template <typename T, size_t N>
-    bool ring_buffer<T, N>::full() const { return m_begin == m_end; }
+    bool ring_buffer<T, N>::full() const { return m_full; } // return m_begin == m_end;
     template <typename T, size_t N>
     void ring_buffer<T, N>::resize(const size_type &resize_size, const_reference item) {
       const size_type finalSize = std::min(resize_size, capacity());
@@ -254,6 +256,7 @@ namespace devils_engine {
       if (full()) pop_front();
       new (m_end) T(item);
       m_end = (end()+1).get();
+      m_full = m_begin == m_end;
     }
 
     template <typename T, size_t N>
@@ -262,6 +265,8 @@ namespace devils_engine {
       m_begin = (begin()-1).get();
       //*m_begin = item;
       new (m_begin) T(item);
+      
+      m_full = m_begin == m_end;
     }
 
     template <typename T, size_t N>
@@ -269,6 +274,7 @@ namespace devils_engine {
       if (empty()) return;
       m_end = (end()-1).get();
       m_end->~T();
+      m_full = false;
     }
 
     template <typename T, size_t N>
@@ -276,6 +282,7 @@ namespace devils_engine {
       if (empty()) return;
       m_begin->~T();
       m_begin = (begin()+1).get();
+      m_full = false;
     }
 
     template <typename T, size_t N>
@@ -284,6 +291,7 @@ namespace devils_engine {
       if (full()) pop_front();
       new (m_end) T(std::forward<Args>(args)...);
       m_end = (end()+1).get();
+      m_full = m_begin == m_end;
     }
     
     template <typename T, size_t N>

@@ -3,7 +3,7 @@
 
 // версию лучше сделать size_t
 #define MAKE_VERSION(major, minor, patch) \
-(major << 22) | (minor << 12) | patch
+((major << 22) | (minor << 12) | patch)
 
 #define VERSION_TO_STR(ver) \
 (std::to_string((ver >> 22) & 0xffc) + "." + \

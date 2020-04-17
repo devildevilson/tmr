@@ -4,6 +4,14 @@
 #include <chrono>
 #include "shared_time_constant.h"
 
+struct frame_time {
+  std::chrono::steady_clock::time_point point;
+  size_t time;
+  
+  frame_time();
+  void next_frame();
+};
+
 class TimeMeter {
 public:
 //   TimeMeter();

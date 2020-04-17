@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include "id.h"
 
 namespace devils_engine {
   namespace utils {
@@ -11,11 +12,16 @@ namespace devils_engine {
         bool fullscreen;
         uint32_t width;
         uint32_t height;
+        uint32_t video_mode;
         float fov;
       };
       
-      struct key_mapping {
-        std::pair<std::string, uint32_t> action_key;
+      struct mouse {
+        bool inverted;
+        float sens;
+        float sens_x;
+        float sens_y;
+        // smooth? 
       };
       
       struct sound {
@@ -25,8 +31,20 @@ namespace devils_engine {
         float sounds;
       };
       
+      struct key_event {
+        utils::id event;
+        uint32_t key;
+        std::string description;
+      };
+      
+      struct controls {
+        struct mouse mouse;
+        std::vector<key_event> key_mapping;
+      };
+      
       struct graphics graphics;
       struct sound sound;
+      struct controls controls;
       
       settings();
       bool load(const std::string &path);

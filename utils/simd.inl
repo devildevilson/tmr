@@ -613,6 +613,14 @@ namespace simd {
   inline vec4 movelh(const vec4 &a, const vec4 &b) {
     return _mm_movelh_ps(a, b);
   }
+  
+  inline void skew_symmetric_matrix(const vec4 &vec, vec4 &a, vec4 &b, vec4 &c) {
+    float arr[4];
+    vec.storeu(arr);
+    a = vec4(   0.0f, -arr[2],  arr[1], 0.0f);
+    b = vec4( arr[2],    0.0f, -arr[0], 0.0f);
+    c = vec4(-arr[1],  arr[0],    0.0f, 0.0f);
+  }
 
 //   #define shuffle(a, b, x, y, z, w) vec4(_mm_shuffle_ps(a, b, _MM_SHUFFLE(x, y, z, w)))
 //   #define swizzle(a, x, y, z, w)    vec4(_mm_shuffle_ps(a, a, _MM_SHUFFLE(x, y, z, w)))
@@ -623,7 +631,8 @@ namespace simd {
   }
 
   inline quat::quat() {
-    native = _mm_setzero_ps();
+    //native = _mm_setzero_ps();
+    native = _mm_setr_ps(1.0f, 0.0f, 0.0f, 0.0f);
   }
 
   inline quat::quat(const quat &q) : native(q.native) {
@@ -854,8 +863,9 @@ namespace simd {
   }
 
   inline vec4 operator*(const quat &q, const vec4 &v) {
-    const vec4 quatVec = swizzle<0, 3, 2, 1>(vec4(q.native));
-    const vec4 uv = cross(quatVec, v);
+    const vec4 quatVec = swizzle<0, 3, 2, 1>(vec4(q.native)) * vec4(1,1,1,0);
+    const vec4 final_v = v * vec4(1,1,1,0);
+    const vec4 uv = cross(quatVec, final_v);
     const vec4 uuv = cross(quatVec, uv);
     const float w = _mm_cvtss_f32(q);
     const vec4 tmp = v + ((uv * w) + uuv) * 2.0f;
@@ -890,6 +900,11 @@ namespace simd {
   inline float length(const quat &q) {
     //return _mm_cvtss_f32(_mm_sqrt_ps(vec4(dot(q, q))));
     return std::sqrt(dot(q, q));
+  }
+  
+  inline float length2(const quat &q) {
+    //return _mm_cvtss_f32(_mm_sqrt_ps(vec4(dot(q, q))));
+    return dot(q, q);
   }
 
   inline quat normalize(const quat &q) {
@@ -1008,7 +1023,9 @@ namespace simd {
 //   }
 
   inline float angle(const quat &q) {
-    return std::acos(q.w) * 2.0f;
+    float arr[4];
+    q.storeu(arr);
+    return std::acos(arr[0]) * 2.0f;
   }
 
 //   vec4 axis(const quat &q) {
@@ -2075,7 +2092,7 @@ namespace simd {
     *this = cast(q);
   }
 
-  inline mat4::~mat4() {}
+//   inline mat4::~mat4() {}
 
 //   inline constexpr uint32_t mat4::length() const {
 //     return 4;
@@ -2159,6 +2176,18 @@ namespace simd {
     value[2] *= a;
     value[3] *= a;
     return *this;
+  }
+  
+  inline vec4 mat4::column(const uint32_t &index) const {
+    ASSERT(index < 4);
+    
+    float arr[4][4];
+    value[0].storeu(arr[0]);
+    value[1].storeu(arr[1]);
+    value[2].storeu(arr[2]);
+    value[3].storeu(arr[3]);
+    
+    return vec4(arr[0][index], arr[1][index], arr[2][index], arr[3][index]);
   }
 
 //   // только для трансформ матриц
@@ -2719,6 +2748,22 @@ namespace simd {
     result = translate(result, temp);
     return scale(result, vec4(viewp[2] / deltaY, viewp[3] / deltaY, 1.0f, 1.0f));
   }
+  
+  inline vec4 solve33(const mat4 &m, const vec4 &b) {
+    const mat4 t = transpose(m);
+    float det = dot(t[0], cross(t[1], t[2]));
+    if (std::abs(det) > EPSILON) {
+      det = 1.0f / det;
+    }
+    
+    float arr[4];
+    arr[0] = det * dot(b,    cross(t[1], t[2]));
+    arr[1] = det * dot(t[0], cross(b,    t[2]));
+    arr[2] = det * dot(t[0], cross(t[1],    b));
+    arr[3] = 0.0f;
+    
+    return vec4(arr);
+  }
 
 //   mat4 lookAt(const vec4 &eye, const vec4 &center, const vec4 &up) {
 //     const vec4 f(normalize(center - eye));
@@ -2773,5 +2818,7 @@ namespace simd {
     return _mm_min_epi32(vec1, vec2);
   }
 #endif
+
+#undef EPSILON
 
 }

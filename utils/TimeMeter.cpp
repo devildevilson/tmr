@@ -1,5 +1,15 @@
 #include "TimeMeter.h"
 
+frame_time::frame_time() : point(std::chrono::steady_clock::now()), time(0) {}
+
+void frame_time::next_frame() {
+  const auto old_point = point;
+  point = std::chrono::steady_clock::now();
+  
+  const auto elapsed = point - old_point;
+  time = std::chrono::duration_cast<CHRONO_TIME_TYPE>(elapsed).count();
+}
+
 TimeMeter::TimeMeter(const size_t &reportInterval)
   : startingPoint(std::chrono::steady_clock::now()),
     endingPoint(std::chrono::steady_clock::now()),

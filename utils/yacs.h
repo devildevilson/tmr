@@ -345,6 +345,8 @@ namespace yacs {
   component_handle<T> entity::at(const size_t &index) {
     if (index >= m_components.size()) return component_handle<T>(nullptr);
     if (m_components[index].first != component_storage<T>::type) return component_handle<T>(nullptr);
+    if (m_components[index].second == nullptr) return component_handle<T>(nullptr);
+    
     auto* ptr = reinterpret_cast<component_storage<T>*>(m_components[index].second);
     return component_handle<T>(ptr->ptr());
   }
@@ -353,6 +355,8 @@ namespace yacs {
   const_component_handle<T> entity::at(const size_t &index) const {
     if (index >= m_components.size()) return const_component_handle<T>(nullptr);
     if (m_components[index].first != component_storage<T>::type) return const_component_handle<T>(nullptr);
+    if (m_components[index].second == nullptr) return const_component_handle<T>(nullptr);
+    
     const auto* ptr = reinterpret_cast<const component_storage<T>*>(m_components[index].second);
     return const_component_handle<T>(ptr->ptr());
   }
