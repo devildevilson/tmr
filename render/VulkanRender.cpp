@@ -2,9 +2,6 @@
 
 #include "Render.h"
 
-#define NK_IMPLEMENTATION
-#include "nuklear_header.h"
-
 #ifdef _DEBUG
   #include <cassert>
   #define ASSERT(expr) assert(expr)
@@ -47,6 +44,12 @@ void Render::setCameraPos(const simd::vec4 &pos) {
 void Render::setCameraDim(const uint32_t &width, const uint32_t &height) {
   matrices->camera.width = width;
   matrices->camera.height = height;
+}
+
+void Render::recreate_stages(const uint32_t &width, const uint32_t &height) {
+  for (auto stage : stages) {
+    stage->recreate(width, height);
+  }
 }
 
 simd::mat4 Render::getViewProj() const {

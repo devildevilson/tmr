@@ -92,4 +92,8 @@ struct Matrices {
   CameraData camera;
 };
 
+#ifdef __cplusplus
+
+#endif
+
 #endif

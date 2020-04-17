@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <vector>
 #include <string>
-#include "RenderStructures.h"
+#include "shared_structures.h"
 #include "image_data.h"
 
 #define TEXTURE_MAX_LAYER_COUNT 2048
@@ -29,8 +29,8 @@ namespace devils_engine {
         size_t container[container_size];
         yavf::Image* image;
 
-        image_pool(yavf::Device* device, const image::extent_2d &img_size, const uint32_t &mips);
-        image::extent_2d image_size() const;
+        image_pool(yavf::Device* device, const utils::extent_2d &img_size, const uint32_t &mips);
+        utils::extent_2d image_size() const;
         uint32_t mip_levels() const;
         size_t used_size() const;
         size_t free_size() const;
@@ -51,9 +51,9 @@ namespace devils_engine {
       
       size_t pool_count() const;
       const image_pool* get_pool(const size_t &index) const;
-      Image get_image(const size_t &pool_index);
-      void release_image(const Image &img);
-      void create_pool(const image::extent_2d &img_size, const uint32_t &mips);
+      image get_image(const size_t &pool_index);
+      void release_image(const image &img);
+      void create_pool(const utils::extent_2d &img_size, const uint32_t &mips);
       
       void update_descriptor_data(yavf::DescriptorSet* set);
     private:

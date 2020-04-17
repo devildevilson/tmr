@@ -3,12 +3,16 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <queue>
 
 #include "ring_buffer.h"
 #include "ArrayInterface.h"
-#include "RenderStructures.h"
+#include "shared_structures.h"
 #include "state.h"
 #include "shared_time_constant.h"
+#include "interface_context.h"
+// #include "interface.h"
+// #include "nuklear_header.h"
 
 // 5 разных штук нужно отрисовать
 // спрайт монстра, стена, свет, руки игрока, интерфейс
@@ -53,7 +57,7 @@ namespace devils_engine {
       // по идее нам проще передать точки заново в оптимизер
       // чем то как было (оффсеты и размеры в константном буфере)
       
-      static Container<Texture>* textureContainer;
+//       static Container<Texture>* textureContainer;
     };
     
     struct point_light {
@@ -94,16 +98,19 @@ namespace devils_engine {
     };
     
     struct player_interface {
-      static const size_t info_message_time = ONE_SECOND;
+      static const size_t info_message_time = ONE_SECOND*10;
       static const size_t game_message_time = ONE_SECOND*2;
       
       yacs::entity* ent;
       utils::ring_buffer<std::string, 3> strings;
-      std::array<std::string, 10> game_messages;
+      //std::array<std::string, 10> game_messages;
+      std::queue<std::string> game_messages;
       const core::state_t* face_state;
-      size_t current_time;
+      size_t current_time_info;
+      size_t current_time_game;
       
-      void draw(const size_t &time);
+      player_interface(yacs::entity* ent);
+      void draw(const size_t &time, const interface::data::extent &screen_size);
       void info_message(const std::string &string); // подбор предметов
       void game_message(const std::string &string); // какая нибудь информация по центру экрана (для этой двери нужен такой то ключ)
       // адекватного способа поделить сообщения и понять сколько времени требуется я так понимаю не существует

@@ -68,7 +68,7 @@ public:
   virtual void present() = 0;
 
   virtual void resize() = 0;
-  virtual void fullscreen() = 0;
+  virtual void fullscreen(const size_t &video_mode = SIZE_MAX) = 0;
   virtual void noFrame() = 0;
 
   virtual bool isFullscreen() const = 0;
@@ -151,7 +151,7 @@ public:
   void present() override;
 
   void resize() override;
-  void fullscreen() override;
+  void fullscreen(const size_t &video_mode = SIZE_MAX) override;
   void noFrame() override;
 
   GLFWwindow* handle() const;

@@ -163,8 +163,8 @@ namespace yavf {
     };
 
     struct Queue {
-      VkQueue handle = VK_NULL_HANDLE;
-      VkFence fence  = VK_NULL_HANDLE;
+      VkQueue handle;
+      VkFence fence;
     };
 
     class QueueFamily {

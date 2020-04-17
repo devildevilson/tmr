@@ -110,6 +110,7 @@ void getBarrierData(const VkImageLayout &old, const VkImageLayout &New, VkAccess
 }
 
 namespace yavf {
+  TaskInterface::TaskInterface() : primary(true), flags(0), family(0), currentQueue{VK_NULL_HANDLE, VK_NULL_HANDLE}, device(nullptr), current(VK_NULL_HANDLE) {}
   TaskInterface::~TaskInterface() {
 //     for (uint32_t i = 0; i < signalSemaphores.size(); ++i) {
 //       device->destroySemaphoreProxy(signalSemaphores[i]);

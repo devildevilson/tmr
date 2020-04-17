@@ -554,7 +554,7 @@ protected:
   TypelessContainer container;
 };
 
-struct nuklear_data;
+//struct nuklear_data;
 
 class GuiStage : public PostRenderPart {
 public:
@@ -565,7 +565,8 @@ public:
 //   };
   
   //GuiStage(const CreateInfo &info);
-  GuiStage(nuklear_data* data);
+  //GuiStage(nuklear_data* data);
+  GuiStage();
   ~GuiStage();
   
   void create(const CreateInfo &info) override;
@@ -586,11 +587,12 @@ private:
   yavf::Buffer* vertexGui;
   yavf::Buffer* indexGui;
   yavf::Buffer* matrix;
+  yavf::DescriptorSet* image_set;
   
   // тут у нас по идее меняется рендер таргет
   // + тут нужен контекст гуи
   // 
-  nuklear_data* data;
+//   nuklear_data* data;
 };
 
 class MonsterDebugStage : public PostRenderPart {

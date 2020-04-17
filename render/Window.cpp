@@ -187,6 +187,10 @@ void Window::create(const CreateInfo &info) {
   {
     auto m = glfwGetWindowMonitor(window);
     const auto data = glfwGetVideoMode(m == nullptr ? glfwGetPrimaryMonitor() : m);
+//     int count = 0;
+//     const auto data1 = glfwGetVideoModes(m == nullptr ? glfwGetPrimaryMonitor() : m, &count);
+    //for (size_t i = 0; i < )
+//     PRINT_VAR("data->refreshRate",data->refreshRate)
     refreshTimeVar = std::min(size_t(REFRESH_RATE_TO_MCS(data->refreshRate)), refreshTimeVar);
   }
 
@@ -195,8 +199,8 @@ void Window::create(const CreateInfo &info) {
   glfwGetWindowPos(window, &windowSize.offset.x, &windowSize.offset.y);
   int w, h;
   glfwGetWindowSize(window, &w, &h);
-  windowSize.extent.width = w;
-  windowSize.extent.height = h;
+//   windowSize.extent.width = w;
+//   windowSize.extent.height = h;
 
   for (size_t i = 0; i < device->getFamiliesCount(); ++i) {
     VkBool32 present;
@@ -229,6 +233,8 @@ void Window::create(const CreateInfo &info) {
   surface.format = yavf::chooseSwapSurfaceFormat(formats);
   surface.presentMode = yavf::chooseSwapPresentMode(presents);
   surface.extent = yavf::chooseSwapchainExtent(windowSize.extent.width, windowSize.extent.height, surface.capabilities);
+  windowSize.extent.width = surface.extent.width;
+  windowSize.extent.height = surface.extent.height;
 
   immediatePresentMode = yavf::checkSwapchainPresentMode(presents, VK_PRESENT_MODE_IMMEDIATE_KHR);
 
@@ -478,15 +484,23 @@ void Window::resize() {
 
   int width, height;
   glfwGetWindowSize(window, &width, &height);
-
-  if (!fullscreenMode) {
-    glfwGetWindowPos(window, &windowSize.offset.x, &windowSize.offset.y);
-    windowSize.extent.width = width;
-    windowSize.extent.height = height;
-  }
-
+  std::cout << "Window::resize width " << width << " height " << height << '\n';
+  
   vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device->physicalHandle(), surface.handle, &surface.capabilities);
   surface.extent = yavf::chooseSwapchainExtent(width, height, surface.capabilities);
+  windowSize.extent.width = surface.extent.width;
+  windowSize.extent.height = surface.extent.height;
+  std::cout << "surface.extent width " << surface.extent.width << " height " << surface.extent.height << '\n';
+  
+//   std::cout << "sadadsadd" << "\n";
+  
+  if (!fullscreenMode) {
+    glfwGetWindowPos(window, &windowSize.offset.x, &windowSize.offset.y);
+//     windowSize.extent.width = width;
+//     windowSize.extent.height = height;
+//     windowSize.extent.width = surface.extent.width;
+//     windowSize.extent.height = surface.extent.height;
+  }
 
 //   yavf::vkCheckError("createSwapChain", nullptr,
 //   createSwapChain(device->handle(), surface, swapchain));
@@ -550,15 +564,24 @@ void Window::resize() {
   render->updateCamera();
 }
 
-void Window::fullscreen() {
+void Window::fullscreen(const size_t &video_mode) {
   // должен быть VK_KHR_display (не прокатило)
 
   fullscreenMode = !fullscreenMode;
 
   if (fullscreenMode) {
     if (monitor == nullptr) monitor = glfwGetPrimaryMonitor();
-
-    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+    
+    const GLFWvidmode* mode = nullptr;
+    if (video_mode == SIZE_MAX) {
+      mode = glfwGetVideoMode(monitor);
+    } else {
+      int count;
+      auto modes = glfwGetVideoModes(monitor, &count);
+      ASSERT(video_mode < uint32_t(count));
+      mode = &modes[video_mode];
+    }
+    
     glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
     windowedNoFrame = false;
   } else {
@@ -640,6 +663,15 @@ void Window::show() {
 }
 
 void Window::setFov(const float &fov) {
+  if (glm::abs(this->fov-fov) > EPSILON) {
+    const simd::mat4 &perspective = simd::perspective(glm::radians(fov), float(surface.extent.width) / float(surface.extent.height), 0.1f, FAR_CLIPPING);
+    const simd::mat4 &ortho = simd::ortho(0.0f, float(surface.extent.width) / float(surface.extent.height), 0.0f, 1.0f, 0.1f, FAR_CLIPPING);
+    render->setPersp(perspective);
+    render->setOrtho(ortho);
+    render->setCameraDim(surface.extent.width, surface.extent.height);
+    render->updateCamera();
+  }
+  
   this->fov = fov;
 }
 

@@ -62,6 +62,7 @@ namespace yavf {
 
   class TaskInterface {
   public:
+    TaskInterface();
     virtual ~TaskInterface();
 
     virtual void begin(const VkCommandBufferUsageFlags &flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT) = 0;

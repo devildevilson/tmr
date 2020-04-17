@@ -196,8 +196,8 @@ VkBool32 utilsMessengerCallback(VkDebugUtilsMessageSeverityFlagBitsEXT      mess
         case VK_OBJECT_TYPE_DISPLAY_KHR: objectType = "VK_OBJECT_TYPE_DISPLAY_KHR"; break;
         case VK_OBJECT_TYPE_DISPLAY_MODE_KHR: objectType = "VK_OBJECT_TYPE_DISPLAY_MODE_KHR"; break;
         case VK_OBJECT_TYPE_DEBUG_REPORT_CALLBACK_EXT: objectType = "VK_OBJECT_TYPE_DEBUG_REPORT_CALLBACK_EXT"; break;
-        case VK_OBJECT_TYPE_OBJECT_TABLE_NVX: objectType = "VK_OBJECT_TYPE_OBJECT_TABLE_NVX"; break;
-        case VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX: objectType = "VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX"; break;
+//         case VK_OBJECT_TYPE_OBJECT_TABLE_NVX: objectType = "VK_OBJECT_TYPE_OBJECT_TABLE_NVX"; break;
+        case VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NV: objectType = "VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NV"; break;
         case VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT: objectType = "VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT"; break;
         case VK_OBJECT_TYPE_VALIDATION_CACHE_EXT: objectType = "VK_OBJECT_TYPE_VALIDATION_CACHE_EXT"; break;
         case VK_OBJECT_TYPE_UNKNOWN:
@@ -563,7 +563,7 @@ namespace yavf {
   }
 
   VkExtent2D chooseSwapchainExtent(const uint32_t &width, const uint32_t &height, const VkSurfaceCapabilitiesKHR& capabilities) {
-    if (capabilities.currentExtent.width != UINT32_MAX) return capabilities.currentExtent;
+//     if (capabilities.currentExtent.width != UINT32_MAX) return capabilities.currentExtent;
 
     VkExtent2D actualExtent = {(uint32_t) width, (uint32_t) height};
 

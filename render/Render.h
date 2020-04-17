@@ -49,6 +49,7 @@ public:
   void setCameraDir(const simd::vec4 &dir);
   void setCameraPos(const simd::vec4 &pos);
   void setCameraDim(const uint32_t &width, const uint32_t &height);
+  void recreate_stages(const uint32_t &width, const uint32_t &height);
   
   simd::mat4 getViewProj() const;
   simd::mat4 getView() const;

@@ -61,6 +61,10 @@ void createGLFWwindow(yavf::Instance* inst, WindowData &data) {
     const auto data = glfwGetVideoMode(monitor);
     width = data->width;
     height = data->height;
+    
+//     int count = 0;
+//     const auto data1 = glfwGetVideoModes(m == nullptr ? glfwGetPrimaryMonitor() : m, &count);
+    
 
     Global::get<devils_engine::utils::settings>()->graphics.width = data->width;
     Global::get<devils_engine::utils::settings>()->graphics.height = data->height;
@@ -73,6 +77,8 @@ void createGLFWwindow(yavf::Instance* inst, WindowData &data) {
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_FALSE);
   glfwWindowHint(GLFW_REFRESH_RATE, GLFW_DONT_CARE);
+  glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+  //glfwWindowHint(GLFW_, GLFW_TRUE);
   if (fullscreen) {
     glfwWindow = glfwCreateWindow(width, height, APPLICATION_NAME, monitor, nullptr);
   } else {

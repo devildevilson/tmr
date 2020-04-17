@@ -25,7 +25,7 @@ class Deferred : public yavf::RenderTarget {
 public:
   Deferred();
   Deferred(yavf::Device* device, const uint32_t &count, const uint32_t &width, const uint32_t &height);
-  virtual ~Deferred();
+  ~Deferred();
   
   void create(yavf::Device* device, const uint32_t &count, const uint32_t &width, const uint32_t &height);
   

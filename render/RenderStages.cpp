@@ -13,6 +13,7 @@
 #include "RAII.h"
 
 #include "ParticleSystem.h"
+#include "interface_context.h"
 
 #ifdef _DEBUG
   #include <cassert>
@@ -837,6 +838,8 @@ void DefferedLightStage::begin() {
 void DefferedLightStage::doWork(RenderContext* context) {
   yavf::ComputeTask* task = context->compute();
   
+  if (output->info().initialLayout == VK_IMAGE_LAYOUT_UNDEFINED) task->setBarrier(output, VK_IMAGE_LAYOUT_GENERAL);
+  
   task->setPipeline(pipe);
   task->setDescriptor({uniformBuffer->descriptorSet()->handle(), 
                       gbuffer->handle(), 
@@ -923,6 +926,8 @@ void ToneMappingStage::begin() {
 
 void ToneMappingStage::doWork(RenderContext* context) {
   yavf::ComputeTask* task = context->compute();
+  
+  if (output->info().initialLayout == VK_IMAGE_LAYOUT_UNDEFINED) task->setBarrier(output, VK_IMAGE_LAYOUT_GENERAL);
   
   task->setPipeline(pipe);
   task->setDescriptor({highResImage->handle(), output->view()->descriptorSet()->handle()}, 0);
@@ -1057,58 +1062,36 @@ void PostRenderStage::recreate(const uint32_t &width, const uint32_t &height) {
   // ничего?
 }
 
-// тут нужно бы еще передать дескриптор
-void drawGUI(nuklear_data* data, const yavf::Pipeline &pipe, yavf::Buffer* vertexGui, yavf::Buffer* indexGui, yavf::Buffer* matrix, yavf::GraphicTask* task) {
-  // прибиндим пайплайн и текстурку
+void drawGUI(devils_engine::interface::context* data, const yavf::Pipeline &pipe, yavf::Buffer* vertexGui, yavf::Buffer* indexGui, yavf::Buffer* matrix, yavf::DescriptorSet* image_set, yavf::GraphicTask* task) {
   task->setPipeline(pipe);
 
-  // прибиндим вершинный и буфер индексов
   task->setVertexBuffer(vertexGui, 0);
   task->setIndexBuffer(indexGui, VK_INDEX_TYPE_UINT16);
   
-  task->setDescriptor(matrix->descriptorSet(), 0);
+  yavf::ImageView* tex = data->view;
+  const std::vector<VkDescriptorSet> sets = {matrix->descriptorSet()->handle(), tex->descriptorSet()->handle(), image_set->handle()};
+  task->setDescriptor(sets, 0);
   
   uint32_t index_offset = 0;
   const nk_draw_command *cmd = nullptr;
   nk_draw_foreach(cmd, &data->ctx, &data->cmds) {
     if (cmd->elem_count == 0) continue;
     
-    // так мы получаем какой то распозванательный знак тектуры
-    //const auto &tex = reinterpret_cast<yavf::Image*>(cmd->texture.ptr);
-    
-    // капец, я вынужден констатировать что с указателями было удобнее, пролятье =(
-    //yavf::Image* tex = reinterpret_cast<yavf::Image*>(cmd->texture.ptr);
-    yavf::ImageView* tex = reinterpret_cast<yavf::ImageView*>(cmd->texture.ptr);
-    
-    // как его можно использовать? неплохо было бы добавить все эти данные в буфер
-    // как у меня это было раньше, как это сделать? мне нужно всего лишь запомнить некий индекс
-    // скорее всего придется еще раз пройтись по командам нк, либо добавлять текстурку как пуш константу
-    // мне бы этого не хотелось, хотя почему бы и нет?
-    
-    // то есть мне нужен какой то массив из которого я смогу брать свою текстурку?
-    // это с обной стороны, с другой если сэмлер у меня будет один...
-    // будет ли он один? (может ли мне пригодиться линейный и ниарест сэмплер?)
-    
-    // текстурки скорее всего будут четко известны, точнее указатели на них
-    // они будут находиться в какой нибудь стурктуре (media), откуда я буду их брать для того чтобы использовать в игре
-    // то есть особо париться на счет указателей не нужно
-    
-    // насколько пуш константы быстрые/медленные?
-    
-    // как то так выглядит это дело
-//     task->setConsts(0, sizeof(Texture), tex.ptr);
-    
-    // пока что это будет выглядеть вот так
-    task->setDescriptor(tex->descriptorSet(), 1);
+    const Image i = image_nk_handle(cmd->texture);
+    //ASSERT(i.index == UINT32_MAX && i.layer == UINT32_MAX);
+    auto data = glm::uvec4(i.index, i.layer, 0, 0);
+//     PRINT_VEC2("image id", data)
+    task->setConsts(0, sizeof(data), &data);
 
+    const glm::vec2 fb_scale = Global::get<devils_engine::input::data>()->fb_scale;
     const VkRect2D scissor{
       {
-        static_cast<int32_t>(std::max(cmd->clip_rect.x * Global::get<devils_engine::input::data>()->fb_scale.x, 0.0f)),
-        static_cast<int32_t>(std::max(cmd->clip_rect.y * Global::get<devils_engine::input::data>()->fb_scale.y, 0.0f)),
+        static_cast<int32_t>(std::max(cmd->clip_rect.x * fb_scale.x, 0.0f)),
+        static_cast<int32_t>(std::max(cmd->clip_rect.y * fb_scale.y, 0.0f)),
       },
       {
-        static_cast<uint32_t>(cmd->clip_rect.w * Global::get<devils_engine::input::data>()->fb_scale.x),
-        static_cast<uint32_t>(cmd->clip_rect.h * Global::get<devils_engine::input::data>()->fb_scale.y),
+        static_cast<uint32_t>(cmd->clip_rect.w * fb_scale.x),
+        static_cast<uint32_t>(cmd->clip_rect.h * fb_scale.y),
       }
     };
     
@@ -1126,10 +1109,10 @@ struct gui_vertex {
   uint32_t color;
 };
 
-#define MAX_VERTEX_BUFFER 512 * 1024
-#define MAX_INDEX_BUFFER 128 * 1024
+#define MAX_VERTEX_BUFFER (2 * 1024 * 1024)
+#define MAX_INDEX_BUFFER (512 * 1024)
 
-GuiStage::GuiStage(nuklear_data* data) : vertexGui(nullptr), indexGui(nullptr), matrix(nullptr), data(data) {}
+GuiStage::GuiStage() : vertexGui(nullptr), indexGui(nullptr), matrix(nullptr) {} // data(data)
 
 GuiStage::~GuiStage() {
   device->destroy(vertexGui);
@@ -1176,23 +1159,47 @@ void GuiStage::create(const CreateInfo &info) {
     matrix->setDescriptor(d, index);
   }
   
-  yavf::PipelineLayout gui_layout = VK_NULL_HANDLE;
-  {
-    yavf::PipelineLayoutMaker plm(device);
-    
-    gui_layout = plm.addDescriptorLayout(uniform_layout).addDescriptorLayout(sampled_image_layout).addPushConstRange(0, sizeof(glm::vec2) + sizeof(glm::vec2)).create("gui_layout");
-  }
-  
-  {
-    yavf::PipelineMaker pm(device);
-    pm.clearBlending();
-    
-//     pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, Global::getGameDir() + "shaders/gui.vert.spv")
-//              .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, Global::getGameDir() + "shaders/gui.frag.spv")
-//              .vertexBinding(0, sizeof(ImDrawVert))
-//                .vertexAttribute(0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, pos))
-//                .vertexAttribute(1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, uv))
-//                .vertexAttribute(2, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(ImDrawVert, col))
+//   yavf::PipelineLayout gui_layout = VK_NULL_HANDLE;
+//   {
+//     yavf::PipelineLayoutMaker plm(device);
+//     
+//     gui_layout = plm.addDescriptorLayout(uniform_layout).addDescriptorLayout(sampled_image_layout).addPushConstRange(0, sizeof(glm::vec2) + sizeof(glm::vec2)).create("gui_layout");
+//   }
+//   
+//   {
+//     yavf::PipelineMaker pm(device);
+//     pm.clearBlending();
+//     
+// //     pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, Global::getGameDir() + "shaders/gui.vert.spv")
+// //              .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, Global::getGameDir() + "shaders/gui.frag.spv")
+// //              .vertexBinding(0, sizeof(ImDrawVert))
+// //                .vertexAttribute(0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, pos))
+// //                .vertexAttribute(1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, uv))
+// //                .vertexAttribute(2, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(ImDrawVert, col))
+// //              .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
+// //              .depthTest(VK_FALSE)
+// //              .depthWrite(VK_FALSE)
+// //              .clearBlending()
+// //              .colorBlendBegin()
+// //                .srcColor(VK_BLEND_FACTOR_SRC_ALPHA)
+// //                .dstColor(VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
+// //                .srcAlpha(VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
+// //                .dstAlpha(VK_BLEND_FACTOR_SRC_ALPHA)
+// //              .viewport()
+// //              .scissor()
+// //              .dynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+// //              .dynamicState(VK_DYNAMIC_STATE_SCISSOR)
+// //              .create("gui_pipeline", gui_layout, target->renderPass());
+//     
+//     yavf::raii::ShaderModule vertex(device, (Global::getGameDir() + "shaders/gui.vert.spv").c_str());
+//     yavf::raii::ShaderModule fragment(device, (Global::getGameDir() + "shaders/gui.frag.spv").c_str());
+//     
+//     pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, vertex)
+//              .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, fragment)
+//              .vertexBinding(0, sizeof(gui_vertex))
+//                .vertexAttribute(0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(gui_vertex, pos))
+//                .vertexAttribute(1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(gui_vertex, uv))
+//                .vertexAttribute(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(gui_vertex, color))
 //              .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
 //              .depthTest(VK_FALSE)
 //              .depthWrite(VK_FALSE)
@@ -1206,13 +1213,42 @@ void GuiStage::create(const CreateInfo &info) {
 //              .scissor()
 //              .dynamicState(VK_DYNAMIC_STATE_VIEWPORT)
 //              .dynamicState(VK_DYNAMIC_STATE_SCISSOR)
-//              .create("gui_pipeline", gui_layout, target->renderPass());
+//              .create("gui_pipeline", gui_layout, window->pass());
+//   }
+}
+
+void GuiStage::recreatePipelines(ImageResourceContainer* data) {
+  yavf::DescriptorSetLayout sampled_image_layout = device->setLayout(SAMPLED_IMAGE_LAYOUT_NAME);
+  yavf::DescriptorSetLayout uniform_layout       = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
+  
+  yavf::PipelineLayout gui_layout = device->layout("gui_layout");
+  {
+    if (gui_layout != VK_NULL_HANDLE) device->destroy(gui_layout);
+    
+    yavf::PipelineLayoutMaker plm(device);
+    gui_layout = plm.addDescriptorLayout(uniform_layout)
+                    .addDescriptorLayout(sampled_image_layout)
+                    .addDescriptorLayout(data->resourceLayout())
+                    .addPushConstRange(0, sizeof(glm::vec2) + sizeof(glm::vec2))
+                    .create("gui_layout");
+  }
+  
+  uint32_t constants[2] = {data->imagesCount(), data->samplersCount()};
+  image_set = data->resourceDescriptor();
+  
+  {
+    if (pipe.handle() != VK_NULL_HANDLE) device->destroy(pipe);
+    yavf::PipelineMaker pm(device);
+    pm.clearBlending();
     
     yavf::raii::ShaderModule vertex(device, (Global::getGameDir() + "shaders/gui.vert.spv").c_str());
     yavf::raii::ShaderModule fragment(device, (Global::getGameDir() + "shaders/gui.frag.spv").c_str());
     
     pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, vertex)
              .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, fragment)
+               .addSpecializationEntry(0, 0, sizeof(uint32_t))
+               .addSpecializationEntry(1, sizeof(uint32_t), sizeof(uint32_t))
+               .addData(2*sizeof(uint32_t), constants)
              .vertexBinding(0, sizeof(gui_vertex))
                .vertexAttribute(0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(gui_vertex, pos))
                .vertexAttribute(1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(gui_vertex, uv))
@@ -1232,10 +1268,6 @@ void GuiStage::create(const CreateInfo &info) {
              .dynamicState(VK_DYNAMIC_STATE_SCISSOR)
              .create("gui_pipeline", gui_layout, window->pass());
   }
-}
-
-void GuiStage::recreatePipelines(ImageResourceContainer* data) {
-  (void)data;
 }
 
 void GuiStage::begin() {
@@ -1269,6 +1301,7 @@ void GuiStage::begin() {
   // у нас так же должна быть null тектура
   // я на самом деле так и не понял зачем она нужна
   // да и вообще наверное весь нуклир дата
+  auto data = Global::get<devils_engine::interface::context>();
   
   {
     void* vertices = vertexGui->ptr();
@@ -1315,7 +1348,8 @@ void GuiStage::begin() {
 void GuiStage::doWork(RenderContext* context) {
   yavf::GraphicTask* task = context->graphics();
   
-  drawGUI(data, pipe, vertexGui, indexGui, matrix, task);
+  auto data = Global::get<devils_engine::interface::context>();
+  drawGUI(data, pipe, vertexGui, indexGui, matrix, image_set, task);
 }
 
 MonsterDebugStage::MonsterDebugStage(const CreateInfo &info) : monsterDebug(nullptr), instanceCount(0) {
