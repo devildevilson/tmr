@@ -222,9 +222,9 @@ void CPUOctreeBroadphaseParallel::update() {
         const simd::vec4 &ext = verticies->at(obj.vertexOffset) * transforms->at(obj.transformIndex).scale;
         const simd::mat4 &orn = systems->at(obj.coordinateSystemIndex);
         
-        if (objIndex == 5002) {
-          PRINT_VEC4("ext",ext);
-        }
+//         if (objIndex == 5002) {
+//           PRINT_VEC4("ext",ext);
+//         }
 
         const FastAABB aabb = recalcAABB(pos, ext, orn);
         proxies[proxyIndex].setAABB(aabb);
@@ -1057,7 +1057,7 @@ void CPUOctreeBroadphaseParallel::printStats() {
 }
 
 void CPUOctreeBroadphaseParallel::make_octree(const OctreeCreateInfo &octreeInfo) {
-  memset(nodes.data(), 0, nodes.capacity() * sizeof(nodes[0]));
+//   memset(nodes.data(), 0, nodes.capacity() * sizeof(nodes[0]));
   memset(indices1.data(), 0, indices1.capacity() * sizeof(indices1[0]));
   memset(indices2.data(), 0, indices2.capacity() * sizeof(indices2[0]));
   memset(changes.data(), 0, changes.capacity() * sizeof(changes[0]));

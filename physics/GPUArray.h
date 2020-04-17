@@ -15,13 +15,16 @@ class GPUArray : public ArrayInterface<T> {
 public:
   GPUArray() {}
   
-  GPUArray(yavf::Device* device) {
-    construct(device);
+  GPUArray(yavf::Device* device) : array(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT) {
     update();
   }
   
-  GPUArray(yavf::Device* device, const uint32_t &size) {
-    construct(device, size);
+  GPUArray(yavf::Device* device, const VkBufferUsageFlags &usage) : array(device, usage) {
+    update();
+  }
+  
+  GPUArray(yavf::Device* device, const VkBufferUsageFlags &usage, const uint32_t &size) : array(device, usage, size) {
+    //throw std::runtime_error("FIX THIS");
     update();
   }
   
