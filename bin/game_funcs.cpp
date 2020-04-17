@@ -20,6 +20,7 @@
 #include "ai_component.h"
 #include "core_funcs.h"
 #include "effects_component.h"
+#include "graphics_component.h"
 
 enum class action {
   attack,
@@ -194,12 +195,22 @@ namespace devils_engine {
       return current;
     }
     
-    const utils::id tmr_item_pickup1 = utils::id::get("tmr_item_pickup1");
     void pickup_test_item(yacs::entity* prop_ent, yacs::entity* ent, const utils::id &prop) {
       if (!core::is_player(ent)) return;
+      static const utils::id tmr_item_pickup1 = utils::id::get("tmr_item_pickup1");
       
       auto type = prop_ent->at<components::type_info>(game::entity::type_info);
-      std::cout << "picked up item " << type->id.name() << " property " << prop.name() << "\n"; 
+      auto interface = ent->at<components::player_interface>(game::player::interface);
+//       const char u[] = {"\u25A0"};
+      // █■∀ \u2588\u25A0\u2200 - эти символы присутствуют далеко не везде
+      // я так понимаю мне нужно сделать отдельный шрифт для сообщений в чате (в консоле?)
+      //const std::string str = "picked up item "+type->id.name()+" property "+prop.name()+" ";
+      const std::string str = "A chainsaw! Find some meat";
+      std::cout << str << "\n"; 
+      interface->info_message(str);
+//       interface->info_message(str+"2");
+//       interface->info_message(str+"3");
+//       interface->info_message(str+"4");
       // пишем сообщение о взятии предмета в интерфейс
       core::start_sound(sound::info(ent, tmr_item_pickup1, 1.0f)); // саунд инфо можно сократить?
       core::remove(prop_ent);

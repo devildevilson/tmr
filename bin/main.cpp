@@ -1,7 +1,6 @@
 #include "Helper.h"
 
 #include <random>
-#include "whereami.h"
 #include <cxxopts.hpp>
 
 // из крупняка осталось сделать загрузку/сохранение, загрузку карт, двери, ???
@@ -55,15 +54,28 @@ int main(int argc, char** argv) {
   TimeLogDestructor appTime("Shutdown");
   
   // парсить входные жанные будем так
-  //cxxopts::Options options("the madness returns", "game");
-//   options.add_options()
+  cxxopts::Options options("the madness returns", "game");
+  options.add_options()
 //     ("d,debug", "Enable debugging") // a bool parameter
 //     ("i,integer", "Int param", cxxopts::value<int>())
 //     ("f,file", "File name", cxxopts::value<std::string>())
-//     ("v,verbose", "Verbose output", cxxopts::value<bool>()->default_value("false"))
-//   ;
-  //auto result = options.parse(argc, argv);
-  //result["opt"].as<type>()
+    ("h,help", "Help", cxxopts::value<bool>()->default_value("false"), "Print help")
+    ("v,version", "Version", cxxopts::value<bool>()->default_value("false"), "Print engine and application version")
+  ;
+  auto result = options.parse(argc, argv);
+  if (result["v"].as<bool>()) {
+    std::cout << "The madness returns game" << "\n";
+    std::cout << "Engine " << ENGINE_NAME << " version " << ENGINE_VERSION_STR << "\n";
+    std::cout << "Application version " << APP_VERSION_STR << "\n";
+    return 0;
+  }
+  
+  if (result["h"].as<bool>()) {
+    std::cout << "The madness returns game" << "\n";
+    std::cout << "-h, --help" << "\t" << "Print this message" << "\n";
+    std::cout << "-v, --version" << "\t" << "Print engine and application version" << "\n";
+    return 0;
+  }
   
   uint32_t seed = 0;
   {
@@ -82,16 +94,9 @@ int main(int argc, char** argv) {
   //cvar debugDraw("debugDraw", float(0), VAR_ARCHIVE);
   utils::cvar::create(utils::id::get("debug_draw"), 0.0);
 
-  // нам нужно еще создать settings
-  { 
-    int dirname;
-    uint32_t length = wai_getExecutablePath(NULL, 0, NULL);
-    std::vector<char> str(length+1);
-    wai_getExecutablePath(str.data(), length, &dirname);
-    str[length] = '\0';
-    const std::string dir(str.data(), dirname+1);
+  {     
     Global g;
-    g.setGameDir(dir);
+    g.setGameDir(get_app_dir());
 
     //std::cout << Global::getGameDir() << "\n";
 //     std::cout << dir << "\n";
@@ -108,8 +113,6 @@ int main(int argc, char** argv) {
     if (fh.exists()) {
       // грузим настройки
       settings.load(fh.path());
-    } else {
-      throw std::runtime_error("Settings not found");
     }
   }
 
@@ -129,19 +132,21 @@ int main(int argc, char** argv) {
   Global::get(&rand);
   Global::get(&input_data);
   
-  initGLFW();
+  //initGLFW();
+  glfw_init _glfw;
 
   // еще где то здесь мы обрабатываем входные данные с консоли (забыл как это называется верно лол)
 
   // теперь создаем контейнер sizeof(ParticleSystem) + sizeof(DecalSystem) +
   system_container systems;
   create_graphics(systems);
+  screenshot_container scr(systems.graphics_container->device);
 
   // как создать буфферы с данными (трансформа, ротация, матрица и прочее)?
   // создать их здесь - будет куча лишних указателей (или не лишних??)
   // удаление я могу упрятать в отдельный контейнер, когда окончательно пойму сколько массивов мне нужно будет
   DataArrays arrays;
-  createDataArrays(systems.graphics_container->device(), arrays);
+  createDataArrays(systems.graphics_container->device, arrays);
 
   // тут по идее мы должны создать оптимизеры
   create_optimizers(systems, arrays);
@@ -157,7 +162,7 @@ int main(int argc, char** argv) {
   
   // частицы?
   
-  resources_ptr resources(systems.graphics_container->device());
+  resources_ptr resources(systems.graphics_container->device);
 
   // создадим лоадер (лоадер бы лучше в контейнере создавать) 
   // лоадеры неплохо было бы создавать перед непосредственной загрузкой, пока так создадим
@@ -166,24 +171,26 @@ int main(int argc, char** argv) {
   const size_t loaderContainerSize = sizeof(resources::image_loader) + sizeof(resources::sound_loader) + sizeof(resources::entity_loader) + sizeof(resources::map_loader) + sizeof(resources::attributes_loader) + sizeof(resources::effects_loader) + sizeof(resources::abilities_loader) + sizeof(resources::state_loader);
   resources::map_loader* map_loader = nullptr;
   resources::modification_container mods(loaderContainerSize);
-  render::image_container images(render::image_container::create_info{systems.graphics_container->device()});
+  render::image_container images(render::image_container::create_info{systems.graphics_container->device});
   {
     createLoaders(mods, systems.graphics_container, arrays, &images, resources, &map_loader);
     
     // теперь мне нужно загружать сразу все ресурсы, кроме всех карт
   }
 
-  nuklear_data data;
-  initnk(systems.graphics_container->device(), Global::window(), data);
+//   nuklear_data data;
+//   initnk(systems.graphics_container->device(), Global::window(), data);
+  interface::context context(systems.graphics_container->device, Global::get<render::window>());
+  Global::get(&context);
 
-  std::vector<DynamicPipelineStage*> dynPipe;
+  std::vector<render::pipeline_stage*> dynPipe;
   {
     const RenderConstructData renderData{
       &systems,
       &arrays,
-      &data,
-      Global::get<MonsterDebugOptimizer>(),
-      Global::get<GeometryDebugOptimizer>()
+      &context,
+      map_loader,
+      &scr
     };
     createRenderStages(renderData, dynPipe);
     // переделать рендер, частицы вызовут проблемы у меня сейчас
@@ -242,19 +249,23 @@ int main(int argc, char** argv) {
   }
 
   bool quit = false;
-  interface::container menu_container(sizeof(interface::main_menu) + sizeof(interface::quit_game) + sizeof(interface::settings));
+  interface::container menu_container(sizeof(interface::main_menu) + sizeof(interface::quit_game) + sizeof(interface::settings) + sizeof(interface::graphics));
   {
-    auto menu = menu_container.add_page<interface::main_menu>(interface::main_menu::create_info{"Main menu", &data, nullptr, nullptr, nullptr, {300, 500}});
-    auto quitGame = menu_container.add_page<interface::quit_game>(interface::quit_game::create_info{"Quit game", &data, menu, &quit, {300, 500}});
+    auto menu = menu_container.add_page<interface::main_menu>(interface::main_menu::create_info{&context, nullptr, nullptr, nullptr});
+    auto quitGame = menu_container.add_page<interface::quit_game>(interface::quit_game::create_info{&context, menu, &quit});
+    auto settings = menu_container.add_page<interface::settings>(interface::settings::create_info{&context, menu});
+    auto graphics_settings = menu_container.add_page<interface::graphics>(interface::graphics::create_info{&context, settings});
     // мы должны указать положение и видимо использовать не обычное окно, а композитную область для отрисовки всего этого
-    menu->set_pointers(quitGame, nullptr, nullptr);
+    menu->set_pointers(quitGame, settings, nullptr);
+    settings->set_pointers(menu, graphics_settings, nullptr, nullptr, nullptr);
     menu_container.set_default_page(menu);
   }
 
 //   KeyContainer keyContainer;
 //   createReactions({&keyContainer, Global::window(), &menu_container, entityWithBrain});
 //   setUpKeys(&keyContainer);
-  setUpKeys(nullptr);
+//   setUpKeys(nullptr);
+  setup_keys();
   
   settings.dump(Global::getGameDir() + "settings.json");
   
@@ -263,20 +274,24 @@ int main(int argc, char** argv) {
   // обновлять textureLoader и пайплайны нужно будет динамически при изменении состояния textureLoader
   for (size_t i = 0; i < dynPipe.size(); ++i) {
     //ImageLoader* textureLoader = static_cast<ImageLoader*>(loaders[0]);
-    dynPipe[i]->recreatePipelines(resources.image_res);
+    dynPipe[i]->recreate_pipelines(resources.image_res);
   }
 
   Global::get<PhysicsEngine>()->setGravity(simd::vec4(0.0f, -9.8f, 0.0f, 0.0f));
   
   size_t current_time = 0;
   TimeMeter tm(ONE_SECOND);
-  Global::window()->show();
+//   frame_time frame_time1;
   game_state currentState = game_state::loading;
-  interface::overlay overlay(interface::overlay::create_info{&data, player, &tm});
-  while (!Global::window()->shouldClose() && !quit) {
+  interface::overlay overlay(interface::overlay::create_info{&context, player, &tm});
+  Global::get<render::window>()->show();
+  while (!Global::get<render::window>()->close() && !quit) {
     tm.start();
+//     frame_time1.next_frame();
     
     const size_t time = tm.time();
+//     const size_t time = frame_time1.time;
+//     PRINT_VAR("time", time)
     ASSERT(time != 0);
     input::update_time(time);
     {
@@ -284,7 +299,7 @@ int main(int argc, char** argv) {
       g.increase_level_time(time);
     }
     
-    glfwPollEvents(); // здесь вызываются коллбеки, верно?
+    poll_events(); // здесь вызываются коллбеки, верно?
     
     switch (currentState) {
       case game_state::loading: {
@@ -327,10 +342,10 @@ int main(int argc, char** argv) {
     // инпут игрока нужно чуть чуть переделать 
     // (необходимо сделать какой то буфер нажатия клавиш и возможность использовать его в разных местах)
     mouse_input(player, time);
-    keys_callback(player, &menu_container);
-    nextnkFrame(Global::window(), &data.ctx);
+    keys_callback(player, &menu_container, &scr, time);
+    nextnkFrame(Global::get<render::window>(), &context.ctx);
 
-    camera::first_person(player);
+    camera::first_person(player, menu_container.is_opened());
 
     // ии тоже нужно ограничить при открытии менюхи
     if (!menu_container.is_opened()) {
@@ -344,28 +359,48 @@ int main(int argc, char** argv) {
 
     // гуи
     const interface::data::extent screenSize{
-      static_cast<float>(Global::window()->size().extent.width), // почему float?
-      static_cast<float>(Global::window()->size().extent.height)
+      static_cast<float>(Global::get<render::window>()->surface.extent.width), // почему float?
+      static_cast<float>(Global::get<render::window>()->surface.extent.height)
     };
     overlay.draw(screenSize); // аттрибуты, иконки, текст, все что не меню (иконка аттрибута?)
-    menu_container.proccess(screenSize);
+    menu_container.proccess(screenSize, time);
+    Global::get<render::particles>()->update(Global::get<render::buffers>()->get_view_proj(), Global::get<PhysicsEngine>()->getGravity(), time);
     
+    {
+      auto interface = player->at<components::player_interface>(game::player::interface);
+      interface->draw(time, screenSize);
+      auto particles = Global::get<render::particles>();
+      static bool first = true;
+      if (first) {
+        for (size_t i = 0; i < 5; ++i) {
+          particles->add(render::particle(simd::vec4(-2.0f+i, 1.0f, 0.0f, 1.0f), simd::vec4(0.0f, 5.0f, 1.0f, 0.0f), render::create_image(0, 1), ONE_SECOND*10));
+        }
+        
+        auto data = reinterpret_cast<render::particles_data*>(particles->data_buffer.ptr());
+        if (data->particles_count > 25) first = false;
+      }
+    }
     // дебаг
     // и прочее
 
     // это и звук вполне могут быть сделаны паралельно
     // и вместе с этом я запущу работу в ворксистеме
     // где то рядом нужно обойти всю коллизию 
-    threadPool.submitbase([time] () {
-      Global::get<GraphicsContainer>()->update(time); // обновление графики пересекается с телепортацией
+    threadPool.submitbase([] () {
+      Global::get<systems::render>()->update(Global::get<render::container>());
+//       Global::get<GraphicsContainer>()->update(time); // обновление графики пересекается с телепортацией
     });
     
     threadPool.submitbase([time] () {
       Global::get<systems::sound>()->update(time); // звуки то поди должны быть разделены на звуки меню и обычные?
     });
     
+    // в работах может быть как телепорт, так и вызов звука
+    // значит что вызывать параллельно графике и звукам не имеет смысла
+    threadPool.wait();
+    
     current_time += time;
-    if (current_time < updateDelta || time >= 20000) {
+    if ((current_time < updateDelta || time >= 20000) && !menu_container.is_opened()) {
       // во время исполнения этих работ могут добавится еще несколько, но их необходимо обработать уже в следующий раз
       // если здесь добавляются работы которые удаляют какой то объект, то необходимо правильно обновить tree_ai и func_ai
       // это значит что tree_ai и func_ai должны обновляться каждый кадр или detach_works должно работать иначе
@@ -391,22 +426,32 @@ int main(int argc, char** argv) {
         utils::update<core::stabbing_interaction>(&threadPool, updateDelta);
       }
     }
+    
+//     {
+//       auto particles = Global::get<render::particles>();
+//       auto data = reinterpret_cast<render::particles_data*>(particles->data_buffer.ptr());
+//       std::cout << "particles count " << data->particles_count << "\n";
+//       std::cout << "old particles count " << data->old_count << "\n";
+//       for (size_t i = 0; i < data->particles_count; ++i) {
+//         PRINT_VEC4("pos", particles->array[i].pos.get_simd())
+//         PRINT_VEC4("vel", particles->array[i].vel.get_simd())
+//         PRINT_VAR("life_time",particles->array[i].life_time)
+//         PRINT_VAR("current_time",particles->array[i].current_time)
+//         std::cout << "\n";
+//       }
+//       
+//       static size_t counter = 0;
+//       ++counter;
+// //       if (counter == 5) throw std::runtime_error("no more");
+//     }
 
     // здесь же у нас должна быть настройка: тип какую частоту обновления экрана использовать?
-    const size_t syncTime = Global::window()->isVsync() ? Global::window()->refreshTime() : 0; //16667
+    const size_t syncTime = Global::get<render::window>()->flags.vsync() ? Global::get<render::window>()->refresh_rate_mcs() : 0; //16667
     sync(tm, syncTime);
   }
   
   appTime.updateTime();
-  
-  glfwSetInputMode(Global::window()->handle(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-  
-  deinitnk(data);
-  deinitGLFW();
-
-//   cvar::destroy();
-  
-  //delete mapLoader;
+  return_cursor();
 
   return 0;
 }

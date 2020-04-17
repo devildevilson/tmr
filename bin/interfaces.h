@@ -20,112 +20,123 @@
 #ifndef INTERFACES_H
 #define INTERFACES_H
 
-#include "Interface.h"
+#include "interface.h"
+#include "interface_context.h"
+#include "settings.h"
 
 struct nuklear_data;
 
 namespace devils_engine {
   namespace interface {
-//     class Button : public Item {
-//     public:
-//       struct CreateInfo {
-//         data::Rect rect;
-//         const char* name;
-//         nuklear_data* nuklear;
-//         Item* next;
-//       };
-//       Button(const CreateInfo &info);
-//       
-//       void draw(const data::MousePos &pos) override;
-//       Item* feedback(const data::PressingData &data, const data::MousePos &pos) override;
-//       void correctItemSize(const data::Extent &screenSize) override;
-//     private:
-//       const char* name;
-//       nuklear_data* nuklear;
-//       Item* next;
-//     };
-    
     class main_menu : public page {
     public:
+      static const size_t blink_time = ONE_SECOND/2;
+      
       struct create_info {
-        const char* name;
-        nuklear_data* nuklear;
+        context* nuklear;
         page* quit;
         page* settings;
         page* new_game;
-        
-        data::extent page_size;
       };
       main_menu(const create_info &info);
       
-      page* proccess(const data::extent &screen_size, const utils::id &event, size_t &focus) override;
+      page* proccess(const data::extent &screen_size, const utils::id &event, const size_t &time, size_t &focus) override;
       page* escape(size_t &focus) const override;
       
       void set_pointers(page* quit, page* settings, page* new_game);
     private:
-      const char* name;
-      nuklear_data* nuklear;
+      context* nuklear;
       page* quit;
       page* settings;
       page* new_game;
-      data::extent page_size;
-      // ...
+      size_t current_time;
     };
     
     class settings : public page {
     public:
+      static const size_t blink_time = ONE_SECOND/2;
+      
       struct create_info {
-        const char* name;
-        nuklear_data* nuklear;
+        context* nuklear;
         page* main_menu;
-        
-        data::extent page_size;
       };
       settings(const create_info &info);
       
-      page* proccess(const data::extent &screen_size, const utils::id &event, size_t &focus) override;
+      page* proccess(const data::extent &screen_size, const utils::id &event, const size_t &time, size_t &focus) override;
+      page* escape(size_t &focus) const override;
+      
+      void set_pointers(page* main_menu, page* graphics, page* sound, page* mouse, page* controls);
+    private:
+      context* nuklear;
+      page* main_menu;
+      page* graphics;
+      page* sound;
+      page* mouse;
+      page* controls;
+      size_t current_time;
+    };
+    
+    class graphics : public page {
+    public:
+      static const size_t blink_time = ONE_SECOND/2;
+      
+      struct create_info {
+        context* nuklear;
+        page* settings;
+      };
+      graphics(const create_info &info);
+      
+      page* proccess(const data::extent &screen_size, const utils::id &event, const size_t &time, size_t &focus) override;
+      page* escape(size_t &focus) const override;
+      
+      void set_pointers(page* settings);
+    private:
+      struct utils::settings::graphics current_settings;
+      context* nuklear;
+      page* settings;
+      size_t current_time;
+    };
+    
+    class save_game : public page {
+    public:
+      static const size_t blink_time = ONE_SECOND/2;
+      
+      struct create_info {
+        context* nuklear;
+        page* main_menu;
+      };
+      save_game(const create_info &info);
+      
+      page* proccess(const data::extent &screen_size, const utils::id &event, const size_t &time, size_t &focus) override;
       page* escape(size_t &focus) const override;
       
       void set_pointers(page* main_menu);
     private:
-      const char* name;
-      nuklear_data* nuklear;
+      context* nuklear;
       page* main_menu;
-      data::extent page_size;
-      // ...
+      size_t current_time;
     };
     
     class quit_game : public page {
     public:
+      static const size_t blink_time = ONE_SECOND/2;
+      
       struct create_info {
-        const char* name;
-        nuklear_data* nuklear;
+        context* nuklear;
         page* main_menu;
         bool* quit;
-        
-        data::extent page_size;
       };
       quit_game(const create_info &info);
       
-      page* proccess(const data::extent &screen_size, const utils::id &event, size_t &focus) override;
+      page* proccess(const data::extent &screen_size, const utils::id &event, const size_t &time, size_t &focus) override;
       page* escape(size_t &focus) const override;
       
       void set_pointers(page* main_menu);
-      
-      // это можно смоделировать с помощью передачей индексов и какой-то энум
-//       page* next(); // тут нужно вернуть указатель все же
-//       page* prev(); // хотя возможно более правильный вариант это все же использовать энум
-//       page* increase();
-//       page* decrease();
-//       page* choose();
     private:
-      const char* name;
-      nuklear_data* nuklear;
+      context* nuklear;
       page* main_menu;
       bool* quit;
-      data::extent page_size;
-//       size_t current;
-      // ...
+      size_t current_time;
     };
   }
 }

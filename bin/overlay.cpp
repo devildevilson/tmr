@@ -38,6 +38,7 @@ namespace devils_engine {
       nk_style_push_style_item(ctx, oldStyleItem, nk_style_item_color(nk_rgba(oldStyleItem->data.color.r, oldStyleItem->data.color.g, oldStyleItem->data.color.b, int(0.5f*255))));
 
       if (nk_begin(ctx, "Basic window", nk_rect(10, 10, 300, 240), NK_WINDOW_NO_SCROLLBAR | NK_WINDOW_BACKGROUND)) {
+        nk_style_set_font(ctx, &Global::get<interface::context>()->fonts[fonts::technical]->handle);
         {
           const simd::vec4 &pos = transform->pos();
           float arr[4];

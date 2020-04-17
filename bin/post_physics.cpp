@@ -9,8 +9,6 @@
 #include "Physics.h"
 
 namespace devils_engine {
-  const utils::id wall = utils::id::get("wall");
-  
   namespace post_physics {
     void func(const ArrayInterface<BroadphasePair>* pairs, const size_t &start, const size_t &count, yacs::entity* player) {
       for (size_t i = start; i < start+count; ++i) {
@@ -18,6 +16,7 @@ namespace devils_engine {
         auto ent = reinterpret_cast<yacs::entity*>(Global::get<PhysicsEngine>()->getUserData(index));
         if (ent == player) continue;
         //auto type = ent->at<components::type_info>(game::entity::type_info);
+        //static const utils::id wall = utils::id::get("wall");
         
         {
           auto graphics = ent->at<components::sprite_graphics>(game::entity::graphics);
@@ -27,7 +26,10 @@ namespace devils_engine {
         {
           auto graphics = ent->at<components::indexed_graphics>(game::entity::graphics);
           //ASSERT(type->id == wall && graphics.valid());
-          if (graphics.valid()) graphics->draw();
+          if (graphics.valid()) {
+//             std::cout << "index " << index << "\n";
+            graphics->draw();
+          }
         }
         
         // декали

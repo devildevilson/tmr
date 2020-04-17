@@ -6,26 +6,35 @@
 //#include "Variable.h"
 #include "console_variable.h"
 #include "Containers.h"
-#include "GraphicsContainer.h"
+// #include "GraphicsContainer.h"
 #include "TimeMeter.h"
 #include "settings.h"
 #include "typeless_container.h"
+//#include "system.h"
 #include "system.h"
 #include "input.h"
 #include "camera.h"
 #include "random.h"
+#include "interface_context.h"
 
 #include "CPUArray.h"
 #include "CPUBuffer.h"
 #include "GPUArray.h"
 #include "GPUBuffer.h"
 
-#include "Window.h"
-#include "VulkanRender.h"
-#include "RenderStages.h"
-#include "Optimizers.h"
-#include "GPUOptimizers.h"
+// #include "Window.h"
+// #include "VulkanRender.h"
+// #include "RenderStages.h"
+// #include "Optimizers.h"
+// #include "GPUOptimizers.h"
+#include "window.h"
+// #include "render/system.h"
+#include "render.h"
+#include "stages.h"
+#include "targets.h"
+#include "container.h"
 #include "image_container.h"
+#include "particles.h"
 
 //#include "CPUAnimationSystemParallel.h"
 
@@ -37,11 +46,28 @@
 #include "CPUPhysicsSorter.h"
 #include "collision_interaction_system.h"
 
+// #include "gpu_array.h"
+// #include "physics_core.h"
+// #include "physics_context.h"
+// #include "broadphase_context.h"
+// #include "narrowphase_context.h"
+// #include "solver_context.h"
+// #include "physics.h"
+// #include "phase.h"
+// #include "core_parts.h"
+// #include "broadphase_parts.h"
+// #include "narrowphase_parts.h"
+// #include "solver_parts.h"
+// #include "rigid_body.h"
+// #include "transform.h"
+
 // #include "PostPhysics.h"
 #include "post_physics.h"
 
 #include "ThreadPool.h"
 
+// #include "transform_component.h"
+// #include "physics_component.h"
 #include "TransformComponent.h"
 #include "PhysicsComponent.h"
 #include "InputComponent.h"
@@ -116,8 +142,8 @@
 
 // #include "Menu.h"
 // #include "MenuItems.h"
-#include "Interface.h"
-#include "Interfaces.h"
+#include "interface.h"
+#include "interfaces.h"
 #include "overlay.h"
 
 //#include "AISystem.h"
@@ -189,21 +215,23 @@ using namespace devils_engine;
 
 struct system_container {
   utils::typeless_container container;
-  GraphicsContainer* graphics_container;
+//   GraphicsContainer* graphics_container;
+  render::container* graphics_container;
 //   PostPhysics* post_physics;
   systems::sound* sound_system;
   
-  MonsterOptimizer* monster_optimiser;
-  GeometryOptimizer* geometry_optimiser;
-  LightOptimizer* lights_optimiser;
-  MonsterDebugOptimizer* monster_debug_optimiser;
-  GeometryDebugOptimizer* geometry_debug_optimiser;
+//   MonsterOptimizer* monster_optimiser;
+//   GeometryOptimizer* geometry_optimiser;
+//   LightOptimizer* lights_optimiser;
+//   MonsterDebugOptimizer* monster_debug_optimiser;
+//   GeometryDebugOptimizer* geometry_debug_optimiser;
   
   CPUOctreeBroadphaseParallel* broad;
   CPUNarrowphaseParallel* narrow;
   CPUSolverParallel* solver;
   CPUPhysicsSorter* sorter;
   CPUPhysicsParallel* physics;
+//   systems::physics<physics::core::context>* physics1;
   
   graph::container* edge_container;
   systems::pathfinder* pathfinder_system;
@@ -230,119 +258,132 @@ struct DataArrays {
   ArrayInterface<uint32_t>* rotationCountBuffer;
   Container<RotationData>* rotations;
   Container<ExternalData>* externals;
-  Container<Texture>* textures;
+  Container<render::image_data>* textures;
+//   utils::container<physics::core::transform>* new_transforms;
   //Container<AnimationState>* animStates;
 //   ArrayInterface<BroadphasePair>* broadphasePairs;
   DataArrays();
   ~DataArrays();
 };
 
+struct screenshot_container {
+  yavf::Image early_screenshot;
+  yavf::Image screenshot;
+  
+  screenshot_container(yavf::Device* device);
+  ~screenshot_container();
+  void do_screenshot(const std::string &path);
+};
+
 struct RenderConstructData {
   system_container* systems;
   DataArrays* arrays;
-  nuklear_data* data;
-  MonsterDebugOptimizer* monDebugOpt;
-  GeometryDebugOptimizer* geoDebugOpt;
+  //nuklear_data* data;
+  interface::context* data;
+  resources::map_loader* map_loader;
+  screenshot_container* scr;
+//   MonsterDebugOptimizer* monDebugOpt;
+//   GeometryDebugOptimizer* geoDebugOpt;
 };
 
-struct KeyConfiguration {
-  uint64_t cont;
-
-  KeyConfiguration(const KeyConfiguration &copy);
-  KeyConfiguration(const uint32_t &key1);
-  KeyConfiguration(const uint32_t &key1, const uint32_t &key2);
-  KeyConfiguration(const uint32_t &key1, const uint32_t &key2, const uint32_t &key3);
-  KeyConfiguration(const uint32_t &key1, const uint32_t &key2, const uint32_t &key3, const uint32_t &key4);
-
-  uint32_t getFirstKey() const;
-  uint32_t getSecondKey() const;
-  uint32_t getThirdKey() const;
-  uint32_t getForthKey() const;
-
-  uint32_t getKeysCount() const;
-  uint32_t operator[] (const uint8_t &index) const;
-};
-
-// как хэндлить инпут? мне нужно сделать чтоб у меня можно было задавать несколько клавиш
-// можно сделать иерархию, для иерархии нужно наверное виртуальные функции, проблема ли это?
-
-enum KeyState : uint8_t {
-  KEY_STATE_CLICK        = 0,
-  KEY_STATE_DOUBLE_CLICK = 1,
-  KEY_STATE_LONG_CLICK   = 2,
-  KEY_STATE_PRESS        = 3,
-  KEY_STATE_DOUBLE_PRESS = 4,
-  KEY_STATE_LONG_PRESS   = 5,
-  KEY_STATE_UNKNOWN      = 6
-};
-
-struct input_function {
-  input_function();
-  input_function(const std::string &name, const std::function<void()> &f);
-
-  std::string name;
-  std::function<void()> f;
-};
-
-namespace key {
-  enum class state : uint8_t {
-    unknown,
-    press,
-    click,
-    double_press,
-    double_click,
-    long_press,
-    long_click,
-  };
-  
-  // может ли пригодиться реакция на нажатие двух произвольных клавиш?
-  // думаю что вряд ли
-  // должна быть какая то иерархия  
-  enum class modificator : uint8_t {
-    none,
-    ctrl,
-    alt,
-    shift,
-    super,
-    backspace
-  };
-  
-  class action {
-  public:
-    struct type {
-      uint32_t m_container;
-      
-      type();
-      type(const std::vector<enum state> &states, const bool notUsedWhileModificator, const modificator &mod);
-      
-      void make_type(const std::vector<enum state> &states, const bool notUsedWhileModificator, const modificator &mod);
-      
-      bool is_valid_state(const enum state &state) const;
-      bool isUsedWithModificators() const;
-      bool changed() const;
-      modificator key_modificator() const;
-      
-      void set_changed(const bool value);
-    };
-    
-    action();
-    action(const std::vector<enum state> &states, const bool notUsedWhileModificator, const modificator &mod, const int32_t &key, input_function* func);
-    
-    void execute(const std::vector<modificator> &mods, const int32_t &state, const size_t &time);
-    
-    int32_t key();
-    enum state current_state() const;
-    bool is_valid_state(const enum state &state) const;
-    bool isUsedWithModificators() const;
-    std::string name() const;
-  private:
-    size_t m_time;
-    struct type m_type;
-    int32_t m_key;
-    enum state m_current;
-    input_function* m_func;
-  };
-}
+// struct KeyConfiguration {
+//   uint64_t cont;
+// 
+//   KeyConfiguration(const KeyConfiguration &copy);
+//   KeyConfiguration(const uint32_t &key1);
+//   KeyConfiguration(const uint32_t &key1, const uint32_t &key2);
+//   KeyConfiguration(const uint32_t &key1, const uint32_t &key2, const uint32_t &key3);
+//   KeyConfiguration(const uint32_t &key1, const uint32_t &key2, const uint32_t &key3, const uint32_t &key4);
+// 
+//   uint32_t getFirstKey() const;
+//   uint32_t getSecondKey() const;
+//   uint32_t getThirdKey() const;
+//   uint32_t getForthKey() const;
+// 
+//   uint32_t getKeysCount() const;
+//   uint32_t operator[] (const uint8_t &index) const;
+// };
+// 
+// // как хэндлить инпут? мне нужно сделать чтоб у меня можно было задавать несколько клавиш
+// // можно сделать иерархию, для иерархии нужно наверное виртуальные функции, проблема ли это?
+// 
+// enum KeyState : uint8_t {
+//   KEY_STATE_CLICK        = 0,
+//   KEY_STATE_DOUBLE_CLICK = 1,
+//   KEY_STATE_LONG_CLICK   = 2,
+//   KEY_STATE_PRESS        = 3,
+//   KEY_STATE_DOUBLE_PRESS = 4,
+//   KEY_STATE_LONG_PRESS   = 5,
+//   KEY_STATE_UNKNOWN      = 6
+// };
+// 
+// struct input_function {
+//   input_function();
+//   input_function(const std::string &name, const std::function<void()> &f);
+// 
+//   std::string name;
+//   std::function<void()> f;
+// };
+// 
+// namespace key {
+//   enum class state : uint8_t {
+//     unknown,
+//     press,
+//     click,
+//     double_press,
+//     double_click,
+//     long_press,
+//     long_click,
+//   };
+//   
+//   // может ли пригодиться реакция на нажатие двух произвольных клавиш?
+//   // думаю что вряд ли
+//   // должна быть какая то иерархия  
+//   enum class modificator : uint8_t {
+//     none,
+//     ctrl,
+//     alt,
+//     shift,
+//     super,
+//     backspace
+//   };
+//   
+//   class action {
+//   public:
+//     struct type {
+//       uint32_t m_container;
+//       
+//       type();
+//       type(const std::vector<enum state> &states, const bool notUsedWhileModificator, const modificator &mod);
+//       
+//       void make_type(const std::vector<enum state> &states, const bool notUsedWhileModificator, const modificator &mod);
+//       
+//       bool is_valid_state(const enum state &state) const;
+//       bool isUsedWithModificators() const;
+//       bool changed() const;
+//       modificator key_modificator() const;
+//       
+//       void set_changed(const bool value);
+//     };
+//     
+//     action();
+//     action(const std::vector<enum state> &states, const bool notUsedWhileModificator, const modificator &mod, const int32_t &key, input_function* func);
+//     
+//     void execute(const std::vector<modificator> &mods, const int32_t &state, const size_t &time);
+//     
+//     int32_t key();
+//     enum state current_state() const;
+//     bool is_valid_state(const enum state &state) const;
+//     bool isUsedWithModificators() const;
+//     std::string name() const;
+//   private:
+//     size_t m_time;
+//     struct type m_type;
+//     int32_t m_key;
+//     enum state m_current;
+//     input_function* m_func;
+//   };
+// }
 
 // нам требуется получить состояние любого действия по кнопке
 // то есть "attack" -> click + нужно проверить изменилось ли это состояние
@@ -395,30 +436,39 @@ namespace key {
 //   KeyState currentState;
 // };
 
-struct KeyConfig {
-  std::vector<key::action*> keys;
-  std::unordered_map<std::string, input_function*> reactions;
+// struct KeyConfig {
+//   std::vector<key::action*> keys;
+//   std::unordered_map<std::string, input_function*> reactions;
+// };
+
+// struct KeyContainer {
+// //   MemoryPool<ActionKey, KEY_POOL_SIZE*sizeof(ActionKey)> keysPool;
+//   MemoryPool<key::action, ACTION_POOL_SIZE*sizeof(key::action)> keysPool;
+//   MemoryPool<input_function, REACTION_POOL_SIZE*sizeof(input_function)> reactionPool;
+//   KeyConfig config;
+// 
+//   KeyContainer();
+//   ~KeyContainer();
+// 
+// //   ActionKey* create(const KeyConfiguration &keys, const std::vector<ActionKey*> &keysPtr);
+//   key::action* create(const std::vector<key::state> &states, const bool notUsedWhileModificator, const key::modificator &mod, const int32_t &key, input_function* func);
+// //   void sort();
+// 
+//   input_function* create(const std::string &name, const std::function<void()> &f);
+// };
+
+struct glfw_init {
+  glfw_init();
+  ~glfw_init();
 };
 
-struct KeyContainer {
-//   MemoryPool<ActionKey, KEY_POOL_SIZE*sizeof(ActionKey)> keysPool;
-  MemoryPool<key::action, ACTION_POOL_SIZE*sizeof(key::action)> keysPool;
-  MemoryPool<input_function, REACTION_POOL_SIZE*sizeof(input_function)> reactionPool;
-  KeyConfig config;
-
-  KeyContainer();
-  ~KeyContainer();
-
-//   ActionKey* create(const KeyConfiguration &keys, const std::vector<ActionKey*> &keysPtr);
-  key::action* create(const std::vector<key::state> &states, const bool notUsedWhileModificator, const key::modificator &mod, const int32_t &key, input_function* func);
-//   void sort();
-
-  input_function* create(const std::string &name, const std::function<void()> &f);
-};
+void poll_events();
+void return_cursor();
+std::string get_app_dir();
 
 // почти в каждой функции еще должны использоваться настройки
-void initGLFW();
-void deinitGLFW();
+// void initGLFW();
+// void deinitGLFW();
 
 void create_graphics(system_container &container);
 void create_optimizers(system_container &container, DataArrays &arrays);
@@ -435,7 +485,7 @@ void create_sound_system(system_container &container);
 // void createRender(yavf::Instance* inst, yavf::Device* device, const uint32_t &frameCount, const size_t &stageContainerSize, GameSystemContainer &container, VulkanRender** render, yavf::CombinedTask** task);
 void createDataArrays(yavf::Device* device, DataArrays &arrays);
 // void destroyDataArrays(TypelessContainer &arraysContainer, DataArrays &arrays);
-void createRenderStages(const RenderConstructData &data, std::vector<DynamicPipelineStage*> &dynPipe);
+void createRenderStages(const RenderConstructData &data, std::vector<render::pipeline_stage*> &dynPipe);
 // void createPhysics(dt::thread_pool* threadPool, const DataArrays &arrays, const size_t &updateDelta, PhysicsContainer &physicsContainer, PhysicsEngine** engine); // еще device поди пригодится
 // void createAI(dt::thread_pool* threadPool, const size_t &updateDelta, GameSystemContainer &container);
 // это должно происходить рядом с createLoaders, должен быть лоадер разных луа вещей
@@ -449,9 +499,6 @@ std::unordered_map<std::string, core::entity_creator::collision_func_t> create_c
 
 // мне нужно это аккуратно удалить в конце
 struct resources_ptr {
-  resources_ptr(yavf::Device* device);
-  ~resources_ptr();
-  
   utils::typeless_container resources_containers;
   game::image_data_container_load* images;
   game::image_resources_load* image_res;
@@ -469,29 +516,32 @@ struct resources_ptr {
   std::unordered_map<std::string, core::state_t::action_func> states_funcs;
   std::unordered_map<std::string, core::entity_creator::collision_func_t> collision_funcs;
   std::unordered_map<utils::id, tb::BehaviorTree*> trees;
+  
+  resources_ptr(yavf::Device* device);
+  ~resources_ptr();
 };
-void createLoaders(resources::modification_container &mods, GraphicsContainer* graphicsContainer, const DataArrays &data_arrays, render::image_container* images, resources_ptr &res, resources::map_loader** mapLoader);
+void createLoaders(resources::modification_container &mods, render::container* graphicsContainer, const DataArrays &data_arrays, render::image_container* images, resources_ptr &res, resources::map_loader** mapLoader);
 void createSoundSystem(dt::thread_pool* threadPool, GameSystemContainer &container);
 
-void initnk(yavf::Device* device, Window* window, nuklear_data &data);
-void deinitnk(nuklear_data &data);
+// void initnk(yavf::Device* device, Window* window, nuklear_data &data);
+// void deinitnk(nuklear_data &data);
 
-void nextnkFrame(Window* window, nk_context* ctx);
+void nextnkFrame(render::window* window, nk_context* ctx);
 
-struct SimpleOverlayData {
-  simd::vec4 pos;
-  simd::vec4 rot;
-  size_t frameComputeTime;
-  size_t frameSleepTime;
-  size_t lastFrameComputeTime;
-  size_t lastFrameSleepTime;
-  uint32_t frameCount;
-  float fps;
-  size_t frustumObjCount;
-  size_t rayCollideCount;
-  size_t visibleObjCount;
-};
-void nkOverlay(const SimpleOverlayData &data, nk_context* ctx);
+// struct SimpleOverlayData {
+//   simd::vec4 pos;
+//   simd::vec4 rot;
+//   size_t frameComputeTime;
+//   size_t frameSleepTime;
+//   size_t lastFrameComputeTime;
+//   size_t lastFrameSleepTime;
+//   uint32_t frameCount;
+//   float fps;
+//   size_t frustumObjCount;
+//   size_t rayCollideCount;
+//   size_t visibleObjCount;
+// };
+// void nkOverlay(const SimpleOverlayData &data, nk_context* ctx);
 
 void sync(TimeMeter &tm, const size_t &syncTime); // сюда мы должны передать желаемое время кадра
 
@@ -503,7 +553,8 @@ void sync(TimeMeter &tm, const size_t &syncTime); // сюда мы должны 
 //   yacs::entity* brain;
 // };
 // void createReactions(const ReactionsCreateInfo &info);
-void setUpKeys(KeyContainer* container);
+//void setUpKeys(KeyContainer* container);
+void setup_keys();
 
 struct MouseData {
   float xMouseSpeed;
@@ -511,7 +562,7 @@ struct MouseData {
   // что то еще?
 };
 void mouse_input(yacs::entity* player, const size_t &time);
-void keys_callback(yacs::entity* player, interface::container* menu);
+void keys_callback(yacs::entity* player, interface::container* menu, screenshot_container* scr, const size_t &time);
 
 // void keysCallbacks(KeyContainer* container, const uint64_t &time);
 // void menuKeysCallback(interface::container* menu);
@@ -521,9 +572,12 @@ void scrollCallback(GLFWwindow*, double xoffset, double yoffset);
 void charCallback(GLFWwindow*, unsigned int c);
 void mouseButtonCallback(GLFWwindow*, int button, int action, int mods);
 void keyCallback(GLFWwindow*, int key, int scancode, int action, int mods);
+void window_resize_callback(GLFWwindow*, int w, int h);
 void iconifyCallback(GLFWwindow*, int iconified);
 void focusCallback(GLFWwindow*, int focused);
 const char* getClipboard(void* user_data);
 void setClipboard(void* user_data, const char* text);
+// void clipbardPaste(nk_handle usr, nk_text_edit *edit);
+// void clipbardCopy(nk_handle usr, const char *text, const int len);
 
 #endif

@@ -7,7 +7,7 @@ namespace yacs {
 
 namespace devils_engine {
   namespace camera {
-    void first_person(const yacs::entity* ent);
+    void first_person(const yacs::entity* ent, const bool menu_is_open);
   }
 }
 

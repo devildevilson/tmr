@@ -6,12 +6,13 @@
 #include "PhysicsComponent.h"
 #include "InputComponent.h"
 #include "global_components_indicies.h"
-#include "VulkanRender.h"
+// #include "VulkanRender.h"
 // #include "sound_system.h"
+#include "targets.h"
 
 namespace devils_engine {
   namespace camera {
-    void first_person(const yacs::entity* ent) {
+    void first_person(const yacs::entity* ent, const bool menu_is_open) {
       auto trans = ent->at<TransformComponent>(game::entity::transform);
       auto phys = ent->at<PhysicsComponent>(game::entity::physics);
       auto input = ent->at<UserInputComponent>(game::entity::input);
@@ -26,19 +27,25 @@ namespace devils_engine {
       const simd::vec4 pos = trans->pos();
       const simd::vec4 dir = trans->rot();
 
-      glm::vec4 pos1;
-      pos.storeu(&pos1.x);
+//       glm::vec4 pos1;
+//       pos.storeu(&pos1.x);
 
       const simd::mat4 view = toVulkanSpace * simd::lookAt(pos, pos + dir, simd::vec4(0.0f, 1.0f, 0.0f, 0.0f));
       //const simd::mat4 view = toVulkanSpace * simd::lookAt(pos, pos + dir, input->up());
+      
+      Global::get<render::buffers>()->set_view(view);
+      Global::get<render::buffers>()->set_camera(pos, dir);
+      Global::get<render::buffers>()->update_data();
 
-      Global::render()->setView(view);
-      Global::render()->setCameraPos(pos);
-      Global::render()->setCameraDir(dir);
-
-      Global::render()->updateCamera();
+//       Global::render()->setView(view);
+//       Global::render()->setCameraPos(pos);
+//       Global::render()->setCameraDir(dir);
+// 
+//       Global::render()->updateCamera();
 
       //Global::get<systems::sound>()->update_listener(ent);
+      
+      if (menu_is_open) return;
       
       // лучик из камеры кидать нужно, но для того чтобы что-то использовать, такой луч будет кидаться в другом месте
       // этот луч нужен только в редакторе
@@ -48,7 +55,8 @@ namespace devils_engine {
       };
       Global::get<PhysicsEngine>()->add(ray);
 
-      const simd::mat4 &frustum = Global::render()->getViewProj();
+      //const simd::mat4 &frustum = Global::render()->getViewProj();
+      const simd::mat4 &frustum = Global::get<render::buffers>()->get_view_proj();
       Global::get<PhysicsEngine>()->add(frustum, pos);
     }
   }

@@ -2,7 +2,8 @@
 #define OVERLAY_H
 
 #include "Engine.h"
-#include "Interface.h"
+#include "interface.h"
+#include "interface_context.h"
 
 namespace yacs {
   class entity;
@@ -20,7 +21,8 @@ namespace devils_engine {
     class overlay { // : public Engine
     public:
       struct create_info {
-        nuklear_data* nuklear;
+        //nuklear_data* nuklear;
+        context* nuklear;
         yacs::entity* player;
         TimeMeter* tm;
       };
@@ -28,7 +30,8 @@ namespace devils_engine {
       
       void draw(const data::extent &screen_size) const;
     private:
-      nuklear_data* nuklear;
+      //nuklear_data* nuklear;
+      context* nuklear;
       yacs::entity* player;
       TimeMeter* tm;
       
