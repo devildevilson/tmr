@@ -8,7 +8,7 @@
 #define STATES_CONTAINER
 #include "game_resources.h"
 #include "ArrayInterface.h"
-#include "RenderStructures.h"
+#include "shared_structures.h"
 
 namespace yacs {
   class entity;
@@ -48,7 +48,7 @@ namespace devils_engine {
       
       struct create_info {
         game::states_container_load* container;
-        ArrayInterface<Texture>* textures;
+        ArrayInterface<render::image_data>* textures;
         class image_loader* image_loader;
         std::unordered_map<std::string, std::function<void(yacs::entity*, const size_t &)>> functions;
       };
@@ -65,7 +65,7 @@ namespace devils_engine {
       //const core::state_t* get(const utils::id& id) const;
     private:
       game::states_container_load* container;
-      ArrayInterface<Texture>* textures;
+      ArrayInterface<render::image_data>* textures;
       class image_loader* image_loader;
       std::unordered_map<std::string, std::function<void(yacs::entity*, const size_t &)>> functions;
       

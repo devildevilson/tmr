@@ -5,7 +5,7 @@
 #include "resource.h"
 #include "resource_parser.h"
 #include "resource_container.h"
-#include "RenderStructures.h"
+#include "shared_structures.h"
 //#include "image_container.h"
 #include "image_data.h"
 
@@ -26,14 +26,14 @@ namespace devils_engine {
         uint32_t columns;
         uint32_t count;
         uint32_t mip_levels;
-        render::image::extent_3d size;
+        render::utils::extent_3d size;
         std::string path;
       };
       
       struct data {
         size_t count;
-        Image* images;
-        render::image::extent_2d size;
+        render::image* images;
+        render::utils::extent_2d size;
         uint32_t mip_levels;
       };
     }

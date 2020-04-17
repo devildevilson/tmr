@@ -144,15 +144,15 @@ namespace devils_engine {
       image_id = utils::id::get(str.substr(0, lastIndex));
     }
     
-    constexpr VkExtent2D to_vk(const render::image::extent_2d &size) {
+    constexpr VkExtent2D to_vk(const render::utils::extent_2d &size) {
       return {size.width, size.height};
     }
     
-    constexpr VkExtent2D to_vk(const render::image::extent_3d &size) {
+    constexpr VkExtent2D to_vk(const render::utils::extent_3d &size) {
       return {size.width, size.height};
     }
     
-    constexpr VkExtent3D to_vk3(const render::image::extent_3d &size) {
+    constexpr VkExtent3D to_vk3(const render::utils::extent_3d &size) {
       return {size.width, size.height, size.depth};
     }
     
@@ -219,7 +219,7 @@ namespace devils_engine {
 //         index = container->pool_count()-1;
 //       }
       
-      auto data_cont = data_container->create(ptr->id, ptr->count, render::image::extent_2d{ptr->size.width, ptr->size.height}, ptr->mip_levels);
+      auto data_cont = data_container->create(ptr->id, ptr->count, render::utils::extent_2d{ptr->size.width, ptr->size.height}, ptr->mip_levels);
       
       // мы должны подготовить изображения к копированию
       size_t count = 0;
@@ -232,9 +232,10 @@ namespace devils_engine {
         const size_t image_count = std::min(ptr->count - count, container->get_pool(index)->free_size());
         copies.push_back({ptr, count, image_count, static_cast<uint32_t>(index), {}});
         for (size_t i = count; i < image_count; ++i) {
-          const Image img = container->get_image(index);
+          const render::image img = container->get_image(index);
+          if (img.container == UINT32_MAX) throw std::runtime_error("img.container == UINT32_MAX");
           data_cont->images[i] = img;
-          copies.back().indices.push_back(img.layer);
+          copies.back().indices.push_back(render::get_image_layer(img));
         }
         count += image_count;
         

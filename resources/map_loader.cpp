@@ -922,7 +922,7 @@ namespace devils_engine {
     
     bool map_loader::load_obj(const std::string &path) {
       // делаем примерно то же самое что и в хардкодед лодерсе
-      const Type shape = Type::get("boxShape");
+      static const Type shape = Type::get("boxShape");
       {
         const RegisterNewShapeInfo info{
           {},
@@ -967,9 +967,9 @@ namespace devils_engine {
         player_ptr = create_player();
       }
       
-      const utils::id test_entity = utils::id::get("test_entity1");
-      const utils::id zombie = utils::id::get("zombie");
-      const utils::id test_item = utils::id::get("tmr_test_item_entity");
+      static const utils::id test_entity = utils::id::get("test_entity1");
+      static const utils::id zombie = utils::id::get("zombie");
+      static const utils::id test_item = utils::id::get("tmr_test_item_entity");
       const bool ret1 = entities->load(test_entity);
       if (!ret1) throw std::runtime_error("Could not load entity type test_entity1");
       const bool ret2 = entities->load(zombie);
@@ -1157,7 +1157,8 @@ namespace devils_engine {
           const Type shapeType = Type::get(shapeName);
           Global::get<PhysicsEngine>()->registerShape(shapeType, POLYGON_TYPE, shapeInfo);
           
-          auto state = Global::get<game::states_container>()->get(utils::id::get("tmr_decor1_state"));
+          static const utils::id state_id = utils::id::get("tmr_decor1_state");
+          auto state = Global::get<game::states_container>()->get(state_id);
           ASSERT(state != nullptr);
           
           float center_arr[4];
@@ -1633,12 +1634,13 @@ namespace devils_engine {
         nullptr
       };
       
+      static const utils::id wall_id = utils::id::get("wall");
       // будем видимо создавать энтити прямо здесь
       auto wall_ent = Global::get<yacs::world>()->create_entity();
       auto info = wall_ent->add<components::type_info>();
       info->created_ability = nullptr;
       info->ent = wall_ent;
-      info->id = utils::id::get("wall");
+      info->id = wall_id;
       info->parent = nullptr;
       // состояния для стен я не могу явно указать, точнее могу но для каждой стены по отдельности в информации о карте
       // но тут тип такой что я вряд ли смогу правильно удалить
@@ -1738,6 +1740,15 @@ namespace devils_engine {
       physInfo.physInfo.transformIndex = trans->index();
       auto phys = ent->add<PhysicsComponent>(physInfo);
       phys->setUserData(ent);
+      
+      ent->set(yacs::component_handle<components::sprite_graphics>(nullptr));
+      ent->set(yacs::component_handle<components::states>(nullptr));
+      ent->set(yacs::component_handle<components::point_light>(nullptr));
+      ent->set(yacs::component_handle<components::attributes>(nullptr));
+      ent->set(yacs::component_handle<components::effects>(nullptr));
+      ent->set(yacs::component_handle<components::inventory>(nullptr));
+      ent->set(yacs::component_handle<components::weapons>(nullptr));
+      ent->add<components::player_interface>(ent);
       
       Global g;
       g.set_player(ent);

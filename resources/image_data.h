@@ -2,14 +2,14 @@
 #define IMAGE_DATA_H
 
 #include <cstdint>
-#include "RenderStructures.h"
+#include "shared_structures.h"
 #include "id.h"
 #include "resource_container.h"
 #include "ImageResourceContainer.h"
 
 namespace devils_engine {
   namespace render {
-    namespace image {
+    namespace utils {
       struct extent_2d {
         uint32_t width;
         uint32_t height;
@@ -30,12 +30,12 @@ namespace devils_engine {
   
   namespace core {
     struct image_data {
-      inline image_data(const size_t &count, const render::image::extent_2d &size, const uint32_t &mip_levels) : count(count), images(new Image[count]), size(size), mip_levels(mip_levels) {}
+      inline image_data(const size_t &count, const render::utils::extent_2d &size, const uint32_t &mip_levels) : count(count), images(new render::image[count]), size(size), mip_levels(mip_levels) {}
       inline ~image_data() { delete [] images; }
       
       size_t count;
-      Image* images;
-      render::image::extent_2d size;
+      render::image* images;
+      render::utils::extent_2d size;
       uint32_t mip_levels;
     };
   }

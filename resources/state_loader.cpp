@@ -62,11 +62,15 @@ namespace devils_engine {
         if (id == nullptr) throw std::runtime_error("Could not find image "+image_info.image.name());
         if (id->count <= image_info.index) throw std::runtime_error("Could not find image "+image_info.image.name());
         
-        const Texture t{
-          id->images[image_info.index],
-          0,
-          image_info.flipU ? -1.0f : 0.0f,
-          image_info.flipV ? -1.0f : 0.0f
+        // как бы это удалять безболезнено? нужно ли это?
+        // мы знаем количество изображений заранее, и по идее все что нам нужно сделать это 
+        // удалять сразу пачкой текстурки (просто в текущую засунуть количество свободного места)
+        // когда снова создаем то прочекиваем последовательно массив, находим свободные несколько слотов
+        const auto img = id->images[image_info.index];
+        const render::image_data t{
+          render::create_image(render::get_image_index(img), render::get_image_layer(img), render::get_image_sampler(img), image_info.flipU, image_info.flipV),
+          0.0f,
+          0.0f
         };
         textures->push_back(t);
       }
