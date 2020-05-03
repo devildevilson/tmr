@@ -41,6 +41,7 @@ system_container::system_container() :
     sizeof(render::container) +
 //     sizeof(PostPhysics) +
     sizeof(systems::sound) +
+    sizeof(systems::decals) +
                        
 //     sizeof(MonsterGPUOptimizer) +
 //     sizeof(MonsterGPUOptimizer) +
@@ -84,6 +85,7 @@ system_container::~system_container() {
   DESTROY_CONTAINERS(graphics_container)
 //   DESTROY_CONTAINERS(post_physics)
   DESTROY_CONTAINERS(sound_system)
+  DESTROY_CONTAINERS(decals_system)
   
 //   DESTROY_CONTAINERS(monster_optimiser)
 //   DESTROY_CONTAINERS(geometry_optimiser)
@@ -623,6 +625,7 @@ void create_graphics(system_container &container) {
       sizeof(render::gbuffer_begin) + 
       sizeof(render::monster_gbuffer) + 
       sizeof(render::particles_gbuffer) +
+      sizeof(render::decal_gbuffer) +
       sizeof(render::gbuffer_end) + 
       
       sizeof(render::lights_optimizer) + 
@@ -672,10 +675,12 @@ void create_graphics(system_container &container) {
   window->create_swapchain(container.graphics_container->device);
   auto render = container.graphics_container->create_system(stageContainerSize);
   container.graphics_container->create_tasks();
+  container.decals_system = container.container.create<systems::decals>();
   
   Global::get(window);
   Global::get(render);
   Global::get(container.graphics_container);
+  Global::get(container.decals_system);
   
   glfwSetKeyCallback(window->handle, keyCallback);
   glfwSetCharCallback(window->handle, charCallback);
@@ -1396,6 +1401,8 @@ void createDataArrays(yavf::Device* device, DataArrays &arrays) {
   
   core::interaction::matrices = matrices;
   core::interaction::transforms = transforms;
+  systems::decals::matrix = matrices;
+  systems::decals::transforms = transforms;
 //   components::transform::transforms = new_transforms;
   
 //   std::cout << "transforms desc " << transforms->vector().descriptorSet()->handle() << '\n';
@@ -1594,6 +1601,7 @@ void createRenderStages(const RenderConstructData &data, std::vector<render::pip
                 system->add_stage<render::gbuffer_begin>(render::gbuffer_begin::create_info{deffered});
   auto mon_g =  system->add_stage<render::monster_gbuffer>(render::monster_gbuffer::create_info{device, &buffers->uniform, mon, deffered});
   auto par_g =  system->add_stage<render::particles_gbuffer>(render::particles_gbuffer::create_info{device, &buffers->uniform, deffered, particles});
+  auto dec_g =  system->add_stage<render::decal_gbuffer>(render::decal_gbuffer::create_info{device, &buffers->uniform, deffered, data.arrays->transforms, data.arrays->matrices, data.arrays->textures});
                 system->add_stage<render::gbuffer_end>(render::gbuffer_end::create_info{deffered});
   
   auto lights = system->add_stage<render::lights_optimizer>(render::lights_optimizer::create_info{device, &buffers->uniform, &buffers->matrix, data.arrays->transforms, images, deffered});
@@ -1614,11 +1622,13 @@ void createRenderStages(const RenderConstructData &data, std::vector<render::pip
   Global::get(lights);
   Global::get(buffers);
   Global::get(particles);
+  Global::get(dec_g);
   
   dynPipe.push_back(geo_g);
   dynPipe.push_back(mon_g);
   dynPipe.push_back(gui);
   dynPipe.push_back(par_g);
+  dynPipe.push_back(dec_g);
   
   const simd::mat4 &perspective = simd::perspective(glm::radians(window->fov), float(window->surface.extent.width) / float(window->surface.extent.height), 0.1f, FAR_CLIPPING);
   const simd::mat4 &ortho = simd::ortho(0.0f, float(window->surface.extent.width) / float(window->surface.extent.height), 0.0f, 1.0f, 0.1f, FAR_CLIPPING);

@@ -35,6 +35,7 @@
 #include "container.h"
 #include "image_container.h"
 #include "particles.h"
+#include "decal_system.h"
 
 //#include "CPUAnimationSystemParallel.h"
 
@@ -95,6 +96,7 @@
 #include "inventory_component.h"
 #include "global_components_indicies.h"
 #include "vertex_component.h"
+#include "decals_container_component.h"
 
 //#include "ParticleSystem.h"
 //#include "DecalSystem.h"
@@ -219,6 +221,7 @@ struct system_container {
   render::container* graphics_container;
 //   PostPhysics* post_physics;
   systems::sound* sound_system;
+  systems::decals* decals_system;
   
 //   MonsterOptimizer* monster_optimiser;
 //   GeometryOptimizer* geometry_optimiser;

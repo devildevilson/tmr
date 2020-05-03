@@ -13,7 +13,7 @@ namespace dt {
 
 namespace devils_engine {
   namespace post_physics {
-    void update(dt::thread_pool* pool, yacs::entity* player);
+    void update(dt::thread_pool* pool); // , yacs::entity* player
   }
 }
 

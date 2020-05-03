@@ -26,7 +26,7 @@
 // (как завершинить платформы? в этом плане сложно, нужно при изменении состояния платформы изменять видимо состояние ребра)
 // видимо у таких объектов будет только один стейт
 
-const size_t updateDelta = DELTA_TIME_CONSTANT;
+const size_t update_delta = DELTA_TIME_CONSTANT;
 
 class LogCounter {
 public:
@@ -123,9 +123,9 @@ int main(int argc, char** argv) {
   // то нам его создавать ни к чему
   // чаще всего пул необходим, не могу честно говоря представить когда он не нужен в современных условиях
   //std::cout << "std::thread::hardware_concurrency() " << std::thread::hardware_concurrency() << "\n";
-  dt::thread_pool threadPool(std::max(std::thread::hardware_concurrency()-1, uint32_t(1)));
-  systems::collision_interaction inter(systems::collision_interaction::create_info{&threadPool});
-  utils::delayed_work_system works(utils::delayed_work_system::create_info{&threadPool});
+  dt::thread_pool thread_pool(std::max(std::thread::hardware_concurrency()-1, uint32_t(1)));
+  systems::collision_interaction inter(systems::collision_interaction::create_info{&thread_pool});
+  utils::delayed_work_system works(utils::delayed_work_system::create_info{&thread_pool});
   utils::random rand(seed);
   input::data input_data;
   Global::get(&works);
@@ -152,10 +152,10 @@ int main(int argc, char** argv) {
   create_optimizers(systems, arrays);
 
   // создадим физику (почти везде нужно собрать сайз для контейнера)
-  create_physics(systems, &threadPool, arrays, updateDelta);
+  create_physics(systems, &thread_pool, arrays, update_delta);
 
   // создадим систему ии
-  create_ai(systems, &threadPool);
+  create_ai(systems, &thread_pool);
   
   // звук
   create_sound_system(systems);
@@ -354,7 +354,7 @@ int main(int argc, char** argv) {
 
     // обход видимых объектов 
     //Global::get<PostPhysics>()->update(time);
-    post_physics::update(&threadPool, player);
+    post_physics::update(&thread_pool); // player
     Global::get<systems::sound>()->update_listener(player);
 
     // гуи
@@ -380,27 +380,71 @@ int main(int argc, char** argv) {
         if (data->particles_count > 25) first = false;
       }
     }
+    
     // дебаг
     // и прочее
 
     // это и звук вполне могут быть сделаны паралельно
     // и вместе с этом я запущу работу в ворксистеме
     // где то рядом нужно обойти всю коллизию 
-    threadPool.submitbase([] () {
+    thread_pool.submitbase([] () {
       Global::get<systems::render>()->update(Global::get<render::container>());
 //       Global::get<GraphicsContainer>()->update(time); // обновление графики пересекается с телепортацией
     });
     
-    threadPool.submitbase([time] () {
+    thread_pool.submitbase([time] () {
       Global::get<systems::sound>()->update(time); // звуки то поди должны быть разделены на звуки меню и обычные?
     });
     
+    // еще отдельно можно запустить обработчика декалей
+    // кажется он не пересекается ни со звуком ни с графикой
+    if (!menu_container.is_opened()) {
+      thread_pool.submitbase([time] () {
+        Global::get<systems::decals>()->update(time, update_delta);
+      });
+    }
+    
     // в работах может быть как телепорт, так и вызов звука
     // значит что вызывать параллельно графике и звукам не имеет смысла
-    threadPool.wait();
+    thread_pool.wait();
+    
+    {
+      static bool first = true;
+      if (first) {
+        auto state = Global::get<game::states_container>()->get(utils::id::get("tmr_decor1_state"));
+        const systems::decals::pending_data data{
+          basic_vec4(0.0f, 0.0f, 3.5f, 1.0f),
+          basic_mat4(
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+          ),
+          1,
+          1,
+          state
+        };
+        Global::get<systems::decals>()->add(data);
+        
+        const systems::decals::pending_data data1{
+          basic_vec4(2.0f, 0.0f, 3.5f, 1.0f),
+          basic_mat4(
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+          ),
+          1,
+          1,
+          state
+        };
+        Global::get<systems::decals>()->add(data1);
+        first = false;
+      }
+    }
     
     current_time += time;
-    if ((current_time < updateDelta || time >= 20000) && !menu_container.is_opened()) {
+    if ((current_time < update_delta || time >= 20000) && !menu_container.is_opened()) {
       // во время исполнения этих работ могут добавится еще несколько, но их необходимо обработать уже в следующий раз
       // если здесь добавляются работы которые удаляют какой то объект, то необходимо правильно обновить tree_ai и func_ai
       // это значит что tree_ai и func_ai должны обновляться каждый кадр или detach_works должно работать иначе
@@ -408,22 +452,22 @@ int main(int argc, char** argv) {
       works.detach_works(count);
     }
     
-    threadPool.wait();
+    thread_pool.wait();
     
-    if (current_time >= updateDelta) {
-      current_time -= updateDelta;
+    if (current_time >= update_delta) {
+      current_time -= update_delta;
       if (!menu_container.is_opened()) {
-        utils::update<components::states>(&threadPool, updateDelta);
-        utils::update<components::attributes>(&threadPool, updateDelta); // тут будет вызываться core::remove
-        utils::update<components::effects>(&threadPool, updateDelta);
-        utils::update<components::tree_ai>(&threadPool, updateDelta); 
-        utils::update<components::func_ai>(&threadPool, updateDelta);
+        utils::update<components::states>(&thread_pool, update_delta);     // может вызваться core::remove
+        utils::update<components::attributes>(&thread_pool, update_delta); // может вызваться core::remove
+        utils::update<components::effects>(&thread_pool, update_delta);
+        utils::update<components::tree_ai>(&thread_pool, update_delta); 
+        utils::update<components::func_ai>(&thread_pool, update_delta);
         // функции ниже добавляют работу в works
         // функции коллизии
-        inter.update(updateDelta); // не должны ли и они быть синхронизированы по времени? судя по моей физике - да
+        inter.update(update_delta); // не должны ли и они быть синхронизированы по времени? судя по моей физике - да
         // интеракции
-        utils::update<core::slashing_interaction>(&threadPool, updateDelta);
-        utils::update<core::stabbing_interaction>(&threadPool, updateDelta);
+        utils::update<core::slashing_interaction>(&thread_pool, update_delta);
+        utils::update<core::stabbing_interaction>(&thread_pool, update_delta);
       }
     }
     
