@@ -35,6 +35,22 @@ namespace devils_engine {
                         .unnormalizedCoordinates(VK_FALSE)
                         .create("clamp_to_border_sampler");
       }
+      
+      {
+        yavf::DescriptorPoolMaker dpm(device);
+        auto pool = dpm.poolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1).create("skybox_pool");
+        
+        yavf::DescriptorSetLayout skybox_set_layout = device->setLayout(SKYBOX_TEXTURE_LAYOUT_NAME);
+        if (skybox_set_layout == VK_NULL_HANDLE) {
+          yavf::DescriptorLayoutMaker dlm(device);
+          skybox_set_layout = dlm.binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT).create(SKYBOX_TEXTURE_LAYOUT_NAME);
+        }
+        
+        yavf::DescriptorMaker dm(device);
+        skybox_set = dm.layout(skybox_set_layout).create(pool)[0];
+      }
+      
+      cube_image = nullptr;
     }
     
     image_resources_t::~image_resources_t() {
@@ -44,6 +60,8 @@ namespace devils_engine {
       }
       
       delete [] samplers_mem;
+      
+      if (cube_image != nullptr) device->destroy(cube_image);
       
       if (pool != VK_NULL_HANDLE) {
         device->destroy(pool);

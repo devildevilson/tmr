@@ -70,6 +70,7 @@ namespace devils_engine {
         bool nightmare() const;
         bool ambush() const;
         bool static_obj() const;
+        bool has_rotation() const;
         
         void set(const uint32_t &index, const bool value);
         bool exist_on_current_diff(const game::difficulty &diff) const;
@@ -129,6 +130,11 @@ namespace devils_engine {
         float rot[4];
         uint32_t tag;
         object_flags flags;
+        float pivot[3];
+        float axis[3];
+        float start_angle;
+        float end_angle;
+        uint32_t time;
         
         complex_object();
         bool valid() const;
@@ -162,6 +168,7 @@ namespace devils_engine {
         ERROR_COULD_NOT_LOAD_MAP_FILE,
         ERROR_BAD_DATA_IN_MAP,
         ERROR_MAP_INFO_MUST_START_WITH_WALLS_INFO,
+        ERROR_OBJECT_WITH_THIS_NAME_IS_ALREADY_EXIST,
         ERROR_BAD_NUMERIC_DATA,
         ERROR_BAD_FACE_DATA,
         ERROR_COULD_NOT_FIND_MODEL_NAME,
@@ -234,6 +241,8 @@ namespace devils_engine {
       components::indexed_graphics* create_graphics(yacs::entity* ent, const uint32_t &offset, const uint32_t &count, const uint32_t &index);
       components::states* create_states(yacs::entity* ent, const core::state_t* state);
       components::vertex* create_vertex(yacs::entity* ent, const simd::vec4 &center, const simd::vec4 &normal);
+      
+      yacs::entity* create_test_complex_obj(const uint32_t &index, std::vector<Vertex> &vertices);
     };
   }
 }

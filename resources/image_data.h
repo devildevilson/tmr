@@ -7,6 +7,10 @@
 #include "resource_container.h"
 #include "ImageResourceContainer.h"
 
+namespace yavf {
+  class Image;
+}
+
 namespace devils_engine {
   namespace render {
     namespace utils {
@@ -48,6 +52,8 @@ namespace devils_engine {
       uint32_t images;
       uint32_t samplers;
       char* samplers_mem;
+      yavf::Image* cube_image;
+      yavf::DescriptorSet* skybox_set;
       yavf::DescriptorSet* set;
       yavf::DescriptorSetLayout layout;
       yavf::DescriptorPool pool;

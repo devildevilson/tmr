@@ -33,6 +33,9 @@
 #define STATES_CONTAINER
 #include "game_resources.h"
 #include "graph.h"
+#include "decals_container_component.h"
+
+#include "scene_data.h"
 
 #include <random>
 
@@ -66,8 +69,20 @@ enum obj_flags_enum {
   OBJ_FLAG_MEDIUM,
   OBJ_FLAG_HARD,
   OBJ_FLAG_NIGHTMARE,
+  OBJ_FLAG_AMBUSH,
+  OBJ_FLAG_ROTATION,
   
   OBJ_FLAG_COUNT
+};
+
+const char* flag_strings[] = {
+  "baby",
+  "easy",
+  "medium",
+  "hard",
+  "nightmare",
+  "ambush",
+  nullptr
 };
 
 size_t find_first_not_of(const char *str, const char *cmp_str, const size_t &pos) {
@@ -157,6 +172,14 @@ namespace devils_engine {
             const size_t name_start = line_str.find_first_not_of(" ", index+1);
             const size_t name_end = line_str.find_first_of(" ", name_start+1);
             const std::string name = line_str.substr(name_start, name_end-name_start);
+            
+            for (const auto &model : info.models) {
+              if (model.id.name() == name) {
+                errors.add(mark, resources::map_loader::ERROR_OBJECT_WITH_THIS_NAME_IS_ALREADY_EXIST, "object with name "+name+" is already exist");
+                return false;
+              }
+            }
+            
             next_name = utils::id::get(name);
             cur = current_data::complex_obj;
             info.models.emplace_back();
@@ -177,11 +200,25 @@ namespace devils_engine {
           const size_t name_start = line_str.find_first_not_of(" ", index+1);
           const size_t name_end = line_str.find_first_of(" ", name_start+1);
           const std::string name = line_str.substr(name_start, name_end-name_start);
+          std::cout << "entity name " << name << "\n";
+          
+          bool found_complex = false;
+          for (size_t i = 0; i < info.models.size(); ++i) {
+            if (info.models[i].id.name() == name) {
+              found_complex = true;
+              cur = current_data::entity_with_model;
+              next_name = utils::id::get(name);
+              info.objects.emplace_back();
+              info.objects.back().model_index = i;
+            }
+          }
+          
+          if (found_complex) break;
+          
           cur = current_data::entity;
           next_name = utils::id::get(name);
           info.entities.emplace_back();
           info.entities.back().id = next_name;
-          std::cout << "entity name " << name << "\n";
           break;
         }
 
@@ -203,7 +240,7 @@ namespace devils_engine {
           std::cout << "point x: " << point[0] << " y: " << point[1] << " z: " << point[2] << "\n";
 
           switch (cur) {
-            case current_data::map:
+            case current_data::map: 
             case current_data::complex_obj: {
               info.vertices.push_back(glm::vec3(point[0], point[1], point[2]));
               break;
@@ -269,10 +306,25 @@ namespace devils_engine {
         }
 
         case 'd': {
-          float point[3];
           size_t num_start = line_str.find_first_not_of(" ", index+1);
           size_t num_end = line_str.find_first_of(" ", num_start+1);
-          for (size_t i = 0; i < 3; ++i) {
+          
+          size_t tmp_num_start = num_start;
+          size_t tmp_num_end = num_end;
+          size_t count = 0;
+          while (tmp_num_start != std::string::npos) {
+            count++;
+            tmp_num_start = line_str.find_first_not_of(" ", tmp_num_end+1);
+            tmp_num_end = line_str.find_first_of(" ", tmp_num_start+1);
+          }
+          
+          if (count != 3 && count != 4) {
+            errors.add(mark, resources::map_loader::ERROR_BAD_NUMERIC_DATA, "Bad numeric data at line "+std::to_string(line_index));
+            return false;
+          }
+          
+          float point[count];
+          for (size_t i = 0; i < count; ++i) {
             if (!isdigit(line_str[num_start])) {
               errors.add(mark, resources::map_loader::ERROR_BAD_NUMERIC_DATA, "Bad numeric data at line "+std::to_string(line_index));
               return false;
@@ -282,8 +334,35 @@ namespace devils_engine {
             num_start = line_str.find_first_not_of(" ", num_end+1);
             num_end = line_str.find_first_of(" ", num_start+1);
           }
-
-          std::cout << "dir x: " << point[0] << " y: " << point[1] << " z: " << point[2] << "\n";
+          
+          if (count == 3 && cur != current_data::entity) {
+            errors.add(mark, resources::map_loader::ERROR_BAD_DATA_IN_MAP, "\'d\' with 3 element must be inside entity data. Line "+std::to_string(line_index));
+            return false;
+          } else {
+            if (info.entities.empty()) {
+              errors.add(mark, resources::map_loader::ERROR_BAD_DATA_IN_MAP, "\'d\' must be within entity data. Line "+std::to_string(line_index));
+              //throw std::runtime_error("empty entities line "+std::to_string(line_index));
+            }
+            
+            std::cout << "dir x: " << point[0] << " y: " << point[1] << " z: " << point[2] << "\n";
+            ASSERT(count == 3 && cur == current_data::entity);
+            memcpy(info.entities.back().rot, point, sizeof(float)*3);
+          }
+          
+          if (count == 4 && cur != current_data::entity_with_model) {
+            errors.add(mark, resources::map_loader::ERROR_BAD_DATA_IN_MAP, "\'d\' with 4 element must be inside complex entity data. Line "+std::to_string(line_index));
+            return false;
+          } else {
+            if (info.objects.empty()) {
+              errors.add(mark, resources::map_loader::ERROR_BAD_DATA_IN_MAP, "\'d\' must be within entity data. Line "+std::to_string(line_index));
+              //throw std::runtime_error("empty complex entities line "+std::to_string(line_index));
+            }
+            
+            std::cout << "rot w: " << point[0] << " x: " << point[1] << " y: " << point[2] << " z: " << point[3] << "\n";
+            ASSERT(count == 4 && cur == current_data::entity_with_model);
+            memcpy(info.objects.back().rot, point, sizeof(float)*4);
+          }
+          
           if (cur != current_data::entity) {
             errors.add(mark, resources::map_loader::ERROR_BAD_DATA_IN_MAP, "\'d\' must be inside entity data. Line "+std::to_string(line_index));
             return false;
@@ -299,28 +378,69 @@ namespace devils_engine {
         }
         
         case 'r': {
-          float point[4];
+//           float point[4];
+//           size_t num_start = line_str.find_first_not_of(" ", index+1);
+//           size_t num_end = line_str.find_first_of(" ", num_start+1);
+//           for (size_t i = 0; i < 4; ++i) {
+//             if (!isdigit(line_str[num_start])) {
+//               errors.add(mark, resources::map_loader::ERROR_BAD_NUMERIC_DATA, "Bad numeric data at line "+std::to_string(line_index));
+//               return false;
+//             }
+//             
+//             point[i] = atof(&line_str[num_start]);
+//             num_start = line_str.find_first_not_of(" ", num_end+1);
+//             num_end = line_str.find_first_of(" ", num_start+1);
+//           }
+// 
+//           std::cout << "rotation x: " << point[0] << " y: " << point[1] << " z: " << point[2] << " w: " << point[3] << "\n";
+//           if (cur != current_data::entity_with_model) {
+//             errors.add(mark, resources::map_loader::ERROR_BAD_DATA_IN_MAP, "\'r\' must be inside object entity data. Line "+std::to_string(line_index));
+//             return false;
+//           }
+//           
+//           memcpy(info.objects.back().rot, point, sizeof(float)*4);
+          float arr[8];
           size_t num_start = line_str.find_first_not_of(" ", index+1);
           size_t num_end = line_str.find_first_of(" ", num_start+1);
-          for (size_t i = 0; i < 4; ++i) {
+          for (size_t i = 0; i < 8; ++i) {
             if (!isdigit(line_str[num_start])) {
               errors.add(mark, resources::map_loader::ERROR_BAD_NUMERIC_DATA, "Bad numeric data at line "+std::to_string(line_index));
               return false;
             }
             
-            point[i] = atof(&line_str[num_start]);
+            arr[i] = atof(&line_str[num_start]);
             num_start = line_str.find_first_not_of(" ", num_end+1);
             num_end = line_str.find_first_of(" ", num_start+1);
           }
-
-          std::cout << "rotation x: " << point[0] << " y: " << point[1] << " z: " << point[2] << " w: " << point[3] << "\n";
+          
+          int32_t time = 0;
+          if (num_start != std::string::npos) {
+            if (!isdigit(line_str[num_start])) {
+              errors.add(mark, resources::map_loader::ERROR_BAD_NUMERIC_DATA, "Bad numeric data at line "+std::to_string(line_index));
+              return false;
+            }
+            
+            time = atoi(&line_str[num_start]);
+          }
+          uint32_t final_time = time < 0 ? 0 : time;
+          
           if (cur != current_data::entity_with_model) {
-            errors.add(mark, resources::map_loader::ERROR_BAD_DATA_IN_MAP, "\'r\' must be inside object entity data. Line "+std::to_string(line_index));
+            errors.add(mark, resources::map_loader::ERROR_BAD_DATA_IN_MAP, "\'r\' must be inside complex entity data. Line "+std::to_string(line_index));
             return false;
           }
           
-          memcpy(info.objects.back().rot, point, sizeof(float)*4);
+          std::cout << "pivot (" << arr[0] << ", " << arr[1] << ", " << arr[2] << ")\n";
+          std::cout << "axis  (" << arr[3] << ", " << arr[4] << ", " << arr[5] << ")\n";
+          std::cout << "start  " << arr[6] << "\n";
+          std::cout << "end    " << arr[7] << "\n";
+          std::cout << "time   " << final_time << "\n";
           
+          memcpy(info.objects.back().pivot, &arr[0], sizeof(float)*3);
+          memcpy(info.objects.back().axis, &arr[3], sizeof(float)*3);
+          info.objects.back().start_angle = arr[6];
+          info.objects.back().end_angle = arr[7];
+          info.objects.back().time = final_time;
+          info.objects.back().flags.set(OBJ_FLAG_ROTATION, true);
           break;
         }
 
@@ -331,7 +451,7 @@ namespace devils_engine {
             return false;
           }
           
-          size_t tag = isdigit(line_str[num_start]) ? atol(&line_str[num_start]) : SIZE_MAX;
+          uint32_t tag = isdigit(line_str[num_start]) ? atol(&line_str[num_start]) : UINT32_MAX;
           std::cout << "tag " << tag << "\n";
           switch (cur) {
             case current_data::map: {
@@ -461,6 +581,8 @@ namespace devils_engine {
           break;
         }
 
+        // вот опять же нужно ли делать задание текстурки
+        // или зафорсить текстурки только из состояния?
         case 'i': {
           // картинка состоит из двух вещей: id картинки + номер
           const size_t name_start = line_str.find_first_not_of(" ", index+1);
@@ -502,7 +624,8 @@ namespace devils_engine {
           size_t index1_start = line_str.find_first_not_of(" ", index+1);
           size_t index1_end = line_str.find_first_of(" ", index1_start+1);
           size_t index2_start = line_str.find_first_not_of(" ", index1_end+1);
-          //size_t index2_end = line_str.find_first_of(" ", index2_start+1);
+          size_t index2_end = line_str.find_first_of(" ", index2_start+1);
+          size_t index_fake_start = index2_end == std::string::npos ? SIZE_MAX : line_str.find_first_of(" ", index2_end+1);
           if (!isdigit(line_str[index1_start])) {
             errors.add(mark, resources::map_loader::ERROR_BAD_NUMERIC_DATA, "Bad numeric data at line "+std::to_string(line_index));
             return false;
@@ -515,12 +638,24 @@ namespace devils_engine {
           
           const uint32_t first = atoi(&line_str[index1_start]);
           const uint32_t second = atoi(&line_str[index2_start]);
-          std::cout << "edge between " << first << " and " << second << "\n";
+          
+          bool fake = false;
+          if (index_fake_start != SIZE_MAX) {
+            fake = line_str[index_fake_start] == 'f';
+          }
+          
+          if (fake) {
+            std::cout << "edge between " << first << " and " << second << " fake" << "\n";
+          } else {
+            std::cout << "edge between " << first << " and " << second << "\n";
+          }
           
           // как отделить ребра между сложными объектами и картой?
           // во первых будут ли ребра у сложных объектов? можно ли на них передвигаться?
           // могут ли монстры ими воспользоваться? крайне не желательно конечно чтобы монстры всем этим могли пользоваться
-          // 
+          // монстры должны иметь возможность этим воспользоваться
+          // у дверей есть состояния (открытая, закрытая)
+          // в одном из этих состояний мы должны блокировать одни ребра, а в другом другие
           
           break;
         }
@@ -606,31 +741,32 @@ namespace devils_engine {
           break;
         }
         
-        case 'm': {
-          const size_t index_start = line_str.find_first_not_of(" ", index+1);
-          const size_t index_end = line_str.find_first_of(" ", index_start+1);
-          const std::string model_name = line_str.substr(index_start, index_end-index_start);
-          const utils::id model_id = utils::id::get(model_name);
-          cur = current_data::entity_with_model;
-          std::cout << "model name " << model_name << "\n";
-          
-          bool finded = false;
-          for (size_t i = 0; i < info.models.size(); ++i) {
-            if (info.models[i].id == model_id) {
-              info.objects.emplace_back();
-              info.objects.back().model_index = i;
-              finded = true;
-              break;
-            }
-          }
-          
-          if (!finded) {
-            errors.add(mark, resources::map_loader::ERROR_COULD_NOT_FIND_MODEL_NAME, "Could not find object name at line "+std::to_string(line_index));
-            return false;
-          }
-          
-          break;
-        }
+        // переносим к энтити
+//         case 'm': {
+//           const size_t index_start = line_str.find_first_not_of(" ", index+1);
+//           const size_t index_end = line_str.find_first_of(" ", index_start+1);
+//           const std::string model_name = line_str.substr(index_start, index_end-index_start);
+//           const utils::id model_id = utils::id::get(model_name);
+//           cur = current_data::entity_with_model;
+//           std::cout << "model name " << model_name << "\n";
+//           
+//           bool finded = false;
+//           for (size_t i = 0; i < info.models.size(); ++i) {
+//             if (info.models[i].id == model_id) {
+//               info.objects.emplace_back();
+//               info.objects.back().model_index = i;
+//               finded = true;
+//               break;
+//             }
+//           }
+//           
+//           if (!finded) {
+//             errors.add(mark, resources::map_loader::ERROR_COULD_NOT_FIND_MODEL_NAME, "Could not find object name at line "+std::to_string(line_index));
+//             return false;
+//           }
+//           
+//           break;
+//         }
         
         case '#': break;
         
@@ -687,7 +823,13 @@ namespace devils_engine {
     }
     
     bool load_data::object_flags::ambush() const {
-      return false;
+      const uint32_t mask = 1 << OBJ_FLAG_AMBUSH;
+      return (container & mask) == mask;
+    }
+    
+    bool load_data::object_flags::has_rotation() const {
+      const uint32_t mask = 1 << OBJ_FLAG_ROTATION;
+      return (container & mask) == mask;
     }
     
     void load_data::object_flags::set(const uint32_t &index, const bool value) {
@@ -839,6 +981,7 @@ namespace devils_engine {
 //       for (const auto &obj : ptr->objects) {
 //         // в случае этих объектов нам нужно создать faces + 1 объект
 //         // где будет основной объект + дочерние объекты по каждой плоскости основного объекта
+//         // здесь нужно скорее создать еще один компонент отрисовки
 //         if (!obj.flags.exist_on_current_diff(container->difficulty)) continue;
 //         
 //         auto obj_ent = create_complex_obj(obj, ptr->models[obj.model_index]);
@@ -1234,6 +1377,10 @@ namespace devils_engine {
         }
       }
       
+      // нужно создать сложный объект
+      ASSERT(shapes[0].mesh.num_face_vertices.size() > 0);
+      create_test_complex_obj(shapes[0].mesh.num_face_vertices.size(), verts);
+      
       std::cout << "Created " << Global::get<yacs::world>()->count_components<components::vertex>() << " vertices" << "\n";
       const size_t edges = Global::get<graph::container>()->edges.size();
       std::cout << "Created " << edges << " edges" << "\n";
@@ -1370,7 +1517,7 @@ namespace devils_engine {
         auto ent = world->get_entity(i);
         auto type_info = ent->at<components::type_info>(game::entity::type_info);
         if (type_info->id != wall_id) continue;
-        const uint32_t tag = get_tag(container, ent);
+        //const uint32_t tag = get_tag(container, ent);
         
         auto graphics = ent->at<components::indexed_graphics>(game::entity::graphics);
         for (uint32_t i = 0; i < graphics->count; ++i) {
@@ -1395,19 +1542,69 @@ namespace devils_engine {
         }
         file << "\n";
         if (tag != UINT32_MAX) file << "t " << tag << "\n";
+        //const float ambient = graphics->
         // флаги
       }
       
       file << "\n";
       
       // сложные объекты
-//       for (size_t i = 0; i < world->size(); ++i) {
-//         auto ent = world->get_entity(i);
-//         auto type_info = ent->at<components::type_info>(game::entity::type_info);
-//         if (type_info->id != obj_id) continue;
-//         
-//         
-//       }
+      for (size_t i = 0; i < world->size(); ++i) {
+        auto ent = world->get_entity(i);
+        auto type_info = ent->at<components::type_info>(game::entity::type_info);
+        if (type_info->id != obj_id) continue;
+//         auto trans = ent->at<TransformComponent>(game::entity::transform);
+        auto graphics = ent->at<components::complex_indices_graphics>(game::entity::graphics);
+        
+        //file << "o " << << "\n";
+        for (const auto model : graphics->model_faces) {
+          for (uint32_t i = 0; i < model.count; ++i) {
+            const uint32_t index = model.offset + i;
+            const auto &vert = vert_ptr[index];
+            file << "p " << vert.pos.arr[0] << " " << vert.pos.arr[1] << " " << vert.pos.arr[2] << "\n";
+            file << "c " << vert.texCoord.x << " " << vert.texCoord.y << "\n";
+          }
+        }
+        
+        for (const auto model : graphics->model_faces) {
+          file << "x ";
+          for (uint32_t i = 0; i < model.count; ++i) {
+            const uint32_t index = model.offset + i;
+            file << index << "/" << index << " ";
+          }
+          file << "\n";
+        }
+        
+        // эмбиент
+        
+        file << "\n";
+      }
+      
+      for (size_t i = 0; i < world->size(); ++i) {
+        auto ent = world->get_entity(i);
+        auto type_info = ent->at<components::type_info>(game::entity::type_info);
+        if (type_info->id != obj_id) continue; // нужно изменить проверку, type_info->id может быть другим
+        auto trans = ent->at<TransformComponent>(game::entity::transform);
+//         auto graphics = ent->at<components::complex_indices_graphics>(game::entity::graphics);
+        
+        float pos[4];
+        trans->pos().storeu(pos);
+        
+        const uint32_t tag = get_tag(container, ent);
+        
+        auto states = ent->at<components::states>(game::entity::states);
+        
+        //auto rotation = ent->at<components::rotation>();
+        
+        file << "e " << type_info->id.name() << "\n";
+//         file << "d " << rot[0] << " " << rot[1] << " " << rot[2] << "\n";
+        if (tag != UINT32_MAX) file << "t " << tag << "\n";
+        file << "s " << states->current->id.name() << "\n";
+        //file << "f " << << "\n"; // где это дело хранить + при редактировании нужно грузить все
+        file << "p " << pos[0] << " " << pos[1] << " " << pos[2] << "\n";
+        //if (rotation.valid()) file << "r " << << "\n";
+        file << "\n";
+      }
       
       //file << "\n";
       
@@ -1424,14 +1621,23 @@ namespace devils_engine {
         
         const uint32_t tag = get_tag(container, ent);
         
+        auto states = ent->at<components::states>(game::entity::states);
+        
         // нет данных о сложности, с другой стороны это не должны быть основные объекты
         // а должны быть спавн точки
         file << "e " << type_info->id.name() << "\n";
         file << "d " << rot[0] << " " << rot[1] << " " << rot[2] << "\n";
         if (tag != UINT32_MAX) file << "t " << tag << "\n";
+        file << "s " << states->current->id.name() << "\n";
+        //file << "f " << << "\n"; // где это дело хранить + при редактировании нужно грузить все
         file << "p " << pos[0] << " " << pos[1] << " " << pos[2] << "\n";
         file << "\n";
       }
+      
+      // нужно разделить спаунер от непосредственно монстров и декора
+      // неплохо было бы рисовать спаунер полупрозрачным
+      // но на самом деле это не то чтобы обязательно
+      // нужно просто разделить клиент игры от редактора
     }
     
     utils::id map_loader::current_map() const {
@@ -1677,8 +1883,11 @@ namespace devils_engine {
 //       wall_ent->set(yacs::component_handle<SoundComponent>(nullptr));
       auto vertex = wall_ent->add<components::vertex>(components::vertex::create_info{wall_ent, simd::vec4(create_info.center), simd::vec4(create_info.normal)});
       ASSERT(wall_ent->at<components::vertex>(game::wall::vertex).valid());
-      
       (void)vertex;
+      
+      auto decal_container = wall_ent->add<components::decals_container>(wall_ent);
+      ASSERT(wall_ent->at<components::decals_container>(game::wall::decal_container).valid());
+      (void)decal_container;
       
       return wall_ent;
     }
@@ -1799,6 +2008,161 @@ namespace devils_engine {
     components::vertex* map_loader::create_vertex(yacs::entity* ent, const simd::vec4 &center, const simd::vec4 &normal) {
       auto vertex = ent->add<components::vertex>(components::vertex::create_info{ent, center, normal});
       return vertex.get();
+    }
+    
+    yacs::entity* map_loader::create_test_complex_obj(const uint32_t &index, std::vector<Vertex> &vertices) {
+      const utils::id id = utils::id::get("complex_box");
+      auto ent = world->create_entity();
+      
+      auto inf = ent->add<components::type_info>();
+      inf->ent = ent;
+      inf->parent = nullptr;
+      inf->id = id;
+      inf->states_count = 0;
+      inf->states = nullptr;
+      inf->created_ability = nullptr;
+      
+      auto trans = ent->add<TransformComponent>(simd::vec4(4.0f, 20.0f, 2.0f, 1.0f),
+                                                simd::vec4(0.0f, 0.0f, 1.0f, 0.0f),
+                                                simd::vec4(1.0f, 1.0f, 1.0f, 0.0f)).get();
+                                                
+      //ent->set(yacs::component_handle<InputComponent>(nullptr));
+      auto input = ent->add<InputComponent>();
+      
+      RegisterNewShapeInfo shapeInfo{};
+      
+      shapeInfo.points.push_back(simd::vec4(-0.5f,  0.5f,  0.5f, 1.0f)); // front | 0
+      shapeInfo.points.push_back(simd::vec4( 0.5f,  0.5f,  0.5f, 1.0f));
+      shapeInfo.points.push_back(simd::vec4( 0.5f, -0.5f,  0.5f, 1.0f));
+      shapeInfo.points.push_back(simd::vec4(-0.5f, -0.5f,  0.5f, 1.0f));
+      
+      shapeInfo.faces.push_back (simd::vec4( 0.0f, 0.0f, 1.0f, glm::uintBitsToFloat(0)));
+      
+      shapeInfo.points.push_back(simd::vec4(-0.5f,  0.5f, -0.5f, 1.0f)); // back | 4
+      shapeInfo.points.push_back(simd::vec4( 0.5f,  0.5f, -0.5f, 1.0f));
+      shapeInfo.points.push_back(simd::vec4( 0.5f, -0.5f, -0.5f, 1.0f));
+      shapeInfo.points.push_back(simd::vec4(-0.5f, -0.5f, -0.5f, 1.0f));
+      
+      shapeInfo.faces.push_back (simd::vec4( 0.0f, 0.0f,-1.0f, glm::uintBitsToFloat(4)));
+      
+      shapeInfo.points.push_back(simd::vec4(-0.5f,  0.5f, -0.5f, 1.0f)); // left | 8
+      shapeInfo.points.push_back(simd::vec4(-0.5f,  0.5f,  0.5f, 1.0f));
+      shapeInfo.points.push_back(simd::vec4(-0.5f, -0.5f,  0.5f, 1.0f));
+      shapeInfo.points.push_back(simd::vec4(-0.5f, -0.5f, -0.5f, 1.0f));
+      
+      shapeInfo.faces.push_back (simd::vec4(-1.0f, 0.0f, 0.0f, glm::uintBitsToFloat(8)));
+      
+      shapeInfo.points.push_back(simd::vec4( 0.5f,  0.5f, -0.5f, 1.0f)); // right | 12
+      shapeInfo.points.push_back(simd::vec4( 0.5f,  0.5f,  0.5f, 1.0f));
+      shapeInfo.points.push_back(simd::vec4( 0.5f, -0.5f,  0.5f, 1.0f));
+      shapeInfo.points.push_back(simd::vec4( 0.5f, -0.5f, -0.5f, 1.0f));
+      
+      shapeInfo.faces.push_back (simd::vec4( 1.0f, 0.0f, 0.0f, glm::uintBitsToFloat(12)));
+      
+      shapeInfo.points.push_back(simd::vec4(-0.5f,  0.5f,  0.5f, 1.0f)); // top | 16
+      shapeInfo.points.push_back(simd::vec4( 0.5f,  0.5f,  0.5f, 1.0f));
+      shapeInfo.points.push_back(simd::vec4( 0.5f,  0.5f, -0.5f, 1.0f));
+      shapeInfo.points.push_back(simd::vec4(-0.5f,  0.5f, -0.5f, 1.0f));
+      
+      shapeInfo.faces.push_back (simd::vec4( 0.0f, 1.0f, 0.0f, glm::uintBitsToFloat(16)));
+      
+      shapeInfo.points.push_back(simd::vec4(-0.5f, -0.5f,  0.5f, 1.0f)); // bottom | 20
+      shapeInfo.points.push_back(simd::vec4( 0.5f, -0.5f,  0.5f, 1.0f));
+      shapeInfo.points.push_back(simd::vec4( 0.5f, -0.5f, -0.5f, 1.0f));
+      shapeInfo.points.push_back(simd::vec4(-0.5f, -0.5f, -0.5f, 1.0f));
+      
+      shapeInfo.faces.push_back (simd::vec4( 0.0f,-1.0f, 0.0f, glm::uintBitsToFloat(20)));
+      
+      const Type type = Type::get("complex_box");
+      Global::get<PhysicsEngine>()->registerShape(type, POLYGON_TYPE, shapeInfo);
+      
+      PhysicsComponent::CreateInfo physInfo{
+        {
+          {0.0f, 0.0f, 0.0f, 0.0f},
+          7.0f, 80.0f, 0.0f, 0.0f
+        },
+        {
+          PhysicsType(true, POLYGON_TYPE, true, false, true, true),
+          MONSTER_COLLISION_TYPE,     // collisionGroup
+          monster_collision_filter,     // collisionFilter
+          monster_trigger_filter,
+
+          0.5f,  // stairHeight
+          //40.0f, // acceleration
+          1.0f,  // overbounce
+          4.0f,  // groundFriction
+
+          0.0f,  // radius
+          1.0f,
+
+          UINT32_MAX,
+          UINT32_MAX,
+          UINT32_MAX,
+          UINT32_MAX,
+          UINT32_MAX,
+
+          type
+        },
+        nullptr
+      };
+      
+      physInfo.physInfo.transformIndex = trans->index();
+      physInfo.physInfo.inputIndex = input->inputIndex;
+      auto phys = ent->add<PhysicsComponent>(physInfo);
+      phys->setUserData(ent);
+      
+      PRINT_VAR("box transform index", trans->index())
+      PRINT_VAR("complex box   index", phys->getIndexContainer().objectDataIndex)
+      
+      // нужно сюда передать массив текстур, нет не нужно, лучше стейт
+      static const utils::id state_id = utils::id::get("tmr_decor1_state");
+      auto state = Global::get<game::states_container>()->get(state_id);
+      ASSERT(state != nullptr);
+      
+      const glm::vec2 tex_coords[] = {
+        glm::vec2(0.0f, 0.0f),
+        glm::vec2(1.0f, 0.0f),
+        glm::vec2(1.0f, 1.0f),
+        glm::vec2(0.0f, 1.0f),
+      };
+      
+      auto graphics = ent->add<components::complex_indices_graphics>();
+      graphics->ent = ent;
+      const uint32_t count = 4;
+      for (size_t i = 0; i < 6; ++i) {
+        const uint32_t offset = vertices.size();
+        const uint32_t face_index = index + i;
+        
+        const components::complex_indices_graphics::indices idx{
+          offset,
+          count,
+          face_index,
+          state
+        };
+        graphics->model_faces.push_back(idx);
+        
+        const simd::vec4 normal = shapeInfo.faces[i] * simd::vec4(1.0f, 1.0f, 1.0f, 0.0);
+        float arr[4];
+        normal.storeu(arr);
+        
+        for (uint32_t j = 0; j < count; ++j) {
+          vertices.push_back({
+            shapeInfo.points[i*count+j],
+            basic_vec4(arr[0], arr[1], arr[2], glm::uintBitsToFloat(face_index)),
+            tex_coords[j]
+          });
+        }
+      }
+      
+      auto states = ent->add<components::states>(ent, state);
+      
+      // с вершинами пока не понятно, их должно быть по количеству фейсов
+      //auto vertex = ent->add<components::vertex>(components::vertex::create_info{ent, simd::vec4(create_info.center), simd::vec4(create_info.normal)});
+      //ASSERT(ent->at<components::vertex>(game::wall::vertex).valid());
+      
+      (void)states;
+      // по идее это все что нужно для тестового объекта
+      return ent;
     }
   }
 }
