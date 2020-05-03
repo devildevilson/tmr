@@ -472,6 +472,8 @@ set(SRC_LIST
   render/graphics_component.cpp
   render/image_container.cpp
   bin/interface_context.cpp
+  render/decal_system.cpp
+  render/decals_container_component.cpp
 )
 set(HDR_LIST
 #   render/Render.h
@@ -508,6 +510,8 @@ set(HDR_LIST
   include/VulkanMemoryAllocator/src/vk_mem_alloc.h
   render/vulkan_lite.h
   bin/interface_context.h
+  render/decal_system.h
+  render/decals_container_component.h
 )
 add_library(render ${SRC_LIST} ${HDR_LIST})
 target_link_libraries(render utils ${VULKAN_LIB_NAME} ${GLFW3_LIBRARIES})
@@ -552,7 +556,7 @@ set(HDR_LIST
   ai/gheap.hpp
 )
 add_library(ai ${SRC_LIST} ${HDR_LIST})
-target_link_libraries(ai utils physics ccd)
+target_link_libraries(ai utils physics)
 
 # RESOURCES
 set(SRC_LIST
