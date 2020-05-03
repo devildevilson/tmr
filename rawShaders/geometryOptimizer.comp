@@ -40,7 +40,7 @@ layout(std140, set = 3, binding = 0) readonly buffer MatricesData {
   mat4 matrices_array[];
 };
 
-layout(std140, set = 4, binding = 0) readonly buffer RotationDatas {
+layout(std430, set = 4, binding = 0) readonly buffer RotationDatas {
   uint rotationDatas[];
 };
 
@@ -49,8 +49,9 @@ layout(std430, set = 5, binding = 0) readonly buffer textures_buffer {
 };
 
 struct InstanceData {
-  //mat4 matrix;
+  mat4 matrix;
   image_data t;
+  uint dummy[1];
 };
 
 layout(std430, set = 6, binding = 0) buffer InstanceDatas {
@@ -60,6 +61,10 @@ layout(std430, set = 6, binding = 0) buffer InstanceDatas {
 layout(std430, set = 6, binding = 1) buffer Indices {
   uint indices[];
 };
+
+mat4 translate(const mat4 mat, const vec4 vec);
+mat4 rotate(const mat4 mat, const float angle, const vec4 normal);
+mat4 scale(const mat4 mat, const vec4 vec);
 
 #define WORKGROUP_SIZE 256
 layout (local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
@@ -84,4 +89,58 @@ void main() {
   instanceDatas[faceIndex].t = textures[textureIndex];
 
   // тут еще добавится вычисление матрицы
+  const uint transfom_index = graphicsIndices[index].indices.x;
+  const uint matrix_index = graphicsIndices[index].indices.y;
+  const uint rotation_index = graphicsIndices[index].indices.z;
+  
+  const vec4 pos = transfom_index != UINT32_MAX ? transforms[transfom_index].pos : vec4(0.0f, 0.0f, 0.0f, 1.0f);
+  const vec4 scale_vec = transfom_index != UINT32_MAX ? transforms[transfom_index].scale : vec4(1.0f, 1.0f, 1.0f, 1.0f);
+  const mat4 matrix = matrix_index != UINT32_MAX ? matrices_array[matrix_index] : mat4(1.0f);
+  
+  instanceDatas[faceIndex].matrix = matrix * scale(mat4(1.0f), scale_vec) * translate(mat4(1.0f), pos);
+  //instanceDatas[faceIndex].matrix = mat4(1.0f);
 }
+
+mat4 translate(const mat4 mat, const vec4 vec) {
+  mat4 ret = mat;
+  ret[3] = mat[0] * vec[0] + mat[1] * vec[1] + mat[2] * vec[2] + mat[3];
+  return ret;
+}
+
+mat4 rotate(const mat4 mat, const float angle, const vec4 normal) {
+  const float c = cos(angle);
+  const float s = sin(angle);
+
+  const vec4 temp = normalize(normal) * (1.0f - c);
+
+  mat3 rot;
+
+  rot[0][0] = c + temp[0] * normal[0];
+  rot[0][1] = temp[0] * normal[1] + s * normal[2];
+  rot[0][2] = temp[0] * normal[2] - s * normal[1];
+
+  rot[1][0] = temp[1] * normal[0] - s * normal[2];
+  rot[1][1] = c + temp[1] * normal[1];
+  rot[1][2] = temp[1] * normal[2] + s * normal[0];
+
+  rot[2][0] = temp[2] * normal[0] + s * normal[1];
+  rot[2][1] = temp[2] * normal[1] - s * normal[0];
+  rot[2][2] = c + temp[2] * normal[2];
+
+  mat4 result;
+  result[0] = mat[0] * rot[0][0] + mat[1] * rot[0][1] + mat[2] * rot[0][2];
+  result[1] = mat[0] * rot[1][0] + mat[1] * rot[1][1] + mat[2] * rot[1][2];
+  result[2] = mat[0] * rot[2][0] + mat[1] * rot[2][1] + mat[2] * rot[2][2];
+  result[3] = mat[3];
+  return result;
+}
+
+mat4 scale(const mat4 mat, const vec4 vec) {
+  mat4 ret = mat;
+  ret[0] *= vec[0];
+  ret[1] *= vec[1];
+  ret[2] *= vec[2];
+
+  return ret;
+}
+

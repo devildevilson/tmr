@@ -170,11 +170,21 @@ namespace devils_engine {
     
     void point_light::draw() {
       if (core::deleted_state(ent)) return;
+      if (glm::abs(radius * brightness) < EPSILON) return;
       
       // модификатор к позиции мы должны задавать извне
       // света не может быть у стен я так понимаю
       // у стен только параметр освещенности который мы задаем в карте
+      auto trans = ent->at<TransformComponent>(game::entity::transform);
       
+      const render::lights_optimizer::light_data data{
+        {
+          glm::vec4(0.0f, 0.0f, 0.0f, brightness),     // как позицию брать из частицы? нам придется подключать еще один буфер в шейдер
+          glm::vec4(color.x, color.y, color.z, radius)
+        },
+        trans.valid() ? trans->index() : UINT32_MAX
+      };
+      Global::get<render::lights_optimizer>()->add(data);
     }
     
     void player_sprite::draw(const size_t &time) {
@@ -518,6 +528,39 @@ namespace devils_engine {
       if (game_messages.empty()) current_time_game = 0;
       game_messages.push(string);
     }
+    
+    void complex_indices_graphics::draw() {
+      if (core::deleted_state(ent)) return;
+      
+      //auto opt = Global::get<GeometryGPUOptimizer>();
+      auto opt = Global::get<render::geometry_optimizer>();
+      auto trans = ent->at<TransformComponent>(game::entity::transform);
+      auto states = ent->at<components::states>(game::entity::states);
+      
+      if (states->current == nullptr) return;
+      
+      // по идее этого достаточно
+      // теперь когда у меня текстурка упакована в 32 бита, я могу свободно ее передавать
+      // осталось придумать хороший контейнер, чтобы не сильно усложнял стейт
+      for (const auto &face : model_faces) {
+        const uint32_t texture_index = face.state->frame.texture_offset;
+        ASSERT(face.state->frame.images_count == 1);
+        
+        const render::geometry_optimizer::object_indices idx{
+          trans.valid() ? trans->index() : UINT32_MAX,
+          UINT32_MAX,
+          UINT32_MAX,
+          texture_index,
+          face.offset,
+          face.count,
+          face.index,
+          0
+        };
+        opt->add(idx);
+      }
+    }
+    
+    void complex_indices_graphics::debug_draw() {}
   }
   
   lower_panel_sizes::lower_panel_sizes(const float &panel_width, const float &panel_height, const float &offset_x, const float &offset_y) : 

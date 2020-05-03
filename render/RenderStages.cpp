@@ -155,16 +155,16 @@ void MonsterGBufferStage::create(const CreateInfo &info) {
   
   // я забыл переделать буферы хранящие данные карты, поэтому вот эти буферы у меня просто перезаписывались
   {
-    monsterDefault = device->create(yavf::BufferCreateInfo::buffer(monsterDefaultVerticesSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
-    yavf::Buffer buffer(device, yavf::BufferCreateInfo::buffer(monsterDefaultVerticesSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT), VMA_MEMORY_USAGE_CPU_ONLY);
+    monsterDefault = device->create(yavf::BufferCreateInfo::buffer(monster_default_vertices_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
+    yavf::Buffer buffer(device, yavf::BufferCreateInfo::buffer(monster_default_vertices_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT), VMA_MEMORY_USAGE_CPU_ONLY);
     
-    memcpy(buffer.ptr(), monsterDefaultVertices, monsterDefaultVerticesSize);
+    memcpy(buffer.ptr(), monster_default_vertices, monster_default_vertices_size);
     //memcpy(monsterDefaultStaging->ptr(), monsterDefaultVertices, 4*sizeof(Vertex));
     
     yavf::TransferTask* task = device->allocateTransferTask();
     
     task->begin();
-    task->copy(&buffer, monsterDefault, 0, 0, monsterDefaultVerticesSize);
+    task->copy(&buffer, monsterDefault, 0, 0, monster_default_vertices_size);
     task->end();
     
     task->start();
@@ -271,7 +271,7 @@ bool MonsterGBufferStage::doWork(RenderContext* context) {
   task->setDescriptor({uniformBuffer->descriptorSet()->handle(), imagesSet->handle()}, 0);
   task->setVertexBuffer(instanceData.vector().handle(), 0);
   task->setVertexBuffer(monsterDefault, 1);
-  task->draw(monsterDefaultVerticesCount, instanceCount, 0, 0);
+  task->draw(monster_default_vertices_count, instanceCount, 0, 0);
   
 //  monsterOptimiser->clear();
   
@@ -1418,12 +1418,12 @@ void MonsterDebugStage::create(const PostRenderPart::CreateInfo &info) {
   // мне еще нужно создать буфер с кубом
   yavf::Buffer* staging;
   {
-    staging = device->create(yavf::BufferCreateInfo::buffer(cubeStripVerticesSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT), VMA_MEMORY_USAGE_CPU_ONLY);
+    staging = device->create(yavf::BufferCreateInfo::buffer(cube_strip_vertices_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT), VMA_MEMORY_USAGE_CPU_ONLY);
     
-    memcpy(staging->ptr(), cubeStripVertices, cubeStripVerticesSize);
+    memcpy(staging->ptr(), cube_strip_vertices, cube_strip_vertices_size);
   }
   
-  monsterDebug = device->create(yavf::BufferCreateInfo::buffer(cubeStripVerticesSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
+  monsterDebug = device->create(yavf::BufferCreateInfo::buffer(cube_strip_vertices_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
   
   {
     yavf::TransferTask* task = device->allocateTransferTask();
@@ -1469,7 +1469,7 @@ void MonsterDebugStage::doWork(RenderContext* context) {
   task->setDescriptor(uniformBuffer->descriptorSet(), 0);
   task->setVertexBuffer(instData.vector().handle(), 0);
   task->setVertexBuffer(monsterDebug, 1);
-  task->draw(cubeStripVerticesCount, instanceCount, 0, 0);
+  task->draw(cube_strip_vertices_count, instanceCount, 0, 0);
   
 //  optimizer->clear();
 }

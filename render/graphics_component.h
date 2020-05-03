@@ -63,13 +63,20 @@ namespace devils_engine {
     struct point_light {
       yacs::entity* ent;
       
-      
+      // цвет, радиус, яркость (чтоб полегче добиваться тусклого света)
+      glm::vec3 color;
+      float radius;     // если это 0, то источник света "выключен"
+      float brightness; // если это 0, то источник света "выключен"
       
       void draw();
       
       // тут мы должны уметь рисовать/не рисовать свет
       // задавать ему произвольную позицию
-      // 
+      // позиция должна быть по позиции энтити
+      
+      void set_color(const glm::vec3 &color);
+      void set_radius(const float &radius);
+      void set_brightness(const float &brightness);
     };
     
     // эти компоненты будут в единственном экземпляре, сомневаюсь что они вообще нужны
@@ -125,6 +132,24 @@ namespace devils_engine {
       // для того чтобы игрок мог что нибудь нарисовать на экране
       // понятное дело все функции наклира передавать глупо, значит нужно
       // продумать целый апи
+    };
+    
+    struct complex_indices_graphics {
+      struct indices {
+        uint32_t offset;
+        uint32_t count;
+        uint32_t index;
+        //uint32_t texture_index;
+        
+        //render::image image; // или только стейт? хотя это означает создание кучи ненужный стейтов, но это упростит мне жизнь
+        const core::state_t* state;
+      };
+      
+      yacs::entity* ent;
+      std::vector<indices> model_faces;
+      
+      void draw();
+      void debug_draw();
     };
   }
 }

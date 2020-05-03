@@ -3,6 +3,7 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "../render/shared_structures.h"
+#include "../utils/shared_mathematical_constants.h"
 
 layout(set = 0, binding = 0) uniform Camera {
   mat4 viewproj;
@@ -15,19 +16,12 @@ layout(set = 0, binding = 0) uniform Camera {
 struct instance_data_t {
   mat4 matrix;
   image_data t;
-  // по каким то причинам плохо работает единичный массив
-  // в glsl все бесполезные байты нужно указывать явно
-  uint dummy;
+  uint dummy[1];
 };
 
 layout(std430, set = 2, binding = 0) readonly buffer textures_data {
   instance_data_t instances[];
 };
-
-const mat4 toVulkanSpace = mat4(1.0f, 0.0f, 0.0f, 0.0f,
-                                0.0f,-1.0f, 0.0f, 0.0f,
-                                0.0f, 0.0f, 1.0f, 0.0f,
-                                0.0f, 0.0f, 0.0f, 1.0f);
 
 layout(location = 0) in vec4 pos;
 layout(location = 1) in vec4 normal;

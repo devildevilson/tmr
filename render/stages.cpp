@@ -3,7 +3,7 @@
 #include "yavf.h"
 #include "targets.h"
 #include "Globals.h"
-#include "SceneData.h"
+#include "scene_data.h"
 #include "image_data.h"
 #include "window.h"
 #include "interface_context.h"
@@ -294,9 +294,9 @@ namespace devils_engine {
         yavf::DescriptorLayoutMaker dlm(device);
         
         if (instances_layout == VK_NULL_HANDLE) {
-          instances_layout = dlm.binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT).
-                                binding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT).
-                                create("geometry_rendering_data");
+          instances_layout = dlm.binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT).
+                                 binding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT).
+                                 create("geometry_rendering_data");
         }
       }
       
@@ -542,16 +542,16 @@ namespace devils_engine {
     monster_gbuffer::monster_gbuffer(const create_info &info) : device(info.device), monster_default(nullptr), uniform(info.uniform), opt(info.opt), target(info.target) {
       // я забыл переделать буферы хранящие данные карты, поэтому вот эти буферы у меня просто перезаписывались
       {
-        monster_default = device->create(yavf::BufferCreateInfo::buffer(monsterDefaultVerticesSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
-        yavf::Buffer buffer(device, yavf::BufferCreateInfo::buffer(monsterDefaultVerticesSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT), VMA_MEMORY_USAGE_CPU_ONLY);
+        monster_default = device->create(yavf::BufferCreateInfo::buffer(monster_default_vertices_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
+        yavf::Buffer buffer(device, yavf::BufferCreateInfo::buffer(monster_default_vertices_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT), VMA_MEMORY_USAGE_CPU_ONLY);
         
-        memcpy(buffer.ptr(), monsterDefaultVertices, monsterDefaultVerticesSize);
+        memcpy(buffer.ptr(), monster_default_vertices, monster_default_vertices_size);
         //memcpy(monsterDefaultStaging->ptr(), monsterDefaultVertices, 4*sizeof(Vertex));
         
         yavf::TransferTask* task = device->allocateTransferTask();
         
         task->begin();
-        task->copy(&buffer, monster_default, 0, 0, monsterDefaultVerticesSize);
+        task->copy(&buffer, monster_default, 0, 0, monster_default_vertices_size);
         task->end();
         
         task->start();
@@ -578,7 +578,7 @@ namespace devils_engine {
       task->setDescriptor({uniform->descriptorSet()->handle(), images_set->handle()}, 0);
       task->setVertexBuffer(opt->instance_datas()->vector().handle(), 0);
       task->setVertexBuffer(monster_default, 1);
-      task->draw(monsterDefaultVerticesCount, instanceCount, 0, 0);
+      task->draw(monster_default_vertices_count, instanceCount, 0, 0);
     }
     
     #define MONSTER_PIPELINE_LAYOUT_NAME "deferred_layout"
@@ -647,7 +647,7 @@ namespace devils_engine {
                 .vertexBinding(1, sizeof(struct vertex))
                   .vertexAttribute(7,  1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(struct vertex, pos))
                   .vertexAttribute(8, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(struct vertex, color))
-                  .vertexAttribute(9, 1, VK_FORMAT_R32G32_SFLOAT, offsetof(struct vertex, texCoord))
+                  .vertexAttribute(9, 1, VK_FORMAT_R32G32_SFLOAT, offsetof(struct vertex, tex_coord))
                 .depthTest(VK_TRUE)
                 .depthWrite(VK_TRUE)
                 .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN)
@@ -728,28 +728,33 @@ namespace devils_engine {
         pm.clearBlending();
         
         pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, vertex)
-                .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, fragment)
-                  .addSpecializationEntry(0, 0, sizeof(uint32_t))
-                  .addSpecializationEntry(1, sizeof(uint32_t), sizeof(uint32_t))
-                  .addData(2*sizeof(uint32_t), constants)
-                .vertexBinding(0, sizeof(Vertex))
-                  .vertexAttribute(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, pos))
-                  .vertexAttribute(1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, color))
-                  .vertexAttribute(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, texCoord))
-                .depthTest(VK_TRUE)
-                .depthWrite(VK_TRUE)
+                 .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, fragment)
+                   .addSpecializationEntry(0, 0, sizeof(uint32_t))
+                   .addSpecializationEntry(1, sizeof(uint32_t), sizeof(uint32_t))
+                   .addData(2*sizeof(uint32_t), constants)
+                 .vertexBinding(0, sizeof(struct vertex))
+                   .vertexAttribute(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(struct vertex, pos))
+                   .vertexAttribute(1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(struct vertex, color))
+                   .vertexAttribute(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(struct vertex, tex_coord))
+//                  .vertexBinding(1, sizeof(glm::mat4), VK_VERTEX_INPUT_RATE_INSTANCE)
+//                    .vertexAttribute(0, 1, VK_FORMAT_R32G32B32A32_SFLOAT, 0 * sizeof(glm::vec4))
+//                    .vertexAttribute(1, 1, VK_FORMAT_R32G32B32A32_SFLOAT, 1 * sizeof(glm::vec4))
+//                    .vertexAttribute(2, 1, VK_FORMAT_R32G32B32A32_SFLOAT, 2 * sizeof(glm::vec4))
+//                    .vertexAttribute(3, 1, VK_FORMAT_R32G32B32A32_SFLOAT, 3 * sizeof(glm::vec4))
+                 .depthTest(VK_TRUE)
+                 .depthWrite(VK_TRUE)
     //              .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN)
-                .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN, VK_TRUE)
-                .viewport()
-                .scissor()
-                .dynamicState(VK_DYNAMIC_STATE_VIEWPORT)
-                .dynamicState(VK_DYNAMIC_STATE_SCISSOR)
-                .colorBlendBegin(VK_FALSE)
-                  .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
-                .colorBlendBegin(VK_FALSE)
-                  .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+                 .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN, VK_TRUE)
+                 .viewport()
+                 .scissor()
+                 .dynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+                 .dynamicState(VK_DYNAMIC_STATE_SCISSOR)
+                 .colorBlendBegin(VK_FALSE)
+                   .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+                 .colorBlendBegin(VK_FALSE)
+                   .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
     //                          .rasterizationSamples(VK_SAMPLE_COUNT_8_BIT)
-                .create(GEOMETRY_PIPELINE_NAME, deferred_layout2, target->wall_renderpass());
+                 .create(GEOMETRY_PIPELINE_NAME, deferred_layout2, target->wall_renderpass());
       }
     }
     
@@ -834,6 +839,258 @@ namespace devils_engine {
                   .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
                 .create(PARTICLES_PIPELINE_NAME, patricles_layout, target->next_renderpass());
       }
+    }
+    
+#define SKYBOX_PIPELINE_LAYOUT_NAME "skybox_pipeline_layout"
+#define SKYBOX_PIPELINE_NAME "skybox_pipeline"
+    
+    skybox_gbuffer::skybox_gbuffer(const create_info &info) : 
+      device(info.device),
+      uniform(info.uniform),
+      cube_vertices(nullptr),
+      target(info.target),
+      skybox_set(info.skybox_set)
+    {
+      {
+        cube_vertices = device->create(yavf::BufferCreateInfo::buffer(cube_strip_vertices_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
+        yavf::Buffer staging(device, yavf::BufferCreateInfo::buffer(cube_strip_vertices_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT), VMA_MEMORY_USAGE_CPU_ONLY);
+        
+        memcpy(staging.ptr(), cube_strip_vertices, cube_strip_vertices_size);
+        
+        auto trans = device->allocateTransferTask();
+        trans->begin();
+        trans->copy(&staging, cube_vertices);
+        trans->end();
+        
+        trans->start();
+        trans->wait();
+        
+        device->deallocate(trans);
+      }
+      
+      yavf::DescriptorSetLayout uniform_layout = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
+      yavf::DescriptorSetLayout skybox_set_layout = device->setLayout(SKYBOX_TEXTURE_LAYOUT_NAME);
+      if (skybox_set_layout == VK_NULL_HANDLE) {
+        yavf::DescriptorLayoutMaker dlm(device);
+        
+        skybox_set_layout = dlm.binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT).create(SKYBOX_TEXTURE_LAYOUT_NAME);
+      }
+      
+      yavf::PipelineLayout skybox_layout = VK_NULL_HANDLE;
+      {
+        yavf::PipelineLayoutMaker plm(device);
+        
+        skybox_layout = plm.addDescriptorLayout(uniform_layout)
+                           .addDescriptorLayout(skybox_set_layout)
+                           .create(SKYBOX_PIPELINE_LAYOUT_NAME);
+      }
+      
+      {
+        yavf::raii::ShaderModule vertex  (device, Global::getGameDir() + "shaders/skybox.vert.spv");
+        yavf::raii::ShaderModule fragment(device, Global::getGameDir() + "shaders/skybox.frag.spv");
+        
+        yavf::PipelineMaker pm(device);
+        pm.clearBlending();
+        
+        pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, vertex)
+                 .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, fragment)
+                 .vertexBinding(0, sizeof(struct vertex)) // ?
+                   .vertexAttribute(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(struct vertex, pos))
+                   .vertexAttribute(1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(struct vertex, color))
+                   .vertexAttribute(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(struct vertex, tex_coord))
+                 .depthTest(VK_TRUE)
+                 .depthWrite(VK_FALSE)
+                 .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP)
+                 .viewport()
+                 .scissor()
+                 .dynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+                 .dynamicState(VK_DYNAMIC_STATE_SCISSOR)
+                 .colorBlendBegin(VK_FALSE)
+                   .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+                 .colorBlendBegin(VK_FALSE)
+                   .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+                 .create(SKYBOX_PIPELINE_NAME, skybox_layout, target->next_renderpass());
+      }
+    }
+    
+    void skybox_gbuffer::begin() {}
+    void skybox_gbuffer::proccess(context* ctx) {
+      auto task = ctx->graphics();
+      
+      task->setPipeline(pipe);
+      task->setDescriptor({uniform->descriptorSet()->handle(), skybox_set->handle()}, 0);
+      task->setVertexBuffer(cube_vertices, 0);
+      task->draw(cube_strip_vertices_count, 1, 0, 0);
+    }
+    
+    void skybox_gbuffer::clear() {}
+//     void skybox_gbuffer::recreate_pipelines(const game::image_resources_t* resource) {
+//       skybox_set = resource->skybox_set;
+//     }
+
+    const uint32_t initial_vertex_count = 1000;
+    decal_gbuffer::decal_gbuffer(const create_info &info) : 
+      device(info.device), 
+      uniform(info.uniform), 
+      target(info.target), 
+      images_set(nullptr), 
+      decal_vertices(nullptr),
+      current_vertices_size(initial_vertex_count),
+      vertices_count(0), 
+      indices_count(0), 
+      faces_count(0), 
+      instances(device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, current_vertices_size/5),
+      transforms(info.transforms),
+      matrices(info.matrices),
+      textures(info.textures)
+    {
+      decal_vertices = device->create(yavf::BufferCreateInfo::buffer(sizeof(render::vertex)*current_vertices_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT), VMA_MEMORY_USAGE_CPU_ONLY);
+      decal_indices  = device->create(yavf::BufferCreateInfo::buffer(sizeof(uint32_t)*(current_vertices_size*1.5f), VK_BUFFER_USAGE_INDEX_BUFFER_BIT), VMA_MEMORY_USAGE_CPU_ONLY);
+      
+      {
+        auto pool = device->descriptorPool(DEFAULT_DESCRIPTOR_POOL_NAME);
+        auto layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
+        yavf::DescriptorMaker dm(device);
+        
+        auto desc = dm.layout(layout).create(pool)[0];
+        size_t index = desc->add({instances.vector().handle(), 0, instances.vector().buffer_size(), 0, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER});
+        instances.vector().setDescriptor(desc, index);
+      }
+      
+      ASSERT(sizeof(instance_data) == sizeof(geometry_optimizer::instance_data));
+    }
+    
+    void decal_gbuffer::begin() {}
+    void decal_gbuffer::proccess(context* ctx) {
+      if (vertices_count == 0) return;
+      
+      auto task = ctx->graphics();
+      task->setPipeline(pipe);
+      task->setDescriptor({uniform->descriptorSet()->handle(), images_set->handle(), instances.vector().descriptorSet()->handle()}, 0);
+      task->setVertexBuffer(decal_vertices, 0);
+      task->setIndexBuffer(decal_indices);
+      task->drawIndexed(indices_count, 1, 0, 0, 0);
+    }
+    
+    void decal_gbuffer::clear() {
+      const uint32_t old_size = current_vertices_size;
+      if (vertices_count > current_vertices_size) {
+        current_vertices_size = vertices_count;
+      } else if (current_vertices_size - vertices_count < 10) {
+        current_vertices_size *= 1.2f;
+      }
+      
+      if (old_size != current_vertices_size) {
+        decal_vertices->recreate(current_vertices_size*sizeof(render::vertex));
+      }
+      
+      vertices_count = 0;
+      indices_count = 0;
+      faces_count = 0;
+    }
+    
+#define DECAL_GBUFFER_PIPELINE_NAME "decal_gbuffer_pipeline"
+#define DECAL_GBUFFER_PIPELINE_LAYOUT_NAME "decal_gbuffer_pipeline_layout"
+    void decal_gbuffer::recreate_pipelines(const game::image_resources_t* resource) {
+      images_set = resource->set;
+      
+      if (pipe.handle() != VK_NULL_HANDLE) {
+        device->destroyPipeline(DECAL_GBUFFER_PIPELINE_NAME);
+        device->destroyLayout(DECAL_GBUFFER_PIPELINE_LAYOUT_NAME);
+      }
+      
+      auto uniform_layout = device->setLayout(UNIFORM_BUFFER_LAYOUT_NAME);
+      auto storage_layout = device->setLayout(STORAGE_BUFFER_LAYOUT_NAME);
+      
+      yavf::PipelineLayout pipeline_layout = VK_NULL_HANDLE;
+      {
+        yavf::PipelineLayoutMaker plm(device);
+        
+        pipeline_layout = plm.addDescriptorLayout(uniform_layout)
+                             .addDescriptorLayout(resource->layout)
+                             .addDescriptorLayout(storage_layout)
+                             .create(DECAL_GBUFFER_PIPELINE_LAYOUT_NAME);
+      }
+      
+      uint32_t constants[2] = {resource->images, resource->samplers};
+      
+      {
+        yavf::raii::ShaderModule vertex  (device, Global::getGameDir() + "shaders/deferred.vert.spv"); // по идее мне не нужно писать особый шейдер для этого
+        yavf::raii::ShaderModule fragment(device, Global::getGameDir() + "shaders/deferred.frag.spv");
+        
+        yavf::PipelineMaker pm(device);
+        pm.clearBlending();
+        
+        pipe = pm.addShader(VK_SHADER_STAGE_VERTEX_BIT, vertex)
+                 .addShader(VK_SHADER_STAGE_FRAGMENT_BIT, fragment)
+                   .addSpecializationEntry(0, 0, sizeof(uint32_t))
+                   .addSpecializationEntry(1, sizeof(uint32_t), sizeof(uint32_t))
+                   .addData(2*sizeof(uint32_t), constants)
+                 .vertexBinding(0, sizeof(struct vertex)) // ?
+                   .vertexAttribute(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(struct vertex, pos))
+                   .vertexAttribute(1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(struct vertex, color))
+                   .vertexAttribute(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(struct vertex, tex_coord))
+                 .depthTest(VK_TRUE)
+                 .depthWrite(VK_FALSE)
+                 .depthBias(VK_TRUE, -10.0f, 0.0f, -1.75f)
+                 .assembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN, VK_TRUE)
+                 .viewport()
+                 .scissor()
+                 .dynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+                 .dynamicState(VK_DYNAMIC_STATE_SCISSOR)
+                 .colorBlendBegin(VK_FALSE)
+                   .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+                 .colorBlendBegin(VK_FALSE)
+                   .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+                 .create(DECAL_GBUFFER_PIPELINE_NAME, pipeline_layout, target->next_renderpass());
+      }
+    }
+    
+    // возможно нужно сделать просто большой статический буфер? можно в бегине увеличивать буфер (в clear() лучше)
+    void decal_gbuffer::add(const decal_data &data) {
+//       std::unique_lock<std::mutex> lock(mutex);
+      const uint32_t vertex_offset = vertices_count.fetch_add(data.vertices_size);
+      if ((vertex_offset+data.vertices_size) > current_vertices_size) {
+        std::cout << "too many decals" << "\n";
+        return;
+      }
+      
+      const uint32_t index_offset = indices_count.fetch_add(data.vertices_size+1);
+      const uint32_t face_index = faces_count.fetch_add(1);
+      
+      ASSERT(index_offset+data.vertices_size+1 <= current_vertices_size*1.5f);
+      ASSERT(face_index < current_vertices_size/5);
+      
+      auto vertices = reinterpret_cast<render::vertex*>(decal_vertices->ptr());
+      auto indices  = reinterpret_cast<uint32_t*>(decal_indices->ptr());
+      for (uint32_t i = 0; i < data.vertices_size; ++i) {
+        const uint32_t index = vertex_offset + i;
+        const uint32_t index2 = index_offset + i;
+        vertices[index] = data.vertices[i];
+        //PRINT_VEC4("vertices[index].pos", vertices[index].pos.get_glm())
+        vertices[index].color.arr[3] = glm::uintBitsToFloat(face_index);
+        indices[index2] = index;
+      }
+      
+      //PRINT("\n")
+      
+      indices[index_offset+data.vertices_size] = UINT32_MAX;
+      
+      const simd::vec4 pos = data.transform_index != UINT32_MAX ? transforms->at(data.transform_index).pos : simd::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+      const simd::vec4 scale = data.transform_index != UINT32_MAX ? transforms->at(data.transform_index).scale : simd::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+      const simd::mat4 matrix = data.matrix_index != UINT32_MAX ? matrices->at(data.matrix_index) : simd::mat4(1.0f);
+      ASSERT(data.texture_index != UINT32_MAX);
+      const auto texture = textures->at(data.texture_index);
+      
+      const simd::mat4 trans = simd::translate(simd::mat4(1.0f), pos);
+      const simd::mat4 scale_mat = simd::scale(simd::mat4(1.0f), scale);
+      const simd::mat4 final_matrix = scale_mat * trans * matrix; // МАТРИЦА ИЗ БУФЕРА СНАЧАЛО!
+      
+      instances[face_index] = {
+        final_matrix,
+        texture,
+        {0}
+      };
     }
     
     lights_optimizer::lights_optimizer(const create_info &info) : device(info.device), uniform(info.uniform), matrix(info.matrix), transforms(info.transforms), light_array(device), data(info.data), target(info.target) {

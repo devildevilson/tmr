@@ -786,7 +786,7 @@ namespace yavf {
 
 
   PipelineMaker & PipelineMaker::depthClamp(const VkBool32 &enable) {
-    rasterisationInfo.depthBiasClamp = enable;
+    rasterisationInfo.depthClampEnable = enable;
 
     return *this;
   }
@@ -816,7 +816,8 @@ namespace yavf {
   }
 
   PipelineMaker & PipelineMaker::depthBias(const VkBool32 &enable, const float &constFactor, const float &clamp, const float &slopeFactor) {
-    rasterisationInfo.depthClampEnable = enable;
+    //rasterisationInfo.depthClampEnable = enable;
+    rasterisationInfo.depthBiasEnable = enable;
     rasterisationInfo.depthBiasConstantFactor = constFactor;
     rasterisationInfo.depthBiasClamp = clamp;
     rasterisationInfo.depthBiasSlopeFactor = slopeFactor;

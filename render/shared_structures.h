@@ -10,6 +10,7 @@
 #define MATRICES_BUFFER_LAYOUT_NAME "matrixes_layout"
 #define STORAGE_BUFFER_LAYOUT_NAME "storage_layout"
 #define SAMPLED_IMAGE_LAYOUT_NAME "sampled_image_layout"
+#define SKYBOX_TEXTURE_LAYOUT_NAME "skybox_texture_layout"
 
 #define INLINE inline
 #define INOUT
@@ -51,7 +52,7 @@ struct image_data {
 struct vertex {
   vec4 pos;
   vec4 color;
-  vec2 texCoord;
+  vec2 tex_coord;
 };
 
 struct light_data {

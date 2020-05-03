@@ -2,6 +2,7 @@
 #define STAGES_H
 
 #include <cstddef>
+#include <atomic>
 
 #include "stage.h"
 #include "yavf.h"
@@ -177,9 +178,11 @@ namespace devils_engine {
     public:
       static const uint32_t workgroup_size = 256;
       
+      // какая то проблема с выравниванием
       struct instance_data {
-    //     glm::mat4 mat; // добавится обязательно
+        glm::mat4 mat;
         image_data textureData;
+        uint32_t dummy[1];
       };
       
       struct object_indices {
@@ -340,6 +343,82 @@ namespace devils_engine {
       struct particles* particles;
       yavf::Pipeline pipe;
       yavf::DescriptorSet* images_set;
+    };
+    
+    class skybox_gbuffer : public stage/*, public pipeline_stage*/ {
+    public:
+      struct create_info {
+        yavf::Device* device;
+        yavf::Buffer* uniform;
+        deffered* target;
+        yavf::DescriptorSet* skybox_set; // ??
+      };
+      skybox_gbuffer(const create_info &info);
+      void begin() override;
+      void proccess(context* ctx) override;
+      void clear() override;
+//       void recreate_pipelines(const game::image_resources_t* resource) override;
+    private:
+      yavf::Device* device;
+      yavf::Buffer* uniform;
+      yavf::Buffer* cube_vertices;
+      deffered* target;
+      yavf::Pipeline pipe;
+      yavf::DescriptorSet* skybox_set;
+    };
+    
+    // последняя декаль не рисуется, почему?
+    class decal_gbuffer : public stage, public pipeline_stage {
+    public:
+      struct decal_data {
+        const render::vertex* vertices;
+        size_t vertices_size;
+        uint32_t transform_index;
+        uint32_t matrix_index;
+        uint32_t rotation_index;
+        uint32_t texture_index;
+      };
+      
+      struct instance_data {
+        basic_mat4 matrix;
+        render::image_data texture;
+        uint32_t dummy[1];
+      };
+      
+      struct create_info {
+        yavf::Device* device;
+        yavf::Buffer* uniform;
+        deffered* target;
+        ArrayInterface<Transform>* transforms;
+        ArrayInterface<simd::mat4>* matrices;
+//         ArrayInterface<RotationData>* rotation_datas;
+        ArrayInterface<image_data>* textures;
+      };
+      decal_gbuffer(const create_info &info);
+      void begin() override;
+      void proccess(context* ctx) override;
+      void clear() override;
+      void recreate_pipelines(const game::image_resources_t* resource) override;
+      
+      void add(const decal_data &data);
+    private:
+      yavf::Device* device;
+      yavf::Buffer* uniform;
+      deffered* target;
+      yavf::Pipeline pipe;
+      yavf::DescriptorSet* images_set;
+      yavf::Buffer* decal_vertices;
+      yavf::Buffer* decal_indices;
+      uint32_t current_vertices_size;
+      std::atomic<uint32_t> vertices_count;
+      std::atomic<uint32_t> indices_count;
+      std::atomic<uint32_t> faces_count;
+      GPUArray<instance_data> instances;
+      ArrayInterface<Transform>* transforms;
+      ArrayInterface<simd::mat4>* matrices;
+      ArrayInterface<image_data>* textures;
+      
+      //std::mutex mutex;
     };
     
     // может ли быть совмещено с lights_deffered? скорее всего да

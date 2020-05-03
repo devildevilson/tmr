@@ -18,10 +18,14 @@ layout(set = 0, binding = 0) uniform Camera {
 layout(set = 1, binding = 0) uniform texture2DArray textures[imagesCount];
 layout(set = 1, binding = 1) uniform sampler samplers[samplersCount];
 
+struct instance_data_t {
+  mat4 matrix;
+  image_data t;
+  uint dummy[1];
+};
+
 layout(std430, set = 2, binding = 0) readonly buffer textures_data {
-  // x - imageIndex, y - imageLayer, z - samplerIndex, w - может быть материалом
-  //uvec4 texturesData[];
-  image_data texturesData[];
+  instance_data_t instances[];
 };
 
 // layout(location = 0) in flat uint inImageIndex;
@@ -41,12 +45,12 @@ vec2 packNormal(const vec3 normal) {
 void main() {
   //const uint index = floatBitsToUint(inNormal.w);
   const uint index = faceIndex;
-  const image img = texturesData[index].img;
+  const image img = instances[index].t.img;
   const uint imageIndex   = get_image_index(img); //texturesData[index].image.index;
   const uint imageLayer   = get_image_layer(img); //texturesData[index].image.layer;
   const uint samplerIndex = get_image_sampler(img); //texturesData[index].samplerIndex;
-  const float movementU   = texturesData[index].movementU;
-  const float movementV   = texturesData[index].movementV;
+  const float movementU   = instances[index].t.movementU;
+  const float movementV   = instances[index].t.movementV;
   // const float movementU   = 0.0f;
   // const float movementV   = 0.0f;
   const float mirroredU   = flip_u(img) ? -1.0f : 1.0f; //movementU >= 0.0f ? 1.0f : -1.0f;
