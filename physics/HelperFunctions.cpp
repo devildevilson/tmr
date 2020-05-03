@@ -23,7 +23,7 @@ void clipVelocity(const simd::vec4 &clipNormal, const float &bounce, simd::vec4 
 }
 
 simd::vec4 transform(const simd::vec4 &p, const simd::vec4 &translation, const simd::mat4 &orientation) {
-  return orientation * p + translation;
+  return orientation * (p + translation*simd::vec4(1.0f, 1.0f, 1.0f, 0.0f));
 }
 
 bool isNormalAdequate(const ArrayInterface<simd::vec4>* verts, const uint32_t &offset, const uint32_t &normalIndex, const simd::vec4 &normal) {
@@ -47,7 +47,8 @@ simd::vec4 getPolyPolyFace(const ArrayInterface<simd::vec4>* verts,
                           const uint32_t &firstFace,  const uint32_t &firstFaceSize,  const simd::mat4 &firstOrn,
                           const uint32_t &secondFace, const uint32_t &secondFaceSize, const simd::mat4 &secondOrn,
                           const uint32_t &index) {
-  const simd::vec4 &polyNormal1 = verts->at(firstFace+index);
+  //const simd::vec4 &polyNormal1 = verts->at(firstFace+index);
+  const simd::vec4 &polyNormal1 = verts->at(firstFace+(index%firstFaceSize));
   const simd::vec4 &polyNormal2 = verts->at(secondFace+(index%secondFaceSize));
   
   float arr1[4];

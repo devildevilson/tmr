@@ -349,8 +349,9 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
   if (freeObj != UINT32_MAX) {
     container->objectDataIndex = freeObj;
     staticPhysIndex = freeObj;
-
-    freeObj = objects[freeObj].objectId;
+    
+    //freeObj = objects[freeObj].objectId;
+    freeObj = objects[freeObj].proxyIndex;
   } else {
     container->objectDataIndex = objects.size();
     objects.vector().emplace_back();
@@ -412,6 +413,10 @@ void CPUPhysicsParallel::add(const PhysicsObjectCreateInfo &info, PhysicsIndexCo
 
   objects[container->objectDataIndex] = obj;
   ASSERT(staticPhysIndex != UINT32_MAX);
+  if (container->transformIndex == UINT32_MAX && info.type.getObjType() == BBOX_TYPE) {
+    PRINT(container->objectDataIndex);
+    throw std::runtime_error("wtf");
+  }
 
   const Constants c{
     info.groundFricion,
@@ -477,8 +482,11 @@ void CPUPhysicsParallel::remove(PhysicsIndexContainer* comp) {
 //   std::cout << "proxy index  " << objects[comp->objectDataIndex].proxyIndex << "\n";
 
   broad->destroyProxy(objects[comp->objectDataIndex].proxyIndex);
-
-  objects[comp->objectDataIndex].objectId = freeObj;
+  
+//   objects[comp->objectDataIndex].objectId = freeObj;
+//   freeObj = comp->objectDataIndex;
+  objects[comp->objectDataIndex].objectId = UINT32_MAX;
+  objects[comp->objectDataIndex].proxyIndex = freeObj;
   freeObj = comp->objectDataIndex;
   objects[comp->objectDataIndex].staticPhysicDataIndex = UINT32_MAX;
   objects[comp->objectDataIndex].transformIndex = UINT32_MAX;
@@ -636,7 +644,7 @@ void* CPUPhysicsParallel::getUserData(const uint32_t &objIndex) const {
 
 PhysicsIndexContainer* CPUPhysicsParallel::getIndexContainer(const uint32_t &objIndex) const {
   const Object &obj = objects[objIndex];
-//   std::cout << "components size " << components.size() << " mem " << components.data() << " objectId " << obj.objectId << "\n";
+  //std::cout << "components size " << components.size() << " mem " << components.data() << " objectId " << obj.objectId << " objIndex " << objIndex << "\n";
   if (obj.objectId == UINT32_MAX) return nullptr;
   return components[obj.objectId];
 }

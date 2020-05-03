@@ -340,12 +340,16 @@ void CPUSolverParallel::calculateData() {
   };
   
   std::atomic<size_t> new_count(dataIndices->data()->count);
-  submit_works(pool, glm::floatBitsToUint(pairs->at(0).dist), add_trigger);
+  const uint32_t trigger_pairs_count = glm::floatBitsToUint(pairs->at(0).dist);
+//   PRINT_VAR("trigger_pairs_count", trigger_pairs_count)
+  submit_works(pool, trigger_pairs_count, add_trigger);
   submit_works(pool, dataIndices->data()->count, prepare);
   submit_works(pool, counter, check_collision);
   submit_works(pool, counter, add_new, std::ref(new_count));
   submit_works(pool, dataIndices->data()->count, last_check);
+//   PRINT_VAR("dataIndices->data()->count", dataIndices->data()->count)
   dataIndices->data()->count = new_count;
+//   PRINT_VAR("dataIndices->data()->count", dataIndices->data()->count)
 
   //throw std::runtime_error("Not implemented yet");
 
@@ -595,6 +599,8 @@ void CPUSolverParallel::solve() {
       for (uint32_t j = 0; j < island.size; ++j) {
         const uint32_t pairIndex = island.offset + j + 1;
         const BroadphasePair &pair = staticPairs->at(pairIndex);
+        
+//         PRINT("pair "+std::to_string(pair.firstIndex)+" "+std::to_string(pair.secondIndex))
 
         const uint32_t objIndex2 = pair.secondIndex;
 
@@ -692,6 +698,8 @@ void CPUSolverParallel::solve() {
     if (staticPairs->at(0).firstIndex > 0) {
       const IslandAdditionalData* data = staticIslands->structure_from_begin<IslandAdditionalData>();
       const IslandData* islandsPtr = staticIslands->data_from<IslandAdditionalData>();
+      
+//       PRINT("static solver start")
 
       // и начинаем вычисление пар
       // сначала у нас идет параллельное вычисление статиков
@@ -715,6 +723,8 @@ void CPUSolverParallel::solve() {
 
       pool->compute();
       pool->wait();
+      
+//       PRINT("\n")
     }
 
     // а затем вычисление динамиков, которых мы разбили по уровням октодерева
@@ -997,10 +1007,22 @@ bool CPUSolverParallel::BoxPolySAT(const float &treshold, const Object &first,  
                           rotationDatas->at(second.rotationDataIndex).matrix * systems->at(second.coordinateSystemIndex);
   const simd::mat4 &invOrn = simd::inverse(orn);
 
-  simd::vec4 &localCenter = verts->at(vert + vertSize);
+  simd::vec4 localCenter = verts->at(vert + vertSize);
   localCenter = transform(localCenter, secondPos, orn);
 
-  const simd::vec4 &delta = firstPos - localCenter;
+  const simd::vec4 delta = firstPos - localCenter;
+  
+//   if (first.objectId == 0) {
+//     PRINT_VEC4("localCenter",localCenter)
+//     PRINT_VEC4("firstPos   ",firstPos)
+//     PRINT_VEC4("delta      ",delta)
+//   }
+  
+//   if (second.objectId == 0) {
+//     PRINT_VEC4("localCenter",localCenter)
+//     PRINT_VEC4("firstPos   ",firstPos)
+//     PRINT_VEC4("delta      ",delta)
+//   }
 
   for (uint32_t i = 0; i < faceSize+3; ++i) {
     const uint32_t index = i;
@@ -1013,7 +1035,7 @@ bool CPUSolverParallel::BoxPolySAT(const float &treshold, const Object &first,  
     if (!overlap(minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
   }
 
-  if (simd::dot(-simd::vec4(delta), mtv) > 0.0f) mtv = -mtv;
+  if (simd::dot(delta, mtv) < 0.0f) mtv = -mtv;
   (void)treshold;
 
   return true;
@@ -1077,7 +1099,7 @@ bool CPUSolverParallel::PolySphereSAT(const float &treshold, const Object &first
                                 rotationDatas->at(first.rotationDataIndex).matrix * systems->at(first.coordinateSystemIndex);
   const simd::mat4 &invOrn = simd::inverse(ornFirst);
 
-  simd::vec4 &localCenter = verts->at(vert + vertSize);
+  simd::vec4 localCenter = verts->at(vert + vertSize);
   localCenter = transform(localCenter, firstPos, ornFirst);
   const simd::vec4 &delta = localCenter - secondPos;
 
@@ -1137,10 +1159,10 @@ bool CPUSolverParallel::PolyPolySAT(const float &treshold, const Object &first, 
                                 rotationDatas->at(second.rotationDataIndex).matrix * systems->at(second.coordinateSystemIndex);
   const simd::mat4 &invOrnSecond = simd::inverse(ornSecond);
 
-  simd::vec4 &localCenter1 = verts->at(firstVert + firstVertSize);
+  simd::vec4 localCenter1 = verts->at(firstVert + firstVertSize);
   localCenter1 = transform(localCenter1, firstPos, ornFirst);
 
-  simd::vec4 &localCenter2 = verts->at(secondVert + secondVertSize);
+  simd::vec4 localCenter2 = verts->at(secondVert + secondVertSize);
   localCenter2 = transform(localCenter2, firstPos, ornSecond);
 
   const simd::vec4 &delta = localCenter1 - localCenter2;
@@ -1157,7 +1179,7 @@ bool CPUSolverParallel::PolyPolySAT(const float &treshold, const Object &first, 
     const uint32_t index = i;
     const simd::vec4 &axis = getPolyPolyFace(verts, firstFace, firstFaceSize, ornFirst, secondFace, secondFaceSize, ornSecond, index);
 
-    project(axis, firstVert, firstVertSize, firstPos, invOrnFirst, minSecond, maxSecond);
+    project(axis, firstVert, firstVertSize, firstPos, invOrnFirst, minFirst, maxFirst);
     project(axis, secondVert, secondVertSize, secondPos, invOrnSecond, minSecond, maxSecond);
 
 //     if (!overlap(treshold, minFirst, maxFirst, minSecond, maxSecond, axis, mtv, dist)) return false;
@@ -1557,7 +1579,26 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
                                
   const bool isOnGround[2]  = {physDataIndex[0] == UINT32_MAX ? false : bool(datas->at(physDataIndex[0]).onGroundBits & 0x1),
                                physDataIndex[1] == UINT32_MAX ? false : bool(datas->at(physDataIndex[1]).onGroundBits & 0x1)};
-    
+                               
+//   if (objIndex[0] == 5097) {
+//     PRINT_VEC4("complex obj mtv",data.mtvDist)
+//     PRINT_VEC4("obj transform  ",transforms->at(transformIndex[0]).pos)
+//   }
+//   
+//   if (objIndex[1] == 5097) {
+//     PRINT_VEC4("complex obj mtv",data.mtvDist)
+//     PRINT_VEC4("obj transform  ",transforms->at(transformIndex[1]).pos)
+//   }
+//   
+//   if (objIndex[0] == 0) {
+//     PRINT_VEC4("player  obj mtv",data.mtvDist)
+//     PRINT_VEC4("obj transform  ",transforms->at(transformIndex[0]).pos)
+//   }
+//   
+//   if (objIndex[1] == 0) {
+//     PRINT_VEC4("player  obj mtv",data.mtvDist)
+//     PRINT_VEC4("obj transform  ",transforms->at(transformIndex[1]).pos)
+//   }
                                
   float arr[4];
   data.mtvDist.storeu(arr);
@@ -1642,7 +1683,8 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
   divider += data.stairsMoves.z + data.stairsMoves.w;
   if (divider == 0) return;
 
-  const float move = data.mtvDist.w / float(divider);
+  //const float move = data.mtvDist.w / float(divider);
+  const float move = arr[3] / float(divider);
 
   //const float dt = MCS_TO_SEC(gravity->data()->time);
 
@@ -1733,6 +1775,26 @@ void CPUSolverParallel::applyChanges(const OverlappingDataForSolver &data) {
 
     //lastVelocities[physDataIndex[1]] = -(mtv * move) / dt;
   }
+  
+//   if (objIndex[0] == 5097) {
+//     PRINT_VEC4("complex obj mtv",data.mtvDist)
+//     PRINT_VEC4("obj transform  ",transforms->at(transformIndex[0]).pos)
+//   }
+//   
+//   if (objIndex[1] == 5097) {
+//     PRINT_VEC4("complex obj mtv",data.mtvDist)
+//     PRINT_VEC4("obj transform  ",transforms->at(transformIndex[1]).pos)
+//   }
+//   
+//   if (objIndex[0] == 0) {
+//     PRINT_VEC4("player  obj mtv",data.mtvDist)
+//     PRINT_VEC4("obj transform  ",transforms->at(transformIndex[0]).pos)
+//   }
+//   
+//   if (objIndex[1] == 0) {
+//     PRINT_VEC4("player  obj mtv",data.mtvDist)
+//     PRINT_VEC4("obj transform  ",transforms->at(transformIndex[1]).pos)
+//   }
 }
 
 // код взят: https://github.com/gszauer/GamePhysicsCookbook/blob/master/Code/Geometry3D.cpp

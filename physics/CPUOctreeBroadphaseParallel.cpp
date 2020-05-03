@@ -218,6 +218,9 @@ void CPUOctreeBroadphaseParallel::update() {
 //       if (objIndex == 3) std::cout << "objIndex " << objIndex << "\n";
 
       if (obj.objType.getObjType() == BBOX_TYPE) {
+        //PRINT_VAR("obj index ", objIndex)
+        //PRINT_VAR("obj id    ", obj.objectId)
+        ASSERT(obj.transformIndex != UINT32_MAX);
         const simd::vec4 &pos = transforms->at(obj.transformIndex).pos;
         const simd::vec4 &ext = verticies->at(obj.vertexOffset) * transforms->at(obj.transformIndex).scale;
         const simd::mat4 &orn = systems->at(obj.coordinateSystemIndex);
@@ -416,6 +419,9 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
     const FastAABB &secondBox = second->getAABB();
 
     if (testAABB(firstBox, secondBox)) {
+      
+//       PRINT("pair "+std::to_string(first->getObjectIndex())+" "+std::to_string(second->getObjectIndex()))
+      
       if (dynamicPair) {
         const uint32_t id = pairsCounter.fetch_add(1);
 
@@ -530,6 +536,8 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
   };
 
   // RegionLog rl("CPUOctreeBroadphaseParallel::calculateOverlappingPairs()");
+  
+//   PRINT("broadphase start")
 
   std::atomic<uint32_t> pairsCounter(0);
   std::atomic<uint32_t> staticPairsCounter(0);
@@ -548,6 +556,8 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
   pool->compute();
   pool->wait();
   
+//   PRINT("\n")
+  
   //throw std::runtime_error("no more");
 
   overlappingPairCache->at(0).firstIndex = pairsCounter;
@@ -559,6 +569,9 @@ void CPUOctreeBroadphaseParallel::calculateOverlappingPairs() {
   staticOverlappingPairCache->at(0).secondIndex = 0;
   staticOverlappingPairCache->at(0).dist = 0;
   staticOverlappingPairCache->at(0).islandIndex = 0;
+  
+//   PRINT_VAR("pairsCounter      ", pairsCounter)
+//   PRINT_VAR("staticPairsCounter", staticPairsCounter)
 
   // потом надо будет почекать как можно устроить параллельную сортировку на цпу
   // почекал сортировку, приводить к ближайшей степени двойки не нужно
