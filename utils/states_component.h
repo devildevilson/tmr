@@ -23,6 +23,8 @@ namespace devils_engine {
       
       uint32_t counter;
       
+      states();
+      states(yacs::entity* ent, const core::state_t* current);
       void set(const core::state_t* state);
       void update(const size_t &time);
     };

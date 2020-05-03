@@ -11,6 +11,9 @@
 
 namespace devils_engine {
   namespace components {
+    states::states() : current(nullptr), current_time(SIZE_MAX), accumulated_time(0), ent(nullptr), counter(0) {}
+    states::states(yacs::entity* ent, const core::state_t* current) : current(current), current_time(SIZE_MAX), accumulated_time(0), ent(ent), counter(0) {}
+    
     void states::set(const core::state_t* state) {
       //auto old = current;
       do {

@@ -89,7 +89,9 @@ namespace devils_engine {
     
     namespace wall {
       enum component_indices {
-        vertex = entity::count
+        vertex = entity::count,
+        decal_container,
+        
       };
     }
     
